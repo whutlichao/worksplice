@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* §4 马卡龙 × brutalist 视觉 token —— 仅亮色一档，不响应 prefers-color-scheme。 */
 @theme {
   --color-bg: var(--bg);
   --color-bg-panel: var(--bg-panel);
@@ -15,56 +16,65 @@
   --color-assistant-bg: var(--assistant-bg);
   --color-tool-bg: var(--tool-bg);
   --color-bg-subtle: var(--bg-subtle);
+  --color-cream: #fffaef;
+  --color-yellow: #ffd440;
+  --color-pink: #fe7da8;
+  --color-cyan: #27ccf3;
+  --color-orange: #f8a16f;
+  --color-lime: #a9d877;
+  --color-lavender: #bbafe6;
+  --color-coral: #f97264;
+  --color-ink: #141111;
+  --color-success: oklch(71.4% 0.176 153.079);
+  --color-warning: oklch(70% 0.202 44.441);
+  --color-stone: #c9c7c2;
+
+  /* §4.3 字体（变量由 app/layout.tsx 的 next/font 注入） */
+  --font-sans: var(--font-space-grotesk), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", -apple-system, sans-serif;
+  --font-display: var(--font-hanken-grotesk), var(--font-space-grotesk),
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-space-mono), "JetBrains Mono", "Fira Code",
+    "Consolas", ui-monospace, "PingFang SC", monospace;
+
+  /* §4.2 硬偏移阴影阶梯（无模糊） */
+  --shadow-sm: 2px 2px 0 0 var(--ink);
+  --shadow-md: 4px 4px 0 0 var(--ink);
+  --shadow-lg: 6px 6px 0 0 var(--ink);
+  --shadow-pressed: 1px 1px 0 0 var(--ink);
+
   --font-mono-font: var(--font-mono);
 }
 
+/* §4.1 色板 */
 :root {
-  --bg: #ffffff;
-  --bg-panel: #f5f5f5;
-  --bg-hover: #eeeeee;
-  --bg-selected: #e8e8e8;
-  --border: #e0e0e0;
-  --text: #1a1a1a;
-  --text-muted: #6b7280;
-  --text-dim: #9ca3af;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --user-bg: #eff6ff;
+  --cream: #fffaef;
+  --yellow: #ffd440;
+  --pink: #fe7da8;
+  --cyan: #27ccf3;
+  --orange: #f8a16f;
+  --lime: #a9d877;
+  --lavender: #bbafe6;
+  --coral: #f97264;
+  --ink: #141111;
+  --success: oklch(71.4% 0.176 153.079);
+  --warning: oklch(70% 0.202 44.441);
+  --stone: #c9c7c2;
+
+  --bg: var(--cream);
+  --bg-panel: #fffdf5;
+  --bg-hover: #f5edd9;
+  --bg-selected: var(--yellow);
+  --border: var(--ink);
+  --text: var(--ink);
+  --text-muted: #6f6a5e;
+  --text-dim: #a39d8d;
+  --accent: var(--pink);
+  --accent-hover: #f56293;
+  --user-bg: #ffffff;
   --assistant-bg: #ffffff;
-  --tool-bg: #f9fafb;
-  --bg-subtle: rgba(0,0,0,0.03);
-}
-
-html.dark {
-  --bg: #1a1a1a;
-  --bg-panel: #242424;
-  --bg-hover: #2e2e2e;
-  --bg-selected: #383838;
-  --border: #3a3a3a;
-  --text: #e8e8e8;
-  --text-muted: #9ca3af;
-  --text-dim: #6b7280;
-  --accent: #60a5fa;
-  --accent-hover: #93c5fd;
-  --user-bg: #1e293b;
-  --assistant-bg: #1a1a1a;
-  --tool-bg: #1f2937;
-  --bg-subtle: rgba(255,255,255,0.04);
-}
-
-/* Theme toggle: circular wipe via View Transitions API.
-   Disable the UA cross-fade; the actual clip-path animation is driven by
-   Element.animate() in hooks/useTheme.ts after transition.ready resolves. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-::view-transition-old(root) {
-  z-index: 1;
-}
-::view-transition-new(root) {
-  z-index: 2;
+  --tool-bg: #fbf4e2;
+  --bg-subtle: rgba(20, 17, 17, 0.04);
 }
 
 * {
@@ -81,7 +91,7 @@ html, body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-space-grotesk), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
   overscroll-behavior: none;
 }
@@ -89,6 +99,11 @@ html, body {
 body {
   display: flex;
   flex-direction: column;
+}
+
+/* 全局 0 圆角（§4.2） */
+* {
+  border-radius: 0 !important;
 }
 
 ::-webkit-scrollbar {
@@ -107,11 +122,24 @@ body {
 }
 
 :root {
-  --font-mono: var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
+  --font-mono: var(--font-space-mono), "JetBrains Mono", "Fira Code", "Consolas", ui-monospace, "PingFang SC", "Microsoft YaHei", monospace;
+  --font-grotesk: var(--font-space-grotesk), -apple-system, "PingFang SC", sans-serif;
+  --font-hanken: var(--font-hanken-grotesk), var(--font-space-grotesk), "PingFang SC", sans-serif;
 }
 
 pre, code {
   font-family: var(--font-mono);
+}
+
+/* §4.4 像素头像 */
+.pixelated {
+  image-rendering: pixelated;
+}
+
+/* §3.6 状态点：黄脉冲（正在干活） */
+@keyframes ws-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 /* react-markdown output styles */
@@ -852,203 +880,139 @@ span.linenumber {
   to   { stroke-dashoffset: 0;  opacity: 1; }
 }
 
-/* Keep the panel border as the idle separator; this element only expands the hit target. */
-.panel-resize-handle {
+/* ==========================================================================
+   三栏骨架（§3.1）：左 channels+agents / 中央 channel 消息流+Tasks / 右 agent 详情
+   ========================================================================== */
+
+.ws-shell {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.ws-left {
+  display: flex;
+  flex-direction: column;
+  width: 236px;
+  flex-shrink: 0;
+  border-right: 2px solid var(--ink);
+  background: var(--bg);
+}
+
+.ws-center {
   position: relative;
-  z-index: 220;
-  width: 12px;
-  margin: 0 -6px;
-  flex: 0 0 12px;
-  cursor: col-resize;
-  touch-action: none;
-  outline: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
 }
-.panel-resize-handle::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 5px;
-  width: 2px;
-  pointer-events: none;
-  background: transparent;
-  transition: background 0.12s ease;
+
+.ws-right {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 2px solid var(--ink);
+  background: var(--bg-panel);
 }
-.panel-resize-handle:hover::after,
-.panel-resize-handle:focus-visible::after,
-.panel-resize-handle.is-resizing::after {
-  background: color-mix(in srgb, var(--text-muted) 70%, var(--border));
-}
-.right-panel-overlay-backdrop {
+
+.ws-backdrop {
   display: none;
 }
 
-/* Desktop sidebar: animate width */
-@media (min-width: 641px) {
-  .sidebar-overlay-backdrop {
-    display: none !important;
-  }
-  .sidebar-container {
-    position: relative;
-    overflow: hidden;
-    transition: width 0.2s ease, min-width 0.2s ease;
-  }
-  .sidebar-container.sidebar-open {
-    width: var(--sidebar-width, 260px);
-    min-width: var(--sidebar-width, 260px);
-  }
-  .sidebar-container.sidebar-closed {
-    width: 0;
-    min-width: 0;
-    border-right: none !important;
-  }
-  /* keep inner content at fixed width so it doesn't reflow during animation */
-  .sidebar-container > * {
-    width: var(--sidebar-width, 260px);
-    min-width: var(--sidebar-width, 260px);
-  }
-  .sidebar-container.sidebar-resizing,
-  .sidebar-container.sidebar-resizing > * {
-    transition: none !important;
-  }
+/* 移动端汉堡按钮（仅 <960px 显示） */
+.ws-mobile-toggle {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: #ffffff;
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 0 rgba(20, 17, 17, 0.45);
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
 }
 
-/* Wide desktop file panel: participate in the split layout. */
-@media (min-width: 960px) {
-  .right-panel-container {
-    overflow: hidden;
-    transition: width 0.2s ease, min-width 0.2s ease;
-    flex-shrink: 0;
-  }
-  .right-panel-container.right-panel-open {
-    width: var(--right-panel-width, clamp(360px, 42vw, 640px));
-    min-width: 300px;
-  }
-  .right-panel-container.right-panel-closed {
-    width: 0;
-    min-width: 0;
-    border-left: none !important;
-  }
-  /* keep inner content at fixed width so it doesn't reflow during animation */
-  .right-panel-container > * {
-    width: var(--right-panel-width, clamp(360px, 42vw, 640px));
-    min-width: 300px;
-  }
-  .right-panel-container.right-panel-resizing,
-  .right-panel-container.right-panel-resizing > * {
-    transition: none !important;
-  }
+.ws-sidebar-close {
+  display: none;
 }
 
-/* Compact desktop file panel: overlay the chat instead of collapsing it. */
-@media (min-width: 641px) and (max-width: 959px) {
-  .right-panel-resize-handle {
-    display: none;
-  }
-  .right-panel-overlay-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 240;
-    display: block;
-    background: rgba(0, 0, 0, 0.24);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
-  .right-panel-overlay-backdrop.is-open {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .right-panel-container {
-    position: fixed;
-    top: 0;
-    right: env(safe-area-inset-right);
-    bottom: 0;
-    z-index: 250;
-    width: min(560px, calc(100vw - 48px));
-    min-width: 300px;
-    overflow: hidden;
-    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
-    transition: transform 0.2s ease;
-  }
-  .right-panel-container.right-panel-open {
-    transform: translateX(0);
-  }
-  .right-panel-container.right-panel-closed {
-    transform: translateX(100%);
-    pointer-events: none;
-  }
-  .right-panel-container > * {
-    width: 100%;
-    min-width: 0;
-  }
+.ws-center-header {
+  padding-left: 16px;
 }
 
-/* Mobile sidebar: slide in/out as overlay */
 @media (max-width: 640px) {
-  .chat-stats-center {
-    display: none !important;
-  }
-  .sidebar-container {
-    position: fixed !important;
-    top: 0;
-    left: env(safe-area-inset-left);
-    bottom: 0;
-    width: 280px;
-    max-width: 85vw;
-    height: var(--app-viewport-height, 100dvh);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-  }
-  .sidebar-container.sidebar-open {
-    transform: translateX(0);
-    box-shadow: 4px 0 20px rgba(0,0,0,0.15);
-  }
-  .sidebar-container.sidebar-closed {
-    transform: translateX(calc(-100% - env(safe-area-inset-left)));
-    box-shadow: none;
-  }
-
-  .right-panel-container {
-    position: fixed;
-    inset: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
-    height: var(--app-viewport-height, 100dvh);
-    z-index: 250;
-    overflow: hidden;
-    transition: transform 0.2s ease;
-  }
-  .right-panel-container.right-panel-open {
-    width: auto;
-    min-width: 0;
-  }
-  .right-panel-container.right-panel-closed {
-    width: 0 !important;
-    min-width: 0 !important;
-    border-left: none !important;
-    display: none !important;
-  }
-  .right-panel-container > * {
-    width: 100%;
-    min-width: 0;
-  }
-  .panel-resize-handle,
-  .right-panel-overlay-backdrop {
-    display: none;
-  }
-  .directory-picker-back,
-  .directory-picker-entry,
-  .directory-picker-action {
-    min-height: 44px !important;
-  }
-  .directory-picker-back {
-    min-width: 44px !important;
-  }
-  .directory-picker-footer {
-    flex-wrap: wrap;
-    padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
-  }
   textarea,
   input,
   select {
     font-size: 16px !important;
+  }
+}
+
+/* 紧凑/移动端（<960px）：两栏变滑入式浮层 */
+@media (max-width: 960px) {
+  .ws-left {
+    position: fixed;
+    top: env(safe-area-inset-top);
+    bottom: 0;
+    left: env(safe-area-inset-left);
+    z-index: 500;
+    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    transform: translateX(calc(-100% - 24px));
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .ws-left.ws-left-open {
+    transform: translateX(0);
+    box-shadow: 6px 0 0 0 rgba(20, 17, 17, 0.35);
+  }
+
+  .ws-right {
+    position: fixed;
+    top: env(safe-area-inset-top);
+    right: env(safe-area-inset-right);
+    bottom: 0;
+    z-index: 500;
+    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    width: min(320px, 86vw);
+    transform: translateX(calc(100% + 24px));
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .ws-right.ws-right-open {
+    transform: translateX(0);
+    box-shadow: -6px 0 0 0 rgba(20, 17, 17, 0.35);
+  }
+
+  .ws-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 490;
+    background: rgba(20, 17, 17, 0.35);
+  }
+
+  .ws-mobile-toggle {
+    display: flex;
+  }
+
+  .ws-sidebar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ws-center-header {
+    padding-left: 52px !important;
   }
 }

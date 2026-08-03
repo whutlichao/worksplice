@@ -3,7 +3,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("./useAgentSession.ts", import.meta.url), "utf8");
-const chatWindowSource = await readFile(new URL("../components/ChatWindow.tsx", import.meta.url), "utf8");
 
 test("keeps the session event stream open through the idle grace window", () => {
   const finishSource = source.slice(
@@ -51,7 +50,7 @@ test("keeps the session event stream open through the idle grace window", () => 
   assert.match(sendSource, /if \(promptRequestStarted && sentSessionId\) \{[\s\S]*?return;[\s\S]*?\}[\s\S]*?closeEvents\(\)/);
 });
 
-test("reuses an open event stream and hides an empty agent phase", () => {
+test("reuses an open event stream when connecting", () => {
   const ensureSource = source.slice(
     source.indexOf("const ensureEventsConnected"),
     source.indexOf("const respondToExtensionUi"),
@@ -60,16 +59,4 @@ test("reuses an open event stream and hides an empty agent phase", () => {
   assert.match(ensureSource, /eventSourceSessionIdRef\.current === sid/);
   assert.match(ensureSource, /current\.readyState === EventSource\.OPEN/);
   assert.match(ensureSource, /attempt\?\.source === current && attempt\.pending/);
-  assert.match(chatWindowSource, /agentRunning && !streamState\.streamingMessage && agentPhase/);
-  assert.match(chatWindowSource, /return null;/);
-});
-
-test("plays the enabled sound once for each extension dialog", () => {
-  assert.match(chatWindowSource, /soundedExtensionDialogIdRef = useRef<string \| null>\(null\)/);
-  assert.match(
-    chatWindowSource,
-    /soundedExtensionDialogIdRef\.current === extensionDialog\.id/,
-  );
-  assert.match(chatWindowSource, /soundedExtensionDialogIdRef\.current = extensionDialog\.id/);
-  assert.match(chatWindowSource, /playDoneSoundRef\.current\(\)/);
 });

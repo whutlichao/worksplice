@@ -1,18 +1,32 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_Mono } from "next/font/google";
+import { Space_Grotesk, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
-const notoSansMono = Noto_Sans_Mono({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-noto-mono",
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
+const hankenGrotesk = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "700", "800"],
+  variable: "--font-hanken-grotesk",
+  display: "swap",
+});
+
+const spaceMono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "worksplice",
-  description: "worksplice interface for the pi coding agent",
+  description: "worksplice — local workspace for collaborating with persistent pi coding agents",
   applicationName: "worksplice",
   manifest: "/manifest.webmanifest",
   icons: {
@@ -33,7 +47,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "worksplice",
   },
   formatDetection: {
@@ -46,10 +60,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1a1a" },
-  ],
+  themeColor: "#fffaef",
 };
 
 export default function RootLayout({
@@ -58,14 +69,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" translate="no" className={`${notoSansMono.variable} notranslate`} suppressHydrationWarning>
+    <html
+      lang="en"
+      translate="no"
+      className={`${spaceGrotesk.variable} ${hankenGrotesk.variable} ${spaceMono.variable} notranslate`}
+      suppressHydrationWarning
+    >
       <head>
         <meta name="google" content="notranslate" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("worksplice-theme");if(t==="dark")document.documentElement.classList.add("dark")}catch(e){}})();`,
-          }}
-        />
       </head>
       <body translate="no" className="notranslate">
         {children}

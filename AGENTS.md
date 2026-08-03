@@ -1,5 +1,7 @@
 # worksplice - Development Notes
 
+## 
+使用中文进行交流。
 ## Quick Start
 
 ```bash
