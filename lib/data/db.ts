@@ -31,6 +31,12 @@ export interface MemberRow {
   created_at: string;
 }
 
+export interface ChannelMemberRow {
+  channel_id: string;
+  member_id: string;
+  joined_at: string;
+}
+
 export interface MessageRow {
   id: string;
   target_id: string;
@@ -193,6 +199,63 @@ export class RaftStore {
       )
       .run(row.id, row.name, row.type, row.description, row.archived, row.created_at);
     return row;
+  }
+
+  setChannelArchived(id: string, archived: number): void {
+    this.db.prepare("UPDATE channels SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
+  }
+
+  listChannelMembers(channelId: string): ChannelMemberRow[] {
+    return this.db
+      .prepare("SELECT * FROM channel_members WHERE channel_id = ? ORDER BY joined_at, member_id")
+      .all(channelId) as ChannelMemberRow[];
+  }
+
+  isChannelMember(channelId: string, memberId: string): boolean {
+    const row = this.db
+      .prepare("SELECT 1 AS hit FROM channel_members WHERE channel_id = ? AND member_id = ?")
+      .get(channelId, memberId) as { hit: number } | undefined;
+    return row !== undefined;
+  }
+
+  addChannelMember(channelId: string, memberId: string): void {
+    this.db
+      .prepare(
+        "INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at) VALUES (?, ?, ?)",
+      )
+      .run(channelId, memberId, new Date().toISOString());
+  }
+
+  removeChannelMember(channelId: string, memberId: string): void {
+    this.db
+      .prepare("DELETE FROM channel_members WHERE channel_id = ? AND member_id = ?")
+      .run(channelId, memberId);
+  }
+
+  /** 游标分页：返回 seq < beforeSeq 的最近 limit 条，DESC 序（倒序页；latest 页传 undefined）。 */
+  listMessagesBefore(targetId: string, beforeSeq: number | undefined, limit: number): MessageRow[] {
+    if (beforeSeq === undefined) {
+      return this.db
+        .prepare("SELECT * FROM messages WHERE target_id = ? ORDER BY seq DESC LIMIT ?")
+        .all(targetId, limit) as MessageRow[];
+    }
+    return this.db
+      .prepare("SELECT * FROM messages WHERE target_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?")
+      .all(targetId, beforeSeq, limit) as MessageRow[];
+  }
+
+  hasMessagesBefore(targetId: string, seq: number): boolean {
+    const row = this.db
+      .prepare("SELECT 1 AS hit FROM messages WHERE target_id = ? AND seq < ? LIMIT 1")
+      .get(targetId, seq) as { hit: number } | undefined;
+    return row !== undefined;
+  }
+
+  /** seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。 */
+  listMessagesAfter(targetId: string, afterSeq: number): MessageRow[] {
+    return this.db
+      .prepare("SELECT * FROM messages WHERE target_id = ? AND seq > ? ORDER BY seq")
+      .all(targetId, afterSeq) as MessageRow[];
   }
 
   listMembers(): MemberRow[] {

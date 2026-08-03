@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
+import { PixelAvatar } from "./PixelAvatar";
+import type { MemberRow } from "@/lib/data/db";
 
 const INK = "#141111";
 
@@ -29,9 +31,11 @@ const LABEL_STYLE: React.CSSProperties = {
 };
 
 export function CreateChannelModal({
+  agents,
   onClose,
   onCreated,
 }: {
+  agents: MemberRow[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -39,10 +43,15 @@ export function CreateChannelModal({
   const [name, setName] = useState("");
   const [type, setType] = useState<"public" | "private">("public");
   const [description, setDescription] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = name.trim().length > 0 && !busy;
+
+  const toggleMember = (id: string) => {
+    setMemberIds((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
+  };
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -52,7 +61,12 @@ export function CreateChannelModal({
       const res = await fetch("/api/channels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), type, description: description.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          type,
+          description: description.trim(),
+          memberIds,
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? "Failed to create channel");
@@ -116,6 +130,61 @@ export function CreateChannelModal({
           rows={2}
           style={{ ...FIELD_STYLE, resize: "vertical" }}
         />
+
+        {agents.length > 0 && (
+          <>
+            <div style={LABEL_STYLE}>{t("channel.initialMembers")}</div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                maxHeight: 180,
+                overflowY: "auto",
+              }}
+            >
+              {agents.map((agent) => {
+                const selected = memberIds.includes(agent.id);
+                return (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => toggleMember(agent.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 8px",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontFamily: "var(--font-space-grotesk)",
+                      fontSize: 13,
+                      fontWeight: selected ? 700 : 500,
+                      color: "var(--text)",
+                      background: selected ? "var(--yellow)" : "#ffffff",
+                      border: `2px solid ${INK}`,
+                      boxShadow: selected ? "2px 2px 0 0 rgba(20, 17, 17, 0.4)" : "none",
+                    }}
+                  >
+                    <PixelAvatar seed={agent.id} name={agent.name} size={28} />
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {agent.name}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-space-mono)",
+                        fontSize: 11,
+                        color: selected ? "var(--text)" : "var(--text-dim)",
+                      }}
+                    >
+                      {selected ? "✓" : "+"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {error && (
           <div style={{ marginTop: 10, color: "var(--coral)", fontSize: 12 }}>{error}</div>

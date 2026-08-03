@@ -1,5 +1,6 @@
 import { getDb } from "./db-singleton.ts";
 import type { MemberRow } from "../data/db.ts";
+import { BUILTIN_CHANNEL_ID } from "../data/schema.ts";
 
 /** 左栏 agent 成员列表（§3.1）：只列 agent 类型成员。 */
 export function listAgents(): MemberRow[] {
@@ -20,7 +21,7 @@ export function createAgent(input: {
   const name = input.name.trim();
   if (!name) throw new Error("Agent name is required");
   if (name.length > 32) throw new Error("Agent name must be 32 characters or fewer");
-  return getDb().insertMember({
+  const agent = getDb().insertMember({
     type: "agent",
     name,
     description: (input.description ?? "").trim(),
@@ -28,4 +29,7 @@ export function createAgent(input: {
     workspacePath: input.workspacePath ?? null,
     status: "offline",
   });
+  // #all 全员自动加入（§3.2）
+  getDb().addChannelMember(BUILTIN_CHANNEL_ID, agent.id);
+  return agent;
 }

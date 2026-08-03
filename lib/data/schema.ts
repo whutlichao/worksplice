@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -13,6 +13,12 @@ const SCHEMA_STATEMENTS: string[] = [
     description TEXT NOT NULL DEFAULT '',
     archived INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS channel_members (
+    channel_id TEXT NOT NULL REFERENCES channels(id),
+    member_id TEXT NOT NULL REFERENCES members(id),
+    joined_at TEXT NOT NULL,
+    PRIMARY KEY (channel_id, member_id)
   )`,
   `CREATE TABLE IF NOT EXISTS members (
     id TEXT PRIMARY KEY,
@@ -126,4 +132,9 @@ function seed(db: Database.Database): void {
     `INSERT OR IGNORE INTO members (id, type, name, description, role, status, created_at)
      VALUES (?, 'human', 'Owner', 'Worksplice owner', 'owner', 'online', ?)`,
   ).run(OWNER_MEMBER_ID, createdAt);
+  // #all 全员自动加入（§3.2）：迁移时补齐既有成员，新成员由服务层在创建时加入。
+  db.prepare(
+    `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
+     SELECT ?, id, ? FROM members`,
+  ).run(BUILTIN_CHANNEL_ID, createdAt);
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { listChannels, createChannel } from "@/lib/raft/channels";
+import { listChannelsWithMeta, createChannel, CURRENT_MEMBER_ID } from "@/lib/raft/channels";
 
 export async function GET() {
   try {
-    return NextResponse.json({ channels: listChannels() });
+    return NextResponse.json({ channels: listChannelsWithMeta(CURRENT_MEMBER_ID) });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
@@ -15,11 +15,15 @@ export async function POST(request: Request) {
       name?: unknown;
       type?: unknown;
       description?: unknown;
+      memberIds?: unknown;
     };
     const channel = createChannel({
       name: typeof body.name === "string" ? body.name : "",
       type: body.type === "private" ? "private" : "public",
       description: typeof body.description === "string" ? body.description : "",
+      memberIds: Array.isArray(body.memberIds)
+        ? body.memberIds.filter((m): m is string => typeof m === "string")
+        : undefined,
     });
     return NextResponse.json({ channel }, { status: 201 });
   } catch (error) {

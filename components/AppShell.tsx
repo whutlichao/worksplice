@@ -4,14 +4,27 @@ import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useViewportHeight } from "@/hooks/useViewportHeight";
 import { WorkspaceSidebar, type SidebarSelection } from "./WorkspaceSidebar";
-import { ChannelView, type CenterTab } from "./ChannelView";
+import { ChannelView, type CenterTab, type ChannelWithMeta } from "./ChannelView";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateAgentModal } from "./CreateAgentModal";
 import { ModelsConfig } from "./ModelsConfig";
-import type { ChannelRow, MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/db";
+import { OWNER_MEMBER_ID } from "@/lib/data/schema";
 
 const INK = "#141111";
+
+/** 深链格式（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` */
+function parseDeepLink(): { channelId: string; messageId?: string } | null {
+  try {
+    const raw = window.location.hash;
+    const match = /^#c\/([^?]+)(?:\?m=(.+))?$/.exec(raw);
+    if (!match) return null;
+    return { channelId: decodeURIComponent(match[1]), messageId: match[2] ? decodeURIComponent(match[2]) : undefined };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 三栏骨架（spec §3.1）：
@@ -22,7 +35,7 @@ export function AppShell() {
   const { t } = useI18n();
   useViewportHeight();
 
-  const [channels, setChannels] = useState<ChannelRow[]>([]);
+  const [channels, setChannels] = useState<ChannelWithMeta[]>([]);
   const [agents, setAgents] = useState<MemberRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -30,6 +43,7 @@ export function AppShell() {
   const [selected, setSelected] = useState<SidebarSelection>(null);
   const [centerTab, setCenterTab] = useState<CenterTab>("messages");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
 
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
@@ -39,7 +53,7 @@ export function AppShell() {
     void Promise.all([
       fetch("/api/channels").then(async (r) => {
         if (!r.ok) throw new Error(`GET /api/channels: ${r.status}`);
-        const body = (await r.json()) as { channels?: ChannelRow[] };
+        const body = (await r.json()) as { channels?: ChannelWithMeta[] };
         return body.channels ?? [];
       }),
       fetch("/api/members").then(async (r) => {
@@ -60,6 +74,21 @@ export function AppShell() {
     load();
   }, [load, refreshKey]);
 
+  // 深链（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` → 选中 channel 并定位消息
+  useEffect(() => {
+    const applyDeepLink = () => {
+      const link = parseDeepLink();
+      if (!link) return;
+      setSelected({ kind: "channel", id: link.channelId });
+      setCenterTab("messages");
+      setFocusMessageId(link.messageId ?? null);
+      setSidebarOpen(false);
+    };
+    applyDeepLink();
+    window.addEventListener("hashchange", applyDeepLink);
+    return () => window.removeEventListener("hashchange", applyDeepLink);
+  }, []);
+
   // 默认选中 #all（内建频道）
   useEffect(() => {
     if (selected) return;
@@ -76,6 +105,7 @@ export function AppShell() {
 
   const handleSelect = (next: SidebarSelection) => {
     setSelected(next);
+    setFocusMessageId(null);
     if (next?.kind === "channel") setCenterTab("messages");
     setSidebarOpen(false);
   };
@@ -117,7 +147,14 @@ export function AppShell() {
         >
           ☰
         </button>
-        <ChannelView channel={selectedChannel} tab={centerTab} onTabChange={setCenterTab} />
+        <ChannelView
+          channel={selectedChannel}
+          tab={centerTab}
+          onTabChange={setCenterTab}
+          currentMemberId={OWNER_MEMBER_ID}
+          onChannelChanged={load}
+          focusMessageId={focusMessageId}
+        />
       </div>
 
       {/* 右栏（可选）：agent 详情面板；桌面常驻，紧凑端滑入 */}
@@ -177,6 +214,7 @@ export function AppShell() {
 
       {createChannelOpen && (
         <CreateChannelModal
+          agents={agents}
           onClose={() => setCreateChannelOpen(false)}
           onCreated={() => {
             setCreateChannelOpen(false);
