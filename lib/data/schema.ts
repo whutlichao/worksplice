@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -29,6 +29,7 @@ const SCHEMA_STATEMENTS: string[] = [
     workspace_path TEXT,
     pi_session_file TEXT,
     status TEXT NOT NULL DEFAULT 'offline' CHECK (status IN ('online', 'working', 'error', 'offline')),
+    deleted INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS messages (
@@ -117,9 +118,21 @@ export function runMigrations(db: Database.Database): void {
     for (const statement of SCHEMA_STATEMENTS) {
       db.exec(statement);
     }
+    migrateMembersDeletedColumn(db);
     seed(db);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
+}
+
+/**
+ * v3: members 增加 soft-delete 列（删除身份保留行，历史消息外键与渲染不变）。
+ * 老库无此列时 ALTER 补上；新库 CREATE TABLE 已带该列。
+ */
+function migrateMembersDeletedColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === "deleted")) {
+    db.exec("ALTER TABLE members ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
+  }
 }
 
 function seed(db: Database.Database): void {

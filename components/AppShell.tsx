@@ -74,6 +74,42 @@ export function AppShell() {
     load();
   }, [load, refreshKey]);
 
+  // agent 状态点实时流（§3.6）：SSE 推送 { memberId: status } 快照，合并进列表
+  useEffect(() => {
+    let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = () => {
+      const source = new EventSource("/api/members/events");
+      source.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data) as { statuses?: Record<string, MemberRow["status"]> };
+          if (!payload.statuses) return;
+          setAgents((prev) =>
+            prev.map((agent) => {
+              const status = payload.statuses![agent.id];
+              return status && status !== agent.status ? { ...agent, status } : agent;
+            }),
+          );
+        } catch {
+          // 忽略非 JSON 帧（心跳）
+        }
+      };
+      source.onerror = () => {
+        source.close();
+        if (!disposed) retryTimer = setTimeout(connect, 5000);
+      };
+      return source;
+    };
+
+    const source = connect();
+    return () => {
+      disposed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      source.close();
+    };
+  }, []);
+
   // 深链（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` → 选中 channel 并定位消息
   useEffect(() => {
     const applyDeepLink = () => {
@@ -160,7 +196,11 @@ export function AppShell() {
       {/* 右栏（可选）：agent 详情面板；桌面常驻，紧凑端滑入 */}
       <aside className={`ws-right${selectedAgent ? " ws-right-open" : ""}`}>
         {selectedAgent ? (
-          <AgentDetailPanel agent={selectedAgent} onClose={() => setSelected(null)} />
+          <AgentDetailPanel
+            agent={selectedAgent}
+            onClose={() => setSelected(null)}
+            onChanged={() => setRefreshKey((k) => k + 1)}
+          />
         ) : (
           <div
             style={{

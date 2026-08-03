@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { ensureDataDir, resolveDataDir, type DataPaths } from "./dirs.ts";
-import { runMigrations } from "./schema.ts";
+import { runMigrations, SCHEMA_VERSION } from "./schema.ts";
 
 export type ChannelType = "public" | "private";
 export type MemberType = "human" | "agent";
@@ -28,6 +28,7 @@ export interface MemberRow {
   workspace_path: string | null;
   pi_session_file: string | null;
   status: MemberStatus;
+  deleted: number;
   created_at: string;
 }
 
@@ -260,10 +261,11 @@ export class RaftStore {
 
   listMembers(): MemberRow[] {
     return this.db
-      .prepare("SELECT * FROM members ORDER BY created_at, id")
+      .prepare("SELECT * FROM members WHERE deleted = 0 ORDER BY created_at, id")
       .all() as MemberRow[];
   }
 
+  /** 原始行查询（含 soft-deleted）：消息作者渲染与历史保留需要（§3.6）。 */
   getMember(id: string): MemberRow | undefined {
     return this.db.prepare("SELECT * FROM members WHERE id = ?").get(id) as
       | MemberRow
@@ -290,12 +292,13 @@ export class RaftStore {
       workspace_path: input.workspacePath ?? null,
       pi_session_file: input.piSessionFile ?? null,
       status: input.status ?? "offline",
+      deleted: 0,
       created_at: input.createdAt ?? new Date().toISOString(),
     };
     this.db
       .prepare(
-        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -306,6 +309,7 @@ export class RaftStore {
         row.workspace_path,
         row.pi_session_file,
         row.status,
+        row.deleted,
         row.created_at,
       );
     return row;
@@ -319,6 +323,36 @@ export class RaftStore {
     this.db
       .prepare("UPDATE members SET workspace_path = ?, pi_session_file = ? WHERE id = ?")
       .run(workspacePath, piSessionFile, id);
+  }
+
+  /** 更换/清理 workspace 绑定：旧 session 文件路径一并清空（§3.6 换目录即换会话）。 */
+  updateMemberWorkspace(id: string, workspacePath: string): void {
+    this.db
+      .prepare("UPDATE members SET workspace_path = ?, pi_session_file = NULL WHERE id = ?")
+      .run(workspacePath, id);
+  }
+
+  setMemberPiSessionFile(id: string, piSessionFile: string | null): void {
+    this.db
+      .prepare("UPDATE members SET pi_session_file = ? WHERE id = ?")
+      .run(piSessionFile, id);
+  }
+
+  setMemberDeleted(id: string, deleted: number): void {
+    this.db.prepare("UPDATE members SET deleted = ? WHERE id = ?").run(deleted ? 1 : 0, id);
+  }
+
+  /** 删除身份：认领消失（§3.6），任务回到未认领池。 */
+  clearTaskOwners(memberId: string): void {
+    this.db.prepare("UPDATE tasks SET owner_id = NULL WHERE owner_id = ?").run(memberId);
+  }
+
+  clearConsumedSeqsForAgent(agentId: string): void {
+    this.db.prepare("DELETE FROM consumed_seqs WHERE agent_id = ?").run(agentId);
+  }
+
+  removeMemberFromAllChannels(memberId: string): void {
+    this.db.prepare("DELETE FROM channel_members WHERE member_id = ?").run(memberId);
   }
 
   listMessages(targetId: string): MessageRow[] {
@@ -564,6 +598,13 @@ export class RaftStore {
   }
 }
 
+declare global {
+  var __workspliceDbOpenedVersion: number | undefined;
+}
+
+/** 打开即记录打开时的 schema 版本：getDb() 据此识别热重载后的旧原型实例。 */
 export function openDataDb(dataDir?: string): RaftStore {
-  return RaftStore.open(dataDir);
+  const store = RaftStore.open(dataDir);
+  globalThis.__workspliceDbOpenedVersion = SCHEMA_VERSION;
+  return store;
 }

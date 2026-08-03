@@ -79,20 +79,31 @@ app/api/
   messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）
   messages/[id]/route.ts          GET single message w/ author
   messages/[id]/thread/route.ts   GET thread（锚点归一化）
+  members/route.ts                GET agent 列表 | POST 创建 agent（name/description/workspacePath）
+  members/[id]/route.ts           GET 单个 agent | DELETE 删除身份（§3.6，soft-delete）
+  members/[id]/workspace/route.ts POST { workspacePath } — 更换绑定目录（换目录即换会话）
+  members/[id]/restart/route.ts   POST Restart（沿用 session 重启运行时）
+  members/[id]/session-reset/route.ts POST 清会话上下文（workspace 保留）
+  members/[id]/full-reset/route.ts   POST 会话 + workspace 内容全清
+  members/events/route.ts         GET SSE — 状态点快照流（§3.6 四态）
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
   channels.ts                     create/join/leave/archive/members + CURRENT_MEMBER_ID（恒为 owner）
   messages.ts                     sendMessage（freshness + thread 校验 + quote）/ listMessages / getThreadInfo
-  members.ts                      listAgents/getMember/createAgent（新 agent 自动加入 #all）
-  db-singleton.ts                 globalThis.__workspliceDb 单例
+  members.ts                      listAgents/createAgent/updateAgentWorkspace/setAgentStatus/deleteAgent
+                                  （workspace 绑定唯一性校验；删除 = soft-delete）
+  db-singleton.ts                 globalThis.__workspliceDb 单例（schema 版本号兜底重建，扛热重载）
 
 lib/data/                         raft SQLite 数据层（better-sqlite3，同步 API）
   db.ts                           RaftStore：表 CRUD + maxSeq/freshness 原语 + seq 游标分页
-  schema.ts                       schema v2（channel_members + #all 全员加入 seed）+ 消息不可变触发器 + FTS5
+  schema.ts                       schema v3（members.deleted soft-delete 列 + ALTER 迁移）+ 消息不可变触发器 + FTS5
   dirs.ts                         ~/.worksplice 数据目录解析（WORKSPLICE_DATA_DIR 覆盖）
 
 lib/
-  agent-client.ts      typed fetch helper for /api/agent commands
+  agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
+  agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import rpc-manager/SDK）+ deriveLiveAgentStatus
+  agent-lifecycle.ts  Restart / Session reset / Full reset / 换 workspace / 删除身份（fs + 运行时 + DB 编排）
+  agent-client.ts     typed fetch helper for /api/agent commands
   draft-store.ts       local draft persistence helpers
   file-access.ts       allowed file roots for /api/files and worktrees
   file-paths.ts        client/server path encoding helpers
@@ -218,6 +229,14 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **权限面**：写消息要求作者是 channel 成员（thread 回复继承 channel 规则）；私有 channel 加入/移除成员、归档都仅 Owner（`CURRENT_MEMBER_ID` = `"owner"`，人类恒为 Owner）；`#all` 不可离开；新 agent 创建时自动加入 `#all`（seed 也会在迁移时补齐既有成员）。
 - **引用 = 物化**：消息不可编辑，quote 以块引用文本（`> **#seq author**\n> preview`）拼进发送内容，不留结构化引用。
 - **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel 与 thread 两个 Composer 共享——两个 Composer 各持自己的 `targetId`，`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
+
+### Agent 成员与生命周期（ticket 05，§3.6）
+- **身份 vs 会话**：agent 是持久身份（members 行），会话是 pi session（`pi_session_file` 回填）。三种重置粒度只动会话/workspace，身份与绑定保持；**删除 = soft-delete**（`members.deleted=1`，schema v3 ALTER 迁移）——行保留以承载不可变消息的外键与作者渲染，但移出全部 channel、任务 owner 置空、消费游标清空、workspace 目录整体删除。
+- **workspace 唯一性**：`agentWorkspaceByAnother` 按归一化绝对路径拒绝同一目录绑定多个 agent；session 启动时 `hasBusyRpcSessionForCwd`（realpath 语义）拒绝同一 cwd 并发活跃会话（`BusyCwdError` → route 409）。
+- **状态点 = 现场推导 + DB 回落**（`lib/agent-status.ts`）：`statusLookup` 有存活 wrapper 时推导（running → working / idle 且 DB 非 error → online），wrapper 不在时 DB error 保留、其余回落 offline；低频扫掠（10s）兜底 idle shutdown 的漂移。`prompt_error` 事件写 error 且不会被 idle 推导覆盖，直到下次 `agent_start` 或重启。lookup/listeners/snapshot 全部挂在 globalThis（热重载安全）；agent-runtime 用 `__workspliceAgentSessions` 按成员 id 记账 wrapper，**不按 cwd 猜归属**——同一 cwd 上的人类/他 agent 会话不会张冠李戴。
+- **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import rpc-manager/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 rpc-manager 的 parameter properties，绝不能静态 import 它。
+- **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 会删掉该 cwd 下全部 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文。
+- **`db-singleton` 版本守卫**：`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb()` 比对版本，热重载后 RaftStore 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openDataDb，不会被误重建或误开 `~/.worksplice/raft.db`。
 
 ## Pi Session File Format
 

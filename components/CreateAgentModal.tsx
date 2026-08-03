@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
+import { DirectoryPicker } from "./DirectoryPicker";
 
 const INK = "#141111";
 
@@ -38,6 +39,8 @@ export function CreateAgentModal({
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +54,11 @@ export function CreateAgentModal({
       const res = await fetch("/api/members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim(),
+          workspacePath,
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? "Failed to create agent");
@@ -91,8 +98,74 @@ export function CreateAgentModal({
           style={{ ...FIELD_STYLE, resize: "vertical" }}
         />
 
-        <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-dim)" }}>
-          {t("agent.pending")}
+        <label style={LABEL_STYLE} htmlFor="agent-workspace">
+          {t("agent.bindWorkspace")}
+        </label>
+        <div
+          id="agent-workspace"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 10px",
+            border: `2px solid ${INK}`,
+            background: "#ffffff",
+          }}
+        >
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontFamily: "var(--font-space-mono)",
+              fontSize: 12,
+              color: workspacePath ? "var(--text)" : "var(--text-dim)",
+            }}
+          >
+            {workspacePath ?? t("agent.workspaceNotBound")}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            style={{
+              padding: "4px 10px",
+              fontFamily: "var(--font-hanken)",
+              fontWeight: 700,
+              fontSize: 12,
+              background: "#ffffff",
+              color: "var(--text)",
+              border: `2px solid ${INK}`,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t("agent.pickWorkspace")}
+          </button>
+          {workspacePath && (
+            <button
+              type="button"
+              onClick={() => setWorkspacePath(null)}
+              aria-label={t("message.clearQuote")}
+              title={t("message.clearQuote")}
+              style={{
+                padding: "4px 8px",
+                fontFamily: "var(--font-hanken)",
+                fontWeight: 700,
+                fontSize: 12,
+                background: "#ffffff",
+                color: "var(--text)",
+                border: `2px solid ${INK}`,
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+          {t("agent.workspaceHint")}
         </div>
 
         {error && (
@@ -144,6 +217,16 @@ export function CreateAgentModal({
           </button>
         </div>
       </div>
+
+      {pickerOpen && (
+        <DirectoryPicker
+          onCancel={() => setPickerOpen(false)}
+          onSelect={(path) => {
+            setWorkspacePath(path);
+            setPickerOpen(false);
+          }}
+        />
+      )}
     </BrutalModal>
   );
 }
