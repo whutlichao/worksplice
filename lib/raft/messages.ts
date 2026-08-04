@@ -2,8 +2,14 @@ import { getDb } from "./db-singleton.ts";
 import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { notifyMessageWakes } from "../agent-loop/wake.ts";
+import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
+import {
+  discardAttachmentFiles,
+  stageAttachmentFiles,
+  type MessageAttachmentDraft,
+} from "./attachments.ts";
 import { previewLine } from "../preview.ts";
-import type { ChannelRow, MemberRow, MessageRow } from "../data/db.ts";
+import type { AttachmentRow, ChannelRow, MemberRow, MessageRow } from "../data/db.ts";
 
 const DEFAULT_PAGE_LIMIT = 50;
 const MAX_PAGE_LIMIT = 200;
@@ -14,6 +20,10 @@ export type SendMessageResult =
 
 export interface MessageWithAuthor extends MessageRow {
   author: MemberRow | null;
+  /** §3.4 reaction 聚合（按 count 降序）；空数组 = 无 reaction。 */
+  reactions: ReactionSummary[];
+  /** §3.5 附件元数据（文件实体在 ~/.worksplice/attachments/，经 /api/attachments/[id] 下载）。 */
+  attachments: AttachmentRow[];
 }
 
 interface ResolvedTarget {
@@ -24,7 +34,12 @@ interface ResolvedTarget {
 }
 
 export function messageWithAuthor(message: MessageRow): MessageWithAuthor {
-  return { ...message, author: getMember(message.author_id) ?? null };
+  return {
+    ...message,
+    author: getMember(message.author_id) ?? null,
+    reactions: listReactionSummaries(message.id),
+    attachments: getDb().listAttachments(message.id),
+  };
 }
 
 /** 引用块/任务摘要共用的内容预览：首行截断（实现在 lib/preview.ts，client 可安全复用）。 */
@@ -55,11 +70,15 @@ export function sendMessage(input: {
   content: string;
   baseSeq?: number;
   quoteId?: string;
+  /** §3.5 附件草案（≤50MB）：先校验落盘再事务；held/抛错时清理，不留下孤儿文件。 */
+  attachments?: MessageAttachmentDraft[];
   /** 系统消息（reminder 到点投递）不触发 channel 级 wake，只由 fire 流程定向唤醒作者（§3.9）。 */
   wake?: boolean;
 }): SendMessageResult {
   const content = input.content.trim();
-  if (!content) throw new Error("Message content is required");
+  if (!content && (input.attachments?.length ?? 0) === 0) {
+    throw new Error("Message content is required");
+  }
   const target = resolveTarget(input.targetId);
   if (target.channel.archived === 1) {
     throw new Error("This channel is archived and is read-only");
@@ -76,26 +95,46 @@ export function sendMessage(input: {
     ? `${formatQuote(quoted, getMember(quoted.author_id)?.name ?? "unknown")}${content}`
     : content;
 
-  const result = getDb().withTransaction(() => {
-    const roomSeq = getDb().maxSeq(target.targetId);
-    if (input.baseSeq !== undefined && input.baseSeq !== roomSeq) {
-      return {
-        held: true as const,
-        roomSeq,
-        whatHappened: summarizeChanges(target.targetId, input.baseSeq),
-      };
-    }
-    const message = getDb().appendMessage({
-      targetId: target.targetId,
-      authorId: input.authorId,
-      content: finalContent,
+  // 先落盘（校验大小 + 随机文件名），事务成功才保留；held/抛错路径统一清理。
+  const staged = stageAttachmentFiles(input.attachments ?? []);
+  try {
+    const result = getDb().withTransaction(() => {
+      const roomSeq = getDb().maxSeq(target.targetId);
+      if (input.baseSeq !== undefined && input.baseSeq !== roomSeq) {
+        return {
+          held: true as const,
+          roomSeq,
+          whatHappened: summarizeChanges(target.targetId, input.baseSeq),
+        };
+      }
+      const message = getDb().appendMessage({
+        targetId: target.targetId,
+        authorId: input.authorId,
+        content: finalContent,
+      });
+      for (const attachment of staged) {
+        getDb().insertAttachment({
+          messageId: message.id,
+          fileName: attachment.fileName,
+          mime: attachment.mime,
+          sizeBytes: attachment.sizeBytes,
+          diskPath: attachment.diskPath,
+        });
+      }
+      return { held: false as const, message };
     });
-    return { held: false as const, message };
-  });
-  // 提交成功后发 wake hint（只含 seq/目标，不含正文）；事务外分发，避免回滚误唤醒。
-  // wake: false —— reminder 系统消息：只由 fireReminder 定向唤醒作者，不惊动全 channel（§3.9）
-  if (!result.held && input.wake !== false) notifyMessageWakes(result.message);
-  return result;
+    // 提交成功后发 wake hint（只含 seq/目标，不含正文）；事务外分发，避免回滚误唤醒。
+    // wake: false —— reminder 系统消息：只由 fireReminder 定向唤醒作者，不惊动全 channel（§3.9）
+    if (!result.held) {
+      if (input.wake !== false) notifyMessageWakes(result.message);
+    } else {
+      discardAttachmentFiles(staged);
+    }
+    return result;
+  } catch (error) {
+    discardAttachmentFiles(staged);
+    throw error;
+  }
 }
 
 /** held 摘要：期间发生了什么（§3.3/§6.3）。任务 claim/updateStatus 复用同一事实（§3.7）。 */

@@ -206,3 +206,108 @@ test("ChannelView polls the latest page to pick up agent replies (INBOX_POLL_MS)
   assert.match(source, /mergeIncomingMessages/);
   assert.match(source, /document\.hidden/);
 });
+
+test("MessageRow renders quick reactions, picker, pin and attachments (§3.4/§3.5)", () => {
+  const html = renderI18n(
+    React.createElement(MessageRow, {
+      message: {
+        ...MESSAGE,
+        reactions: [
+          { emoji: "👍", count: 2, memberIds: ["owner", "agent-1"] },
+          { emoji: "❤️", count: 1, memberIds: ["agent-1"] },
+        ],
+        attachments: [
+          {
+            id: "att-1",
+            message_id: "msg-1",
+            file_name: "note.txt",
+            mime: "text/plain",
+            size_bytes: 2048,
+            disk_path: "/tmp/attachments/att-1",
+            created_at: "2026-08-03T08:00:00.000Z",
+          },
+          {
+            id: "att-2",
+            message_id: "msg-1",
+            file_name: "bundle.zip",
+            mime: "application/zip",
+            size_bytes: 4096,
+            disk_path: "/tmp/attachments/att-2",
+            created_at: "2026-08-03T08:00:00.000Z",
+          },
+        ],
+      },
+      currentMemberId: "owner",
+      onReply: () => undefined,
+      onQuote: () => undefined,
+      onCopyLink: () => undefined,
+      onToggleReaction: () => undefined,
+      onTogglePin: () => undefined,
+      pinned: true,
+    }),
+  );
+
+  assert.match(html, /👍/);
+  assert.match(html, /❤️/);
+  assert.match(html, /2/);
+  assert.match(html, /＋/);
+  assert.match(html, /📌/);
+  // text-like 附件 = 展开预览按钮；其余 = 下载链接
+  assert.match(html, /note\.txt/);
+  assert.match(html, /2\.0 KB/);
+  assert.match(html, /📄/);
+  assert.match(html, /bundle\.zip/);
+  assert.match(html, /\/api\/attachments\/att-2/);
+});
+
+test("MessageRow hides reaction UI when handlers are absent", () => {
+  const html = renderI18n(
+    React.createElement(MessageRow, {
+      message: MESSAGE,
+      onReply: () => undefined,
+      onQuote: () => undefined,
+      onCopyLink: () => undefined,
+    }),
+  );
+  assert.doesNotMatch(html, /＋/);
+  assert.doesNotMatch(html, /📌/);
+});
+
+test("Composer renders the paperclip attach control (§3.5)", () => {
+  const html = renderI18n(
+    React.createElement(Composer, {
+      targetId: "#all",
+      disabled: false,
+      disabledHint: "",
+      quoting: null,
+      onClearQuote: () => undefined,
+      onSend: async () => undefined,
+    }),
+  );
+  assert.match(html, /📎/);
+  assert.match(html, /type="file"/);
+});
+
+test("ChannelView header exposes the pinned toggle for joined members (§3.5)", () => {
+  const channel = {
+    id: "c1",
+    name: "general",
+    type: "public",
+    description: "",
+    archived: 0,
+    created_at: "2026-08-03T00:00:00.000Z",
+    joined: true,
+    memberCount: 2,
+  };
+  const html = renderI18n(
+    React.createElement(ChannelView, {
+      channel,
+      tab: "messages",
+      onTabChange: () => undefined,
+      currentMemberId: "owner",
+      onChannelChanged: () => undefined,
+      focusMessageId: null,
+    }),
+  );
+  assert.match(html, /📌/);
+});

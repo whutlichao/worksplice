@@ -76,9 +76,14 @@ app/api/
   channels/[id]/leave/route.ts    POST { memberId? } — `#all` 不可离开
   channels/[id]/archive/route.ts  POST { archived } — Owner only，冻结写入
   channels/[id]/members/route.ts  GET member list
-  messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）
+  messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）；
+                                  multipart 形态：字段 + `files`（附件随消息一次原子提交，§3.5）
   messages/[id]/route.ts          GET single message w/ author
   messages/[id]/thread/route.ts   GET thread（锚点归一化）
+  messages/[id]/reactions/route.ts GET 聚合 | POST { emoji } 切换（§3.4 toggle，无通知）
+  attachments/[id]/route.ts       GET 附件下载/预览（图片 inline，其余 attachment；文件实体在 ~/.worksplice/attachments/）
+  channels/[id]/pinned/route.ts   GET ?sort=manual|recent|az（当前成员个性化 pinned）| POST { messageId } pin | DELETE ?messageId= unpin
+  channels/[id]/pinned/reorder/route.ts POST { order: [messageId...] } — Manual 排序重排
   members/route.ts                GET agent 列表 | POST 创建 agent（name/description/workspacePath）
   members/[id]/route.ts           GET 单个 agent | DELETE 删除身份（§3.6，soft-delete）
   members/[id]/workspace/route.ts POST { workspacePath } — 更换绑定目录（换目录即换会话）
@@ -100,8 +105,15 @@ app/api/
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
   channels.ts                     create/join/leave/archive/members + CURRENT_MEMBER_ID（恒为 owner）
-  messages.ts                     sendMessage（freshness + thread 校验 + quote + 提交后发 wake）/ listMessages / getThreadInfo
+  messages.ts                     sendMessage（freshness + thread 校验 + quote + 附件落盘 + 提交后发 wake）
+                                  / listMessages / getThreadInfo / messageWithAuthor（附 reactions+attachments）
                                   / summarizeChanges（held 摘要，任务 claim/updateStatus 复用）
+  reactions.ts                    §3.4 toggleReaction（存在即删，UNIQUE 先查后写；channel 成员才可点，无通知）
+                                  / listReactionSummaries（count 降序 + memberIds）
+  pinned.ts                       §3.5 个性化 pinned：pinMessage（order=max+1，幂等）/ unpinMessage / listPinned
+                                  （sort=manual|recent|az）/ setPinnedOrder；消息须属于该 channel（thread 经锚点）
+  attachments.ts                  §3.5 附件：MAX_ATTACHMENT_BYTES=50MB / stageAttachmentFiles（随机名落盘 attachments/）
+                                  / discardAttachmentFiles（held/抛错清理）/ getAttachmentRow
   tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按 channel 递增）/ claimTask
                                   / updateTaskStatus（状态机 + 互审授权 + freshness-hold）/ listChannelTasks / getTaskView
   inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
@@ -159,6 +171,8 @@ components/
   ChannelView.tsx        channel 消息流：seq 分页 / thread 侧栏 / 引用 / 复制链接 / join-leave-archive
                           / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskBoard（§3.7）
                           / 提醒入口（header ⏰ + 消息动作栏 ⏰，§5.6）
+                          / reaction（快捷栏 + 选择器 + 聚合条，§3.4）/ pinned 区（header 📌 展开，sort 三选一 + 重排，§3.5）
+                          / 附件（Composer 📎 + 消息内预览/下载，§3.5）
   CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
   CreateAgentModal.tsx   建 agent
   ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
@@ -304,6 +318,14 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **生命周期 log**：schema v4 新增 `reminder_logs` 表（事件 schedule/fire/reschedule/snooze/update/cancel/error）；列表按 rowid 排序（同毫秒 created_at 的时序保真）；fire 事件先于 reschedule 写入（时间序）。
 - **管理权限**：snooze/update/cancel 仅作者本人或 Owner 可操作，且仅 `scheduled`（fired/canceled 报错）；snooze = `max(now, fire_at) + minutes`（默认 15）。
 - **UI**：channel 头部 ⏰（目标 = channel，joined 才显示）+ 消息动作栏 ⏰（目标 = 该消息/thread 锚点，标题预填首行预览）；ReminderModal 内可创建（datetime-local + recurrence 预设 chips）、列出锚定提醒、snooze/cancel；到点系统消息经 3s 轮询落入消息流。
+
+### 消息增强（ticket 09，§3.3–3.5 reactions/pinned/attachments）
+- **reaction = 先查后写 toggle**（`lib/raft/reactions.ts`）：存在即删、不存在即加，UNIQUE(message_id, member_id, emoji) 单进程串行无竞争；**channel 成员才可点**（thread 消息经 `message.target_id` 锚点解析归属 channel，不可嵌套读侧同语义）；无通知/不进 inbox（§3.4）。聚合 = count 降序 + memberIds（UI 用 `includes(currentMemberId)` 判定"我点过"）。
+- **pinned 个性化**（`lib/raft/pinned.ts`）：每成员每 channel 独立 pinned 区；`pinMessage` order = max+1（幂等返回既有行）、`unpinMessage` 幂等 false；**消息须属于该 channel**（thread 消息经锚点归一化，跨 channel 拒绝）；sort=manual（order 升序）/recent（pinned_at 降序，同毫秒按 order 兜底）/az（内容 localeCompare）。`setPinnedOrder` 只重排已 pin 行。
+- **附件随消息原子提交**（§3.5）：`sendMessage` 增加 `attachments[]`（≤50MB）——先 `stageAttachmentFiles`（校验 + **随机文件名**落盘 `attachments/`，原始名只存库），事务内 appendMessage + insertAttachment 同生共死，**held/抛错 → `discardAttachmentFiles` 清理**，不留孤儿。文件下载走 `/api/attachments/[id]`（图片 inline 预览，其余 attachment）。
+- **messageWithAuthor 统一附料**：reactions（聚合）+ attachments（行）直接内嵌进消息 payload，UI 免 N+1 请求；thread 读接口/agent-loop 双写流同享（纯增量字段，向后兼容）。
+- **POST /api/messages 双形态**：JSON（原样）或 multipart（字段 + `files[]`）；单文件 >50MB 由服务层 `stageAttachmentFiles` 校验拒绝（客户端预检兜底）。`formatBytes`/`MAX_ATTACHMENT_BYTES` 在 `lib/preview.ts`（client 可安全导入，**不**从 raft 服务层引——那会拖 better-sqlite3 进浏览器包）。
+- **UI**：消息 hover 快捷 reaction（👍❤️🎉👀）+ ＋ 选择器（24 常用 emoji 网格）+ 内容下聚合条（已点高亮黄）；动作栏 📌（pinned 态黄底）channel/thread 消息通吃；Composer 📎 多选 + 文件 chips（≤50MB 前端预检）；channel 头部 📌 展开 pinned 区（sort 三选一 + Manual ↑/↓ 重排 + 点击定位消息/展开线程）。
 
 ## Pi Session File Format
 

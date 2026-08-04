@@ -660,6 +660,23 @@ export class RaftStore {
       .all(messageId) as ReactionRow[];
   }
 
+  hasReaction(messageId: string, memberId: string, emoji: string): boolean {
+    const row = this.db
+      .prepare(
+        "SELECT 1 AS hit FROM reactions WHERE message_id = ? AND member_id = ? AND emoji = ? LIMIT 1",
+      )
+      .get(messageId, memberId, emoji) as { hit: number } | undefined;
+    return row !== undefined;
+  }
+
+  /** 再次点击取消（§3.4 toggle）；返回是否真的删掉了。 */
+  deleteReaction(messageId: string, memberId: string, emoji: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM reactions WHERE message_id = ? AND member_id = ? AND emoji = ?")
+      .run(messageId, memberId, emoji);
+    return result.changes > 0;
+  }
+
   insertAttachment(input: {
     id?: string;
     messageId: string;
@@ -701,6 +718,12 @@ export class RaftStore {
       .all(messageId) as AttachmentRow[];
   }
 
+  getAttachment(id: string): AttachmentRow | undefined {
+    return this.db.prepare("SELECT * FROM attachments WHERE id = ?").get(id) as
+      | AttachmentRow
+      | undefined;
+  }
+
   insertPinnedMessage(input: {
     id?: string;
     channelId: string;
@@ -732,6 +755,45 @@ export class RaftStore {
         'SELECT * FROM pinned_messages WHERE channel_id = ? AND member_id = ? ORDER BY "order"',
       )
       .all(channelId, memberId) as PinnedMessageRow[];
+  }
+
+  getPinnedMessage(channelId: string, messageId: string, memberId: string): PinnedMessageRow | undefined {
+    return this.db
+      .prepare(
+        "SELECT * FROM pinned_messages WHERE channel_id = ? AND message_id = ? AND member_id = ?",
+      )
+      .get(channelId, messageId, memberId) as PinnedMessageRow | undefined;
+  }
+
+  /** 解除 pin（§3.5 个性化 pinned）；返回是否真的删掉了。 */
+  deletePinnedMessage(channelId: string, messageId: string, memberId: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM pinned_messages WHERE channel_id = ? AND message_id = ? AND member_id = ?")
+      .run(channelId, messageId, memberId);
+    return result.changes > 0;
+  }
+
+  /**
+   * Manual 排序：按传入的 messageId 顺序重排 0..n-1。
+   * 缺省（未列出的已 pin 行）按原 order 相对顺序排在被列出的行之后——不会产生重复 order。
+   */
+  setPinnedOrder(channelId: string, memberId: string, orderedMessageIds: string[]): void {
+    const rows = this.listPinnedMessages(channelId, memberId);
+    const pinnedIds = new Set(rows.map((row) => row.message_id));
+    const listed = orderedMessageIds.filter((id) => pinnedIds.has(id));
+    const rest = rows
+      .filter((row) => !listed.includes(row.message_id))
+      .sort((a, b) => a.order - b.order)
+      .map((row) => row.message_id);
+    const final = [...listed, ...rest];
+    const update = this.db.prepare(
+      'UPDATE pinned_messages SET "order" = ? WHERE channel_id = ? AND message_id = ? AND member_id = ?',
+    );
+    this.withTransaction(() => {
+      final.forEach((messageId, index) => {
+        update.run(index, channelId, messageId, memberId);
+      });
+    });
   }
 
   /** 某 target 的最新一条消息（agent-loop "已回复" 判定 / 双写流收口复用）。 */

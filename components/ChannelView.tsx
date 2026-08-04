@@ -6,15 +6,22 @@ import { MarkdownBody } from "./MarkdownBody";
 import { PixelAvatar } from "./PixelAvatar";
 import { ReminderModal } from "./ReminderModal";
 import { copyText } from "@/lib/clipboard";
-import { previewLine } from "@/lib/preview";
-import type { ChannelRow, MemberRow, TaskStatus } from "@/lib/data/db";
+import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
 import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
+import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/data/db";
 
 export type CenterTab = "messages" | "tasks";
 
 export interface ChannelWithMeta extends ChannelRow {
   joined: boolean;
   memberCount: number;
+}
+
+/** §3.4 reaction 聚合（与 lib/raft/reactions.ts 同形）。 */
+interface ReactionSummary {
+  emoji: string;
+  count: number;
+  memberIds: string[];
 }
 
 interface ChannelMessage {
@@ -25,6 +32,8 @@ interface ChannelMessage {
   content: string;
   created_at: string;
   author: MemberRow | null;
+  reactions?: ReactionSummary[];
+  attachments?: AttachmentRow[];
 }
 
 /** §3.7 任务 = 消息 + 元数据：board 只显示状态，进展都在任务 thread。 */
@@ -46,12 +55,28 @@ interface MessagesPage {
   maxSeq: number;
 }
 
+/** §3.5 pinned 项（/api/channels/[id]/pinned 返回形态）。 */
+interface PinnedItem {
+  message: ChannelMessage;
+  order: number;
+  pinnedAt: string;
+}
+
 const INK = "#141111";
 const PAGE_LIMIT = 50;
 /** agent-loop 回复轮询间隔（§5.4 demo：agent 回复落入消息流）。 */
 const INBOX_POLL_MS = 3000;
 /** 任务板状态分组顺序（§3.7）。 */
 const TASK_STATUS_ORDER: TaskStatus[] = ["todo", "in_progress", "in_review", "done", "closed"];
+/** §3.4 hover 快捷 reaction（常用若干）。 */
+const QUICK_REACTIONS = ["👍", "❤️", "🎉", "👀"];
+/** §3.4 表情选择器候选（常用 + 任务场景）。 */
+const EMOJI_PICKER_OPTIONS = [
+  "👍", "👎", "❤️", "🎉", "👀", "🔥",
+  "✅", "❌", "🙏", "🚀", "💡", "🤔",
+  "😂", "😅", "😮", "😢", "😡", "🥳",
+  "👏", "🙌", "🤝", "📌", "⏰", "🔧",
+];
 
 const messageTime = (iso: string): string => {
   const d = new Date(iso);
@@ -151,6 +176,248 @@ function EmptyState({
   );
 }
 
+/** §3.4 表情选择器：点击外部 / Escape 关闭；选中即回调。 */
+function EmojiPicker({
+  onPick,
+  onClose,
+}: {
+  onPick: (emoji: string) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        zIndex: 60,
+        width: 200,
+        padding: 8,
+        display: "grid",
+        gridTemplateColumns: "repeat(6, 1fr)",
+        gap: 4,
+        background: "#ffffff",
+        border: `2px solid ${INK}`,
+        boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.35)",
+      }}
+    >
+      {EMOJI_PICKER_OPTIONS.map((emoji) => (
+        <button
+          key={emoji}
+          type="button"
+          title={emoji}
+          onClick={() => onPick(emoji)}
+          style={{
+            width: 28,
+            height: 28,
+            fontSize: 16,
+            lineHeight: 1,
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--yellow)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** §3.4 reaction 聚合条：显示在消息内容下方；已点高亮，点击切换。 */
+function ReactionChips({
+  reactions,
+  currentMemberId,
+  onToggle,
+}: {
+  reactions: ReactionSummary[];
+  currentMemberId: string;
+  onToggle: (emoji: string) => void;
+}) {
+  if (reactions.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+      {reactions.map((reaction) => {
+        const mine = reaction.memberIds.includes(currentMemberId);
+        return (
+          <button
+            key={reaction.emoji}
+            type="button"
+            onClick={() => onToggle(reaction.emoji)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "2px 8px",
+              fontFamily: "var(--font-hanken)",
+              fontWeight: 700,
+              fontSize: 12,
+              background: mine ? "var(--yellow)" : "#ffffff",
+              color: "var(--text)",
+              border: `2px solid ${INK}`,
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: 14, lineHeight: 1 }}>{reaction.emoji}</span>
+            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11 }}>{reaction.count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** §3.5 附件列表：图片 inline 预览；text-like 点击展开文本预览；其余下载链接。 */
+const TEXT_LIKE_MIMES = new Set([
+  "application/json",
+  "application/javascript",
+  "application/xml",
+  "application/yaml",
+  "application/markdown",
+  "application/toml",
+]);
+const TEXT_PREVIEW_MAX_CHARS = 100_000;
+
+function isTextLike(mime: string): boolean {
+  return mime.startsWith("text/") || TEXT_LIKE_MIMES.has(mime);
+}
+
+function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  const togglePreview = async (attachment: AttachmentRow) => {
+    if (previewId === attachment.id) {
+      setPreviewId(null);
+      return;
+    }
+    setPreviewId(attachment.id);
+    setPreviewText(null);
+    setPreviewFailed(false);
+    try {
+      const res = await fetch(`/api/attachments/${attachment.id}`);
+      if (!res.ok) throw new Error(`preview: ${res.status}`);
+      const text = await res.text();
+      setPreviewText(text.length > TEXT_PREVIEW_MAX_CHARS ? `${text.slice(0, TEXT_PREVIEW_MAX_CHARS)}…` : text);
+    } catch {
+      setPreviewFailed(true);
+    }
+  };
+
+  const chipStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    padding: "4px 10px",
+    fontFamily: "var(--font-hanken)",
+    fontWeight: 700,
+    fontSize: 12,
+    background: "#ffffff",
+    color: "var(--text)",
+    border: `2px solid ${INK}`,
+    boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
+    textDecoration: "none",
+    cursor: "pointer",
+  };
+
+  if (attachments.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+      {attachments.map((attachment) =>
+        attachment.mime.startsWith("image/") ? (
+          <div key={attachment.id}>
+            <a href={`/api/attachments/${attachment.id}`} target="_blank" rel="noreferrer" title={attachment.file_name}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- 附件原图预览，不走 next/image 优化 */}
+              <img
+                src={`/api/attachments/${attachment.id}`}
+                alt={attachment.file_name}
+                style={{
+                  display: "block",
+                  maxWidth: 260,
+                  maxHeight: 180,
+                  objectFit: "contain",
+                  background: "#ffffff",
+                  border: `2px solid ${INK}`,
+                  boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
+                }}
+              />
+            </a>
+          </div>
+        ) : isTextLike(attachment.mime) ? (
+          <div key={attachment.id}>
+            <button type="button" onClick={() => void togglePreview(attachment)} style={chipStyle}>
+              <span>📄</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {attachment.file_name}
+              </span>
+              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, color: "var(--text-muted)" }}>
+                {formatBytes(attachment.size_bytes)}
+              </span>
+              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10 }}>{previewId === attachment.id ? "▲" : "▼"}</span>
+            </button>
+            {previewId === attachment.id && (
+              <pre
+                style={{
+                  margin: "4px 0 0",
+                  maxHeight: 260,
+                  overflow: "auto",
+                  padding: "8px 10px",
+                  background: "var(--bg)",
+                  border: `2px solid ${INK}`,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {previewFailed ? "⚠ preview failed" : previewText ?? "…"}
+              </pre>
+            )}
+          </div>
+        ) : (
+          <a
+            key={attachment.id}
+            href={`/api/attachments/${attachment.id}`}
+            download={attachment.file_name}
+            style={chipStyle}
+          >
+            <span>📎</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {attachment.file_name}
+            </span>
+            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, color: "var(--text-muted)" }}>
+              {formatBytes(attachment.size_bytes)}
+            </span>
+          </a>
+        ),
+      )}
+    </div>
+  );
+}
+
 /** 消息动作栏（§3.2）：回复 thread / 引用 / 复制链接 / 设提醒（§5.6 UI 入口）。 */
 function MessageActions({
   message,
@@ -158,15 +425,22 @@ function MessageActions({
   onQuote,
   onCopyLink,
   onReminder,
+  onToggleReaction,
+  onTogglePin,
+  pinned,
 }: {
   message: ChannelMessage;
   onReply: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
   onReminder?: (message: ChannelMessage) => void;
+  onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
+  onTogglePin?: (message: ChannelMessage) => void;
+  pinned?: boolean;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const buttonStyle: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -182,7 +456,41 @@ function MessageActions({
     cursor: "pointer",
   };
   return (
-    <div style={{ display: "flex", gap: 6 }}>
+    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", position: "relative" }}>
+      {onToggleReaction && (
+        <>
+          {QUICK_REACTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              title={t("message.react")}
+              style={{ ...buttonStyle, fontSize: 13, padding: "3px 7px" }}
+              onClick={() => onToggleReaction(message, emoji)}
+            >
+              {emoji}
+            </button>
+          ))}
+          <button
+            type="button"
+            title={t("message.addReaction")}
+            style={{ ...buttonStyle, fontSize: 12 }}
+            onClick={() => setPickerOpen((open) => !open)}
+          >
+            ＋
+          </button>
+          {pickerOpen && (
+            <div style={{ position: "absolute", top: 26, left: 0, zIndex: 60 }}>
+              <EmojiPicker
+                onPick={(emoji) => {
+                  onToggleReaction(message, emoji);
+                  setPickerOpen(false);
+                }}
+                onClose={() => setPickerOpen(false)}
+              />
+            </div>
+          )}
+        </>
+      )}
       <button
         type="button"
         title={t("message.reply")}
@@ -214,6 +522,16 @@ function MessageActions({
           onClick={() => onReminder(message)}
         >
           ⏰
+        </button>
+      )}
+      {onTogglePin && (
+        <button
+          type="button"
+          title={pinned ? t("message.unpin") : t("message.pin")}
+          style={{ ...buttonStyle, background: pinned ? "var(--yellow)" : "#ffffff" }}
+          onClick={() => onTogglePin(message)}
+        >
+          📌
         </button>
       )}
     </div>
@@ -301,25 +619,33 @@ function ContextMenu({
   );
 }
 
-/** 顶层消息渲染行：头像 + 作者 + seq + 时间戳 + 内容 + hover 动作栏；右键 = 菜单（Open Thread / Convert to Task）。 */
+/** 顶层消息渲染行：头像 + 作者 + seq + 时间戳 + 内容 + reaction/附件 + hover 动作栏；右键 = 菜单（Open Thread / Convert to Task）。 */
 export function MessageRow({
   message,
   isAnchor,
   canConvertToTask,
+  currentMemberId,
+  pinned,
   onReply,
   onQuote,
   onCopyLink,
   onConvertToTask,
   onSetReminder,
+  onToggleReaction,
+  onTogglePin,
 }: {
   message: ChannelMessage;
   isAnchor?: boolean;
   canConvertToTask?: boolean;
+  currentMemberId?: string;
+  pinned?: boolean;
   onReply: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
   onConvertToTask?: (message: ChannelMessage) => void;
   onSetReminder?: (message: ChannelMessage) => void;
+  onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
+  onTogglePin?: (message: ChannelMessage) => void;
 }) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -368,6 +694,14 @@ export function MessageRow({
         <div className="ws-message-content" style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)" }}>
           <MarkdownBody>{message.content}</MarkdownBody>
         </div>
+        <AttachmentList attachments={message.attachments ?? []} />
+        {currentMemberId && onToggleReaction && (
+          <ReactionChips
+            reactions={message.reactions ?? []}
+            currentMemberId={currentMemberId}
+            onToggle={(emoji) => onToggleReaction(message, emoji)}
+          />
+        )}
         <div className="ws-message-actions" style={{ marginTop: 6 }}>
           <MessageActions
             message={message}
@@ -375,6 +709,9 @@ export function MessageRow({
             onQuote={onQuote}
             onCopyLink={onCopyLink}
             onReminder={onSetReminder}
+            onToggleReaction={onToggleReaction}
+            onTogglePin={onTogglePin}
+            pinned={pinned}
           />
         </div>
       </div>
@@ -638,7 +975,7 @@ export function TaskBoard({
   );
 }
 
-/** 消息输入条：Enter 发送 / Shift+Enter 换行；引用 chip（§3.2 引用动作）；As Task 勾选（§3.7 创建途径 2）。 */
+/** 消息输入条：Enter 发送 / Shift+Enter 换行；引用 chip（§3.2 引用动作）；As Task 勾选（§3.7 创建途径 2）；附件（§3.5）。 */
 export function Composer({
   targetId,
   disabled,
@@ -656,22 +993,36 @@ export function Composer({
   asTask?: boolean;
   onAsTaskChange?: (checked: boolean) => void;
   onClearQuote: () => void;
-  onSend: (targetId: string, content: string, quoteId?: string) => Promise<unknown>;
+  onSend: (targetId: string, content: string, quoteId?: string, files?: File[]) => Promise<unknown>;
 }) {
   const { t } = useI18n();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const addFiles = (picked: FileList | null) => {
+    if (!picked || picked.length === 0) return;
+    const oversized = [...picked].filter((file) => file.size > MAX_ATTACHMENT_BYTES);
+    if (oversized.length > 0) {
+      setError(t("attachments.tooBig", { name: oversized[0].name }));
+      return;
+    }
+    setFiles((prev) => [...prev, ...picked]);
+    setError(null);
+  };
 
   const submit = async () => {
     const content = value.trim();
-    if (!content || busy || disabled) return;
+    if ((!content && files.length === 0) || busy || disabled) return;
     setBusy(true);
     setError(null);
     try {
-      await onSend(targetId, content, quoting?.id);
+      await onSend(targetId, content, quoting?.id, files.length > 0 ? files : undefined);
       setValue("");
+      setFiles([]);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -723,6 +1074,46 @@ export function Composer({
           >
             ✕
           </button>
+        </div>
+      )}
+      {files.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {files.map((file, index) => (
+            <div
+              key={`${file.name}-${index}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "3px 8px",
+                background: "var(--cyan)",
+                border: `2px solid ${INK}`,
+                fontFamily: "var(--font-space-mono)",
+                fontSize: 11,
+              }}
+            >
+              <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                📎 {file.name}
+              </span>
+              <span style={{ color: "var(--text-muted)" }}>{formatBytes(file.size)}</span>
+              <button
+                type="button"
+                aria-label={t("attachments.remove")}
+                onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
+                style={{
+                  width: 18,
+                  height: 18,
+                  background: "#ffffff",
+                  border: `2px solid ${INK}`,
+                  cursor: "pointer",
+                  fontSize: 10,
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
         </div>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -783,7 +1174,37 @@ export function Composer({
           )}
           <button
             type="button"
-            disabled={disabled || busy || !value.trim()}
+            title={t("attachments.attach")}
+            disabled={disabled}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              height: 30,
+              padding: "0 8px",
+              fontFamily: "var(--font-hanken)",
+              fontWeight: 700,
+              fontSize: 13,
+              background: "#ffffff",
+              color: "var(--ink)",
+              border: `2px solid ${INK}`,
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.55 : 1,
+            }}
+          >
+            📎
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            disabled={disabled || busy || (!value.trim() && files.length === 0)}
             onClick={() => void submit()}
             style={{
               height: 38,
@@ -795,8 +1216,8 @@ export function Composer({
               color: "var(--ink)",
               border: `2px solid ${INK}`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor: disabled || busy || !value.trim() ? "not-allowed" : "pointer",
-              opacity: disabled || busy || !value.trim() ? 0.55 : 1,
+              cursor: disabled || busy || (!value.trim() && files.length === 0) ? "not-allowed" : "pointer",
+              opacity: disabled || busy || (!value.trim() && files.length === 0) ? 0.55 : 1,
             }}
           >
             {busy ? "…" : t("message.send")}
@@ -844,6 +1265,12 @@ export function ChannelView({
   const [threadLoading, setThreadLoading] = useState(false);
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
 
+  // §3.5 pinned 区：当前成员在该 channel 的个性化 pinned
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [pinnedSort, setPinnedSort] = useState<"manual" | "recent" | "az">("manual");
+  const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
+  const [pinnedError, setPinnedError] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadPage = useCallback(
@@ -881,6 +1308,22 @@ export function ChannelView({
       .catch((e) => setTasksError(e instanceof Error ? e.message : String(e)));
   }, [channel]);
 
+  /** §3.5 pinned 列表加载（当前成员的个性化 pinned，排序三选一）。 */
+  const loadPinned = useCallback(() => {
+    if (!channel) {
+      setPinnedItems([]);
+      return;
+    }
+    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned?sort=${pinnedSort}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`GET pinned: ${res.status}`);
+        const body = (await res.json()) as { pinned?: PinnedItem[] };
+        setPinnedItems(body.pinned ?? []);
+        setPinnedError(null);
+      })
+      .catch((e) => setPinnedError(e instanceof Error ? e.message : String(e)));
+  }, [channel, pinnedSort]);
+
   useEffect(() => {
     setMessages([]);
     setHasMore(false);
@@ -890,10 +1333,13 @@ export function ChannelView({
     setTasks([]);
     setTasksError(null);
     setTaskNotice(null);
+    setPinnedOpen(false);
+    setPinnedItems([]);
     loadLatest();
     // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
     loadTasks();
-  }, [channel?.id, loadLatest, loadTasks]);
+    loadPinned();
+  }, [channel?.id, loadLatest, loadTasks, loadPinned]);
 
   useEffect(() => {
     if (tab === "tasks") loadTasks();
@@ -957,19 +1403,32 @@ export function ChannelView({
   );
 
   const handleSend = useCallback(
-    async (targetId: string, content: string, quoteId?: string) => {
+    async (targetId: string, content: string, quoteId?: string, files?: File[]) => {
       if (!channel) return;
       const inThread = targetId === openThread?.id;
-      const res = await fetch("/api/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          targetId,
-          content,
-          quoteId,
-          baseSeq: inThread ? threadMessages[threadMessages.length - 1]?.seq ?? 0 : maxSeq,
-        }),
-      });
+      const baseSeq = inThread ? threadMessages[threadMessages.length - 1]?.seq ?? 0 : maxSeq;
+      let res: Response;
+      if (files && files.length > 0) {
+        // §3.5 附件随消息一起 multipart 提交：一次请求原子完成（held 时服务端不落盘）。
+        const form = new FormData();
+        form.append("targetId", targetId);
+        form.append("content", content);
+        form.append("baseSeq", String(baseSeq));
+        if (quoteId) form.append("quoteId", quoteId);
+        for (const file of files) form.append("files", file);
+        res = await fetch("/api/messages", { method: "POST", body: form });
+      } else {
+        res = await fetch("/api/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetId,
+            content,
+            quoteId,
+            baseSeq,
+          }),
+        });
+      }
       const body = (await res.json().catch(() => ({}))) as {
         message?: ChannelMessage;
         held?: boolean;
@@ -1005,6 +1464,111 @@ export function ChannelView({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [channel, openThread, maxSeq, threadMessages, loadLatest, loadThread, t, asTask],
+  );
+
+  /** §3.4 reaction 切换：POST 后把返回的聚合写回消息状态（channel / thread 各自）。 */
+  const toggleReaction = useCallback(
+    async (message: ChannelMessage, emoji: string) => {
+      try {
+        const res = await fetch(`/api/messages/${encodeURIComponent(message.id)}/reactions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emoji }),
+        });
+        if (!res.ok) throw new Error(`reaction: ${res.status}`);
+        const body = (await res.json()) as { reactions?: ReactionSummary[] };
+        if (!body.reactions) return;
+        if (message.target_id === channel?.id) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === message.id ? { ...m, reactions: body.reactions } : m)),
+          );
+        } else {
+          setThreadMessages((prev) =>
+            prev.map((m) => (m.id === message.id ? { ...m, reactions: body.reactions } : m)),
+          );
+          setOpenThread((prev) =>
+            prev && prev.id === message.id ? { ...prev, reactions: body.reactions } : prev,
+          );
+        }
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [channel?.id],
+  );
+
+  /** §3.5 pin / unpin：切换后重拉 pinned 列表（按钮态 = pinnedItems 含该消息）。 */
+  const togglePin = useCallback(
+    async (message: ChannelMessage) => {
+      if (!channel) return;
+      const alreadyPinned = pinnedItems.some((item) => item.message.id === message.id);
+      try {
+        const res = alreadyPinned
+          ? await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned?messageId=${message.id}`, {
+              method: "DELETE",
+            })
+          : await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ messageId: message.id }),
+            });
+        if (!res.ok) throw new Error(`pin: ${res.status}`);
+        loadPinned();
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [channel, pinnedItems, loadPinned],
+  );
+
+  /** §3.5 Manual 排序：↑/↓ 交换相邻位置后提交重排。 */
+  const movePinned = useCallback(
+    async (index: number, direction: -1 | 1) => {
+      if (!channel) return;
+      const target = index + direction;
+      if (target < 0 || target >= pinnedItems.length) return;
+      const reordered = [...pinnedItems];
+      const [moved] = reordered.splice(index, 1);
+      reordered.splice(target, 0, moved);
+      const order = reordered.map((item) => item.message.id);
+      try {
+        const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned/reorder`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order }),
+        });
+        if (!res.ok) throw new Error(`reorder: ${res.status}`);
+        loadPinned();
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [channel, pinnedItems, loadPinned],
+  );
+
+  /** 打开 pinned 消息：channel 消息滚动定位；thread 消息展开其线程。 */
+  const openPinnedMessage = useCallback(
+    (message: ChannelMessage) => {
+      if (message.target_id === channel?.id) {
+        const already = messages.some((m) => m.id === message.id);
+        if (already) {
+          document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
+          return;
+        }
+        void loadPage(channel.id, message.seq + 1).then((page) => {
+          setMessages((prev) => {
+            const merged = [...prev, ...page.messages.filter((m) => !prev.some((p) => p.id === m.id))];
+            return merged.sort((a, b) => a.seq - b.seq);
+          });
+          requestAnimationFrame(() => {
+            document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
+          });
+        });
+      } else {
+        void loadThread(message.target_id);
+      }
+    },
+    [channel, messages, loadPage, loadThread],
   );
 
   /** 把消息转为任务（§3.7 创建途径 1/2 共用）；返回 null 表示失败（错误已提示）。 */
@@ -1316,9 +1880,140 @@ export function ChannelView({
                 ⏰
               </button>
             )}
+            {joined && (
+              <button
+                type="button"
+                title={t("pinned.toggle")}
+                style={{ ...actionButton, background: pinnedOpen ? "var(--yellow)" : "#ffffff" }}
+                onClick={() => setPinnedOpen((open) => !open)}
+              >
+                📌 {pinnedItems.length > 0 ? pinnedItems.length : ""}
+              </button>
+            )}
           </div>
         )}
       </header>
+
+      {/* §3.5 pinned 区（channel 头部可展开）：当前成员个性化 pinned；Manual 可 ↑/↓ 重排 */}
+      {pinnedOpen && joined && (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "8px 16px 12px",
+            borderBottom: `2px solid ${INK}`,
+            background: "var(--bg)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 13 }}>
+              {t("pinned.title")}
+            </span>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                fontFamily: "var(--font-hanken)",
+                fontWeight: 700,
+                fontSize: 11,
+              }}
+            >
+              {t("pinned.sort")}
+              <select
+                value={pinnedSort}
+                onChange={(e) => {
+                  setPinnedSort(e.target.value as "manual" | "recent" | "az");
+                  setPinnedOpen(true);
+                }}
+                style={{
+                  padding: "3px 6px",
+                  fontFamily: "var(--font-space-grotesk)",
+                  fontSize: 12,
+                  background: "#ffffff",
+                  border: `2px solid ${INK}`,
+                  outline: "none",
+                }}
+              >
+                <option value="manual">{t("pinned.sortManual")}</option>
+                <option value="recent">{t("pinned.sortRecent")}</option>
+                <option value="az">{t("pinned.sortAz")}</option>
+              </select>
+            </label>
+            {pinnedError && (
+              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--coral)" }}>
+                {pinnedError}
+              </span>
+            )}
+          </div>
+          {pinnedItems.length === 0 ? (
+            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("pinned.empty")}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {pinnedItems.map((item, index) => (
+                <div
+                  key={item.message.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "6px 10px",
+                    background: "#ffffff",
+                    border: `2px solid ${INK}`,
+                    cursor: "pointer",
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openPinnedMessage(item.message)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") openPinnedMessage(item.message);
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+                    #{item.message.seq}
+                  </span>
+                  <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {previewLine(item.message.content, 60)}
+                  </span>
+                  {pinnedSort === "manual" && (
+                    <span
+                      style={{ display: "flex", gap: 4 }}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        title={t("pinned.moveUp")}
+                        disabled={index === 0}
+                        onClick={() => void movePinned(index, -1)}
+                        style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        title={t("pinned.moveDown")}
+                        disabled={index === pinnedItems.length - 1}
+                        onClick={() => void movePinned(index, 1)}
+                        style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        title={t("message.unpin")}
+                        onClick={() => void togglePin(item.message)}
+                        style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages / Tasks tab（§3.1） */}
       <div
@@ -1379,12 +2074,16 @@ export function ChannelView({
                 <div key={m.id} id={`msg-${m.id}`}>
                   <MessageRow
                     message={m}
+                    currentMemberId={currentMemberId}
+                    pinned={pinnedItems.some((item) => item.message.id === m.id)}
                     canConvertToTask={!tasks.some((task) => task.message_id === m.id)}
                     onReply={(target) => void loadThread(target.id)}
                     onQuote={setQuoting}
                     onCopyLink={(target) => void handleCopyLink(target)}
                     onConvertToTask={(target) => void convertMessageToTask(target)}
                     onSetReminder={joined ? openMessageReminder : undefined}
+                    onToggleReaction={joined ? toggleReaction : undefined}
+                    onTogglePin={joined ? togglePin : undefined}
                   />
                 </div>
               ))}
@@ -1500,12 +2199,16 @@ export function ChannelView({
             <MessageRow
               message={openThread}
               isAnchor
+              currentMemberId={currentMemberId}
+              pinned={pinnedItems.some((item) => item.message.id === openThread.id)}
               canConvertToTask={!tasks.some((task) => task.message_id === openThread.id)}
               onReply={() => undefined}
               onQuote={setQuoting}
               onCopyLink={(target) => void handleCopyLink(target)}
               onConvertToTask={(target) => void convertMessageToTask(target)}
               onSetReminder={joined ? openMessageReminder : undefined}
+              onToggleReaction={joined ? toggleReaction : undefined}
+              onTogglePin={joined ? togglePin : undefined}
             />
             {threadLoading ? (
               <div style={{ padding: 16, color: "var(--text-dim)", fontSize: 12 }}>
@@ -1516,10 +2219,14 @@ export function ChannelView({
                 <MessageRow
                   key={m.id}
                   message={m}
+                  currentMemberId={currentMemberId}
+                  pinned={pinnedItems.some((item) => item.message.id === m.id)}
                   canConvertToTask={false}
                   onReply={() => undefined}
                   onQuote={setQuoting}
                   onCopyLink={(target) => void handleCopyLink(target)}
+                  onToggleReaction={joined ? toggleReaction : undefined}
+                  onTogglePin={joined ? togglePin : undefined}
                 />
               ))
             )}
