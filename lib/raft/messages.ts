@@ -1,5 +1,5 @@
 import { getDb } from "./db-singleton.ts";
-import { getChannel, isChannelMember } from "./channels.ts";
+import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { notifyMessageWakes } from "../agent-loop/wake.ts";
 import type { ChannelRow, MemberRow, MessageRow } from "../data/db.ts";
@@ -22,8 +22,14 @@ interface ResolvedTarget {
   anchor: MessageRow | null;
 }
 
-function messageWithAuthor(message: MessageRow): MessageWithAuthor {
+export function messageWithAuthor(message: MessageRow): MessageWithAuthor {
   return { ...message, author: getMember(message.author_id) ?? null };
+}
+
+/** 引用块/任务摘要共用的内容预览：首行截断。 */
+export function previewLine(content: string, maxLength = 80): string {
+  const firstLine = content.split("\n")[0].trim();
+  return firstLine.length > maxLength ? `${firstLine.slice(0, maxLength)}…` : firstLine;
 }
 
 /**
@@ -32,14 +38,13 @@ function messageWithAuthor(message: MessageRow): MessageWithAuthor {
  * thread 消息不能作为新 target（不可嵌套，§3.2）。
  */
 function resolveTarget(targetId: string): ResolvedTarget {
-  const channel = getChannel(targetId);
-  if (channel) return { targetId, channel, anchor: null };
-
-  const anchor = getDb().getMessage(targetId);
-  if (!anchor) throw new Error("Channel or message not found");
-  const anchorChannel = getChannel(anchor.target_id);
-  if (!anchorChannel) throw new Error("Threads cannot be nested");
-  return { targetId: anchor.id, channel: anchorChannel, anchor };
+  const channel = resolveChannelForTarget(targetId);
+  if (channel) {
+    const anchor = getDb().getChannel(targetId) ? null : (getDb().getMessage(targetId) ?? null);
+    return { targetId: anchor ? anchor.id : targetId, channel, anchor };
+  }
+  if (getDb().getMessage(targetId)) throw new Error("Threads cannot be nested");
+  throw new Error("Channel or message not found");
 }
 
 /**
@@ -146,7 +151,5 @@ export function getThreadInfo(
 
 /** 引用块（§3.2 引用动作）：消息不可编辑，引用以块引用文本形式物化进内容。 */
 export function formatQuote(message: MessageRow, authorName: string): string {
-  const firstLine = message.content.split("\n")[0].trim();
-  const preview = firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine;
-  return `> **#${message.seq} ${authorName}**\n> ${preview}\n\n`;
+  return `> **#${message.seq} ${authorName}**\n> ${previewLine(message.content)}\n\n`;
 }

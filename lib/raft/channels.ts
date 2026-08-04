@@ -114,6 +114,19 @@ export function isChannelMember(channelId: string, memberId: string): boolean {
   return getDb().isChannelMember(channelId, memberId);
 }
 
+/**
+ * §6.1 target 归一化（读侧宽松）：target_id 命中 channels 即 channel，
+ * 否则按 thread 锚点消息解析其归属 channel；未知 target 返回 undefined。
+ * 写侧（messages.resolveTarget）在此之上加严格校验（不可嵌套）。
+ */
+export function resolveChannelForTarget(targetId: string): ChannelRow | undefined {
+  const channel = getDb().getChannel(targetId);
+  if (channel) return channel;
+  const anchor = getDb().getMessage(targetId);
+  if (!anchor) return undefined;
+  return getDb().getChannel(anchor.target_id);
+}
+
 /** channel 成员列表（含成员详情）。 */
 export function listChannelMembers(channelId: string): MemberRow[] {
   const rows = getDb().listChannelMembers(channelId);

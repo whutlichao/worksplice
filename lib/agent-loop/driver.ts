@@ -1,5 +1,5 @@
 import { subscribeWake, type WakeHint } from "./wake.ts";
-import { runAgentRound, type LoopRuntime } from "./loop.ts";
+import { runAgentRound, PROMPT_DONE_EVENTS, type LoopRuntime } from "./loop.ts";
 import { getAgent } from "../raft/members.ts";
 import { getAgentRuntime } from "../agent-runtime.ts";
 
@@ -141,7 +141,7 @@ async function waitForSettle(agentId: string, targetId: string): Promise<void> {
       return;
     }
     const unsub = session.onEvent((event) => {
-      if (event.type === "agent_end" || event.type === "agent_settled" || event.type === "prompt_done") {
+      if (PROMPT_DONE_EVENTS.has(event.type)) {
         retry();
       }
     });

@@ -1,5 +1,5 @@
 import { getDb } from "../raft/db-singleton.ts";
-import { getChannel, listChannelMembers } from "../raft/channels.ts";
+import { listChannelMembers, resolveChannelForTarget } from "../raft/channels.ts";
 import { getMember } from "../raft/members.ts";
 import type { MessageRow } from "../data/db.ts";
 
@@ -66,7 +66,7 @@ export function extractMentionedMemberIds(content: string): string[] {
  * thread 消息以锚点消息 id 为目标（drain 用同一 target 归一化）。
  */
 export function notifyMessageWakes(message: MessageRow): void {
-  const channel = resolveWakeChannel(message);
+  const channel = resolveChannelForTarget(message.target_id);
   if (!channel) return;
 
   const woken = new Set<string>();
@@ -81,12 +81,4 @@ export function notifyMessageWakes(message: MessageRow): void {
     if (woken.has(mentionedId)) continue;
     emitWake({ agentId: mentionedId, targetId: message.target_id, seq: message.seq, reason: "message" });
   }
-}
-
-function resolveWakeChannel(message: MessageRow): ReturnType<typeof getChannel> {
-  const channel = getChannel(message.target_id);
-  if (channel) return channel;
-  const anchor = getDb().getMessage(message.target_id);
-  if (!anchor) return undefined;
-  return getChannel(anchor.target_id);
 }

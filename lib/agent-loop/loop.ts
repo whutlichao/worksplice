@@ -5,6 +5,7 @@ import { sendMessage, type SendMessageResult } from "../raft/messages.ts";
 import {
   drain,
   ack,
+  getSince,
   resolveTargetChannel,
   listRelatedTasks,
   type MessageWithAuthor,
@@ -124,32 +125,52 @@ export function buildReplyPrompt(input: {
   return lines.join("\n");
 }
 
-/** held 后的 revise prompt（§3.3 修正方式 1）：期间发生了什么 + 原稿 + 重写指示。 */
+/** held 后的 revise prompt（§3.3 修正方式 1）：期间发生了什么 + 新消息正文 + 原稿 + 重写指示。 */
 export function buildRevisionPrompt(input: {
   channel: ChannelRow;
   originalContent: string;
   held: { roomSeq: number; whatHappened: string };
+  newMessages: MessageWithAuthor[];
   targetId: string;
 }): string {
-  return [
-    `Your reply to channel ${input.channel.name} was held because the room changed while you were writing.`,
-    `What happened: ${input.held.whatHappened}`,
-    `The room is now at seq ${input.held.roomSeq}.`,
-    "Your held draft was:",
-    "---",
-    input.originalContent,
-    "---",
+  const lines: string[] = [];
+  lines.push(`Your reply to channel ${input.channel.name} was held because the room changed while you were writing.`);
+  lines.push(`What happened: ${input.held.whatHappened}`);
+  lines.push(`The room is now at seq ${input.held.roomSeq}.`);
+  if (input.newMessages.length > 0) {
+    lines.push("");
+    lines.push("Messages that arrived while you were writing:");
+    for (const message of input.newMessages) {
+      const author = message.author?.name ?? "unknown";
+      const content =
+        message.content.length > MESSAGE_CONTENT_CAP
+          ? `${message.content.slice(0, MESSAGE_CONTENT_CAP)}…`
+          : message.content;
+      lines.push(`#${message.seq} @${author}: ${content}`);
+    }
+  }
+  lines.push("");
+  lines.push("Your held draft was:");
+  lines.push("---");
+  lines.push(input.originalContent);
+  lines.push("---");
+  lines.push(
     'Decide one of: rewrite the reply and resend (reply JSON again with your new content); resend the draft as-is ({"action":"reply","content":"<draft>","onConflict":"resend"}); stay silent ({"action":"ignore"}); or send anyway without the freshness check ({"action":"reply","content":"<draft>","onConflict":"anyway"}).',
+  );
+  lines.push(
     'Reply with JSON only: {"action":"reply"|"ignore","content":"...","onConflict":"revise"|"resend"|"silent"|"anyway"}',
-    roomMarker(input.targetId, input.held.roomSeq),
-  ].join("\n");
+  );
+  lines.push("[worksplice:revision]");
+  lines.push(roomMarker(input.targetId, input.held.roomSeq));
+  return lines.join("\n");
 }
 
 // ----------------------------------------------------------------------------
 // prompt 执行
 // ----------------------------------------------------------------------------
 
-const PROMPT_DONE_EVENTS = new Set(["prompt_done", "agent_end", "agent_settled"]);
+/** 一次 prompt 完成/失败的会话事件集合（driver 的 busy 重试复用同一份清单）。 */
+export const PROMPT_DONE_EVENTS = new Set(["prompt_done", "agent_end", "agent_settled"]);
 
 /** 等待一次 prompt 完成（prompt_done / agent_end / agent_settled；prompt_error 视为失败）。 */
 export function waitForPromptCompletion(
@@ -210,14 +231,16 @@ export type ReplySender = (opts: {
 }) => SendMessageResult;
 
 export type DeliverOutcome =
-  | { status: "replied"; message: MessageRow }
-  | { status: "anyway"; message: MessageRow }
-  | { status: "silent"; reason?: string };
+  | { status: "replied"; message: MessageRow; ackSeq: number }
+  | { status: "anyway"; message: MessageRow; ackSeq: number }
+  | { status: "silent"; reason?: string; ackSeq: number };
 
 /**
  * 回复投递（§3.3/§6.3）：携带写稿时的 baseSeq 走 freshness 校验；
  * 被 held 后按 agent 指定的 onConflict 四选一执行。
  * send 可注入（默认 raft sendMessage）；promptFn 用于 revise 重写。
+ * ackSeq = agent 本轮实际读到/被告知的最新房间版本（held 后按 roomSeq 推进，
+ * 避免游标停在旧 baseSeq 导致 target 永久 pending）。
  */
 export async function deliverWithFreshness(input: {
   targetId: string;
@@ -231,6 +254,7 @@ export async function deliverWithFreshness(input: {
   const send: ReplySender = input.send ?? ((opts) => sendMessage(opts));
   let action = input.action;
   let baseSeq = input.baseSeq;
+  let ackSeq = input.baseSeq;
   let reviseRetries = 0;
   let resendRetries = 0;
 
@@ -241,20 +265,21 @@ export async function deliverWithFreshness(input: {
       content: action.content,
       baseSeq,
     });
-    if (!result.held) return { status: "replied", message: result.message };
+    if (!result.held) return { status: "replied", message: result.message, ackSeq };
 
+    ackSeq = result.roomSeq;
     switch (action.onConflict) {
       case "anyway": {
         // --anyway 逃逸口：连续 hold 后的显式绕过（不带 baseSeq 重试）
         const forced = send({ targetId: input.targetId, authorId: input.agent.id, content: action.content });
-        if (forced.held) return { status: "silent", reason: "anyway send was held again" };
-        return { status: "anyway", message: forced.message };
+        if (forced.held) return { status: "silent", reason: "anyway send was held again", ackSeq };
+        return { status: "anyway", message: forced.message, ackSeq };
       }
       case "silent":
-        return { status: "silent", reason: "agent chose to stay silent" };
+        return { status: "silent", reason: "agent chose to stay silent", ackSeq };
       case "resend": {
         if (resendRetries >= MAX_RESEND_RETRIES) {
-          return { status: "silent", reason: "resend retries exhausted" };
+          return { status: "silent", reason: "resend retries exhausted", ackSeq };
         }
         resendRetries += 1;
         baseSeq = result.roomSeq;
@@ -263,7 +288,7 @@ export async function deliverWithFreshness(input: {
       case "revise":
       default: {
         if (reviseRetries >= MAX_REVISE_RETRIES) {
-          return { status: "silent", reason: "revise retries exhausted" };
+          return { status: "silent", reason: "revise retries exhausted", ackSeq };
         }
         reviseRetries += 1;
         const revisedText = await input.promptFn(
@@ -271,12 +296,13 @@ export async function deliverWithFreshness(input: {
             channel: input.channel,
             originalContent: action.content,
             held: { roomSeq: result.roomSeq, whatHappened: result.whatHappened },
+            newMessages: getSince(input.targetId, baseSeq),
             targetId: input.targetId,
           }),
         );
         const revised = parseAgentAction(revisedText);
         if (revised.action === "ignore" || !revised.content) {
-          return { status: "silent", reason: "revised to ignore" };
+          return { status: "silent", reason: "revised to ignore", ackSeq };
         }
         action = revised;
         baseSeq = result.roomSeq;
@@ -385,12 +411,13 @@ export async function runAgentRound(
         return revised.ok ? revised.text : "";
       },
     });
-    ack(agentId, targetId, baseSeq);
+    // ack 到 agent 本轮实际读到/被告知的房间版本（held 后随 roomSeq 推进）
+    ack(agentId, targetId, outcome.ackSeq ?? baseSeq);
     publishAgentStatus(agent.id, "online");
     if (outcome.status === "silent") {
-      return { status: "silent", reason: outcome.reason, baseSeq };
+      return { status: "silent", reason: outcome.reason, baseSeq: outcome.ackSeq };
     }
-    return { status: outcome.status, message: outcome.message, baseSeq };
+    return { status: outcome.status, message: outcome.message, baseSeq: outcome.ackSeq };
   } catch (error) {
     publishAgentStatus(agent.id, "error");
     return { status: "error", reason: error instanceof Error ? error.message : String(error) };
