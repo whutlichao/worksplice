@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
@@ -41,6 +42,7 @@ export function WorkspaceSidebar({
   onNewAgent,
   onOpenModels,
   onCloseMenu,
+  onSearch,
 }: {
   channels: ChannelRow[];
   agents: MemberRow[];
@@ -51,8 +53,11 @@ export function WorkspaceSidebar({
   onNewAgent: () => void;
   onOpenModels: () => void;
   onCloseMenu: () => void;
+  onSearch: (query: string) => void;
 }) {
   const { t, locale, setLocale, supportedLocales } = useI18n();
+  // §6.4 搜索入口：Enter 发起全文搜索（结果在中央 SearchView，打开动作深链定位）
+  const [searchDraft, setSearchDraft] = useState("");
 
   const rowStyle = (isSelected: boolean): React.CSSProperties => ({
     display: "flex",
@@ -148,6 +153,64 @@ export function WorkspaceSidebar({
           }}
         >
           ✕
+        </button>
+      </div>
+
+      {/* §6.4 全文搜索入口：Enter 提交，Escape 清空 */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          padding: 10,
+          borderBottom: `2px solid ${INK}`,
+          flexShrink: 0,
+        }}
+      >
+        <input
+          type="search"
+          value={searchDraft}
+          placeholder={t("search.placeholder")}
+          aria-label={t("search.placeholder")}
+          onChange={(e) => setSearchDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && searchDraft.trim()) {
+              onSearch(searchDraft.trim());
+            } else if (e.key === "Escape") {
+              setSearchDraft("");
+            }
+          }}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: 28,
+            padding: "0 8px",
+            background: "#ffffff",
+            color: "var(--text)",
+            border: `2px solid ${INK}`,
+            boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
+            outline: "none",
+            fontFamily: "var(--font-space-grotesk)",
+            fontSize: 12,
+          }}
+        />
+        <button
+          type="button"
+          aria-label={t("search.title")}
+          title={t("search.title")}
+          onClick={() => searchDraft.trim() && onSearch(searchDraft.trim())}
+          style={{
+            width: 30,
+            height: 28,
+            background: "var(--lime)",
+            color: INK,
+            border: `2px solid ${INK}`,
+            boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
+            cursor: "pointer",
+            fontSize: 13,
+            lineHeight: 1,
+          }}
+        >
+          🔍
         </button>
       </div>
 

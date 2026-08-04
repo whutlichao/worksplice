@@ -5,6 +5,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { useViewportHeight } from "@/hooks/useViewportHeight";
 import { WorkspaceSidebar, type SidebarSelection } from "./WorkspaceSidebar";
 import { ChannelView, type CenterTab, type ChannelWithMeta } from "./ChannelView";
+import { SearchView } from "./SearchView";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateAgentModal } from "./CreateAgentModal";
@@ -15,9 +16,8 @@ import { OWNER_MEMBER_ID } from "@/lib/data/schema";
 const INK = "#141111";
 
 /** 深链格式（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` */
-function parseDeepLink(): { channelId: string; messageId?: string } | null {
+function parseDeepLink(raw: string): { channelId: string; messageId?: string } | null {
   try {
-    const raw = window.location.hash;
     const match = /^#c\/([^?]+)(?:\?m=(.+))?$/.exec(raw);
     if (!match) return null;
     return { channelId: decodeURIComponent(match[1]), messageId: match[2] ? decodeURIComponent(match[2]) : undefined };
@@ -44,6 +44,10 @@ export function AppShell() {
   const [centerTab, setCenterTab] = useState<CenterTab>("messages");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
+
+  // §6.4 全文搜索：侧栏入口 → 中央 SearchView；"打开消息"经深链定位。
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
@@ -110,20 +114,37 @@ export function AppShell() {
     };
   }, []);
 
-  // 深链（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` → 选中 channel 并定位消息
-  useEffect(() => {
-    const applyDeepLink = () => {
-      const link = parseDeepLink();
-      if (!link) return;
-      setSelected({ kind: "channel", id: link.channelId });
-      setCenterTab("messages");
-      setFocusMessageId(link.messageId ?? null);
-      setSidebarOpen(false);
-    };
-    applyDeepLink();
-    window.addEventListener("hashchange", applyDeepLink);
-    return () => window.removeEventListener("hashchange", applyDeepLink);
+  // 深链（复制链接 §3.2 / 搜索"打开消息"§6.4）：`#c/<channelId>?m=<messageId>` → 选中 channel 并定位消息
+  const applyDeepLink = useCallback((raw?: string) => {
+    const link = parseDeepLink(raw ?? window.location.hash);
+    if (!link) return;
+    setSelected({ kind: "channel", id: link.channelId });
+    setCenterTab("messages");
+    setFocusMessageId(link.messageId ?? null);
+    setSidebarOpen(false);
+    setSearchOpen(false);
   }, []);
+
+  useEffect(() => {
+    const onHashChange = () => applyDeepLink();
+    applyDeepLink();
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [applyDeepLink]);
+
+  /** 搜索"打开消息"（§6.4）：关闭搜索视图 + 深链定位；hash 未变时直接应用（可重复打开同一消息）。 */
+  const openMessageFromSearch = useCallback(
+    (channelId: string, messageId: string) => {
+      setSearchOpen(false);
+      const hash = `#c/${encodeURIComponent(channelId)}?m=${messageId}`;
+      if (window.location.hash === hash) {
+        applyDeepLink(hash);
+      } else {
+        window.location.hash = hash;
+      }
+    },
+    [applyDeepLink],
+  );
 
   // 默认选中 #all（内建频道）
   useEffect(() => {
@@ -142,6 +163,7 @@ export function AppShell() {
   const handleSelect = (next: SidebarSelection) => {
     setSelected(next);
     setFocusMessageId(null);
+    setSearchOpen(false);
     if (next?.kind === "channel") setCenterTab("messages");
     setSidebarOpen(false);
   };
@@ -169,6 +191,10 @@ export function AppShell() {
           onNewAgent={() => setCreateAgentOpen(true)}
           onOpenModels={() => setModelsOpen(true)}
           onCloseMenu={() => setSidebarOpen(false)}
+          onSearch={(q) => {
+            setSearchQuery(q);
+            setSearchOpen(true);
+          }}
         />
       </aside>
 
@@ -183,14 +209,23 @@ export function AppShell() {
         >
           ☰
         </button>
-        <ChannelView
-          channel={selectedChannel}
-          tab={centerTab}
-          onTabChange={setCenterTab}
-          currentMemberId={OWNER_MEMBER_ID}
-          onChannelChanged={load}
-          focusMessageId={focusMessageId}
-        />
+        {searchOpen ? (
+          <SearchView
+            key={`search-${searchQuery}`}
+            initialQuery={searchQuery}
+            onClose={() => setSearchOpen(false)}
+            onOpenMessage={openMessageFromSearch}
+          />
+        ) : (
+          <ChannelView
+            channel={selectedChannel}
+            tab={centerTab}
+            onTabChange={setCenterTab}
+            currentMemberId={OWNER_MEMBER_ID}
+            onChannelChanged={load}
+            focusMessageId={focusMessageId}
+          />
+        )}
       </div>
 
       {/* 右栏（可选）：agent 详情面板；桌面常驻，紧凑端滑入 */}

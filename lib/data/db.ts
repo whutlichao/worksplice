@@ -148,6 +148,58 @@ export function toFtsQuery(input: string): string {
   return tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(" AND ");
 }
 
+/** LIKE 通配符转义（短 token 兜底路径）。 */
+function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+const escapeHtml = (input: string): string => input.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);
+
+/**
+ * 命中上下文摘要（§6.4）：取最早命中词前后 radius 字符，正文转义后仅高亮命中词。
+ * 不用 SQL 侧 snippet()（其输出不转义正文，消息内容里的 HTML 会原样透出）；
+ * FTS 路径与 LIKE 兜底路径共用，保证两路摘要形态一致。
+ */
+export function buildSearchSnippet(content: string, terms: string[], radius = 60): string {
+  const lower = content.toLowerCase();
+  let best = -1;
+  let bestLen = 0;
+  for (const term of terms) {
+    const idx = lower.indexOf(term.toLowerCase());
+    if (idx !== -1 && term.length > bestLen) {
+      best = idx;
+      bestLen = term.length;
+    }
+  }
+  if (best === -1) {
+    const head = content.slice(0, radius * 2);
+    return escapeHtml(head) + (content.length > head.length ? "…" : "");
+  }
+  const start = Math.max(0, best - radius);
+  const end = Math.min(content.length, best + bestLen + radius);
+  const matchStart = best - start;
+  const matchEnd = matchStart + bestLen;
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < content.length ? "…" : "";
+  return (
+    prefix +
+    escapeHtml(content.slice(start, start + matchStart)) +
+    `<mark>` +
+    escapeHtml(content.slice(start + matchStart, start + matchEnd)) +
+    `</mark>` +
+    escapeHtml(content.slice(start + matchEnd, end)) +
+    suffix
+  );
+}
+
 export class RaftStore {
   readonly db: Database.Database;
   readonly paths: DataPaths;
@@ -410,20 +462,44 @@ export class RaftStore {
     });
   }
 
+  /**
+   * 全文搜索（§6.4）：结果 = id + 命中上下文摘要（<mark> 高亮）。
+   * 双路径：全部 token ≥3 字符 → trigram FTS（rank 排序）；
+   * 含短 token（如 CJK 双字词）→ LIKE 兜底（trigram 需 ≥3 字符）。
+   * 触发器同步（schema v5）：新消息插入立即可搜。
+   */
   searchMessages(query: string, limit = 20): SearchResult[] {
-    const fts = toFtsQuery(query);
-    if (!fts) return [];
-    return this.db
-      .prepare(
-        `SELECT m.id, m.target_id, m.seq, m.author_id, m.created_at,
-                snippet(messages_fts, 0, '<mark>', '</mark>', '…', 12) AS snippet
-         FROM messages_fts
-         JOIN messages m ON m.rowid = messages_fts.rowid
-         WHERE messages_fts MATCH ?
-         ORDER BY rank
-         LIMIT ?`,
-      )
-      .all(fts, limit) as SearchResult[];
+    const tokens = query.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return [];
+    const pick = (row: MessageRow): SearchResult => ({
+      id: row.id,
+      target_id: row.target_id,
+      seq: row.seq,
+      author_id: row.author_id,
+      created_at: row.created_at,
+      snippet: buildSearchSnippet(row.content, tokens),
+    });
+    if (tokens.every((token) => token.length >= 3)) {
+      const fts = toFtsQuery(tokens.join(" "));
+      const rows = this.db
+        .prepare(
+          `SELECT m.id, m.target_id, m.seq, m.author_id, m.created_at, m.content
+           FROM messages_fts
+           JOIN messages m ON m.rowid = messages_fts.rowid
+           WHERE messages_fts MATCH ?
+           ORDER BY rank
+           LIMIT ?`,
+        )
+        .all(fts, limit) as MessageRow[];
+      return rows.map(pick);
+    }
+    // 短 token 兜底：LIKE AND 组合，按插入序倒序（rowid DESC）。
+    const conditions = tokens.map(() => "content LIKE ? ESCAPE '\\'").join(" AND ");
+    const params = tokens.map((token) => `%${escapeLike(token)}%`);
+    const rows = this.db
+      .prepare(`SELECT * FROM messages WHERE ${conditions} ORDER BY rowid DESC LIMIT ?`)
+      .all(...params, limit) as MessageRow[];
+    return rows.map(pick);
   }
 
   insertTask(input: {

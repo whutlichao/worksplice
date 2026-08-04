@@ -102,6 +102,7 @@ app/api/
   reminders/[id]/snooze/route.ts  POST { minutes?=15 } — fire_at = max(now, fire_at) + minutes
   reminders/[id]/cancel/route.ts  POST cancel（仅 scheduled → canceled，cron 不再触发）
   reminders/[id]/log/route.ts     GET 生命周期事件流（schedule/fire/reschedule/snooze/update/cancel/error）
+  search/route.ts                 GET ?q=&limit= — FTS5 全文搜索（结果 = id + 命中上下文摘要 + 归属 channel/thread + 作者）
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
   channels.ts                     create/join/leave/archive/members + CURRENT_MEMBER_ID（恒为 owner）
@@ -122,6 +123,7 @@ lib/raft/                         raft 服务层（app/api 仅薄封装）
                                   （workspace 绑定唯一性校验；删除 = soft-delete）
   reminders.ts                    schedule/list/snooze/update/cancel/log/fireDueReminders（§3.9/§5.6）
                                   fire 投递系统消息（wake:false）+ 定向唤醒作者（agent → emitWake reason=reminder）
+  search.ts                       §6.4 搜索服务层：searchMessages（trigram FTS 双路径 + LIKE 兜底；结果附 channel/author/inThread）
   recurrence.ts                   recurrence DSL 纯解析器：every:Nm/Nh/Nd / daily@HH:MM / weekly:mon,fri@HH:MM
                                   + nextFireAt（严格晚于 from，时区安全，delay 语义）
   db-singleton.ts                 globalThis.__workspliceDb 单例（schema 版本号兜底重建，扛热重载）

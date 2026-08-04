@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -97,10 +97,13 @@ const SCHEMA_STATEMENTS: string[] = [
     seq INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (agent_id, target_id)
   )`,
+  // §6.4 全文搜索：trigram tokenizer —— unicode61 把连续 CJK 当作单 token，中文子串搜不到；
+  // trigram 按 3-gram 索引，中英文子串均可命中（查询 token <3 字符时由 searchMessages 走 LIKE 兜底）。
   `CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     content,
     content='messages',
-    content_rowid='rowid'
+    content_rowid='rowid',
+    tokenize='trigram'
   )`,
   `CREATE TRIGGER IF NOT EXISTS messages_no_update BEFORE UPDATE ON messages BEGIN
     SELECT RAISE(ABORT, 'messages are immutable');
@@ -120,8 +123,39 @@ const SCHEMA_STATEMENTS: string[] = [
   END`,
 ];
 
+/**
+ * v5：messages_fts 换用 trigram tokenizer（§6.4）。
+ * 老库（v4 及更早）的 unicode61 把连续 CJK 当作单 token，中文关键词无法命中；
+ * 检测 sqlite_master 中的建表 sql 是否含 trigram，缺则 drop 重建 + 回填。
+ * 消息不可变（无 UPDATE/DELETE），回填确定；fts 触发器挂在 messages 表上，
+ * 先显式 DROP TRIGGER 再 DROP TABLE，由 SCHEMA_STATEMENTS 循环的
+ * CREATE TRIGGER IF NOT EXISTS 重建。
+ */
+function migrateMessagesFtsTrigram(db: Database.Database): void {
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages_fts'")
+    .get() as { sql: string } | undefined;
+  if (!row) return;
+  if (row.sql.includes("trigram")) return;
+  // 触发器挂在 messages 表上、引用 messages_fts —— DROP TABLE 不会连带删掉，先显式清理再重建。
+  db.exec("DROP TRIGGER IF EXISTS messages_fts_insert");
+  db.exec("DROP TRIGGER IF EXISTS messages_fts_update");
+  db.exec("DROP TRIGGER IF EXISTS messages_fts_delete");
+  db.exec("DROP TABLE messages_fts");
+  db.exec(
+    `CREATE VIRTUAL TABLE messages_fts USING fts5(
+      content,
+      content='messages',
+      content_rowid='rowid',
+      tokenize='trigram'
+    )`,
+  );
+  db.exec("INSERT INTO messages_fts (rowid, content) SELECT rowid, content FROM messages");
+}
+
 export function runMigrations(db: Database.Database): void {
   db.transaction(() => {
+    migrateMessagesFtsTrigram(db);
     for (const statement of SCHEMA_STATEMENTS) {
       db.exec(statement);
     }
