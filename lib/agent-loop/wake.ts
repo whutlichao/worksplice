@@ -16,6 +16,8 @@ export interface WakeHint {
   reason: "message" | "reminder";
 }
 
+export type WakeReason = WakeHint["reason"];
+
 export type WakeListener = (hint: WakeHint) => void;
 
 declare global {

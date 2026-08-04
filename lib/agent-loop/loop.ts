@@ -527,6 +527,7 @@ export async function runAgentRound(
   agentId: string,
   targetId: string,
   runtime?: LoopRuntime,
+  reason: "message" | "reminder" = "message",
 ): Promise<RoundOutcome> {
   const rt: LoopRuntime = runtime ?? (await getAgentRuntime());
   const agent = getAgent(agentId);
@@ -544,13 +545,16 @@ export async function runAgentRound(
   // §3.7 任务延续：drain 到的全是我自己的回复，但我在该线程有进行中的任务
   // （自醒续工信号：回复落任务线程 → 继续干或 complete，见 wake.ts）
   const continuing = ownsInProgressTaskAt(agentId, targetId);
-  if (incoming.length === 0 && !continuing) {
+  // §3.9 reminder 唤醒：系统提醒消息以作者署名投递（作者本人视角 = 全是自己的消息），
+  // reminder 驱动的轮次不能按"只有自己的消息"跳过——agent 要看到自己的提醒并行动
+  const reminderDriven = reason === "reminder";
+  if (incoming.length === 0 && !continuing && !reminderDriven) {
     ack(agentId, targetId, drained.maxSeq);
     return { status: "noop", reason: "only the agent's own messages", baseSeq: drained.maxSeq };
   }
   // 崩溃窗口（回复已写、游标未推）内的自愈：最新消息是自己的回复 → 只推进游标，不重复应答
   const latest = getDb().getLatestMessage(targetId);
-  if (latest && latest.author_id === agent.id && !continuing) {
+  if (latest && latest.author_id === agent.id && !continuing && !reminderDriven) {
     ack(agentId, targetId, drained.maxSeq);
     return {
       status: "skipped",

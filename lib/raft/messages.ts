@@ -2,6 +2,7 @@ import { getDb } from "./db-singleton.ts";
 import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { notifyMessageWakes } from "../agent-loop/wake.ts";
+import { previewLine } from "../preview.ts";
 import type { ChannelRow, MemberRow, MessageRow } from "../data/db.ts";
 
 const DEFAULT_PAGE_LIMIT = 50;
@@ -26,11 +27,8 @@ export function messageWithAuthor(message: MessageRow): MessageWithAuthor {
   return { ...message, author: getMember(message.author_id) ?? null };
 }
 
-/** 引用块/任务摘要共用的内容预览：首行截断。 */
-export function previewLine(content: string, maxLength = 80): string {
-  const firstLine = content.split("\n")[0].trim();
-  return firstLine.length > maxLength ? `${firstLine.slice(0, maxLength)}…` : firstLine;
-}
+/** 引用块/任务摘要共用的内容预览：首行截断（实现在 lib/preview.ts，client 可安全复用）。 */
+export { previewLine } from "../preview.ts";
 
 /**
  * 解析消息归属容器（§6.1 target 归一化约定）：
@@ -57,6 +55,8 @@ export function sendMessage(input: {
   content: string;
   baseSeq?: number;
   quoteId?: string;
+  /** 系统消息（reminder 到点投递）不触发 channel 级 wake，只由 fire 流程定向唤醒作者（§3.9）。 */
+  wake?: boolean;
 }): SendMessageResult {
   const content = input.content.trim();
   if (!content) throw new Error("Message content is required");
@@ -92,8 +92,9 @@ export function sendMessage(input: {
     });
     return { held: false as const, message };
   });
-  // 提交成功后发 wake hint（只含 seq/目标，不含正文）；事务外分发，避免回滚误唤醒
-  if (!result.held) notifyMessageWakes(result.message);
+  // 提交成功后发 wake hint（只含 seq/目标，不含正文）；事务外分发，避免回滚误唤醒。
+  // wake: false —— reminder 系统消息：只由 fireReminder 定向唤醒作者，不惊动全 channel（§3.9）
+  if (!result.held && input.wake !== false) notifyMessageWakes(result.message);
   return result;
 }
 

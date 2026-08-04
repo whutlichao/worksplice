@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { MarkdownBody } from "./MarkdownBody";
 import { PixelAvatar } from "./PixelAvatar";
+import { ReminderModal } from "./ReminderModal";
 import { copyText } from "@/lib/clipboard";
+import { previewLine } from "@/lib/preview";
 import type { ChannelRow, MemberRow, TaskStatus } from "@/lib/data/db";
 import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
 
@@ -149,17 +151,19 @@ function EmptyState({
   );
 }
 
-/** 消息动作栏（§3.2）：回复 thread / 引用 / 复制链接。 */
+/** 消息动作栏（§3.2）：回复 thread / 引用 / 复制链接 / 设提醒（§5.6 UI 入口）。 */
 function MessageActions({
   message,
   onReply,
   onQuote,
   onCopyLink,
+  onReminder,
 }: {
   message: ChannelMessage;
   onReply: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
+  onReminder?: (message: ChannelMessage) => void;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -202,6 +206,16 @@ function MessageActions({
       >
         {copied ? "✓" : "🔗"}
       </button>
+      {onReminder && (
+        <button
+          type="button"
+          title={t("reminders.messageAction")}
+          style={buttonStyle}
+          onClick={() => onReminder(message)}
+        >
+          ⏰
+        </button>
+      )}
     </div>
   );
 }
@@ -296,6 +310,7 @@ export function MessageRow({
   onQuote,
   onCopyLink,
   onConvertToTask,
+  onSetReminder,
 }: {
   message: ChannelMessage;
   isAnchor?: boolean;
@@ -304,6 +319,7 @@ export function MessageRow({
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
   onConvertToTask?: (message: ChannelMessage) => void;
+  onSetReminder?: (message: ChannelMessage) => void;
 }) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -353,7 +369,13 @@ export function MessageRow({
           <MarkdownBody>{message.content}</MarkdownBody>
         </div>
         <div className="ws-message-actions" style={{ marginTop: 6 }}>
-          <MessageActions message={message} onReply={onReply} onQuote={onQuote} onCopyLink={onCopyLink} />
+          <MessageActions
+            message={message}
+            onReply={onReply}
+            onQuote={onQuote}
+            onCopyLink={onCopyLink}
+            onReminder={onSetReminder}
+          />
         </div>
       </div>
       {menu && items.length > 0 && (
@@ -569,7 +591,7 @@ export function TaskBoard({
                           #{task.number}
                         </span>
                         <span style={{ flex: 1, fontSize: 13, color: "var(--text)", minWidth: 120 }}>
-                          {task.anchor.content.split("\n")[0]}
+                          {previewLine(task.anchor.content)}
                         </span>
                         <span
                           style={{
@@ -1153,6 +1175,24 @@ export function ChannelView({
     await copyText(url);
   };
 
+  /** 提醒弹窗（§5.6 UI 入口）：目标 = channel（头部 ⏰）或消息（消息动作栏 ⏰）。 */
+  const [reminderTarget, setReminderTarget] = useState<{
+    targetId: string;
+    targetLabel: string;
+    defaultTitle?: string;
+  } | null>(null);
+  const openChannelReminder = () => {
+    if (!channel) return;
+    setReminderTarget({ targetId: channel.id, targetLabel: `#${channel.name}` });
+  };
+  const openMessageReminder = (message: ChannelMessage) => {
+    setReminderTarget({
+      targetId: message.id,
+      targetLabel: `#${message.seq} ${message.author?.name ?? ""}`.trim(),
+      defaultTitle: previewLine(message.content, 60),
+    });
+  };
+
   const tabButtonStyle = (active: boolean): React.CSSProperties => ({
     fontFamily: "var(--font-hanken)",
     fontWeight: 700,
@@ -1266,6 +1306,16 @@ export function ChannelView({
                 </button>
               </>
             )}
+            {joined && (
+              <button
+                type="button"
+                title={t("reminders.channelAction")}
+                style={{ ...actionButton, background: "var(--lime)" }}
+                onClick={openChannelReminder}
+              >
+                ⏰
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -1334,6 +1384,7 @@ export function ChannelView({
                     onQuote={setQuoting}
                     onCopyLink={(target) => void handleCopyLink(target)}
                     onConvertToTask={(target) => void convertMessageToTask(target)}
+                    onSetReminder={joined ? openMessageReminder : undefined}
                   />
                 </div>
               ))}
@@ -1454,6 +1505,7 @@ export function ChannelView({
               onQuote={setQuoting}
               onCopyLink={(target) => void handleCopyLink(target)}
               onConvertToTask={(target) => void convertMessageToTask(target)}
+              onSetReminder={joined ? openMessageReminder : undefined}
             />
             {threadLoading ? (
               <div style={{ padding: 16, color: "var(--text-dim)", fontSize: 12 }}>
@@ -1481,6 +1533,17 @@ export function ChannelView({
             onSend={handleSend}
           />
         </div>
+      )}
+
+      {reminderTarget && channel && (
+        <ReminderModal
+          targetId={reminderTarget.targetId}
+          targetLabel={reminderTarget.targetLabel}
+          defaultTitle={reminderTarget.defaultTitle}
+          channelId={channel.id}
+          onClose={() => setReminderTarget(null)}
+          onChanged={loadLatest}
+        />
       )}
     </div>
   );

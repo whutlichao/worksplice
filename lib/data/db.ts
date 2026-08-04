@@ -67,6 +67,23 @@ export interface ReminderRow {
   created_at: string;
 }
 
+export type ReminderLogEvent =
+  | "schedule"
+  | "fire"
+  | "reschedule"
+  | "snooze"
+  | "update"
+  | "cancel"
+  | "error";
+
+export interface ReminderLogRow {
+  id: string;
+  reminder_id: string;
+  event: ReminderLogEvent;
+  detail: string;
+  created_at: string;
+}
+
 export interface ReactionRow {
   id: string;
   message_id: string;
@@ -537,6 +554,82 @@ export class RaftStore {
 
   listReminders(): ReminderRow[] {
     return this.db.prepare("SELECT * FROM reminders ORDER BY fire_at").all() as ReminderRow[];
+  }
+
+  getReminderById(id: string): ReminderRow | undefined {
+    return this.db.prepare("SELECT * FROM reminders WHERE id = ?").get(id) as
+      | ReminderRow
+      | undefined;
+  }
+
+  listRemindersByAuthor(authorId: string): ReminderRow[] {
+    return this.db
+      .prepare("SELECT * FROM reminders WHERE author_id = ? ORDER BY fire_at")
+      .all(authorId) as ReminderRow[];
+  }
+
+  /** 锚定在某 target（channel 或消息）上的提醒（UI "查看/取消"入口用）。 */
+  listRemindersForTarget(targetId: string): ReminderRow[] {
+    return this.db
+      .prepare("SELECT * FROM reminders WHERE target_id = ? ORDER BY fire_at")
+      .all(targetId) as ReminderRow[];
+  }
+
+  /** 更新提醒字段（fire/recurrence 续算、snooze/update/cancel 共用）；不存在返回 undefined。 */
+  updateReminder(
+    id: string,
+    input: {
+      title?: string;
+      fireAt?: string;
+      recurrence?: string | null;
+      targetId?: string | null;
+      status?: ReminderStatus;
+    },
+  ): ReminderRow | undefined {
+    const existing = this.getReminderById(id);
+    if (!existing) return undefined;
+    const row: ReminderRow = {
+      ...existing,
+      title: input.title !== undefined ? input.title : existing.title,
+      fire_at: input.fireAt !== undefined ? input.fireAt : existing.fire_at,
+      recurrence: input.recurrence !== undefined ? input.recurrence : existing.recurrence,
+      target_id: input.targetId !== undefined ? input.targetId : existing.target_id,
+      status: input.status ?? existing.status,
+    };
+    this.db
+      .prepare(
+        "UPDATE reminders SET title = ?, fire_at = ?, recurrence = ?, target_id = ?, status = ? WHERE id = ?",
+      )
+      .run(row.title, row.fire_at, row.recurrence, row.target_id, row.status, id);
+    return row;
+  }
+
+  insertReminderLog(input: {
+    id?: string;
+    reminderId: string;
+    event: ReminderLogEvent;
+    detail?: string;
+    createdAt?: string;
+  }): ReminderLogRow {
+    const row: ReminderLogRow = {
+      id: input.id ?? randomUUID(),
+      reminder_id: input.reminderId,
+      event: input.event,
+      detail: input.detail ?? "",
+      created_at: input.createdAt ?? new Date().toISOString(),
+    };
+    this.db
+      .prepare(
+        "INSERT INTO reminder_logs (id, reminder_id, event, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(row.id, row.reminder_id, row.event, row.detail, row.created_at);
+    return row;
+  }
+
+  listReminderLogs(reminderId: string): ReminderLogRow[] {
+    return this.db
+      .prepare("SELECT * FROM reminder_logs WHERE reminder_id = ? ORDER BY rowid")
+      .all(reminderId) as ReminderLogRow[];
   }
 
   insertReaction(input: {

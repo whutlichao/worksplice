@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -57,6 +57,13 @@ const SCHEMA_STATEMENTS: string[] = [
     target_id TEXT,
     author_id TEXT NOT NULL REFERENCES members(id),
     status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'fired', 'canceled')),
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS reminder_logs (
+    id TEXT PRIMARY KEY,
+    reminder_id TEXT NOT NULL REFERENCES reminders(id),
+    event TEXT NOT NULL CHECK (event IN ('schedule', 'fire', 'reschedule', 'snooze', 'update', 'cancel', 'error')),
+    detail TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS reactions (

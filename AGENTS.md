@@ -91,6 +91,12 @@ app/api/
   tasks/[id]/claim/route.ts       POST { baseSeq? } — claim；409 held / 409 conflict（失败让路）
   tasks/[id]/update-status/route.ts POST { status, baseSeq? } — 状态机转移；409 held
   channels/[id]/tasks/route.ts    GET 任务板（按 number 升序，UI 侧按状态分组）
+  reminders/route.ts              GET ?authorId=&targetId= 列表 | POST { title, fireAt, recurrence?, targetId?, authorId? }
+                                  （authorId 仅 Owner 可替 agent 设，§3.9 唤醒作者本人）
+  reminders/[id]/route.ts         PATCH update（title/fireAt/recurrence/targetId）| GET 单条
+  reminders/[id]/snooze/route.ts  POST { minutes?=15 } — fire_at = max(now, fire_at) + minutes
+  reminders/[id]/cancel/route.ts  POST cancel（仅 scheduled → canceled，cron 不再触发）
+  reminders/[id]/log/route.ts     GET 生命周期事件流（schedule/fire/reschedule/snooze/update/cancel/error）
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
   channels.ts                     create/join/leave/archive/members + CURRENT_MEMBER_ID（恒为 owner）
@@ -102,6 +108,10 @@ lib/raft/                         raft 服务层（app/api 仅薄封装）
                                   / listRelatedTasks / resolveTargetChannel（§5.5 本地实现形态）
   members.ts                      listAgents/createAgent/updateAgentWorkspace/setAgentStatus/deleteAgent
                                   （workspace 绑定唯一性校验；删除 = soft-delete）
+  reminders.ts                    schedule/list/snooze/update/cancel/log/fireDueReminders（§3.9/§5.6）
+                                  fire 投递系统消息（wake:false）+ 定向唤醒作者（agent → emitWake reason=reminder）
+  recurrence.ts                   recurrence DSL 纯解析器：every:Nm/Nh/Nd / daily@HH:MM / weekly:mon,fri@HH:MM
+                                  + nextFireAt（严格晚于 from，时区安全，delay 语义）
   db-singleton.ts                 globalThis.__workspliceDb 单例（schema 版本号兜底重建，扛热重载）
 
 lib/agent-loop/                  agent-loop（§5.4 驱动层）
@@ -113,13 +123,16 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层）
                                   "task":{"number":N,"op":"claim"|"complete"|"unclaim"}}
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
                                   + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
+                                  + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
   backfill.ts                     崩溃恢复按 seq 补拉：扫描 session jsonl 找回缺失的 assistant 回复按序补写（§5.3）
-  driver.ts                       wake → 逐 agent 串行队列；同 (agent,target) hint 合并；busy 时 settle 后重试
-  index.ts                        startAgentLoop()（instrumentation 调用：状态扫掠 + 补拉 + 驱动，幂等）
+  driver.ts                       wake → 逐 agent 串行队列；同 (agent,target) hint 合并（保留首个 reason）；
+                                  busy 时 settle 后重试
+  reminder-cron.ts                §5.6 逐分钟 cron：tickReminderCron 扫描 scheduled 且 fire_at<=now → fireDueReminders
+  index.ts                        startAgentLoop()（instrumentation 调用：状态扫掠 + 补拉 + 驱动 + cron，幂等）
 
 lib/data/                         raft SQLite 数据层（better-sqlite3，同步 API）
   db.ts                           RaftStore：表 CRUD + maxSeq/freshness 原语 + seq 游标分页
-  schema.ts                       schema v3（members.deleted soft-delete 列 + ALTER 迁移）+ 消息不可变触发器 + FTS5
+  schema.ts                       schema v4（reminder_logs 事件表；members.deleted 为 v3 ALTER 迁移）+ 消息不可变触发器 + FTS5
   dirs.ts                         ~/.worksplice 数据目录解析（WORKSPLICE_DATA_DIR 覆盖）
 
 lib/
@@ -145,8 +158,10 @@ components/
   WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）
   ChannelView.tsx        channel 消息流：seq 分页 / thread 侧栏 / 引用 / 复制链接 / join-leave-archive
                           / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskBoard（§3.7）
+                          / 提醒入口（header ⏰ + 消息动作栏 ⏰，§5.6）
   CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
   CreateAgentModal.tsx   建 agent
+  ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
   AgentDetailPanel.tsx   agent 详情面板（占位，ticket 05）
   BrutalModal.tsx        马卡龙 × brutalist 模态框外壳
   PixelAvatar.tsx        8×8 像素头像（seed 确定性）
@@ -279,6 +294,16 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **自动认领（agent-loop）**：协议扩展 `"task":{"number":N,"op":"claim"|"complete"|"unclaim"}`（`parseAgentAction` 向后兼容，无 task 字段行为不变）；`runTaskOperation` 先 `claimTask` 再开工——**held/conflict/非 owner → 让路**（`RoundStatus "yielded"`，不回复、channel 游标只推进到已读版本，更新的消息经 wake 重试重读）。回复投递到**任务线程**（anchor 消息 target，thread 自己的 seq/freshness 空间）；complete 的回复先落线程再置 in_review（状态更新 held 按 roomSeq 重试 ≤3 次，失败不吞回复）。
 - **任务延续自醒**（wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。
 - **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序；UI 按状态分组（todo→in_progress→in_review→done→closed），卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen）；点卡片打开任务 thread（进展只在线程里，board 只显示状态）。
+
+### 提醒（ticket 08，§3.9/§5.6 reminders 路由组）
+- **触发 = 系统消息 + 定向唤醒作者**：cron 到点 → `fireReminder` 以**作者署名**投递 `⏰ Reminder: <title>` 到锚定 target（channel 或消息/thread 锚点，thread 内消息归一化回锚点），`sendMessage({wake:false})` **不触发 channel 级 wake**（不惊动其他 agent）；随后仅当作者是 agent 才 `emitWake({reason:"reminder"})`（§3.9 唤醒作者本人；human 作者 = UI 轮询看到系统消息即通知）。
+- **作者选择 = 唤醒谁**：POST 默认 author = Owner；Owner 可替 agent 设（authorId = 某 agent，仅 Owner 权限，§3.6）——演示路径"给 agent 设 every:1m → 系统消息 + agent 被唤醒"靠这个闭环。ReminderModal 的"唤醒谁"下拉列出 channel 内 agent。
+- **自提醒可被 agent 看到**：系统消息以作者署名 → agent 自己设的提醒在 drain 里"全是自己的消息"，普通轮次会 noop/skip；`runAgentRound` 增加 reason 参数（driver 队列按 hint 合并保留首个 reason），`reason==="reminder"` 时"只有自己的消息"与"最新是本人消息"两条跳过都不生效，agent 以自身提醒为语境决定行动（loop 测试 reminded 用例）。
+- **recurrence DSL**（`lib/raft/recurrence.ts` 纯模块）：`every:Nm/Nh/Nd`（delay 语义，服务端算绝对时间）/ `daily@HH:MM` / `weekly:mon,fri@HH:MM`（大小写不敏感、未知星期名整体拒绝）；`nextFireAt` **严格晚于 from**（等值视为已到点）——否则 reschedule 会立即重触发死循环；daily/weekly 用本地时区 Date 构造（时区安全）。
+- **幂等与收口**：fire 全程同步（无 await，单进程内不交错）；状态迁移 + log 在一个事务里，重复 tick/重复 fire 返回 not_due 不重复投递。**消息投递失败（作者已退出 channel 等）→ 记 error log 并收口 fired**（不无限重试），不 wake。
+- **生命周期 log**：schema v4 新增 `reminder_logs` 表（事件 schedule/fire/reschedule/snooze/update/cancel/error）；列表按 rowid 排序（同毫秒 created_at 的时序保真）；fire 事件先于 reschedule 写入（时间序）。
+- **管理权限**：snooze/update/cancel 仅作者本人或 Owner 可操作，且仅 `scheduled`（fired/canceled 报错）；snooze = `max(now, fire_at) + minutes`（默认 15）。
+- **UI**：channel 头部 ⏰（目标 = channel，joined 才显示）+ 消息动作栏 ⏰（目标 = 该消息/thread 锚点，标题预填首行预览）；ReminderModal 内可创建（datetime-local + recurrence 预设 chips）、列出锚定提醒、snooze/cancel；到点系统消息经 3s 轮询落入消息流。
 
 ## Pi Session File Format
 

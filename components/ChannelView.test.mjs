@@ -54,6 +54,25 @@ test("MessageRow renders author, seq, content and the three §3.2 actions", () =
   assert.match(html, /↩/);
   assert.match(html, /❝/);
   assert.match(html, /🔗/);
+  // §5.6 UI 入口：未提供 onSetReminder 时不渲染 ⏰ 按钮
+  assert.doesNotMatch(html, /⏰/);
+});
+
+test("MessageRow renders the ⏰ reminder action when onSetReminder is provided (§5.6)", () => {
+  const calls = { reminder: null };
+  const html = renderI18n(
+    React.createElement(MessageRow, {
+      message: MESSAGE,
+      onReply: () => undefined,
+      onQuote: () => undefined,
+      onCopyLink: () => undefined,
+      onSetReminder: (m) => {
+        calls.reminder = m;
+      },
+    }),
+  );
+  assert.match(html, /⏰/);
+  assert.deepEqual(calls, { reminder: null });
 });
 
 test("MessageRow action handlers fire with the message", () => {

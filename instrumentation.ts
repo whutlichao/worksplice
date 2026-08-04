@@ -4,7 +4,8 @@ export async function register(): Promise<void> {
   const { configureHttpDispatcher } = await import("@/lib/http-dispatcher");
   configureHttpDispatcher();
 
-  // agent-loop（§5.4）：崩溃恢复补拉 + wake 驱动；启动路径不阻塞，失败不致命
+  // agent-loop（§5.4）：崩溃恢复补拉 + wake 驱动 + reminder cron（§5.6 逐分钟轮询）；
+  // 启动路径不阻塞，失败不致命
   const { startAgentLoop } = await import("@/lib/agent-loop/index");
   void Promise.resolve()
     .then(() => startAgentLoop())

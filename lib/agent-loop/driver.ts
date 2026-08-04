@@ -1,4 +1,4 @@
-import { subscribeWake, type WakeHint } from "./wake.ts";
+import { subscribeWake, type WakeHint, type WakeReason } from "./wake.ts";
 import { runAgentRound, PROMPT_DONE_EVENTS, type LoopRuntime } from "./loop.ts";
 import { getAgent } from "../raft/members.ts";
 import { getAgentRuntime } from "../agent-runtime.ts";
@@ -6,15 +6,22 @@ import { getAgentRuntime } from "../agent-runtime.ts";
 /**
  * agent-loop 驱动（§5.4）：把 wake hint 编排成逐 agent 串行的 runAgentRound。
  * - 每个 agent 一个 FIFO 队列；同一 (agent, target) 的并发 hint 合并（一次 drain 取尽）；
+ * - 合并保留 reason 的宽松侧：只要 hint 里有 reminder 就以 reminder 处理
+ *   （reminder 轮不跳过"只有自己的消息"，message 轮次覆盖；反之会丢自提醒）；
  * - 会话正忙（busy）时不丢 hint：在 settle 事件后重试一次；
  * - 状态全部挂 globalThis（热重载安全）；runtime 可注入（测试传 fake）。
  */
+
+interface QueuedTarget {
+  targetId: string;
+  reason: WakeReason;
+}
 
 interface DriverState {
   started: boolean;
   runtime: LoopRuntime | null;
   stopWake: (() => void) | null;
-  queues: Map<string, string[]>;
+  queues: Map<string, QueuedTarget[]>;
   processing: Set<string>;
   waitingForSettle: Set<string>;
   settleUnsubs: Map<string, () => void>;
@@ -62,9 +69,15 @@ export function stopAgentLoopDriver(): void {
   state.runtime = null;
 }
 
-/** 测试观察用：当前排队中的 (agent, target) 数量。 */
-export function peekAgentLoopQueues(): Array<{ agentId: string; targets: string[] }> {
-  return Array.from(getState().queues, ([agentId, targets]) => ({ agentId, targets }));
+/** 测试观察用：当前排队中的 (agent, target, reason) 清单。 */
+export function peekAgentLoopQueues(): Array<{
+  agentId: string;
+  entries: Array<{ targetId: string; reason: WakeReason }>;
+}> {
+  return Array.from(getState().queues, ([agentId, targets]) => ({
+    agentId,
+    entries: targets.map((entry) => ({ targetId: entry.targetId, reason: entry.reason })),
+  }));
 }
 
 function enqueueWake(hint: WakeHint): void {
@@ -75,7 +88,14 @@ function enqueueWake(hint: WakeHint): void {
     queue = [];
     state.queues.set(hint.agentId, queue);
   }
-  if (!queue.includes(hint.targetId)) queue.push(hint.targetId);
+  const existing = queue.find((entry) => entry.targetId === hint.targetId);
+  if (existing) {
+    // 同 (agent, target) 合并：reminder 是更宽松的处理模式（不跳过自己的消息），
+    // 已排队的 message 轮升级为 reminder 轮也不损失什么；反之会丢自提醒
+    if (hint.reason === "reminder") existing.reason = "reminder";
+    return;
+  }
+  queue.push({ targetId: hint.targetId, reason: hint.reason });
   void processAgent(hint.agentId);
 }
 
@@ -89,12 +109,12 @@ async function processAgent(agentId: string): Promise<void> {
   try {
     for (;;) {
       const queue = state.queues.get(agentId);
-      const targetId = queue?.shift();
-      if (!targetId) break;
+      const queued = queue?.shift();
+      if (!queued) break;
 
       let outcome;
       try {
-        outcome = await runAgentRound(agentId, targetId, runtime);
+        outcome = await runAgentRound(agentId, queued.targetId, runtime, queued.reason);
       } catch (error) {
         // 成员已删除 / target 消失等：跳过该轮，继续队列
         console.error(
@@ -104,7 +124,7 @@ async function processAgent(agentId: string): Promise<void> {
         continue;
       }
       if (outcome.status === "busy") {
-        waitForSettle(agentId, targetId);
+        waitForSettle(agentId, queued.targetId, queued.reason);
         break;
       }
     }
@@ -117,7 +137,7 @@ async function processAgent(agentId: string): Promise<void> {
 }
 
 /** 会话正忙：等 settle 事件后把 target 放回队列重试（不丢 hint）。 */
-async function waitForSettle(agentId: string, targetId: string): Promise<void> {
+async function waitForSettle(agentId: string, targetId: string, reason: WakeReason): Promise<void> {
   const state = getState();
   if (state.waitingForSettle.has(agentId)) return;
   state.waitingForSettle.add(agentId);
@@ -129,7 +149,9 @@ async function waitForSettle(agentId: string, targetId: string): Promise<void> {
       state.settleUnsubs.delete(agentId);
     }
     const queue = state.queues.get(agentId);
-    if (queue && !queue.includes(targetId)) queue.push(targetId);
+    if (queue && !queue.some((entry) => entry.targetId === targetId)) {
+      queue.push({ targetId, reason });
+    }
     void processAgent(agentId);
   };
   try {
