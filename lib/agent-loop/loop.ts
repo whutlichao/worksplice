@@ -2,6 +2,7 @@ import { getDb } from "../raft/db-singleton.ts";
 import { getAgent } from "../raft/members.ts";
 import { isChannelMember } from "../raft/channels.ts";
 import { sendMessage, type SendMessageResult } from "../raft/messages.ts";
+import { claimTask, updateTaskStatus } from "../raft/tasks.ts";
 import {
   drain,
   ack,
@@ -12,7 +13,7 @@ import {
 } from "../raft/inbox.ts";
 import { publishAgentStatus } from "../agent-status.ts";
 import { getAgentRuntime } from "../agent-runtime.ts";
-import type { ChannelRow, MemberRow, MessageRow } from "../data/db.ts";
+import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/db.ts";
 
 /**
  * agent-loop（§5.4）：wake → drain → decide → act → reply 收口的驱动层。
@@ -44,10 +45,16 @@ export interface LoopRuntime {
 export type ConflictChoice = "revise" | "resend" | "silent" | "anyway";
 const CONFLICT_CHOICES = new Set(["revise", "resend", "silent", "anyway"]);
 
+/** 任务操作（§3.7）：claim = 认领并开工；complete = 完成（置 in_review 待互审）；unclaim = 释放回池。 */
+export type TaskOp = "claim" | "complete" | "unclaim";
+export const TASK_OPS = new Set<TaskOp>(["claim", "complete", "unclaim"]);
+
 export interface AgentAction {
   action: "reply" | "ignore";
   content: string;
   onConflict: ConflictChoice;
+  /** 可选：本轮附带的任务操作（先 claim 再开工；claim 失败就让路）。 */
+  task?: { number: number; op: TaskOp };
 }
 
 /** 崩溃恢复补拉用的房间标记（§5.3）：随 prompt 落进 session jsonl 的 user 条目。 */
@@ -71,7 +78,16 @@ export function parseAgentAction(text: string): AgentAction {
       const onConflict: ConflictChoice = CONFLICT_CHOICES.has(String(parsed.onConflict))
         ? (parsed.onConflict as ConflictChoice)
         : "revise";
-      return { action, content, onConflict };
+      let task: AgentAction["task"];
+      const rawTask = parsed.task;
+      if (rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)) {
+        const number = Number((rawTask as Record<string, unknown>).number);
+        const op = String((rawTask as Record<string, unknown>).op);
+        if (Number.isInteger(number) && number > 0 && TASK_OPS.has(op as TaskOp)) {
+          task = { number, op: op as TaskOp };
+        }
+      }
+      return task ? { action, content, onConflict, task } : { action, content, onConflict };
     }
   } catch {
     // 非 JSON：整段文本即回复
@@ -120,6 +136,12 @@ export function buildReplyPrompt(input: {
   lines.push('- "reply" posts content to the channel; "ignore" says nothing.');
   lines.push(
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
+  );
+  lines.push(
+    '- Task protocol: to work on an open task, add {"task":{"number":N,"op":"claim"}} — it claims task N and posts your reply in that task\'s thread (progress lives there); if the claim fails, someone else took it: yield, do not reply.',
+  );
+  lines.push(
+    '- When you finish a task you own: {"task":{"number":N,"op":"complete"}} — the task moves to in_review for someone else to verify (builders never verify their own work). To step away: {"task":{"number":N,"op":"unclaim"}}.',
   );
   lines.push(roomMarker(input.targetId, input.baseSeq));
   return lines.join("\n");
@@ -324,6 +346,7 @@ export type RoundStatus =
   | "ignored"
   | "silent"
   | "anyway"
+  | "yielded" // 任务 claim 失败/房间变化：本轮让路（§3.7 自动认领）
   | "error";
 
 export interface RoundOutcome {
@@ -331,6 +354,173 @@ export interface RoundOutcome {
   reason?: string;
   message?: MessageRow;
   baseSeq?: number;
+}
+
+// ----------------------------------------------------------------------------
+// 任务操作（§3.7 自动认领）：先 claim 再开工，claim 失败就让路
+// ----------------------------------------------------------------------------
+
+/** 任务状态更新的 freshness 重试上限（回复已落线程，状态更新是机械收口）。 */
+export const MAX_TASK_STATUS_RETRIES = 3;
+
+function taskInChannel(channelId: string, taskNumber: number): TaskRow | undefined {
+  return getDb().getTaskByChannelNumber(channelId, taskNumber);
+}
+
+/**
+ * 带任务操作的一轮（§3.7）：
+ * - claim：先认领（channel freshness）；成功 → 回复投递到任务线程（thread freshness）；
+ *   失败（held/conflict）→ 让路：不回复、channel 游标只推进到已读版本（更新的消息经 wake 重试）；
+ * - complete：完成者置 in_review（互审约定）；回复先落线程，状态更新 held 时按 roomSeq 重试；
+ * - unclaim：释放回池（owner 清空）。
+ * 游标收口：channel 推进到本轮已读版本；任务线程仅在任务离开进行中状态时收口
+ * （进行中时故意留口——回复落线程会自醒续工，下一轮 drain 自己的进度继续干，见 wake.ts）。
+ */
+export async function runTaskOperation(input: {
+  agent: MemberRow;
+  channel: ChannelRow;
+  targetId: string;
+  action: AgentAction;
+  baseSeq: number;
+  promptFn: (promptText: string) => Promise<string>;
+  send?: ReplySender;
+}): Promise<RoundOutcome> {
+  const { agent, channel, action, baseSeq } = input;
+  const taskOp = action.task;
+  if (!taskOp) throw new Error("runTaskOperation requires a task op");
+  const taskNumber = taskOp.number;
+
+  const task = taskInChannel(channel.id, taskNumber);
+  if (!task) {
+    ack(agent.id, input.targetId, baseSeq);
+    return { status: "yielded", reason: "task not found in this channel", baseSeq };
+  }
+  // §6.3 写稿时版本：thread 回复用决策时刻的线程版本；状态更新用 agent 语境里的 channel 版本
+  // （当前轮 drain 过 channel 则为其 maxSeq，否则取其已消费游标 = 上一轮读到的最新版本）
+  const threadBaseSeq =
+    input.targetId === task.message_id ? input.baseSeq : getDb().maxSeq(task.message_id);
+  const channelVersion =
+    input.targetId === channel.id ? input.baseSeq : getDb().getConsumedSeq(agent.id, channel.id);
+
+  // ---- claim：先认领再开工；失败就让路 --------------------------------------
+  if (taskOp.op === "claim") {
+    const claim = claimTask({ channelId: channel.id, taskNumber, memberId: agent.id, baseSeq });
+    if (claim.status !== "claimed") {
+      ack(agent.id, input.targetId, baseSeq);
+      return {
+        status: "yielded",
+        reason: claim.status === "held" ? "claim held — the room changed" : "claim conflict — task already claimed",
+        baseSeq,
+      };
+    }
+    const delivered = await deliverToTaskThread({
+      agent,
+      channel,
+      targetId: input.targetId,
+      anchorId: claim.task.anchor.id,
+      action,
+      threadBaseSeq,
+      promptFn: input.promptFn,
+      send: input.send,
+    });
+    ack(agent.id, input.targetId, baseSeq);
+    return delivered;
+  }
+
+  // ---- complete / unclaim：须为本 agent 拥有的任务 ----------------------------
+  if (task.owner_id !== agent.id) {
+    ack(agent.id, input.targetId, baseSeq);
+    return { status: "yielded", reason: "task is not owned by this agent", baseSeq };
+  }
+
+  const replyOutcome =
+    action.action === "reply" && action.content
+      ? await deliverToTaskThread({
+          agent,
+          channel,
+          targetId: input.targetId,
+          anchorId: task.message_id,
+          action,
+          threadBaseSeq,
+          promptFn: input.promptFn,
+          send: input.send,
+        })
+      : { threadAckSeq: getDb().maxSeq(task.message_id) };
+
+  // 状态收口（§6.3）：以 agent 语境里的 channel 版本起步，held 后按 roomSeq 重试；
+  // 并发审查者已 close/reject（转移失效/越权）→ 不炸本轮：进展已在线程里，收口游标后让路
+  const targetStatus = taskOp.op === "complete" ? "in_review" : "todo";
+  let statusSeq = channelVersion;
+  try {
+    for (let attempt = 0; ; attempt += 1) {
+      const result = updateTaskStatus({
+        channelId: channel.id,
+        taskNumber,
+        status: targetStatus,
+        memberId: agent.id,
+        baseSeq: statusSeq,
+      });
+      if (result.status === "updated") break;
+      if (attempt >= MAX_TASK_STATUS_RETRIES) {
+        ack(agent.id, input.targetId, baseSeq);
+        ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
+        return {
+          status: "silent",
+          reason: `${targetStatus} update held after ${MAX_TASK_STATUS_RETRIES} retries`,
+          baseSeq,
+        };
+      }
+      statusSeq = result.roomSeq;
+    }
+  } catch (error) {
+    ack(agent.id, input.targetId, baseSeq);
+    ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
+    return {
+      status: "silent",
+      reason: `${targetStatus} update failed: ${error instanceof Error ? error.message : String(error)}`,
+      baseSeq,
+    };
+  }
+  ack(agent.id, input.targetId, baseSeq);
+  ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
+  return { status: "silent", reason: `task ${taskOp.op} → ${targetStatus}`, baseSeq };
+}
+
+/** 把回复投递到任务线程（thread 自己的 seq 空间与 freshness），返回线程版本；游标由调用方收口。 */
+async function deliverToTaskThread(input: {
+  agent: MemberRow;
+  channel: ChannelRow;
+  targetId: string;
+  anchorId: string;
+  action: AgentAction;
+  threadBaseSeq: number;
+  promptFn: (promptText: string) => Promise<string>;
+  send?: ReplySender;
+}): Promise<RoundOutcome & { threadAckSeq: number }> {
+  const outcome = await deliverWithFreshness({
+    targetId: input.anchorId,
+    agent: input.agent,
+    channel: input.channel,
+    action: input.action,
+    baseSeq: input.threadBaseSeq,
+    promptFn: input.promptFn,
+    send: input.send,
+  });
+  const delivered = "message" in outcome ? outcome.message : undefined;
+  const threadAckSeq = delivered ? delivered.seq : (outcome.ackSeq ?? input.threadBaseSeq);
+  return {
+    status: outcome.status,
+    message: delivered,
+    // baseSeq 此处为线程版本（非 channel 版本）：线程收口用，见调用方 ack
+    baseSeq: threadAckSeq,
+    threadAckSeq,
+  };
+}
+
+/** §3.7 任务延续信号：agent 拥有锚定于此目标（线程）的 in_progress 任务。 */
+export function ownsInProgressTaskAt(agentId: string, targetId: string): boolean {
+  const task = getDb().getTaskByMessageId(targetId);
+  return Boolean(task && task.status === "in_progress" && task.owner_id === agentId);
 }
 
 export async function runAgentRound(
@@ -351,13 +541,16 @@ export async function runAgentRound(
   const drained = drain(agentId, targetId);
   if (drained.messages.length === 0) return { status: "noop", baseSeq: drained.maxSeq };
   const incoming = drained.messages.filter((message) => message.author_id !== agent.id);
-  if (incoming.length === 0) {
+  // §3.7 任务延续：drain 到的全是我自己的回复，但我在该线程有进行中的任务
+  // （自醒续工信号：回复落任务线程 → 继续干或 complete，见 wake.ts）
+  const continuing = ownsInProgressTaskAt(agentId, targetId);
+  if (incoming.length === 0 && !continuing) {
     ack(agentId, targetId, drained.maxSeq);
     return { status: "noop", reason: "only the agent's own messages", baseSeq: drained.maxSeq };
   }
   // 崩溃窗口（回复已写、游标未推）内的自愈：最新消息是自己的回复 → 只推进游标，不重复应答
   const latest = getDb().getLatestMessage(targetId);
-  if (latest && latest.author_id === agent.id) {
+  if (latest && latest.author_id === agent.id && !continuing) {
     ack(agentId, targetId, drained.maxSeq);
     return {
       status: "skipped",
@@ -384,7 +577,7 @@ export async function runAgentRound(
   const prompt = buildReplyPrompt({
     agent,
     channel,
-    messages: incoming,
+    messages: incoming.length > 0 ? incoming : drained.messages,
     tasks: listRelatedTasks(targetId),
     targetId,
     baseSeq,
@@ -396,6 +589,22 @@ export async function runAgentRound(
       return { status: "error", reason: first.error };
     }
     const action = parseAgentAction(first.text);
+    // §3.7 任务操作：先 claim 再开工；claim 失败就让路（不回复、只收口游标）
+    if (action.task) {
+      const outcome = await runTaskOperation({
+        agent,
+        channel,
+        targetId,
+        action,
+        baseSeq,
+        promptFn: async (revisionPrompt) => {
+          const revised = await promptSession(session, revisionPrompt);
+          return revised.ok ? revised.text : "";
+        },
+      });
+      publishAgentStatus(agent.id, "online");
+      return outcome;
+    }
     if (action.action === "ignore" || !action.content) {
       ack(agentId, targetId, baseSeq);
       return { status: "ignored", baseSeq };

@@ -63,11 +63,19 @@ export function extractMentionedMemberIds(content: string): string[] {
  * 消息落库后的 wake 分发（§3.2 通知规则）：
  * - 目标 channel 的 agent 成员（不含作者）全部唤醒——加入 channel = 订阅全部消息；
  * - 未加入 channel 的 agent 被个人 @mention 时仍穿透送达（注意力信号）。
+ * - §3.7 任务延续自醒：任务 owner 的回复落任务线程且任务仍在进行中 → 自醒续工
+ *   （agent 干完活才有下一步，进度更新后继续或 complete，见 loop.ts 的 continuation）。
  * thread 消息以锚点消息 id 为目标（drain 用同一 target 归一化）。
  */
 export function notifyMessageWakes(message: MessageRow): void {
   const channel = resolveChannelForTarget(message.target_id);
   if (!channel) return;
+
+  // 任务延续自醒（owner 本人；与 channel 级唤醒互不冲突）
+  const task = getDb().getTaskByMessageId(message.target_id);
+  if (task && task.status === "in_progress" && task.owner_id === message.author_id) {
+    emitWake({ agentId: message.author_id, targetId: message.target_id, seq: message.seq, reason: "message" });
+  }
 
   const woken = new Set<string>();
   for (const member of listChannelMembers(channel.id)) {

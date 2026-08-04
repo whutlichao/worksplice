@@ -97,8 +97,8 @@ export function sendMessage(input: {
   return result;
 }
 
-/** held 摘要：期间发生了什么（§3.3/§6.3）。 */
-function summarizeChanges(targetId: string, sinceSeq: number): string {
+/** held 摘要：期间发生了什么（§3.3/§6.3）。任务 claim/updateStatus 复用同一事实（§3.7）。 */
+export function summarizeChanges(targetId: string, sinceSeq: number): string {
   const arrived = getDb().listMessagesAfter(targetId, sinceSeq);
   if (arrived.length === 0) return "The room changed but no new messages arrived";
   const seqs = `${arrived[0].seq}` + (arrived.length > 1 ? `–${arrived[arrived.length - 1].seq}` : "");

@@ -437,6 +437,66 @@ export class RaftStore {
     return this.db.prepare("SELECT * FROM tasks ORDER BY number").all() as TaskRow[];
   }
 
+  /** channel 内任务（任务锚点消息必为顶层消息，§3.7）：按 number 升序。 */
+  listChannelTasks(channelId: string): TaskRow[] {
+    return this.db
+      .prepare(
+        `SELECT tasks.* FROM tasks
+         JOIN messages ON messages.id = tasks.message_id
+         WHERE messages.target_id = ?
+         ORDER BY tasks.number`,
+      )
+      .all(channelId) as TaskRow[];
+  }
+
+  getTaskById(id: string): TaskRow | undefined {
+    return this.db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | undefined;
+  }
+
+  getTaskByMessageId(messageId: string): TaskRow | undefined {
+    return this.db.prepare("SELECT * FROM tasks WHERE message_id = ?").get(messageId) as
+      | TaskRow
+      | undefined;
+  }
+
+  getTaskByChannelNumber(channelId: string, number: number): TaskRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT tasks.* FROM tasks
+         JOIN messages ON messages.id = tasks.message_id
+         WHERE messages.target_id = ? AND tasks.number = ?`,
+      )
+      .get(channelId, number) as TaskRow | undefined;
+  }
+
+  /** channel 内下一个任务 number（#1 #2…，按 channel 递增，§3.7）。 */
+  nextTaskNumber(channelId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(MAX(tasks.number), 0) AS number FROM tasks
+         JOIN messages ON messages.id = tasks.message_id
+         WHERE messages.target_id = ?`,
+      )
+      .get(channelId) as { number: number };
+    return row.number + 1;
+  }
+
+  /** 更新任务字段（status/owner）；返回更新后的行，不存在返回 undefined。 */
+  updateTask(id: string, input: { status?: TaskStatus; ownerId?: string | null; updatedAt?: string }): TaskRow | undefined {
+    const existing = this.getTaskById(id);
+    if (!existing) return undefined;
+    const row: TaskRow = {
+      ...existing,
+      status: input.status ?? existing.status,
+      owner_id: input.ownerId !== undefined ? input.ownerId : existing.owner_id,
+      updated_at: input.updatedAt ?? new Date().toISOString(),
+    };
+    this.db
+      .prepare("UPDATE tasks SET status = ?, owner_id = ?, updated_at = ? WHERE id = ?")
+      .run(row.status, row.owner_id, row.updated_at, id);
+    return row;
+  }
+
   insertReminder(input: {
     id?: string;
     title: string;

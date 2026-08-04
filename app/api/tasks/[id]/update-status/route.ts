@@ -1,0 +1,39 @@
+import { NextResponse } from "next/server";
+import { updateTaskStatus, getTaskView } from "@/lib/raft/tasks";
+import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import type { TaskStatus } from "@/lib/data/db";
+
+const TASK_STATUSES = new Set<TaskStatus>(["todo", "in_progress", "in_review", "done", "closed"]);
+
+/**
+ * POST /api/tasks/[id]/update-status（§5.7 tasks 路由组）：
+ * 状态机转移（§3.7）——claim/unclaim/complete/approve/reject/close/reopen。
+ * body: { status, baseSeq? } — 房间版本不匹配返回 409 held；非法转移/越权返回 400。
+ */
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = (await request.json().catch(() => ({}))) as { status?: unknown; baseSeq?: unknown };
+    if (typeof body.status !== "string" || !TASK_STATUSES.has(body.status as TaskStatus)) {
+      return NextResponse.json({ error: "Invalid task status" }, { status: 400 });
+    }
+    const task = getTaskView(id);
+    const result = updateTaskStatus({
+      channelId: task.channelId,
+      taskNumber: task.number,
+      status: body.status as TaskStatus,
+      memberId: CURRENT_MEMBER_ID,
+      baseSeq: typeof body.baseSeq === "number" ? body.baseSeq : undefined,
+    });
+    if (result.status === "held") {
+      return NextResponse.json(
+        { held: true, roomSeq: result.roomSeq, whatHappened: result.whatHappened },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ task: result.task });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

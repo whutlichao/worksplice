@@ -87,10 +87,17 @@ app/api/
   members/[id]/full-reset/route.ts   POST 会话 + workspace 内容全清
   members/events/route.ts         GET SSE — 状态点快照流（§3.6 四态）
   members/[id]/inbox/route.ts     GET ?targetId= — drain + ack（§5.7 inbox；无 targetId 时 drain 全部待处理 channel）
+  tasks/route.ts                  POST { messageId } 转任务 | { channelId, content } 发消息并建任务
+  tasks/[id]/claim/route.ts       POST { baseSeq? } — claim；409 held / 409 conflict（失败让路）
+  tasks/[id]/update-status/route.ts POST { status, baseSeq? } — 状态机转移；409 held
+  channels/[id]/tasks/route.ts    GET 任务板（按 number 升序，UI 侧按状态分组）
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
   channels.ts                     create/join/leave/archive/members + CURRENT_MEMBER_ID（恒为 owner）
   messages.ts                     sendMessage（freshness + thread 校验 + quote + 提交后发 wake）/ listMessages / getThreadInfo
+                                  / summarizeChanges（held 摘要，任务 claim/updateStatus 复用）
+  tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按 channel 递增）/ claimTask
+                                  / updateTaskStatus（状态机 + 互审授权 + freshness-hold）/ listChannelTasks / getTaskView
   inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
                                   / listRelatedTasks / resolveTargetChannel（§5.5 本地实现形态）
   members.ts                      listAgents/createAgent/updateAgentWorkspace/setAgentStatus/deleteAgent
@@ -99,10 +106,13 @@ lib/raft/                         raft 服务层（app/api 仅薄封装）
 
 lib/agent-loop/                  agent-loop（§5.4 驱动层）
   wake.ts                         wake hint（只含 agentId/targetId/seq/reason，不含正文）；notifyMessageWakes
-                                  （channel agent 成员除作者 + 未加入被 @mention 的穿透）；@mention 解析
+                                  （channel agent 成员除作者 + 未加入被 @mention 的穿透）；@mention 解析；
+                                  §3.7 任务延续自醒：任务 owner 的回复落任务线程且任务 in_progress → 自醒续工
   loop.ts                         runAgentRound（wake→drain→decide→act→reply→ack）；结构化回复协议
-                                  {"action":"reply"|"ignore","content":...,"onConflict":"revise"|"resend"|"silent"|"anyway"}
+                                  {"action":"reply"|"ignore","content":...,"onConflict":"revise"|"resend"|"silent"|"anyway",
+                                  "task":{"number":N,"op":"claim"|"complete"|"unclaim"}}
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
+                                  + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
   backfill.ts                     崩溃恢复按 seq 补拉：扫描 session jsonl 找回缺失的 assistant 回复按序补写（§5.3）
   driver.ts                       wake → 逐 agent 串行队列；同 (agent,target) hint 合并；busy 时 settle 后重试
   index.ts                        startAgentLoop()（instrumentation 调用：状态扫掠 + 补拉 + 驱动，幂等）
@@ -134,6 +144,7 @@ components/
   AppShell.tsx           三栏骨架 + URL hash 深链（#c/<channelId>?m=<messageId>）+ 弹窗编排
   WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）
   ChannelView.tsx        channel 消息流：seq 分页 / thread 侧栏 / 引用 / 复制链接 / join-leave-archive
+                          / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskBoard（§3.7）
   CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
   CreateAgentModal.tsx   建 agent
   AgentDetailPanel.tsx   agent 详情面板（占位，ticket 05）
@@ -260,6 +271,14 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **崩溃恢复补拉**（`backfill.ts`）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`startAgentLoop`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis。
 - **driver 编排**：每 agent 一个 FIFO 队列，同 (agent, target) hint 合并；busy（会话运行中）时挂一次 settle 监听（agent_end/agent_settled/prompt_done）后重试，不丢 hint；状态挂 `__workspliceAgentLoopDriver`。loop 只依赖 `LoopRuntime` 结构子集（findSession/startSession），测试注入 fake，**不静态 import rpc-manager**。
 - **状态点**：loop 在 prompt 前后 publish working/online（与 wrapper 的 agent_start/agent_end 事件双保险）；会话错误 publish error 且不推进游标（下次 wake 重试）。
+
+### 任务板（ticket 07，§3.7/§5.7 tasks 路由组）
+- **task = 消息 + 元数据**（`lib/raft/tasks.ts`）：`tasks` 表锚定 `message_id`（UNIQUE）；创建三途径——右键菜单 Convert to Task / 发送时勾 As Task / Tasks tab Create Task，全部收敛到 `createTask({messageId})`（board 创建先 `sendMessage` 再转）；**thread 内消息不可转**（锚点 target 必须是 channel）、消息不可重复转（`TaskAlreadyExistsError` → 409）。`number` 按 channel 内递增（join messages 算 max+1），跨 channel 各自从 #1 起。
+- **状态机只走合法转移**（`TRANSITIONS` 表，服务层强制）：`todo ─claim→ in_progress ─complete→ in_review ─approve→ done`；`unclaim/reject` 回退（in_progress→todo、in_review→in_progress，owner 保留）；in_progress/in_review ─close→ closed；`done/closed ─reopen→ todo`（**reopen/unclaim 清 owner 回池**）。claim 只认未认领任务（`owner_id IS NULL`）；**互审"构建者不验证"**：approve/reject 必须由非 owner 的 channel 成员执行，owner 完成置 in_review 后由另一 agent 或人批准。
+- **并发保护**（§6.3 同消息语义）：claim/updateStatus 携带 `baseSeq` = channel `max(seq)`，事务内比对不等返回 held（`summarizeChanges` 摘要复用）；claim 已认领返回 conflict（route 409）。UI 收 held 后刷新并提示。
+- **自动认领（agent-loop）**：协议扩展 `"task":{"number":N,"op":"claim"|"complete"|"unclaim"}`（`parseAgentAction` 向后兼容，无 task 字段行为不变）；`runTaskOperation` 先 `claimTask` 再开工——**held/conflict/非 owner → 让路**（`RoundStatus "yielded"`，不回复、channel 游标只推进到已读版本，更新的消息经 wake 重试重读）。回复投递到**任务线程**（anchor 消息 target，thread 自己的 seq/freshness 空间）；complete 的回复先落线程再置 in_review（状态更新 held 按 roomSeq 重试 ≤3 次，失败不吞回复）。
+- **任务延续自醒**（wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。
+- **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序；UI 按状态分组（todo→in_progress→in_review→done→closed），卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen）；点卡片打开任务 thread（进展只在线程里，board 只显示状态）。
 
 ## Pi Session File Format
 

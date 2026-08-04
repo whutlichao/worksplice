@@ -2,7 +2,14 @@ import { startAgentStatusSweeper } from "../agent-status.ts";
 import { backfillAllAgents } from "./backfill.ts";
 import { startAgentLoopDriver } from "./driver.ts";
 
-export { runAgentRound, buildReplyPrompt, buildRevisionPrompt, parseAgentAction, roomMarker } from "./loop.ts";
+export {
+  runAgentRound,
+  runTaskOperation,
+  buildReplyPrompt,
+  buildRevisionPrompt,
+  parseAgentAction,
+  roomMarker,
+} from "./loop.ts";
 export { scanSessionReplies, backfillAgentReplies, backfillAllAgents } from "./backfill.ts";
 export { startAgentLoopDriver, stopAgentLoopDriver } from "./driver.ts";
 export { subscribeWake, emitWake, notifyMessageWakes, extractMentionedMemberIds } from "./wake.ts";
