@@ -86,13 +86,26 @@ app/api/
   members/[id]/session-reset/route.ts POST 清会话上下文（workspace 保留）
   members/[id]/full-reset/route.ts   POST 会话 + workspace 内容全清
   members/events/route.ts         GET SSE — 状态点快照流（§3.6 四态）
+  members/[id]/inbox/route.ts     GET ?targetId= — drain + ack（§5.7 inbox；无 targetId 时 drain 全部待处理 channel）
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
   channels.ts                     create/join/leave/archive/members + CURRENT_MEMBER_ID（恒为 owner）
-  messages.ts                     sendMessage（freshness + thread 校验 + quote）/ listMessages / getThreadInfo
+  messages.ts                     sendMessage（freshness + thread 校验 + quote + 提交后发 wake）/ listMessages / getThreadInfo
+  inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
+                                  / listRelatedTasks / resolveTargetChannel（§5.5 本地实现形态）
   members.ts                      listAgents/createAgent/updateAgentWorkspace/setAgentStatus/deleteAgent
                                   （workspace 绑定唯一性校验；删除 = soft-delete）
   db-singleton.ts                 globalThis.__workspliceDb 单例（schema 版本号兜底重建，扛热重载）
+
+lib/agent-loop/                  agent-loop（§5.4 驱动层）
+  wake.ts                         wake hint（只含 agentId/targetId/seq/reason，不含正文）；notifyMessageWakes
+                                  （channel agent 成员除作者 + 未加入被 @mention 的穿透）；@mention 解析
+  loop.ts                         runAgentRound（wake→drain→decide→act→reply→ack）；结构化回复协议
+                                  {"action":"reply"|"ignore","content":...,"onConflict":"revise"|"resend"|"silent"|"anyway"}
+                                  + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
+  backfill.ts                     崩溃恢复按 seq 补拉：扫描 session jsonl 找回缺失的 assistant 回复按序补写（§5.3）
+  driver.ts                       wake → 逐 agent 串行队列；同 (agent,target) hint 合并；busy 时 settle 后重试
+  index.ts                        startAgentLoop()（instrumentation 调用：状态扫掠 + 补拉 + 驱动，幂等）
 
 lib/data/                         raft SQLite 数据层（better-sqlite3，同步 API）
   db.ts                           RaftStore：表 CRUD + maxSeq/freshness 原语 + seq 游标分页
@@ -229,6 +242,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **权限面**：写消息要求作者是 channel 成员（thread 回复继承 channel 规则）；私有 channel 加入/移除成员、归档都仅 Owner（`CURRENT_MEMBER_ID` = `"owner"`，人类恒为 Owner）；`#all` 不可离开；新 agent 创建时自动加入 `#all`（seed 也会在迁移时补齐既有成员）。
 - **引用 = 物化**：消息不可编辑，quote 以块引用文本（`> **#seq author**\n> preview`）拼进发送内容，不留结构化引用。
 - **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel 与 thread 两个 Composer 共享——两个 Composer 各持自己的 `targetId`，`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
+- **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
 - **身份 vs 会话**：agent 是持久身份（members 行），会话是 pi session（`pi_session_file` 回填）。三种重置粒度只动会话/workspace，身份与绑定保持；**删除 = soft-delete**（`members.deleted=1`，schema v3 ALTER 迁移）——行保留以承载不可变消息的外键与作者渲染，但移出全部 channel、任务 owner 置空、消费游标清空、workspace 目录整体删除。
@@ -237,6 +251,15 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import rpc-manager/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 rpc-manager 的 parameter properties，绝不能静态 import 它。
 - **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 会删掉该 cwd 下全部 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文。
 - **`db-singleton` 版本守卫**：`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb()` 比对版本，热重载后 RaftStore 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openDataDb，不会被误重建或误开 `~/.worksplice/raft.db`。
+
+### agent-loop（ticket 06，§3.8/§5.3–5.5）
+- **拉取式 inbox，不推送正文**：`consumed_seqs(agent_id, target_id, seq)` 是持久化游标；`drain` 不推进游标（重复 drain 不重不漏），`ack` 由 loop 每轮收口；HTTP 语义（`GET /api/members/[id]/inbox`）是 drain + ack 一步到位。wake hint 只含 `{agentId, targetId, seq, reason}`，正文由 agent 自己 drain。
+- **wake 触发面**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——目标 channel 的 agent 成员（不含作者）全唤醒，未加入 channel 但被 `@mention` 的 agent 穿透送达；thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。
+- **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author` 消息 + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` → 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 revise。
+- **freshness-hold 四选一**（`deliverWithFreshness`）：held 后按 agent 声明的 onConflict 执行——revise（用 `buildRevisionPrompt` 重读重写，最多 2 次）/ resend（携带新 roomSeq 原样重试，最多 3 次）/ silent（静默放弃）/ anyway（不带 baseSeq 显式绕过，连续 hold 的逃逸口）；重试耗尽归入 silent。发送器可注入（`send` 参数，测试脚本化用）。
+- **崩溃恢复补拉**（`backfill.ts`）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目；启动时（`startAgentLoop`，instrumentation 调用）扫描各 agent 的 session jsonl，把标记之后缺失于 SQLite 的 assistant 回复按序补写（同 target 同作者同内容去重），并把游标推进到该轮标记 seq。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis。
+- **driver 编排**：每 agent 一个 FIFO 队列，同 (agent, target) hint 合并；busy（会话运行中）时挂一次 settle 监听（agent_end/agent_settled/prompt_done）后重试，不丢 hint；状态挂 `__workspliceAgentLoopDriver`。loop 只依赖 `LoopRuntime` 结构子集（findSession/startSession），测试注入 fake，**不静态 import rpc-manager**。
+- **状态点**：loop 在 prompt 前后 publish working/online（与 wrapper 的 agent_start/agent_end 事件双保险）；会话错误 publish error 且不推进游标（下次 wake 重试）。
 
 ## Pi Session File Format
 

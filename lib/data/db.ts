@@ -581,6 +581,23 @@ export class RaftStore {
       .all(channelId, memberId) as PinnedMessageRow[];
   }
 
+  /** 某 target 的最新一条消息（agent-loop "已回复" 判定 / 双写流收口复用）。 */
+  getLatestMessage(targetId: string): MessageRow | undefined {
+    return this.db
+      .prepare("SELECT * FROM messages WHERE target_id = ? ORDER BY seq DESC LIMIT 1")
+      .get(targetId) as MessageRow | undefined;
+  }
+
+  /** 同 target 同作者同内容是否已存在（崩溃恢复补拉去重：jsonl 回复 ↔ SQLite 双写比对）。 */
+  hasMessage(targetId: string, authorId: string, content: string): boolean {
+    const row = this.db
+      .prepare(
+        "SELECT 1 AS hit FROM messages WHERE target_id = ? AND author_id = ? AND content = ? LIMIT 1",
+      )
+      .get(targetId, authorId, content) as { hit: number } | undefined;
+    return row !== undefined;
+  }
+
   getConsumedSeq(agentId: string, targetId: string): number {
     const row = this.db
       .prepare("SELECT seq FROM consumed_seqs WHERE agent_id = ? AND target_id = ?")

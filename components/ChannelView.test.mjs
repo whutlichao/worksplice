@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,7 +9,7 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { MessageRow, Composer, ChannelView } = await jiti.import("./ChannelView.tsx");
+const { MessageRow, Composer, ChannelView, mergeIncomingMessages } = await jiti.import("./ChannelView.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 function renderI18n(children) {
@@ -166,4 +167,23 @@ test("ChannelView shows the channel header with member count and archive badge",
   assert.match(html, /general/);
   assert.match(html, /2 members/);
   assert.match(html, /Archived/);
+});
+
+test("mergeIncomingMessages dedupes by id and keeps messages sorted by seq (agent-loop 轮询合并)", () => {
+  const m = (id, seq, content) => ({ id, target_id: "c1", seq, author_id: "owner", content, created_at: "", author: null });
+  const prev = [m("m1", 1, "one"), m("m2", 3, "three")];
+  const incoming = [m("m3", 4, "four"), m("m1", 1, "one")];
+
+  const merged = mergeIncomingMessages(prev, incoming);
+  assert.deepEqual(merged.map((x) => x.id), ["m1", "m2", "m3"]);
+  assert.deepEqual(merged.map((x) => x.content), ["one", "three", "four"]);
+  assert.deepEqual(mergeIncomingMessages(prev, []), prev);
+});
+
+test("ChannelView polls the latest page to pick up agent replies (INBOX_POLL_MS)", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  assert.match(source, /setInterval/);
+  assert.match(source, /INBOX_POLL_MS/);
+  assert.match(source, /mergeIncomingMessages/);
+  assert.match(source, /document\.hidden/);
 });

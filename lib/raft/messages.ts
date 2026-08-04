@@ -1,6 +1,7 @@
 import { getDb } from "./db-singleton.ts";
 import { getChannel, isChannelMember } from "./channels.ts";
 import { getMember } from "./members.ts";
+import { notifyMessageWakes } from "../agent-loop/wake.ts";
 import type { ChannelRow, MemberRow, MessageRow } from "../data/db.ts";
 
 const DEFAULT_PAGE_LIMIT = 50;
@@ -70,7 +71,7 @@ export function sendMessage(input: {
     ? `${formatQuote(quoted, getMember(quoted.author_id)?.name ?? "unknown")}${content}`
     : content;
 
-  return getDb().withTransaction(() => {
+  const result = getDb().withTransaction(() => {
     const roomSeq = getDb().maxSeq(target.targetId);
     if (input.baseSeq !== undefined && input.baseSeq !== roomSeq) {
       return {
@@ -86,6 +87,9 @@ export function sendMessage(input: {
     });
     return { held: false as const, message };
   });
+  // 提交成功后发 wake hint（只含 seq/目标，不含正文）；事务外分发，避免回滚误唤醒
+  if (!result.held) notifyMessageWakes(result.message);
+  return result;
 }
 
 /** held 摘要：期间发生了什么（§3.3/§6.3）。 */

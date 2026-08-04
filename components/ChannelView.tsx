@@ -33,6 +33,8 @@ interface MessagesPage {
 
 const INK = "#141111";
 const PAGE_LIMIT = 50;
+/** agent-loop 回复轮询间隔（§5.4 demo：agent 回复落入消息流）。 */
+const INBOX_POLL_MS = 3000;
 
 const messageTime = (iso: string): string => {
   const d = new Date(iso);
@@ -41,6 +43,16 @@ const messageTime = (iso: string): string => {
   const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   return isToday ? time : `${d.toLocaleDateString()} ${time}`;
 };
+
+/** 轮询合并：按 id 去重 + 按 seq 排序（纯函数，便于测试）。 */
+export function mergeIncomingMessages(
+  prev: ChannelMessage[],
+  incoming: ChannelMessage[],
+): ChannelMessage[] {
+  if (incoming.length === 0) return prev;
+  const merged = [...prev, ...incoming.filter((m) => !prev.some((p) => p.id === m.id))];
+  return merged.sort((a, b) => a.seq - b.seq);
+}
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
@@ -440,6 +452,28 @@ export function ChannelView({
     setHeldNotice(null);
     loadLatest();
   }, [channel?.id, loadLatest]);
+
+  // agent-loop 回复轮询（§5.4）：增量合并新消息；后台 tab 暂停
+  useEffect(() => {
+    if (!channel) return;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      if (cancelled || document.hidden) return;
+      void loadPage(channel.id)
+        .then((page) => {
+          if (cancelled) return;
+          setMaxSeq((prev) => Math.max(prev, page.maxSeq));
+          setMessages((prev) => mergeIncomingMessages(prev, page.messages));
+        })
+        .catch(() => undefined);
+    }, INBOX_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+    // channel?.id 已蕴含 channel：仅在其变化时重建轮询
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel?.id, loadPage]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
