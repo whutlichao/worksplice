@@ -1271,6 +1271,11 @@ export function ChannelView({
   const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
   const [pinnedError, setPinnedError] = useState<string | null>(null);
 
+  // §3.2 mute 面板：channel 内 agent 成员的通知静音开关（静音后普通消息不进 inbox，@mention 穿透）
+  const [muteOpen, setMuteOpen] = useState(false);
+  const [mutes, setMutes] = useState<Array<{ memberId: string; name: string; muted: boolean }>>([]);
+  const [muteNotice, setMuteNotice] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadPage = useCallback(
@@ -1324,6 +1329,23 @@ export function ChannelView({
       .catch((e) => setPinnedError(e instanceof Error ? e.message : String(e)));
   }, [channel, pinnedSort]);
 
+  /** §3.2 mute 状态加载（channel 内全部 agent 成员的静音开关）。 */
+  const loadMutes = useCallback(() => {
+    if (!channel) {
+      setMutes([]);
+      return;
+    }
+    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/mute`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`GET mutes: ${res.status}`);
+        const body = (await res.json()) as {
+          mutes?: Array<{ memberId: string; name: string; muted: boolean }>;
+        };
+        setMutes(body.mutes ?? []);
+      })
+      .catch(() => undefined);
+  }, [channel]);
+
   useEffect(() => {
     setMessages([]);
     setHasMore(false);
@@ -1335,11 +1357,15 @@ export function ChannelView({
     setTaskNotice(null);
     setPinnedOpen(false);
     setPinnedItems([]);
+    setMuteOpen(false);
+    setMutes([]);
+    setMuteNotice(null);
     loadLatest();
     // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
     loadTasks();
     loadPinned();
-  }, [channel?.id, loadLatest, loadTasks, loadPinned]);
+    loadMutes();
+  }, [channel?.id, loadLatest, loadTasks, loadPinned, loadMutes]);
 
   useEffect(() => {
     if (tab === "tasks") loadTasks();
@@ -1739,6 +1765,27 @@ export function ChannelView({
     await copyText(url);
   };
 
+  /** §3.2 mute 开关：静音后该 agent 的 inbox 收不到普通消息，个人 @mention 仍穿透。 */
+  const toggleMute = async (m: { memberId: string; name: string; muted: boolean }) => {
+    if (!channel) return;
+    const next = !m.muted;
+    try {
+      const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/mute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: m.memberId, muted: next }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? "mute failed");
+      }
+      setMutes((prev) => prev.map((x) => (x.memberId === m.memberId ? { ...x, muted: next } : x)));
+      setMuteNotice(t(next ? "mute.toastMuted" : "mute.toastUnmuted", { name: m.name }));
+    } catch (e) {
+      setMuteNotice(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   /** 提醒弹窗（§5.6 UI 入口）：目标 = channel（头部 ⏰）或消息（消息动作栏 ⏰）。 */
   const [reminderTarget, setReminderTarget] = useState<{
     targetId: string;
@@ -1890,9 +1937,63 @@ export function ChannelView({
                 📌 {pinnedItems.length > 0 ? pinnedItems.length : ""}
               </button>
             )}
+            {joined && (
+              <button
+                type="button"
+                title={t("mute.toggle")}
+                style={{ ...actionButton, background: muteOpen || mutes.some((m) => m.muted) ? "var(--yellow)" : "#ffffff" }}
+                onClick={() => setMuteOpen((open) => !open)}
+              >
+                🔕 {mutes.filter((m) => m.muted).length > 0 ? mutes.filter((m) => m.muted).length : ""}
+              </button>
+            )}
           </div>
         )}
       </header>
+
+      {/* §3.2 mute 面板（channel 头部可展开）：静音后普通消息不进 inbox，个人 @mention 仍穿透 */}
+      {muteOpen && joined && (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "8px 16px 12px",
+            borderBottom: `2px solid ${INK}`,
+            background: "var(--bg)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 13 }}>
+              {t("mute.toggle")}
+            </span>
+            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+              {t("mute.hint")}
+            </span>
+          </div>
+          {mutes.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("mute.none")}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+              {mutes.map((m) => (
+                <button
+                  key={m.memberId}
+                  type="button"
+                  title={t(m.muted ? "mute.unmuteFor" : "mute.for", { name: m.name })}
+                  style={{ ...actionButton, background: m.muted ? "var(--yellow)" : "#ffffff" }}
+                  onClick={() => void toggleMute(m)}
+                >
+                  {m.muted ? "🔕" : "🔔"} @{m.name}{" "}
+                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, opacity: 0.75 }}>
+                    {m.muted ? t("mute.muted") : t("mute.unmuted")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {muteNotice && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{muteNotice}</div>
+          )}
+        </div>
+      )}
 
       {/* §3.5 pinned 区（channel 头部可展开）：当前成员个性化 pinned；Manual 可 ↑/↓ 重排 */}
       {pinnedOpen && joined && (

@@ -1,6 +1,6 @@
 import { getDb } from "../raft/db-singleton.ts";
 import { getAgent } from "../raft/members.ts";
-import { isChannelMember } from "../raft/channels.ts";
+import { isChannelMember, joinChannel } from "../raft/channels.ts";
 import { sendMessage, type SendMessageResult } from "../raft/messages.ts";
 import { claimTask, updateTaskStatus } from "../raft/tasks.ts";
 import {
@@ -11,6 +11,7 @@ import {
   listRelatedTasks,
   type MessageWithAuthor,
 } from "../raft/inbox.ts";
+import { extractMentionedMemberIds } from "./wake.ts";
 import { publishAgentStatus } from "../agent-status.ts";
 import { getAgentRuntime } from "../agent-runtime.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/db.ts";
@@ -535,13 +536,21 @@ export async function runAgentRound(
   const channel = resolveTargetChannel(targetId);
   if (!channel) return { status: "skipped", reason: "unknown target" };
   if (channel.archived === 1) return { status: "skipped", reason: "channel archived" };
-  if (!isChannelMember(channel.id, agent.id)) {
-    return { status: "skipped", reason: "not a member of the channel" };
-  }
 
   const drained = drain(agentId, targetId);
   if (drained.messages.length === 0) return { status: "noop", baseSeq: drained.maxSeq };
   const incoming = drained.messages.filter((message) => message.author_id !== agent.id);
+  // §3.2 @mention = 注意力信号而非投递过滤：未加入 channel 的 agent 被个人 @mention
+  // 时穿透送达——非成员仍推进本轮（drain 语境可见），未被 mention 则跳过。
+  const isMember = isChannelMember(channel.id, agent.id);
+  if (!isMember) {
+    const mentioned = incoming.some((message) =>
+      extractMentionedMemberIds(message.content).includes(agent.id),
+    );
+    if (!mentioned) {
+      return { status: "skipped", reason: "not a member of the channel" };
+    }
+  }
   // §3.7 任务延续：drain 到的全是我自己的回复，但我在该线程有进行中的任务
   // （自醒续工信号：回复落任务线程 → 继续干或 complete，见 wake.ts）
   const continuing = ownsInProgressTaskAt(agentId, targetId);
@@ -595,6 +604,11 @@ export async function runAgentRound(
     const action = parseAgentAction(first.text);
     // §3.7 任务操作：先 claim 再开工；claim 失败就让路（不回复、只收口游标）
     if (action.task) {
+      // 非成员无 channel 成员资格，不做任务操作（claim 服务层会拒绝）
+      if (!isMember) {
+        ack(agentId, targetId, baseSeq);
+        return { status: "yielded", reason: "not a member of the channel", baseSeq };
+      }
       const outcome = await runTaskOperation({
         agent,
         channel,
@@ -612,6 +626,15 @@ export async function runAgentRound(
     if (action.action === "ignore" || !action.content) {
       ack(agentId, targetId, baseSeq);
       return { status: "ignored", baseSeq };
+    }
+    // §3.2 mention 穿透的回复：agent 可自行加入公开 channel（加入 = 订阅全部消息）；
+    // 私有 channel 不能自行加入——回复不可投递，收口游标后静默让路
+    if (!isMember) {
+      if (channel.type === "private") {
+        ack(agentId, targetId, baseSeq);
+        return { status: "silent", reason: "not a member of the private channel", baseSeq };
+      }
+      joinChannel(channel.id, agent.id);
     }
     const outcome = await deliverWithFreshness({
       targetId,

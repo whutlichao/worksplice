@@ -114,6 +114,85 @@ export function isChannelMember(channelId: string, memberId: string): boolean {
   return getDb().isChannelMember(channelId, memberId);
 }
 
+export interface ChannelMute {
+  channelId: string;
+  memberId: string;
+  /** 静音时刻的 channel max(seq)：channel 消息的"静音前"判定（§3.2）。 */
+  muteFromSeq: number;
+  /** 静音时刻的全局插入点（max messages.rowid）：thread 消息无 channel seq，按此判定"静音后"。 */
+  muteRowid: number;
+}
+
+/**
+ * 静音 channel（§3.2/§3.8）：静音后普通消息不进该成员的 inbox，个人 @mention 仍穿透。
+ * 记录静音时刻的 channel 版本（muteFromSeq）；已静音时幂等（保留首次静音版本）。
+ * 仅成员本人可静音自己；Owner 可替任意成员静音（演示/托管路径）。
+ */
+export function muteChannel(
+  channelId: string,
+  memberId: string,
+  actorId: string = memberId,
+): ChannelMute {
+  assertChannel(channelId);
+  assertMember(memberId);
+  if (memberId !== actorId && actorId !== OWNER_MEMBER_ID) {
+    throw new Error("Only the owner can mute for other members");
+  }
+  if (!getDb().isChannelMember(channelId, memberId)) {
+    throw new Error("Not a member of this channel");
+  }
+  const muteFromSeq = getDb().maxSeq(channelId);
+  const muteRowid = getDb().maxMessageRowid();
+  getDb().setChannelMute(channelId, memberId, muteFromSeq, muteRowid);
+  return { channelId, memberId, muteFromSeq, muteRowid };
+}
+
+/** 取消 mute（幂等）：inbox 恢复——静音期间被压制的消息不补投，只收新消息（游标语义）。 */
+export function unmuteChannel(
+  channelId: string,
+  memberId: string,
+  actorId: string = memberId,
+): void {
+  assertChannel(channelId);
+  assertMember(memberId);
+  if (memberId !== actorId && actorId !== OWNER_MEMBER_ID) {
+    throw new Error("Only the owner can unmute for other members");
+  }
+  getDb().clearChannelMute(channelId, memberId);
+}
+
+/** 该成员对某 channel 的静音状态（undefined = 未静音）。 */
+export function getChannelMute(channelId: string, memberId: string): ChannelMute | undefined {
+  const row = getDb().getChannelMute(channelId, memberId);
+  return row
+    ? {
+        channelId: row.channel_id,
+        memberId: row.member_id,
+        muteFromSeq: row.mute_from_seq,
+        muteRowid: row.mute_rowid,
+      }
+    : undefined;
+}
+
+/** 某 channel 内全部 agent 成员的静音状态（UI 的 mute 面板/列表用）。 */
+export function listChannelMutes(channelId: string): Array<ChannelMute & { name: string }> {
+  return getDb()
+    .listChannelMutes(channelId)
+    .map((row) => {
+      const member = getDb().getMember(row.member_id);
+      return member
+        ? {
+            channelId: row.channel_id,
+            memberId: row.member_id,
+            muteFromSeq: row.mute_from_seq,
+            muteRowid: row.mute_rowid,
+            name: member.name,
+          }
+        : null;
+    })
+    .filter((x): x is ChannelMute & { name: string } => Boolean(x));
+}
+
 /**
  * §6.1 target 归一化（读侧宽松）：target_id 命中 channels 即 channel，
  * 否则按 thread 锚点消息解析其归属 channel；未知 target 返回 undefined。

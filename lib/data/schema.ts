@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -99,6 +99,17 @@ const SCHEMA_STATEMENTS: string[] = [
     target_id TEXT NOT NULL,
     seq INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (agent_id, target_id)
+  )`,
+  // §3.2/§3.8 channel 级 mute：静音后普通消息不进 inbox，个人 @mention 仍穿透，取消 mute 恢复。
+  // mute_from_seq = 静音时刻的 channel max(seq)（channel 消息按 seq 比）；
+  // mute_rowid = 静音时刻全表 max(messages.rowid)（thread 消息无 channel seq，按全局插入序判定"静音后"）。
+  `CREATE TABLE IF NOT EXISTS channel_mutes (
+    channel_id TEXT NOT NULL REFERENCES channels(id),
+    member_id TEXT NOT NULL REFERENCES members(id),
+    mute_from_seq INTEGER NOT NULL DEFAULT 0,
+    mute_rowid INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (channel_id, member_id)
   )`,
   // §6.4 全文搜索：trigram tokenizer —— unicode61 把连续 CJK 当作单 token，中文子串搜不到；
   // trigram 按 3-gram 索引，中英文子串均可命中（查询 token <3 字符时由 searchMessages 走 LIKE 兜底）。

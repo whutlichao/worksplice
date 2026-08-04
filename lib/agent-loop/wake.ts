@@ -1,6 +1,6 @@
 import { getDb } from "../raft/db-singleton.ts";
-import { listChannelMembers, resolveChannelForTarget } from "../raft/channels.ts";
-import { getMember } from "../raft/members.ts";
+import { getChannelMute, listChannelMembers, resolveChannelForTarget } from "../raft/channels.ts";
+import { extractMentionedMemberIds, getMember } from "../raft/members.ts";
 import type { MessageRow } from "../data/db.ts";
 
 /**
@@ -49,21 +49,10 @@ export function emitWake(hint: WakeHint): void {
   }
 }
 
-/** @mention 解析：内容里的 @名字 token → 成员 id（大小写不敏感、全等 token 匹配）。 */
-export function extractMentionedMemberIds(content: string): string[] {
-  const tokens = (content.match(/@([^\s@,;:!?。，；：！？]+)/g) ?? []).map((token) =>
-    token.slice(1).toLowerCase(),
-  );
-  if (tokens.length === 0) return [];
-  return getDb()
-    .listMembers()
-    .filter((member) => tokens.includes(member.name.toLowerCase()))
-    .map((member) => member.id);
-}
-
 /**
  * 消息落库后的 wake 分发（§3.2 通知规则）：
  * - 目标 channel 的 agent 成员（不含作者）全部唤醒——加入 channel = 订阅全部消息；
+ *   §3.2 mute：静音了该 channel 的成员不因普通消息被唤醒（个人 @mention 仍由下方穿透）；
  * - 未加入 channel 的 agent 被个人 @mention 时仍穿透送达（注意力信号）。
  * - §3.7 任务延续自醒：任务 owner 的回复落任务线程且任务仍在进行中 → 自醒续工
  *   （agent 干完活才有下一步，进度更新后继续或 complete，见 loop.ts 的 continuation）。
@@ -82,6 +71,7 @@ export function notifyMessageWakes(message: MessageRow): void {
   const woken = new Set<string>();
   for (const member of listChannelMembers(channel.id)) {
     if (member.type !== "agent" || member.id === message.author_id) continue;
+    if (getChannelMute(channel.id, member.id)) continue;
     woken.add(member.id);
     emitWake({ agentId: member.id, targetId: message.target_id, seq: message.seq, reason: "message" });
   }
@@ -92,3 +82,7 @@ export function notifyMessageWakes(message: MessageRow): void {
     emitWake({ agentId: mentionedId, targetId: message.target_id, seq: message.seq, reason: "message" });
   }
 }
+
+// §3.2 @mention 解析（内容里的 @名字 token → 成员 id）实现于 raft 服务层（lib/raft/members.ts，
+// inbox 的 mute 穿透判定与 wake 同源）；此处再导出保持既有导入路径兼容。
+export { extractMentionedMemberIds } from "../raft/members.ts";

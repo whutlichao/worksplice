@@ -69,6 +69,21 @@ export function getAgent(id: string): MemberRow {
   return member;
 }
 
+/**
+ * §3.2 @mention 解析：内容里的 @名字 token → 成员 id（大小写不敏感、全等 token 匹配）。
+ * 服务层事实来源：wake 的穿透分发与 inbox 的 mute 穿透判定共用同一解析（inbox/wake 同源）。
+ */
+export function extractMentionedMemberIds(content: string): string[] {
+  const tokens = (content.match(/@([^\s@,;:!?。，；：！？]+)/g) ?? []).map((token) =>
+    token.slice(1).toLowerCase(),
+  );
+  if (tokens.length === 0) return [];
+  return getDb()
+    .listMembers()
+    .filter((member) => tokens.includes(member.name.toLowerCase()))
+    .map((member) => member.id);
+}
+
 export function createAgent(input: {
   name: string;
   description?: string;

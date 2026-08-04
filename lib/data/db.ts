@@ -49,6 +49,8 @@ export interface MessageRow {
   author_id: string;
   content: string;
   created_at: string;
+  /** 全局插入序（mute 的"静音后"判定；listMessagesAfter 附上，其余构造路径无）。 */
+  rowid?: number;
 }
 
 export interface TaskRow {
@@ -119,6 +121,14 @@ export interface ConsumedSeqRow {
   agent_id: string;
   target_id: string;
   seq: number;
+}
+
+export interface ChannelMuteRow {
+  channel_id: string;
+  member_id: string;
+  mute_from_seq: number;
+  mute_rowid: number;
+  created_at: string;
 }
 
 export interface SearchResult {
@@ -325,10 +335,12 @@ export class RaftStore {
     return row !== undefined;
   }
 
-  /** seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。 */
+  /** seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。附 rowid 供 mute 判定。 */
   listMessagesAfter(targetId: string, afterSeq: number): MessageRow[] {
     return this.db
-      .prepare("SELECT * FROM messages WHERE target_id = ? AND seq > ? ORDER BY seq")
+      .prepare(
+        "SELECT m.*, m.rowid AS rowid FROM messages m WHERE m.target_id = ? AND m.seq > ? ORDER BY m.seq",
+      )
       .all(targetId, afterSeq) as MessageRow[];
   }
 
@@ -975,6 +987,43 @@ export class RaftStore {
          ON CONFLICT (agent_id, target_id) DO UPDATE SET seq = excluded.seq`,
       )
       .run(agentId, targetId, seq);
+  }
+
+  /** §3.2 mute：记录静音时刻的 channel 版本 + 全局插入序（thread 消息按 rowid 判定）；已静音时幂等。 */
+  setChannelMute(channelId: string, memberId: string, muteFromSeq: number, muteRowid: number): void {
+    this.db
+      .prepare(
+        "INSERT OR IGNORE INTO channel_mutes (channel_id, member_id, mute_from_seq, mute_rowid, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(channelId, memberId, muteFromSeq, muteRowid, new Date().toISOString());
+  }
+
+  /** 静音时刻的全局插入点 = 当时的 max(messages.rowid)（0 = 尚无任何消息）。 */
+  maxMessageRowid(): number {
+    const row = this.db.prepare("SELECT COALESCE(MAX(rowid), 0) AS n FROM messages").get() as {
+      n: number;
+    };
+    return row.n;
+  }
+
+  /** 取消 mute（幂等）：返回是否真的删掉了。 */
+  clearChannelMute(channelId: string, memberId: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM channel_mutes WHERE channel_id = ? AND member_id = ?")
+      .run(channelId, memberId);
+    return result.changes > 0;
+  }
+
+  getChannelMute(channelId: string, memberId: string): ChannelMuteRow | undefined {
+    return this.db
+      .prepare("SELECT * FROM channel_mutes WHERE channel_id = ? AND member_id = ?")
+      .get(channelId, memberId) as ChannelMuteRow | undefined;
+  }
+
+  listChannelMutes(channelId: string): ChannelMuteRow[] {
+    return this.db
+      .prepare("SELECT * FROM channel_mutes WHERE channel_id = ? ORDER BY created_at, member_id")
+      .all(channelId) as ChannelMuteRow[];
   }
 }
 

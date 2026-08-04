@@ -1,5 +1,6 @@
 import { getDb } from "./db-singleton.ts";
-import { getMember } from "./members.ts";
+import { getMember, extractMentionedMemberIds } from "./members.ts";
+import { getChannelMute, resolveChannelForTarget } from "./channels.ts";
 import { messageWithAuthor, previewLine, type MessageWithAuthor } from "./messages.ts";
 import type { MessageRow } from "../data/db.ts";
 
@@ -31,17 +32,37 @@ export function getSince(targetId: string, sinceSeq: number): MessageWithAuthor[
 /**
  * §3.8 drain：按 consumed_seqs 游标拉取增量（本地无 raft 的 50 轮分页上限，
  * 但保留 hasMore 语义）；不推进游标——重复 drain 不重不漏。
+ * §3.2 mute 过滤：该成员静音了目标 channel 时，静音时刻之后的普通消息不进 inbox，
+ * 个人 @mention 仍穿透（注意力信号）；静音前的消息照常投递。
+ * channel 消息按 seq 比（muteFromSeq 即 channel 版本）；thread 消息无 channel seq 可比
+ * （thread 自己的 seq 空间），按静音时刻的全局插入序（muteRowid）判定"静音后"。
  */
 export function drain(agentId: string, targetId: string): DrainResult {
   const consumedSeq = getDb().getConsumedSeq(agentId, targetId);
   const rows = getDb().listMessagesAfter(targetId, consumedSeq);
+  const channel = resolveChannelForTarget(targetId);
+  const mute = channel ? getChannelMute(channel.id, agentId) : undefined;
+  // target 即 channel 时为 channel 目标（按 seq 比）；否则是 thread 锚点（按全局插入序比）
+  const isChannelTarget = channel ? channel.id === targetId : false;
+  const visible = mute
+    ? rows.filter((row) =>
+        isChannelTarget
+          ? row.seq <= mute.muteFromSeq || mentionsAgent(row, agentId)
+          : (row.rowid ?? 0) <= mute.muteRowid || mentionsAgent(row, agentId),
+      )
+    : rows;
   return {
     targetId,
-    messages: rows.map(messageWithAuthor),
+    messages: visible.map(messageWithAuthor),
     hasMore: false,
     consumedSeq,
     maxSeq: getDb().maxSeq(targetId),
   };
+}
+
+/** §3.2 消息是否个人 @mention 了指定成员（mute 穿透判定；与 wake 的 @mention 解析同源）。 */
+function mentionsAgent(message: MessageRow, agentId: string): boolean {
+  return extractMentionedMemberIds(message.content).includes(agentId);
 }
 
 /** ack：把消费游标推进到指定 seq（agent-loop 每轮结束后调用，§3.8/§5.5）。 */
@@ -63,7 +84,14 @@ export function getPendingTargets(agentId: string): string[] {
     .listChannels()
     .filter((channel) => db.isChannelMember(channel.id, agentId))
     .map((channel) => channel.id)
-    .filter((targetId) => db.maxSeq(targetId) > db.getConsumedSeq(agentId, targetId));
+    .filter((targetId) => {
+      if (db.maxSeq(targetId) <= db.getConsumedSeq(agentId, targetId)) return false;
+      // §3.2 mute：静音后普通消息不产生 pending；个人 @mention 仍穿透
+      const mute = getChannelMute(targetId, agentId);
+      if (!mute) return true;
+      const since = Math.max(db.getConsumedSeq(agentId, targetId), mute.muteFromSeq);
+      return db.listMessagesAfter(targetId, since).some((message) => mentionsAgent(message, agentId));
+    });
 }
 
 /**

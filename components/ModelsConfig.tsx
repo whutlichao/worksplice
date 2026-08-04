@@ -420,20 +420,20 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, onAddMod
         )}
       </Field>
 
-      <Field label="Base URL">
+      <Field label={t("models.baseUrl")}>
         <TextInput value={provider.baseUrl ?? ""} onChange={(v) => set("baseUrl", v || undefined)}
           placeholder="https://api.example.com/v1" mono />
       </Field>
 
-      <Field label="API Key">
+      <Field label={t("models.apiKey")}>
         <SecretTextInput value={provider.apiKey ?? ""} onChange={(v) => set("apiKey", v || undefined)}
-          placeholder="ENV_VAR_NAME, !shell-command, or literal key" mono />
+          placeholder={t("models.apiKeyPlaceholder")} mono />
         <span style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>
-          Prefix with <code style={{ fontFamily: "var(--font-mono)" }}>!</code> to run a shell command, or use an env var name
+          {t("models.apiKeyHint")}
         </span>
       </Field>
 
-      <Field label="API">
+      <Field label={t("models.api")}>
         <Select value={provider.api ?? "openai-completions"} onChange={(v) => set("api", v)} options={API_OPTIONS} required />
       </Field>
 
@@ -962,8 +962,8 @@ function ModelDetail({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Field label="ID *"><TextInput value={model.id} onChange={(v) => set("id", v)} placeholder="model-id" mono /></Field>
-        <Field label="Name"><TextInput value={model.name ?? ""} onChange={(v) => set("name", v || undefined)} placeholder="Display name" /></Field>
+        <Field label={t("models.id")}><TextInput value={model.id} onChange={(v) => set("id", v)} placeholder="model-id" mono /></Field>
+        <Field label={t("models.name")}><TextInput value={model.name ?? ""} onChange={(v) => set("name", v || undefined)} placeholder={t("models.displayNamePlaceholder")} /></Field>
       </div>
 
       <div style={{ padding: "10px 0", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
@@ -1015,32 +1015,32 @@ function ModelDetail({
         </div>
       </div>
 
-      <Field label="API override">
+      <Field label={t("models.apiOverride")}>
         <Select value={model.api ?? ""} onChange={(v) => set("api", v || undefined)} options={API_OPTIONS} />
       </Field>
 
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-        <Check label="Reasoning / thinking" checked={model.reasoning ?? false} onChange={(v) => set("reasoning", v || undefined)} />
-        <Check label="Image input" checked={model.input?.includes("image") ?? false}
+        <Check label={t("models.reasoning")} checked={model.reasoning ?? false} onChange={(v) => set("reasoning", v || undefined)} />
+        <Check label={t("models.imageInput")} checked={model.input?.includes("image") ?? false}
           onChange={(v) => set("input", v ? ["text", "image"] : undefined)} />
       </div>
 
       {model.reasoning && (
         <>
           <Check
-            label="DeepSeek thinking compat"
+            label={t("models.deepseekCompat")}
             checked={hasDeepseekCompat(model)}
             onChange={(v) => onChange(setDeepseekCompat(model, v))}
           />
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <SectionTitle>Thinking level map</SectionTitle>
+              <SectionTitle>{t("models.thinkingLevelMap")}</SectionTitle>
               {model.thinkingLevelMap && (
                 <button
                   onClick={() => set("thinkingLevelMap", undefined)}
                   style={{ fontSize: 10, padding: "2px 7px", background: "none", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-dim)", cursor: "pointer" }}
                 >
-                  clear all
+                  {t("models.clearAll")}
                 </button>
               )}
             </div>
@@ -1053,18 +1053,18 @@ function ModelDetail({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Field label="Context window (tokens)">
+        <Field label={t("models.contextWindow")}>
           <NumInput value={model.contextWindow !== undefined ? String(model.contextWindow) : ""}
             onChange={(v) => set("contextWindow", v ? parseInt(v) : undefined)} placeholder="128000" />
         </Field>
-        <Field label="Max output tokens">
+        <Field label={t("models.maxOutputTokens")}>
           <NumInput value={model.maxTokens !== undefined ? String(model.maxTokens) : ""}
             onChange={(v) => set("maxTokens", v ? parseInt(v) : undefined)} placeholder="16384" />
         </Field>
       </div>
 
       <div>
-        <SectionTitle>Cost (per million tokens)</SectionTitle>
+        <SectionTitle>{t("models.costPerMillion")}</SectionTitle>
         <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
           {(["input", "output", "cacheRead", "cacheWrite"] as const).map((k) => (
             <Field key={k} label={k}>
@@ -1399,7 +1399,7 @@ function ApiKeyDetail({ provider, onRefresh }: { provider: ApiKeyProvider; onRef
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-         <SectionTitle>API Key</SectionTitle>
+         <SectionTitle>{t("models.apiKey")}</SectionTitle>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: provider.configured ? "#4ade80" : "var(--border)", display: "inline-block" }} />
           <span style={{ fontSize: 11, color: provider.configured ? "#4ade80" : "var(--text-dim)" }}>
@@ -1410,11 +1410,15 @@ function ApiKeyDetail({ provider, onRefresh }: { provider: ApiKeyProvider; onRef
 
       <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
         {provider.configured
-          ? `API key is stored. Enter a new key below to replace it, or disconnect to remove it.`
-          : `Enter your ${provider.displayName} API key to enable ${provider.modelCount} model${provider.modelCount !== 1 ? "s" : ""}.`}
+          ? t("models.apiKeyStored")
+          : t("models.enterApiKey", {
+              name: provider.displayName,
+              count: String(provider.modelCount),
+              countSuffix: provider.modelCount !== 1 ? "s" : "",
+            })}
       </p>
 
-      <Field label="API Key">
+      <Field label={t("models.apiKey")}>
         <div style={{ display: "flex", gap: 6 }}>
           <SecretTextInput
             value={apiKey}
@@ -1614,14 +1618,14 @@ function AddProviderPicker({
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>OAuth</div>
+                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{t("models.oauth")}</div>
                   </div>
                   <ProviderIcon id={p.id} size={28} />
                 </button>
               ))}
 
               {availableApiKey.length > 0 && (
-                <div style={{ gridColumn: "1 / -1", paddingTop: availableOAuth.length > 0 ? 6 : 0, fontSize: 10, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>API Key</div>
+                <div style={{ gridColumn: "1 / -1", paddingTop: availableOAuth.length > 0 ? 6 : 0, fontSize: 10, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{t("models.apiKey")}</div>
               )}
               {availableApiKey.map((p) => (
                 <button key={p.id} onClick={() => { onSelectApiKey(p.id); onClose(); }}

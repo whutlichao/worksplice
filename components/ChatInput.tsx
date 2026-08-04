@@ -295,17 +295,19 @@ function ModelNoticeBanner({ tone, title, body }: { tone: "error" | "warning"; t
 }
 
 export function ModelErrorBanner({ error }: { error?: string | null }) {
+  const { t } = useI18n();
   if (!error) return null;
-  return <ModelNoticeBanner tone="error" title="Model error" body={error} />;
+  return <ModelNoticeBanner tone="error" title={t("chat.modelError")} body={error} />;
 }
 
 /** Surfaces `enabledModels` patterns that matched nothing, so a typo is visible (#307). */
 export function ModelScopeWarningBanner({ warnings }: { warnings?: string[] }) {
+  const { t } = useI18n();
   if (!warnings || warnings.length === 0) return null;
   return (
     <ModelNoticeBanner
       tone="warning"
-      title={warnings.length > 1 ? "Model scope warnings" : "Model scope warning"}
+      title={warnings.length > 1 ? t("chat.modelScopeWarnings") : t("chat.modelScopeWarning")}
       body={warnings.join("\n")}
     />
   );
@@ -1303,7 +1305,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               }}
             >
               <div
-                title="Input history"
+                title={t("chat.inputHistory")}
                 style={{
                   height: 30,
                   padding: "0 10px",

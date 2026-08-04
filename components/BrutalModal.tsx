@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useI18n } from "@/hooks/useI18n";
 
 /** 马卡龙 × brutalist 模态框外壳：白卡片 + 2px ink 边框 + 硬偏移阴影 + 0 圆角（§4.2/§4.4）。 */
 export function BrutalModal({
@@ -14,6 +15,7 @@ export function BrutalModal({
   children: React.ReactNode;
   width?: number;
 }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export function BrutalModal({
           </span>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t("common.close")}
             onClick={onClose}
             style={{
               width: 26,

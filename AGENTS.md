@@ -107,7 +107,8 @@ app/api/
   search/route.ts                 GET ?q=&limit= — FTS5 全文搜索（结果 = id + 命中上下文摘要 + 归属 channel/thread + 作者）
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
-  channels.ts                     create/join/leave/archive/members + CURRENT_MEMBER_ID（恒为 owner）
+  channels.ts                     create/join/leave/archive/members + mute/unmute/getChannelMute（§3.2 mute）
+                                  + CURRENT_MEMBER_ID（恒为 owner）
   messages.ts                     sendMessage（freshness + thread 校验 + quote + 附件落盘 + 提交后发 wake）
                                   / listMessages / getThreadInfo / messageWithAuthor（附 reactions+attachments）
                                   / summarizeChanges（held 摘要，任务 claim/updateStatus 复用）
@@ -120,7 +121,8 @@ lib/raft/                         raft 服务层（app/api 仅薄封装）
   tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按 channel 递增）/ claimTask
                                   / updateTaskStatus（状态机 + 互审授权 + freshness-hold）/ listChannelTasks / getTaskView
   inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
-                                  / listRelatedTasks / resolveTargetChannel（§5.5 本地实现形态）
+                                  （§3.2 mute 过滤：静音后普通消息不进 inbox、@mention 穿透）/ listRelatedTasks
+                                  / resolveTargetChannel（§5.5 本地实现形态）
   members.ts                      listAgents/createAgent/updateAgentWorkspace/setAgentStatus/deleteAgent
                                   （workspace 绑定唯一性校验；删除 = soft-delete）
   reminders.ts                    schedule/list/snooze/update/cancel/log/fireDueReminders（§3.9/§5.6）
@@ -142,6 +144,7 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层）
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
                                   + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
                                   + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
+                                  + §3.2 mention 穿透：非成员被 @mention 推进本轮，回复公开 channel 时自行加入
   backfill.ts                     崩溃恢复按 seq 补拉：扫描 session jsonl 找回缺失的 assistant 回复按序补写（§5.3）
   driver.ts                       wake → 逐 agent 串行队列；同 (agent,target) hint 合并（保留首个 reason）；
                                   busy 时 settle 后重试
@@ -286,7 +289,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
 
 ### Raft message domain (`lib/raft/`)
-- **服务层 = 唯一事实来源**：`lib/raft/channels.ts` / `messages.ts` 直接操作 SQLite（`db-singleton`），API route 仅薄封装；join/leave/archive 的权限规则、freshness-hold、thread 不可嵌套都在服务层强制，route 层不重复实现。
+- **服务层 = 唯一事实来源**：`lib/raft/channels.ts` / `messages.ts` 直接操作 SQLite（`db-singleton`），API route 仅薄封装；join/leave/archive/mute 的权限规则、freshness-hold、thread 不可嵌套都在服务层强制，route 层不重复实现。
 - **Target 归一化**（§6.1）：消息 `target_id` 单列——命中 `channels` 即 channel，否则是 thread 锚点消息 id；`resolveTarget` 拒绝 thread 消息作为新 target（不可嵌套）。thread 读接口（`getThreadInfo`）会把 thread 内消息归一化回锚点。
 - **Freshness-hold**（§6.3）：`sendMessage` 带 `baseSeq`（客户端最新 `maxSeq`），事务内比对 `maxSeq(targetId)`，不等返回 `{ held, roomSeq, whatHappened }`，route 层 409；UI 收 held 后重新拉取并提示，agent 的四选一流程属 ticket 06。
 - **权限面**：写消息要求作者是 channel 成员（thread 回复继承 channel 规则）；私有 channel 加入/移除成员、归档都仅 Owner（`CURRENT_MEMBER_ID` = `"owner"`，人类恒为 Owner）；`#all` 不可离开；新 agent 创建时自动加入 `#all`（seed 也会在迁移时补齐既有成员）。
@@ -304,7 +307,8 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 
 ### agent-loop（ticket 06，§3.8/§5.3–5.5）
 - **拉取式 inbox，不推送正文**：`consumed_seqs(agent_id, target_id, seq)` 是持久化游标；`drain` 不推进游标（重复 drain 不重不漏），`ack` 由 loop 每轮收口；HTTP 语义（`GET /api/members/[id]/inbox`）是 drain + ack 一步到位。wake hint 只含 `{agentId, targetId, seq, reason}`，正文由 agent 自己 drain。
-- **wake 触发面**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——目标 channel 的 agent 成员（不含作者）全唤醒，未加入 channel 但被 `@mention` 的 agent 穿透送达；thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。
+- **wake 触发面**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——目标 channel 的 agent 成员（不含作者）全唤醒（§3.2 静音成员除外，不因普通消息唤醒），未加入 channel 但被 `@mention` 的 agent 穿透送达；thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。
+- **mute（ticket 12，§3.2/§3.8）**：channel 级静音 = `channel_mutes` 表（PK channel+member）记录静音时刻的 `mute_from_seq`（channel max(seq)）与 `mute_rowid`（全表 max(messages.rowid)）。drain/getPendingTargets 过滤：静音后的普通消息不进 inbox，个人 @mention 仍穿透；channel 消息按 seq 比，thread 消息无 channel seq 可比（thread 自己的 seq 空间）按 rowid 比（全局插入序，避免同毫秒 created_at 歧义）。静音前的消息照常投递；取消 mute 后不补投静音期间被压制的消息（游标已推进）。`GET/POST /api/channels/[id]/mute`（Owner 可替任意 agent 设）；ChannelView 头部 🔕 面板逐个 agent 开关。
 - **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author` 消息 + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` → 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 revise。**ack 语义**：ack 到 agent 本轮实际读到/被告知的房间版本（`deliverWithFreshness` 返回 ackSeq，held 后随 roomSeq 推进），避免游标停在旧 baseSeq 导致 target 永久 pending。
 - **freshness-hold 四选一**（`deliverWithFreshness`）：held 后按 agent 声明的 onConflict 执行——revise（`buildRevisionPrompt` 携带期间新消息正文重读重写，最多 2 次）/ resend（携带新 roomSeq 原样重试，最多 3 次）/ silent（静默放弃）/ anyway（不带 baseSeq 显式绕过，连续 hold 的逃逸口）；重试耗尽归入 silent。发送器可注入（`send` 参数，测试脚本化用）。
 - **崩溃恢复补拉**（`backfill.ts`）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`startAgentLoop`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis。
