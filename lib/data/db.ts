@@ -29,6 +29,10 @@ export interface MemberRow {
   pi_session_file: string | null;
   status: MemberStatus;
   deleted: number;
+  /** §3.10 per-agent runtime：覆盖全局默认的模型/思考级别（nullable = 继承全局）。 */
+  model_provider: string | null;
+  model_id: string | null;
+  thinking_level: string | null;
   created_at: string;
 }
 
@@ -350,6 +354,9 @@ export class RaftStore {
     workspacePath?: string | null;
     piSessionFile?: string | null;
     status?: MemberStatus;
+    modelProvider?: string | null;
+    modelId?: string | null;
+    thinkingLevel?: string | null;
     createdAt?: string;
   }): MemberRow {
     const row: MemberRow = {
@@ -362,12 +369,15 @@ export class RaftStore {
       pi_session_file: input.piSessionFile ?? null,
       status: input.status ?? "offline",
       deleted: 0,
+      model_provider: input.modelProvider ?? null,
+      model_id: input.modelId ?? null,
+      thinking_level: input.thinkingLevel ?? null,
       created_at: input.createdAt ?? new Date().toISOString(),
     };
     this.db
       .prepare(
-        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -379,6 +389,9 @@ export class RaftStore {
         row.pi_session_file,
         row.status,
         row.deleted,
+        row.model_provider,
+        row.model_id,
+        row.thinking_level,
         row.created_at,
       );
     return row;
@@ -405,6 +418,34 @@ export class RaftStore {
     this.db
       .prepare("UPDATE members SET pi_session_file = ? WHERE id = ?")
       .run(piSessionFile, id);
+  }
+
+  /** §3.10 per-agent runtime：设置/清空模型覆盖（未提供的字段保持原值，null = 清空回全局）。 */
+  setMemberModel(
+    id: string,
+    input: {
+      modelProvider?: string | null;
+      modelId?: string | null;
+      thinkingLevel?: string | null;
+    },
+  ): void {
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    if (input.modelProvider !== undefined) {
+      updates.push("model_provider = ?");
+      params.push(input.modelProvider);
+    }
+    if (input.modelId !== undefined) {
+      updates.push("model_id = ?");
+      params.push(input.modelId);
+    }
+    if (input.thinkingLevel !== undefined) {
+      updates.push("thinking_level = ?");
+      params.push(input.thinkingLevel);
+    }
+    if (updates.length === 0) return;
+    params.push(id);
+    this.db.prepare(`UPDATE members SET ${updates.join(", ")} WHERE id = ?`).run(...params);
   }
 
   setMemberDeleted(id: string, deleted: number): void {
@@ -872,11 +913,42 @@ export class RaftStore {
     });
   }
 
+  /** 某成员在指定 thread 锚点里的消息数（任务进展计数，§6.5）。 */
+  countThreadMessagesByAuthor(anchorId: string, authorId: string): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS n FROM messages WHERE target_id = ? AND author_id = ?")
+      .get(anchorId, authorId) as { n: number };
+    return row.n;
+  }
+
   /** 某 target 的最新一条消息（agent-loop "已回复" 判定 / 双写流收口复用）。 */
   getLatestMessage(targetId: string): MessageRow | undefined {
     return this.db
       .prepare("SELECT * FROM messages WHERE target_id = ? ORDER BY seq DESC LIMIT 1")
       .get(targetId) as MessageRow | undefined;
+  }
+
+  /** 某成员的全部消息（可观测性时间线；按时间倒序，limit 收口）。 */
+  listMessagesByAuthor(authorId: string, limit = 200): MessageRow[] {
+    return this.db
+      .prepare("SELECT * FROM messages WHERE author_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?")
+      .all(authorId, limit) as MessageRow[];
+  }
+
+  /**
+   * 某成员参与的任务（§6.5 任务历史，无需额外表）：
+   * 认领过（owner）或创建了（锚点消息作者）或在其任务 thread 里发过进展的。
+   */
+  listTasksForAgent(agentId: string): TaskRow[] {
+    return this.db
+      .prepare(
+        `SELECT DISTINCT tasks.* FROM tasks
+         JOIN messages anchor ON anchor.id = tasks.message_id
+         LEFT JOIN messages thread ON thread.target_id = tasks.message_id
+         WHERE tasks.owner_id = ? OR anchor.author_id = ? OR thread.author_id = ?
+         ORDER BY tasks.updated_at DESC`,
+      )
+      .all(agentId, agentId, agentId) as TaskRow[];
   }
 
   /** 同 target 同作者同内容是否已存在（崩溃恢复补拉去重：jsonl 回复 ↔ SQLite 双写比对）。 */

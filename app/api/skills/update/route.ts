@@ -14,17 +14,20 @@ export async function POST(req: Request) {
       package?: unknown;
       scope?: unknown;
     };
-    const cwd = typeof body.cwd === "string" ? body.cwd : "";
+    const requested = typeof body.cwd === "string" && body.cwd ? body.cwd : undefined;
+    const cwd = requested ?? process.cwd();
     const pkg = typeof body.package === "string" ? body.package : "";
     const scope = body.scope === "global" || body.scope === "project"
       ? body.scope as SkillInstallScope
       : undefined;
-    if (!cwd || !pkg || !scope) {
+    if (!pkg || !scope) {
       return NextResponse.json({ error: "cwd, package, and scope are required" }, { status: 400 });
     }
-    const allowedRoots = await getAllowedFileRoots();
-    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    if (requested) {
+      const allowedRoots = await getAllowedFileRoots();
+      if (!isExistingFilePathAllowed(requested, allowedRoots)) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
     }
 
     const { skills } = await loadSkillsWithInstallInfo(cwd);

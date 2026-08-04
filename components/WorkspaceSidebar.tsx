@@ -41,6 +41,7 @@ export function WorkspaceSidebar({
   onNewChannel,
   onNewAgent,
   onOpenModels,
+  onOpenSkills,
   onCloseMenu,
   onSearch,
 }: {
@@ -52,6 +53,7 @@ export function WorkspaceSidebar({
   onNewChannel: () => void;
   onNewAgent: () => void;
   onOpenModels: () => void;
+  onOpenSkills: () => void;
   onCloseMenu: () => void;
   onSearch: (query: string) => void;
 }) {
@@ -337,7 +339,7 @@ export function WorkspaceSidebar({
         })}
       </div>
 
-      {/* 底部设置：模型 + 语言（§3.10 全局设置保留） */}
+      {/* 底部设置：模型 + 技能 + 语言（§3.10 全局设置保留） */}
       <div
         style={{
           display: "flex",
@@ -363,6 +365,23 @@ export function WorkspaceSidebar({
           }}
         >
           {t("common.models")}
+        </button>
+        <button
+          type="button"
+          onClick={onOpenSkills}
+          style={{
+            flex: 1,
+            height: 28,
+            background: "#ffffff",
+            color: INK,
+            border: `2px solid ${INK}`,
+            cursor: "pointer",
+            fontFamily: "var(--font-hanken)",
+            fontWeight: 700,
+            fontSize: 12,
+          }}
+        >
+          {t("common.skills")}
         </button>
         <select
           aria-label={t("shell.language")}

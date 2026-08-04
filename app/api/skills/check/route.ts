@@ -13,11 +13,13 @@ export async function POST(req: Request) {
       package?: unknown;
       scope?: unknown;
     };
-    const cwd = typeof body.cwd === "string" ? body.cwd : "";
-    if (!cwd) return NextResponse.json({ error: "cwd required" }, { status: 400 });
-    const allowedRoots = await getAllowedFileRoots();
-    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    const requested = typeof body.cwd === "string" && body.cwd ? body.cwd : undefined;
+    const cwd = requested ?? process.cwd();
+    if (requested) {
+      const allowedRoots = await getAllowedFileRoots();
+      if (!isExistingFilePathAllowed(requested, allowedRoots)) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
     }
 
     const pkg = typeof body.package === "string" ? body.package : undefined;

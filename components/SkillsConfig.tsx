@@ -104,7 +104,7 @@ function SkillDetail({
   onUpdate,
 }: {
   skill: Skill;
-  cwd: string;
+  cwd?: string;
   onToggle: (skill: Skill) => void;
   toggling: boolean;
   saveError: string | null;
@@ -120,7 +120,7 @@ function SkillDetail({
   const enabled = !skill.disableModelInvocation;
 
   function displayPath(p: string): string {
-    if (label === "project" && p.startsWith(cwd)) {
+    if (label === "project" && cwd && p.startsWith(cwd)) {
       const rel = p.slice(cwd.length).replace(/^[/\\]/, "");
       return `./${rel}`;
     }
@@ -369,7 +369,7 @@ function AddSkillPanel({
   projectResourcesLoaded,
   onInstalled,
 }: {
-  cwd: string;
+  cwd?: string;
   installedPackages: Record<SkillInstallScope, ReadonlySet<string>>;
   projectResourcesLoaded: boolean;
   onInstalled: () => void;
@@ -427,7 +427,7 @@ function AddSkillPanel({
         const res = await fetch("/api/skills/install", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ package: pkg, scope, cwd }),
+          body: JSON.stringify({ package: pkg, scope, ...(cwd ? { cwd } : {}) }),
         });
         const d = (await res.json()) as { success?: boolean; error?: string };
         if (!res.ok || d.error) {
@@ -450,7 +450,9 @@ function AddSkillPanel({
   const installPath =
     scope === "global"
       ? "~/.pi/agent/skills/"
-      : `${shortenPath(cwd)}/.pi/skills/`;
+      : cwd
+        ? `${shortenPath(cwd)}/.pi/skills/`
+        : ".pi/skills/（项目目录）";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -710,7 +712,7 @@ export function SkillsConfig({
   cwd,
   onClose,
 }: {
-  cwd: string;
+  cwd?: string;
   onClose: () => void;
 }) {
   const isMobile = useIsMobile();
@@ -734,7 +736,7 @@ export function SkillsConfig({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/skills?cwd=${encodeURIComponent(cwd)}`);
+      const res = await fetch(cwd ? `/api/skills?cwd=${encodeURIComponent(cwd)}` : "/api/skills");
       const d = (await res.json()) as Partial<SkillsResponse> & { error?: string };
       if (!res.ok || d.error) throw new Error(d.error ?? `HTTP ${res.status}`);
       const list = d.skills ?? [];
@@ -782,7 +784,7 @@ export function SkillsConfig({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cwd,
+          ...(cwd ? { cwd } : {}),
           package: skill?.install?.package,
           scope: skill?.install?.scope,
         }),
@@ -821,7 +823,7 @@ export function SkillsConfig({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cwd,
+          ...(cwd ? { cwd } : {}),
           package: skill.install.package,
           scope: skill.install.scope,
         }),
@@ -955,7 +957,7 @@ export function SkillsConfig({
                 whiteSpace: "nowrap",
               }}
             >
-              {shortenPath(cwd)}
+              {shortenPath(cwd ?? "")}
             </code>
           </div>
           <button

@@ -11,15 +11,19 @@ export const dynamic = "force-dynamic";
 // GET /api/skills?cwd=<path>
 // Uses DefaultResourceLoader (same logic as AgentSession startup) so settings.json
 // skill paths, package skills, and .agents/skills directories are all included.
+// cwd 缺省时回退进程启动目录（全局设置入口不带 cwd 调用）；显式 cwd 才做 allowed-roots 校验。
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const cwd = searchParams.get("cwd");
+  const requested = searchParams.get("cwd");
+  const cwd = requested ?? process.cwd();
   if (!cwd) return NextResponse.json({ error: "cwd required" }, { status: 400 });
 
   try {
-    const allowedRoots = await getAllowedFileRoots();
-    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    if (requested) {
+      const allowedRoots = await getAllowedFileRoots();
+      if (!isExistingFilePathAllowed(requested, allowedRoots)) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
     }
     return NextResponse.json(await loadSkillsWithInstallInfo(cwd));
   } catch (e) {

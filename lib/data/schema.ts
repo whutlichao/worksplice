@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -30,6 +30,9 @@ const SCHEMA_STATEMENTS: string[] = [
     pi_session_file TEXT,
     status TEXT NOT NULL DEFAULT 'offline' CHECK (status IN ('online', 'working', 'error', 'offline')),
     deleted INTEGER NOT NULL DEFAULT 0,
+    model_provider TEXT,
+    model_id TEXT,
+    thinking_level TEXT,
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS messages (
@@ -160,6 +163,7 @@ export function runMigrations(db: Database.Database): void {
       db.exec(statement);
     }
     migrateMembersDeletedColumn(db);
+    migrateMembersModelColumns(db);
     seed(db);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
@@ -173,6 +177,23 @@ function migrateMembersDeletedColumn(db: Database.Database): void {
   const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
   if (!columns.some((c) => c.name === "deleted")) {
     db.exec("ALTER TABLE members ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
+  }
+}
+
+/**
+ * v6: members 增加 per-agent 模型列（§3.10 runtime 区：覆盖全局默认）。
+ * 老库无此列时 ALTER 补上；新库 CREATE TABLE 已带该列。
+ */
+function migrateMembersModelColumns(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === "model_provider")) {
+    db.exec("ALTER TABLE members ADD COLUMN model_provider TEXT");
+  }
+  if (!columns.some((c) => c.name === "model_id")) {
+    db.exec("ALTER TABLE members ADD COLUMN model_id TEXT");
+  }
+  if (!columns.some((c) => c.name === "thinking_level")) {
+    db.exec("ALTER TABLE members ADD COLUMN thinking_level TEXT");
   }
 }
 

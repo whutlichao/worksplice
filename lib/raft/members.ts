@@ -137,6 +137,32 @@ export function setAgentSessionFile(agentId: string, sessionFile: string | null)
 }
 
 /**
+ * §3.10 per-agent runtime：设置模型/provider/thinking 覆盖（覆盖全局默认）。
+ * 传 null 清空该维度回全局；未提供的维度保持原值。模型成对校验（provider+modelId）。
+ */
+export function setAgentRuntimeConfig(
+  agentId: string,
+  input: {
+    modelProvider?: string | null;
+    modelId?: string | null;
+    thinkingLevel?: string | null;
+  },
+): MemberRow {
+  const agent = getAgent(agentId);
+  const modelProvider = input.modelProvider !== undefined ? input.modelProvider : agent.model_provider;
+  const modelId = input.modelId !== undefined ? input.modelId : agent.model_id;
+  if ((modelProvider === null) !== (modelId === null)) {
+    throw new Error("Model provider and model id must be set or cleared together");
+  }
+  getDb().setMemberModel(agent.id, {
+    modelProvider: input.modelProvider !== undefined ? input.modelProvider : undefined,
+    modelId: input.modelId !== undefined ? input.modelId : undefined,
+    thinkingLevel: input.thinkingLevel !== undefined ? input.thinkingLevel : undefined,
+  });
+  return getAgent(agent.id);
+}
+
+/**
  * 删除身份（§3.6）：soft-delete，保留成员行以承载不可变消息的外键与渲染；
  * 状态点/认领消失——移出全部 channel、清空任务 owner 与消费游标。
  */

@@ -92,6 +92,8 @@ app/api/
   members/[id]/full-reset/route.ts   POST 会话 + workspace 内容全清
   members/events/route.ts         GET SSE — 状态点快照流（§3.6 四态）
   members/[id]/inbox/route.ts     GET ?targetId= — drain + ack（§5.7 inbox；无 targetId 时 drain 全部待处理 channel）
+  members/[id]/observability/route.ts GET — 可观测性（§3.6/§6.5）：状态点 + session jsonl 只读统计 + 任务历史/时间线 + 会话导出信息
+  members/[id]/runtime/route.ts   GET/PATCH — per-agent 模型/provider/thinking（§3.10，覆盖全局默认；存活会话立即应用）
   tasks/route.ts                  POST { messageId } 转任务 | { channelId, content } 发消息并建任务
   tasks/[id]/claim/route.ts       POST { baseSeq? } — claim；409 held / 409 conflict（失败让路）
   tasks/[id]/update-status/route.ts POST { status, baseSeq? } — 状态机转移；409 held
@@ -124,6 +126,8 @@ lib/raft/                         raft 服务层（app/api 仅薄封装）
   reminders.ts                    schedule/list/snooze/update/cancel/log/fireDueReminders（§3.9/§5.6）
                                   fire 投递系统消息（wake:false）+ 定向唤醒作者（agent → emitWake reason=reminder）
   search.ts                       §6.4 搜索服务层：searchMessages（trigram FTS 双路径 + LIKE 兜底；结果附 channel/author/inThread）
+  search.ts                       §6.4 搜索服务层：searchMessages（trigram FTS 双路径 + LIKE 兜底；结果附 channel/author/inThread）
+  observability.ts                §6.5 任务历史服务层：listAgentTasks（owner/锚点作者/thread 进展参与判定）+ buildAgentTimeline（消息 + 任务状态点时间线）
   recurrence.ts                   recurrence DSL 纯解析器：every:Nm/Nh/Nd / daily@HH:MM / weekly:mon,fri@HH:MM
                                   + nextFireAt（严格晚于 from，时区安全，delay 语义）
   db-singleton.ts                 globalThis.__workspliceDb 单例（schema 版本号兜底重建，扛热重载）
@@ -152,6 +156,7 @@ lib/data/                         raft SQLite 数据层（better-sqlite3，同�
 lib/
   agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
   agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import rpc-manager/SDK）+ deriveLiveAgentStatus
+                      + startSession 应用 per-agent 模型覆盖（§3.10）
   agent-lifecycle.ts  Restart / Session reset / Full reset / 换 workspace / 删除身份（fs + 运行时 + DB 编排）
   agent-client.ts     typed fetch helper for /api/agent commands
   draft-store.ts       local draft persistence helpers
@@ -162,6 +167,8 @@ lib/
   pi-types.ts          local structural types for pi SDK objects
   rpc-manager.ts      AgentSessionWrapper + registry + startRpcSession
   session-reader.ts   SessionManager wrappers + path cache + buildSessionContext adapter
+  session-stats.ts    §6.5 session jsonl 只读解析（token/cost/compaction，与 SDK getSessionStats 同口径，不落库）
+                      + listAgentSessionFiles（pi_session_file 精确 + workspace cwd 下全部会话）+ aggregateAgentUsage
   tool-presets.ts     PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
   types.ts            shared TypeScript types
   normalize.ts        normalizeToolCalls() — field name mismatch between file format and our types
@@ -178,7 +185,7 @@ components/
   CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
   CreateAgentModal.tsx   建 agent
   ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
-  AgentDetailPanel.tsx   agent 详情面板（占位，ticket 05）
+  AgentDetailPanel.tsx   agent 详情面板：状态/workspace/runtime（§3.10 ModelPicker 覆盖全局默认）/可观测性（§6.5 统计+任务历史+时间线+导出）/重置
   BrutalModal.tsx        马卡龙 × brutalist 模态框外壳
   PixelAvatar.tsx        8×8 像素头像（seed 确定性）
   StatusDot.tsx          状态点四态（绿/黄脉冲/橙/灰）
@@ -186,6 +193,7 @@ components/
   MessageView.tsx        pi-web 遗留会话消息渲染（agent 会话用，保留复用）
   MarkdownBody.tsx       markdown 渲染器（channel 消息复用）
   ModelsConfig.tsx       modal for editing models.json (opened from sidebar bottom)
+  ModelPicker.tsx        模型/思考级别选择器（§3.10 runtime 区复用；provider 分组 + 过滤 + 继承全局默认）
   PluginsConfig.tsx      modal for installed package plugins
   SkillsConfig.tsx       modal for loaded/search/installable skills
   FileExplorer.tsx       file tree inside sidebar

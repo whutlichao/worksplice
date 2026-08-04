@@ -10,6 +10,7 @@ import { AgentDetailPanel } from "./AgentDetailPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateAgentModal } from "./CreateAgentModal";
 import { ModelsConfig } from "./ModelsConfig";
+import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/db";
 import { OWNER_MEMBER_ID } from "@/lib/data/schema";
 
@@ -52,6 +53,7 @@ export function AppShell() {
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
 
   const load = useCallback(() => {
     void Promise.all([
@@ -190,6 +192,7 @@ export function AppShell() {
           onNewChannel={() => setCreateChannelOpen(true)}
           onNewAgent={() => setCreateAgentOpen(true)}
           onOpenModels={() => setModelsOpen(true)}
+          onOpenSkills={() => setSkillsOpen(true)}
           onCloseMenu={() => setSidebarOpen(false)}
           onSearch={(q) => {
             setSearchQuery(q);
@@ -307,6 +310,7 @@ export function AppShell() {
         />
       )}
       {modelsOpen && <ModelsConfig onClose={() => setModelsOpen(false)} />}
+      {skillsOpen && <SkillsConfig onClose={() => setSkillsOpen(false)} />}
     </div>
   );
 }

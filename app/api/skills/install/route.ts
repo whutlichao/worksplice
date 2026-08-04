@@ -24,12 +24,14 @@ export async function POST(req: Request) {
 
     const isGlobal = scope !== "project";
     if (!isGlobal) {
-      if (!cwd) return NextResponse.json({ error: "cwd required for project install" }, { status: 400 });
-      const allowedRoots = await getAllowedFileRoots();
-      if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      const projectCwd = cwd || process.cwd();
+      if (cwd) {
+        const allowedRoots = await getAllowedFileRoots();
+        if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
+          return NextResponse.json({ error: "Access denied" }, { status: 403 });
+        }
       }
-      if (!getProjectTrustStatus(cwd, getAgentDir()).trusted) {
+      if (!getProjectTrustStatus(projectCwd, getAgentDir()).trusted) {
         return NextResponse.json(
           { error: "Project resources must be trusted before installing project skills" },
           { status: 403 },

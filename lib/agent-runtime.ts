@@ -1,4 +1,5 @@
 import { existsSync, rmSync } from "fs";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MemberRow } from "./data/db.ts";
 import { normalizeWorkspacePath, setAgentSessionFile } from "./raft/members.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
@@ -126,6 +127,15 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
         `agent-${member.id}`,
         sessionFile ?? "",
         cwd,
+        {
+          // §3.10 per-agent runtime：覆盖全局默认（provider/modelId 成对；thinking 可单独）
+          ...(member.model_provider && member.model_id
+            ? { initialModel: { provider: member.model_provider, modelId: member.model_id } }
+            : {}),
+          ...(member.thinking_level
+            ? { thinkingLevel: member.thinking_level as ThinkingLevel }
+            : {}),
+        },
       );
 
       const actualFile = session.sessionFile || sessionFile || null;
