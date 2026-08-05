@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Search, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
@@ -154,7 +155,7 @@ export function WorkspaceSidebar({
             lineHeight: 1,
           }}
         >
-          ✕
+          <X size={12} style={{ display: "block", margin: "auto" }} />
         </button>
       </div>
 
@@ -212,7 +213,7 @@ export function WorkspaceSidebar({
             lineHeight: 1,
           }}
         >
-          🔍
+          <Search size={15} style={{ display: "block", margin: "auto" }} />
         </button>
       </div>
 

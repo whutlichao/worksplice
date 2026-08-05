@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Check } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
 import type {
@@ -676,7 +677,11 @@ function AddSkillPanel({
                   }}
                 >
                   {isInstalled
-                     ? `✓ ${t("i18n.installed")}`
+                     ? (
+                       <>
+                         <Check size={12} style={{ verticalAlign: "-2px" }} /> {t("i18n.installed")}
+                       </>
+                     )
                     : isInstalling
                        ? t("i18n.installing")
                        : t("i18n.install")}

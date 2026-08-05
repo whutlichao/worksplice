@@ -46,7 +46,7 @@ _Avoid_: @ 关联、艾特
 _Avoid_: ticket、工单
 
 **成员面板 (Member Panel)**:
-频道头部 👥 展开区，列出该频道的 agent 成员及状态点，点击打开成员详情。
+频道头部 `Users` 图标展开区，列出该频道的 agent 成员及状态点，点击打开成员详情。
 
 **补全 (Mention Completion)**:
 Composer 输入 `@` 弹出的成员菜单，列出全部 agent（非频道成员标注"未加入"），插入 `@名字` 或引号形式。

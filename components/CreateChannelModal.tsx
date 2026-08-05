@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
 import { PixelAvatar } from "./PixelAvatar";
@@ -177,7 +178,7 @@ export function CreateChannelModal({
                         color: selected ? "var(--text)" : "var(--text-dim)",
                       }}
                     >
-                      {selected ? "✓" : "+"}
+                      {selected ? <Check size={11} style={{ verticalAlign: "-2px" }} /> : "+"}
                     </span>
                   </button>
                 );

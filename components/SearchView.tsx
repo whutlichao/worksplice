@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import type { MessageSearchHit } from "@/lib/raft/search";
@@ -154,7 +155,7 @@ export function SearchView({
               lineHeight: 1,
             }}
           >
-            ✕
+            <X size={13} style={{ display: "block", margin: "auto" }} />
           </button>
         </div>
         {results !== null && !loading && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Brain, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { ModelsData } from "@/lib/models-cache";
 
@@ -266,7 +267,7 @@ export function ModelPicker({
                 color: "var(--text-muted)",
               }}
             >
-              ✕ {t("runtime.inheritGlobal")}
+              <X size={12} style={{ verticalAlign: "-2px" }} /> {t("runtime.inheritGlobal")}
             </button>
           )}
         </div>
@@ -284,7 +285,7 @@ export function ModelPicker({
             setThinkingOpen((v) => !v);
           }}
         >
-          <span style={{ fontSize: 11, opacity: 0.7 }}>🧠</span>
+          <Brain size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
             {thinkingLabel ? t(thinkingLabel) : t("runtime.thinkingDefault")}
           </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlarmClock, Bell, BellOff, Check, FileText, Link, Paperclip, Pin, Quote, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { MentionText } from "./MentionText";
 import { MemberProfileModal } from "./MemberProfileModal";
@@ -374,7 +375,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
         ) : isTextLike(attachment.mime) ? (
           <div key={attachment.id}>
             <button type="button" onClick={() => void togglePreview(attachment)} style={chipStyle}>
-              <span>📄</span>
+              <span><FileText size={12} style={{ verticalAlign: "-2px" }} /></span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {attachment.file_name}
               </span>
@@ -398,7 +399,13 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
                   wordBreak: "break-word",
                 }}
               >
-                {previewFailed ? "⚠ preview failed" : previewText ?? "…"}
+                {previewFailed ? (
+                  <>
+                    <TriangleAlert size={11} style={{ verticalAlign: "text-bottom" }} /> preview failed
+                  </>
+                ) : (
+                  previewText ?? "…"
+                )}
               </pre>
             )}
           </div>
@@ -409,7 +416,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
             download={attachment.file_name}
             style={chipStyle}
           >
-            <span>📎</span>
+            <span><Paperclip size={12} style={{ verticalAlign: "-2px" }} /></span>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {attachment.file_name}
             </span>
@@ -505,7 +512,7 @@ function MessageActions({
         ↩
       </button>
       <button type="button" title={t("message.quote")} style={buttonStyle} onClick={() => onQuote(message)}>
-        ❝
+        <Quote size={13} />
       </button>
       <button
         type="button"
@@ -517,7 +524,7 @@ function MessageActions({
           setTimeout(() => setCopied(false), 1200);
         }}
       >
-        {copied ? "✓" : "🔗"}
+        {copied ? <Check size={13} /> : <Link size={13} />}
       </button>
       {onReminder && (
         <button
@@ -526,7 +533,7 @@ function MessageActions({
           style={buttonStyle}
           onClick={() => onReminder(message)}
         >
-          ⏰
+          <AlarmClock size={13} />
         </button>
       )}
       {onTogglePin && (
@@ -536,7 +543,7 @@ function MessageActions({
           style={{ ...buttonStyle, background: pinned ? "var(--yellow)" : "#ffffff" }}
           onClick={() => onTogglePin(message)}
         >
-          📌
+          <Pin size={13} />
         </button>
       )}
     </div>
@@ -1151,7 +1158,7 @@ export function Composer({
           }}
         >
           <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            ❝ #{quoting.seq} {quoting.author?.name ?? t("message.unknownAuthor")}:{" "}
+            <Quote size={12} style={{ verticalAlign: "-2px" }} /> #{quoting.seq} {quoting.author?.name ?? t("message.unknownAuthor")}:{" "}
             {quoting.content.split("\n")[0]}
           </span>
           <button
@@ -1168,7 +1175,7 @@ export function Composer({
               lineHeight: 1,
             }}
           >
-            ✕
+            <X size={12} style={{ display: "block", margin: "auto" }} />
           </button>
         </div>
       )}
@@ -1189,7 +1196,7 @@ export function Composer({
               }}
             >
               <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                📎 {file.name}
+                <Paperclip size={11} style={{ verticalAlign: "-2px" }} /> {file.name}
               </span>
               <span style={{ color: "var(--text-muted)" }}>{formatBytes(file.size)}</span>
               <button
@@ -1206,7 +1213,7 @@ export function Composer({
                   lineHeight: 1,
                 }}
               >
-                ✕
+                <X size={10} style={{ display: "block", margin: "auto" }} />
               </button>
             </div>
           ))}
@@ -1391,6 +1398,8 @@ export function Composer({
             disabled={disabled}
             onClick={() => fileInputRef.current?.click()}
             style={{
+              display: "inline-flex",
+              alignItems: "center",
               height: 30,
               padding: "0 8px",
               fontFamily: "var(--font-hanken)",
@@ -1403,7 +1412,7 @@ export function Composer({
               opacity: disabled ? 0.55 : 1,
             }}
           >
-            📎
+            <Paperclip size={15} />
           </button>
           <input
             ref={fileInputRef}
@@ -2161,6 +2170,9 @@ export function ChannelView({
   });
 
   const actionButton: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
     padding: "5px 10px",
     fontFamily: "var(--font-hanken)",
     fontWeight: 700,
@@ -2265,7 +2277,7 @@ export function ChannelView({
                 style={{ ...actionButton, background: "var(--lime)" }}
                 onClick={openChannelReminder}
               >
-                ⏰
+                <AlarmClock size={14} />
               </button>
             )}
             {joined && (
@@ -2275,7 +2287,7 @@ export function ChannelView({
                 style={{ ...actionButton, background: pinnedOpen ? "var(--yellow)" : "#ffffff" }}
                 onClick={() => setPinnedOpen((open) => !open)}
               >
-                📌 {pinnedItems.length > 0 ? pinnedItems.length : ""}
+                <Pin size={14} /> {pinnedItems.length > 0 ? pinnedItems.length : ""}
               </button>
             )}
             {joined && (
@@ -2285,7 +2297,7 @@ export function ChannelView({
                 style={{ ...actionButton, background: muteOpen || mutes.some((m) => m.muted) ? "var(--yellow)" : "#ffffff" }}
                 onClick={() => setMuteOpen((open) => !open)}
               >
-                🔕 {mutes.filter((m) => m.muted).length > 0 ? mutes.filter((m) => m.muted).length : ""}
+                <BellOff size={14} /> {mutes.filter((m) => m.muted).length > 0 ? mutes.filter((m) => m.muted).length : ""}
               </button>
             )}
             {joined && (
@@ -2295,7 +2307,7 @@ export function ChannelView({
                 style={{ ...actionButton, background: membersOpen ? "var(--yellow)" : "#ffffff" }}
                 onClick={() => setMembersOpen((open) => !open)}
               >
-                👥 {channelAgents.length > 0 ? channelAgents.length : ""}
+                <Users size={14} /> {channelAgents.length > 0 ? channelAgents.length : ""}
               </button>
             )}
           </div>
@@ -2332,7 +2344,7 @@ export function ChannelView({
                   style={{ ...actionButton, background: m.muted ? "var(--yellow)" : "#ffffff" }}
                   onClick={() => void toggleMute(m)}
                 >
-                  {m.muted ? "🔕" : "🔔"} @{m.name}{" "}
+                  {m.muted ? <BellOff size={12} /> : <Bell size={12} />} @{m.name}{" "}
                   <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, opacity: 0.75 }}>
                     {m.muted ? t("mute.muted") : t("mute.unmuted")}
                   </span>
@@ -2390,7 +2402,7 @@ export function ChannelView({
                       onClick={() => void removeChannelMember(member)}
                       style={{ ...actionButton, padding: "4px 7px", fontSize: 10, opacity: memberBusy ? 0.55 : 1 }}
                     >
-                      ✕
+                      <X size={11} style={{ display: "block", margin: "auto" }} />
                     </button>
                   )}
                 </div>
@@ -2554,7 +2566,7 @@ export function ChannelView({
                         onClick={() => void togglePin(item.message)}
                         style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
                       >
-                        ✕
+                        <X size={10} style={{ display: "block", margin: "auto" }} />
                       </button>
                     </span>
                   )}
@@ -2745,7 +2757,7 @@ export function ChannelView({
                 lineHeight: 1,
               }}
             >
-              ✕
+              <X size={13} style={{ display: "block", margin: "auto" }} />
             </button>
           </div>
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useViewportHeight } from "@/hooks/useViewportHeight";
 import { WorkspaceSidebar, type SidebarSelection } from "./WorkspaceSidebar";
@@ -212,7 +213,7 @@ export function AppShell() {
           className="ws-mobile-toggle"
           onClick={() => setSidebarOpen((v) => !v)}
         >
-          ☰
+          <Menu size={20} style={{ display: "block", margin: "auto" }} />
         </button>
         {searchOpen ? (
           <SearchView

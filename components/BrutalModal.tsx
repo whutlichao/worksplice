@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 
 /** 马卡龙 × brutalist 模态框外壳：白卡片 + 2px ink 边框 + 硬偏移阴影 + 0 圆角（§4.2/§4.4）。 */
@@ -105,7 +106,7 @@ export function BrutalModal({
               e.currentTarget.style.transform = "none";
             }}
           >
-            ✕
+            <X size={13} style={{ display: "block", margin: "auto" }} />
           </button>
         </div>
         {children}
