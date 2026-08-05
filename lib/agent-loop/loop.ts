@@ -110,7 +110,7 @@ export function buildReplyPrompt(input: {
   agent: MemberRow;
   channel: ChannelRow;
   messages: MessageWithAuthor[];
-  tasks: Array<{ number: number; status: string; preview: string; ownerName: string }>;
+  tasks: Array<{ number: number; status: string; preview: string; ownerName: string; reopened?: boolean }>;
   targetId: string;
   baseSeq: number;
   memoryFile?: string | null;
@@ -131,7 +131,8 @@ export function buildReplyPrompt(input: {
     lines.push("");
     lines.push("Related open tasks:");
     for (const task of input.tasks) {
-      lines.push(`- task #${task.number} [${task.status}] "${task.preview}" (owner: ${task.ownerName})`);
+      const reopened = task.reopened ? " — REOPENED, awaiting the owner: do not claim" : "";
+      lines.push(`- task #${task.number} [${task.status}] "${task.preview}" (owner: ${task.ownerName})${reopened}`);
     }
   }
   lines.push("");
@@ -419,7 +420,12 @@ export async function runTaskOperation(input: {
       ack(agent.id, input.targetId, baseSeq);
       return {
         status: "yielded",
-        reason: claim.status === "held" ? "claim held — the room changed" : "claim conflict — task already claimed",
+        reason:
+          claim.status === "held"
+            ? "claim held — the room changed"
+            : claim.status === "blocked"
+              ? "claim blocked — task was reopened, awaiting the owner"
+              : "claim conflict — task already claimed",
         baseSeq,
       };
     }

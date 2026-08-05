@@ -119,7 +119,8 @@ lib/raft/                         raft 服务层（app/api 仅薄封装）
   attachments.ts                  §3.5 附件：MAX_ATTACHMENT_BYTES=50MB / stageAttachmentFiles（随机名落盘 attachments/）
                                   / discardAttachmentFiles（held/抛错清理）/ getAttachmentRow
   tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按 channel 递增）/ claimTask
-                                  / updateTaskStatus（状态机 + 互审授权 + freshness-hold）/ listChannelTasks / getTaskView
+                                  （重开封锁：reopened 下仅 Owner 认领接管）/ updateTaskStatus（状态机 + 互审授权
+                                  + freshness-hold + reopen 置 reopened 标记）/ listChannelTasks / getTaskView
   inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
                                   （§3.2 mute 过滤：静音后普通消息不进 inbox、@mention 穿透）/ listRelatedTasks
                                   / resolveTargetChannel（§5.5 本地实现形态）
@@ -323,6 +324,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 ### 任务板（ticket 07，§3.7/§5.7 tasks 路由组）
 - **task = 消息 + 元数据**（`lib/raft/tasks.ts`）：`tasks` 表锚定 `message_id`（UNIQUE）；创建三途径——右键菜单 Convert to Task / 发送时勾 As Task / Tasks tab Create Task，全部收敛到 `createTask({messageId})`（board 创建先 `sendMessage` 再转）；**thread 内消息不可转**（锚点 target 必须是 channel）、消息不可重复转（`TaskAlreadyExistsError` → 409）。`number` 按 channel 内递增（join messages 算 max+1），跨 channel 各自从 #1 起。
 - **状态机只走合法转移**（`TRANSITIONS` 表，服务层强制）：`todo ─claim→ in_progress ─complete→ in_review ─approve→ done`；`unclaim/reject` 回退（in_progress→todo、in_review→in_progress，owner 保留）；in_progress/in_review ─close→ closed；`done/closed ─reopen→ todo`（**reopen/unclaim 清 owner 回池**）。claim 只认未认领任务（`owner_id IS NULL`）；**互审"构建者不验证"**：approve/reject 必须由非 owner 的 channel 成员执行，owner 完成置 in_review 后由另一 agent 或人批准。
+- **重开封锁**（schema v8 `tasks.reopened` 列）：reopen 置标记回池——**agent-loop 不可自动认领**（`claimTask` 返回 `blocked` → route 409 / loop yielded "task reopened — awaiting the owner"），仅人类（`CURRENT_MEMBER_ID`）可认领接管并**清标**；人类 unclaim 后任务恢复 agent 可认领，再次重开再次封锁。unclaim/reject 不置标。向前生效，存量不追溯。`TaskView`/`listRelatedTasks` 带出标记：UI 任务板显示"重开"徽标、`buildReplyPrompt` 标注 "REOPENED … do not claim" 让模型不发起 claim。
 - **并发保护**（§6.3 同消息语义）：claim/updateStatus 携带 `baseSeq` = channel `max(seq)`，事务内比对不等返回 held（`summarizeChanges` 摘要复用）；claim 已认领返回 conflict（route 409）。UI 收 held 后刷新并提示。
 - **自动认领（agent-loop）**：协议扩展 `"task":{"number":N,"op":"claim"|"complete"|"unclaim"}`（`parseAgentAction` 向后兼容，无 task 字段行为不变）；`runTaskOperation` 先 `claimTask` 再开工——**held/conflict/非 owner → 让路**（`RoundStatus "yielded"`，不回复、channel 游标只推进到已读版本，更新的消息经 wake 重试重读）。回复投递到**任务线程**（anchor 消息 target，thread 自己的 seq/freshness 空间）；complete 的回复先落线程再置 in_review（状态更新 held 按 roomSeq 重试 ≤3 次，失败不吞回复）。
 - **任务延续自醒**（wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。

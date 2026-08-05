@@ -555,6 +555,8 @@ export const enLocale: LocalePlugin = {
     "tasks.reject": "Reject",
     "tasks.close": "Close",
     "tasks.reopen": "Reopen",
+    "tasks.reopenedBadge": "REOPENED",
+    "tasks.reopenedHint": "Reopened: agents cannot auto-claim; claim to take over",
     "tasks.unassigned": "unassigned",
     "tasks.threadHint": "Progress lives in the task thread",
     "tasks.held": "Task action held — the room changed, try again",

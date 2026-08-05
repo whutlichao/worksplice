@@ -1,14 +1,16 @@
 import { getDb } from "./db-singleton.ts";
-import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
+import { getChannel, isChannelMember, resolveChannelForTarget, CURRENT_MEMBER_ID } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { messageWithAuthor, summarizeChanges, type MessageWithAuthor } from "./messages.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow, TaskStatus } from "../data/db.ts";
 
 /**
  * 任务服务层（§3.7）：task = 消息 + 元数据。
- * - 创建：顶层消息可转（thread 内不可）；number 按 channel 内递增（#1 #2…）；
+ * - 创建：顶层消息可转（thread 内不可）；number 按 channel 内递增；
  * - 状态机：todo → in_progress(claim) → in_review(complete) → done(approve) / closed，
  *   unclaim/reject 回退，done/closed 可 reopen 回池；
+ * - 重开封锁：reopen 置 reopened 标记——agent-loop 不可自动认领（blocked），
+ *   人类（CURRENT_MEMBER_ID）认领即接管并清除标记；
  * - 互审："构建者不验证"——approve/reject 必须由非 owner 的 channel 成员执行；
  * - 并发保护：claim / updateStatus 均携带房间版本（channel max(seq)），
  *   事务内比对，不等返回 held（§6.3 与消息同语义）。
@@ -23,7 +25,8 @@ export interface TaskView extends TaskRow {
 export type TaskClaimResult =
   | { status: "claimed"; task: TaskView }
   | { status: "held"; roomSeq: number; whatHappened: string }
-  | { status: "conflict"; reason: string };
+  | { status: "conflict"; reason: string }
+  | { status: "blocked"; reason: string };
 
 export type TaskUpdateResult =
   | { status: "updated"; task: TaskView }
@@ -53,10 +56,16 @@ export class TaskNotAuthorizedError extends Error {
 /**
  * 状态机转移表（§3.7）：key = 当前状态，value = 可达状态 → 授权谓词。
  * clearOwner：转移后释放回池（unclaim/reopen）。
+ * reopen：置 reopened 标记（重开封锁，§3.7）——agent-loop 不可自动认领，人类认领即清标。
  */
 const TRANSITIONS: Record<
   TaskStatus,
-  Partial<Record<TaskStatus, { authorized: (task: TaskRow, actorId: string) => boolean; clearOwner?: boolean }>>
+  Partial<
+    Record<
+      TaskStatus,
+      { authorized: (task: TaskRow, actorId: string) => boolean; clearOwner?: boolean; reopen?: boolean }
+    >
+  >
 > = {
   todo: {},
   in_progress: {
@@ -70,10 +79,10 @@ const TRANSITIONS: Record<
     closed: { authorized: () => true },
   },
   done: {
-    todo: { authorized: () => true, clearOwner: true },
+    todo: { authorized: () => true, clearOwner: true, reopen: true },
   },
   closed: {
-    todo: { authorized: () => true, clearOwner: true },
+    todo: { authorized: () => true, clearOwner: true, reopen: true },
   },
 };
 
@@ -144,6 +153,8 @@ export function createTask(input: { messageId: string }): TaskView {
 /**
  * 认领（§3.7）：同一任务同时只有一个 owner；claim 即"我负责"。
  * 已认领（conflict）或房间变化（held）都不写入；claim 失败方让路。
+ * 重开封锁：reopened 标记下仅人类（CURRENT_MEMBER_ID）可认领（= 接管并清标），
+ * agent-loop 等非人类认领返回 blocked（§3.7 重开后不可自动认领）。
  */
 export function claimTask(input: {
   channelId: string;
@@ -163,7 +174,14 @@ export function claimTask(input: {
     if (!current || current.owner_id !== null) {
       return { status: "conflict" as const, reason: "Task is already claimed" };
     }
-    const updated = getDb().updateTask(current.id, { status: "in_progress", ownerId: input.memberId });
+    if (current.reopened === 1 && input.memberId !== CURRENT_MEMBER_ID) {
+      return { status: "blocked" as const, reason: "Task was reopened — awaiting the owner" };
+    }
+    const updated = getDb().updateTask(current.id, {
+      status: "in_progress",
+      ownerId: input.memberId,
+      reopened: 0,
+    });
     if (!updated) return { status: "conflict" as const, reason: "Task is already claimed" };
     return { status: "claimed" as const, task: toTaskView(updated, getDb().getMessage(updated.message_id)!) };
   });
@@ -171,7 +189,8 @@ export function claimTask(input: {
 
 /**
  * 状态更新（§3.7）：按状态机表校验转移与授权；受 freshness-hold 保护。
- * unclaim（→todo）与 reopen（done/closed →todo）释放 owner 回池。
+ * unclaim（→todo）与 reopen（done/closed →todo）释放 owner 回池；
+ * reopen 额外置 reopened 标记（重开封锁，人类认领时清标）。
  */
 export function updateTaskStatus(input: {
   channelId: string;
@@ -202,6 +221,7 @@ export function updateTaskStatus(input: {
     const updated = getDb().updateTask(current.id, {
       status: input.status,
       ownerId: transition.clearOwner ? null : undefined,
+      reopened: transition.reopen ? 1 : undefined,
     });
     if (!updated) throw new Error("Task not found");
     return { status: "updated" as const, task: toTaskView(updated, getDb().getMessage(updated.message_id)!) };

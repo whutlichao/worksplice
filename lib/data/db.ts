@@ -59,6 +59,8 @@ export interface TaskRow {
   number: number;
   status: TaskStatus;
   owner_id: string | null;
+  /** §3.7 重开封锁标记：reopen 置 1、人类认领清 0；置 1 期间 agent-loop 不可自动认领。 */
+  reopened: number;
   updated_at: string;
 }
 
@@ -561,6 +563,7 @@ export class RaftStore {
     number: number;
     status?: TaskStatus;
     ownerId?: string | null;
+    reopened?: number;
     updatedAt?: string;
   }): TaskRow {
     const row: TaskRow = {
@@ -569,13 +572,14 @@ export class RaftStore {
       number: input.number,
       status: input.status ?? "todo",
       owner_id: input.ownerId ?? null,
+      reopened: input.reopened ?? 0,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db
       .prepare(
-        "INSERT INTO tasks (id, message_id, number, status, owner_id, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(row.id, row.message_id, row.number, row.status, row.owner_id, row.updated_at);
+      .run(row.id, row.message_id, row.number, row.status, row.owner_id, row.reopened, row.updated_at);
     return row;
   }
 
@@ -627,19 +631,28 @@ export class RaftStore {
     return row.number + 1;
   }
 
-  /** 更新任务字段（status/owner）；返回更新后的行，不存在返回 undefined。 */
-  updateTask(id: string, input: { status?: TaskStatus; ownerId?: string | null; updatedAt?: string }): TaskRow | undefined {
+  /** 更新任务字段（status/owner/reopened）；返回更新后的行，不存在返回 undefined。 */
+  updateTask(
+    id: string,
+    input: {
+      status?: TaskStatus;
+      ownerId?: string | null;
+      reopened?: number;
+      updatedAt?: string;
+    },
+  ): TaskRow | undefined {
     const existing = this.getTaskById(id);
     if (!existing) return undefined;
     const row: TaskRow = {
       ...existing,
       status: input.status ?? existing.status,
       owner_id: input.ownerId !== undefined ? input.ownerId : existing.owner_id,
+      reopened: input.reopened !== undefined ? input.reopened : existing.reopened,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db
-      .prepare("UPDATE tasks SET status = ?, owner_id = ?, updated_at = ? WHERE id = ?")
-      .run(row.status, row.owner_id, row.updated_at, id);
+      .prepare("UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, updated_at = ? WHERE id = ?")
+      .run(row.status, row.owner_id, row.reopened, row.updated_at, id);
     return row;
   }
 

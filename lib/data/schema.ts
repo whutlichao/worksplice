@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -50,6 +50,7 @@ const SCHEMA_STATEMENTS: string[] = [
     number INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'in_review', 'done', 'closed')),
     owner_id TEXT REFERENCES members(id),
+    reopened INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS reminders (
@@ -175,6 +176,7 @@ export function runMigrations(db: Database.Database): void {
     }
     migrateMembersDeletedColumn(db);
     migrateMembersModelColumns(db);
+    migrateTasksReopenedColumn(db);
     seed(db);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
@@ -205,6 +207,18 @@ function migrateMembersModelColumns(db: Database.Database): void {
   }
   if (!columns.some((c) => c.name === "thinking_level")) {
     db.exec("ALTER TABLE members ADD COLUMN thinking_level TEXT");
+  }
+}
+
+/**
+ * v8: tasks 增加 reopened 列（§3.7 重开封锁）：reopen 转移置 1，人类认领清 0；
+ * agent-loop 对 reopened 任务不可自动认领。老库无此列时 ALTER 补上；新库 CREATE TABLE 已带该列。
+ * 存量任务一律视为未重开（无历史可追溯，向前生效）。
+ */
+function migrateTasksReopenedColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === "reopened")) {
+    db.exec("ALTER TABLE tasks ADD COLUMN reopened INTEGER NOT NULL DEFAULT 0");
   }
 }
 

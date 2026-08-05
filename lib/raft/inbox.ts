@@ -100,7 +100,7 @@ export function getPendingTargets(agentId: string): string[] {
  */
 export function listRelatedTasks(
   targetId: string,
-): Array<{ number: number; status: string; preview: string; ownerName: string }> {
+): Array<{ number: number; status: string; preview: string; ownerName: string; reopened: boolean }> {
   const db = getDb();
   const open = new Set(["todo", "in_progress", "in_review"]);
   return db
@@ -114,5 +114,6 @@ export function listRelatedTasks(
       status: task.status,
       preview: previewLine(message.content),
       ownerName: task.owner_id ? (getMember(task.owner_id)?.name ?? "unassigned") : "unassigned",
+      reopened: task.reopened === 1,
     }));
 }

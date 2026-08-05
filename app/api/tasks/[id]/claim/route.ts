@@ -5,7 +5,8 @@ import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
 /**
  * POST /api/tasks/[id]/claim（§5.7 tasks 路由组）：claim 即"我负责"。
  * body: { baseSeq? } — 房间版本不匹配返回 409 held（§3.7 并发保护）；
- * 已认领返回 409 conflict（claim 失败方让路）。
+ * 已认领返回 409 conflict（claim 失败方让路）；
+ * 重开封锁返回 409 blocked（§3.7 重开后不可自动认领——仅 Owner 认领接管）。
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -26,6 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     if (result.status === "conflict") {
       return NextResponse.json({ conflict: true, reason: result.reason }, { status: 409 });
+    }
+    if (result.status === "blocked") {
+      return NextResponse.json({ blocked: true, reason: result.reason }, { status: 409 });
     }
     return NextResponse.json({ task: result.task });
   } catch (error) {

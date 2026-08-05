@@ -47,6 +47,8 @@ interface ChannelTask {
   number: number;
   status: TaskStatus;
   owner_id: string | null;
+  /** §3.7 重开封锁标记：置 1 期间 agent 不可自动认领，仅 Owner 认领接管。 */
+  reopened: number;
   updated_at: string;
   channelId: string;
   anchor: ChannelMessage;
@@ -953,6 +955,24 @@ export function TaskBoard({
                         <span style={{ fontFamily: "var(--font-space-mono)", fontWeight: 700, fontSize: 13 }}>
                           #{task.number}
                         </span>
+                        {task.reopened === 1 && (
+                          <span
+                            title={t("tasks.reopenedHint")}
+                            style={{
+                              fontFamily: "var(--font-space-mono)",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              letterSpacing: "0.06em",
+                              padding: "2px 7px",
+                              border: `2px solid ${INK}`,
+                              background: "var(--orange)",
+                              color: "#ffffff",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {t("tasks.reopenedBadge")}
+                          </span>
+                        )}
                         <span style={{ flex: 1, fontSize: 13, color: "var(--text)", minWidth: 120 }}>
                           {previewLine(task.anchor.content)}
                         </span>

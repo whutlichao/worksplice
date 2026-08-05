@@ -555,6 +555,8 @@ export const zhCNLocale: LocalePlugin = {
     "tasks.reject": "退回",
     "tasks.close": "取消",
     "tasks.reopen": "重开",
+    "tasks.reopenedBadge": "重开",
+    "tasks.reopenedHint": "已重开：agent 不可自动认领，由你认领接管",
     "tasks.unassigned": "未认领",
     "tasks.threadHint": "进展都在任务 thread 里",
     "tasks.held": "任务操作被拦截——房间已变化，请重试",
