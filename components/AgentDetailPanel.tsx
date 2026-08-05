@@ -196,7 +196,7 @@ export function AgentDetailPanel({
   onClose,
   onChanged,
 }: {
-  agent: MemberRow;
+  agent: MemberRow & { home_path?: string };
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -219,6 +219,12 @@ export function AgentDetailPanel({
   const [runtimeMsg, setRuntimeMsg] = useState<string | null>(null);
 
   const isBusy = busyOp !== null;
+
+  // ADR-0001：工作区是否家目录（删除/Full reset 只作用于家目录；绑定共享项目目录时禁用）
+  const homePath = agent.home_path ?? null;
+  const isHomeWorkspace =
+    Boolean(homePath) && Boolean(agent.workspace_path) && agent.workspace_path === homePath;
+  const fullResetBlocked = Boolean(agent.workspace_path) && !isHomeWorkspace;
 
   // ── 数据加载 ────────────────────────────────────────────────────────────
   const loadObservability = useCallback(async (memberId: string) => {
@@ -446,6 +452,11 @@ export function AgentDetailPanel({
             label={t("agent.workspace")}
             value={agent.workspace_path ?? t("agent.workspaceNotBound")}
           />
+          {isHomeWorkspace && (
+            <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+              {t("agent.workspaceHomeHint")}
+            </div>
+          )}
           <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
             <button
               type="button"
@@ -811,13 +822,18 @@ export function AgentDetailPanel({
             </button>
             <button
               type="button"
-              disabled={isBusy}
+              disabled={isBusy || fullResetBlocked}
               onClick={() => setConfirming("fullReset")}
               style={ACTION_BUTTON}
             >
               {t("agent.fullReset")}
             </button>
           </div>
+          {fullResetBlocked && (
+            <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+              {t("agent.fullResetSharedHint")}
+            </div>
+          )}
           <div style={{ marginTop: 8 }}>
             <button
               type="button"

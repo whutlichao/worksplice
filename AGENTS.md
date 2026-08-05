@@ -84,7 +84,7 @@ app/api/
   attachments/[id]/route.ts       GET 附件下载/预览（图片 inline，其余 attachment；文件实体在 ~/.worksplice/attachments/）
   channels/[id]/pinned/route.ts   GET ?sort=manual|recent|az（当前成员个性化 pinned）| POST { messageId } pin | DELETE ?messageId= unpin
   channels/[id]/pinned/reorder/route.ts POST { order: [messageId...] } — Manual 排序重排
-  members/route.ts                GET agent 列表 | POST 创建 agent（name/description/workspacePath）
+  members/route.ts                GET agent 列表（附 home_path）| POST 创建 agent（name/description/provider/modelId/thinkingLevel 必选，家目录自动生成）
   members/[id]/route.ts           GET 单个 agent | DELETE 删除身份（§3.6，soft-delete）
   members/[id]/workspace/route.ts POST { workspacePath } — 更换绑定目录（换目录即换会话）
   members/[id]/restart/route.ts   POST Restart（沿用 session 重启运行时）
@@ -160,7 +160,7 @@ lib/
   agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
   agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import rpc-manager/SDK）+ deriveLiveAgentStatus
                       + startSession 应用 per-agent 模型覆盖（§3.10）
-  agent-lifecycle.ts  Restart / Session reset / Full reset / 换 workspace / 删除身份（fs + 运行时 + DB 编排）
+  agent-lifecycle.ts  Restart / Session reset / Full reset（仅家目录）/ 换 workspace / 删除身份（只 rm 家目录，fs + 运行时 + DB 编排）
   agent-client.ts     typed fetch helper for /api/agent commands
   draft-store.ts       local draft persistence helpers
   file-access.ts       allowed file roots for /api/files and worktrees
@@ -298,11 +298,13 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
-- **身份 vs 会话**：agent 是持久身份（members 行），会话是 pi session（`pi_session_file` 回填）。三种重置粒度只动会话/workspace，身份与绑定保持；**删除 = soft-delete**（`members.deleted=1`，schema v3 ALTER 迁移）——行保留以承载不可变消息的外键与作者渲染，但移出全部 channel、任务 owner 置空、消费游标清空、workspace 目录整体删除。
-- **workspace 唯一性**：`agentWorkspaceByAnother` 按归一化绝对路径拒绝同一目录绑定多个 agent；session 启动时 `hasBusyRpcSessionForCwd`（realpath 语义）拒绝同一 cwd 并发活跃会话（`BusyCwdError` → route 409）。
+- **身份 vs 会话**：agent 是持久身份（members 行），会话是 pi session（`pi_session_file` 回填）。三种重置粒度只动会话/工作区，身份与绑定保持；**删除 = soft-delete**（`members.deleted=1`，schema v3 ALTER 迁移）——行保留以承载不可变消息的外键与作者渲染，但移出全部 channel、任务 owner 置空、消费游标清空。
+- **目录两分（ADR-0001）**：创建 agent 自动生成唯一**家目录** `<dataDir>/agents/<slug>-<id8>`（slug = 名字小写化 sanitize，空回退 `agent`）并预置 MEMORY.md 固定大纲（角色描述/当前工作/工作流程/Skill 使用/工具使用/其他，正文可空、缺失不补种、Full reset 保留）；**项目目录**可显式绑定且**允许多 agent 共享**（无绑定唯一性），但服务层拒绝把其他 agent 的家目录绑成项目目录（`homeDirOfAnotherAgent`）。工作区 = 单槽 `workspace_path ?? 家目录`。**删除身份只 rm 家目录**（`isOwnHome` 判定，绑共享项目目录时绝不 rm）；**Full reset 只作用于家目录**（项目目录 → 400 拒绝）。创建契约：POST /api/members 必选 provider/modelId/thinkingLevel（预选全局默认），不传目录。
+- **运行串行**：session 启动时 `hasBusyRpcSessionForCwd`（realpath 语义）拒绝同一 cwd 并发活跃会话（`BusyCwdError` → route 409）——共享目录协作是串行的，真并行走 worktree（不同 cwd）。
+- **共享 cwd 的 session 文件精确作用**：`resolveLatestSessionFile` 跳过被其他成员 `pi_session_file` 引用的文件（避免继承他人上下文）；`removeSessionFilesForCwd` 只删无任何成员引用的文件（调用方先清本成员引用）。
 - **状态点 = 现场推导 + DB 回落**（`lib/agent-status.ts`）：`statusLookup` 有存活 wrapper 时推导（running → working / idle 且 DB 非 error → online），wrapper 不在时 DB error 保留、其余回落 offline；低频扫掠（10s）兜底 idle shutdown 的漂移。`prompt_error` 事件写 error 且不会被 idle 推导覆盖，直到下次 `agent_start` 或重启。lookup/listeners/snapshot 全部挂在 globalThis（热重载安全）；agent-runtime 用 `__workspliceAgentSessions` 按成员 id 记账 wrapper，**不按 cwd 猜归属**——同一 cwd 上的人类/他 agent 会话不会张冠李戴。
 - **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import rpc-manager/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 rpc-manager 的 parameter properties，绝不能静态 import 它。
-- **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 会删掉该 cwd 下全部 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文。
+- **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话；拒绑他人家目录）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 删掉该 cwd 下无成员引用的 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文；共享项目目录下他 agent 的文件保留。
 - **`db-singleton` 版本守卫**：`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb()` 比对版本，热重载后 RaftStore 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openDataDb，不会被误重建或误开 `~/.worksplice/raft.db`。
 
 ### agent-loop（ticket 06，§3.8/§5.3–5.5）

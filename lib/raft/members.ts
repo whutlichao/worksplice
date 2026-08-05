@@ -1,8 +1,11 @@
-import { statSync } from "fs";
-import { isAbsolute, resolve } from "path";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "fs";
+import { isAbsolute, join, resolve } from "path";
+import { randomUUID } from "crypto";
 import { getDb } from "./db-singleton.ts";
 import type { MemberRow, MemberStatus } from "../data/db.ts";
 import { BUILTIN_CHANNEL_ID } from "../data/schema.ts";
+import { agentHomeDir, buildMemoryTemplate, MEMORY_FILE_NAME } from "../data/dirs.ts";
+import { parseMentionTokens } from "../mention.ts";
 
 /**
  * workspace 路径归一化（§5.2 隔离单位是 cwd）：绝对路径化，
@@ -27,20 +30,27 @@ function assertWorkspaceDir(workspacePath: string): string {
   return normalized;
 }
 
-/** 同一 cwd 同一时刻只能绑定一个活跃 agent 身份（§5.2）；软删除身份不计。 */
-export function agentWorkspaceByAnother(
-  workspacePath: string,
-  excludeMemberId: string,
-): boolean {
+/**
+ * 家目录保护（ADR-0001）：同一目录允许多 agent 绑定（协作项目目录），但不得把
+ * 另一存活 agent 的家目录绑成项目目录——Full reset/删除语义按家目录判定，跨绑会误伤。
+ * 软删除身份的家目录已随身份删除，不计。
+ */
+export function homeDirOfAnotherAgent(workspacePath: string, excludeMemberId: string): boolean {
   const normalized = normalizeWorkspacePath(workspacePath);
   return getDb()
     .listMembers()
     .some(
       (m) =>
         m.id !== excludeMemberId &&
-        m.workspace_path !== null &&
-        normalizeWorkspacePath(m.workspace_path) === normalized,
+        m.type === "agent" &&
+        m.deleted === 0 &&
+        normalizeWorkspacePath(agentHomePath(m)) === normalized,
     );
+}
+
+/** 确定性家目录推导（ADR-0001 单槽工作区）：`workspace_path ?? 家目录`；新 agent 创建时即建。 */
+export function agentHomePath(member: MemberRow): string {
+  return agentHomeDir(getDb().paths.dataDir, member.id, member.name);
 }
 
 /** 左栏 agent 成员列表（§3.1）：只列 agent 类型、未删除成员。 */
@@ -71,43 +81,82 @@ export function getAgent(id: string): MemberRow {
 
 /**
  * §3.2 @mention 解析：内容里的 @名字 token → 成员 id（大小写不敏感、全等 token 匹配）。
+ * 支持两种形态：`@名字`（无空白名）与 `@"带空格名字"`（引号形式，兼容含空白成员名）。
  * 服务层事实来源：wake 的穿透分发与 inbox 的 mute 穿透判定共用同一解析（inbox/wake 同源）。
+ * 解析器与渲染侧共用 lib/mention.ts 的 parseMentionTokens（语义不变，行为一致）。
  */
 export function extractMentionedMemberIds(content: string): string[] {
-  const tokens = (content.match(/@([^\s@,;:!?。，；：！？]+)/g) ?? []).map((token) =>
-    token.slice(1).toLowerCase(),
+  const members = getDb().listMembers();
+  const tokens = parseMentionTokens(
+    content,
+    members.map((m) => ({ id: m.id, name: m.name, type: m.type })),
   );
-  if (tokens.length === 0) return [];
-  return getDb()
-    .listMembers()
-    .filter((member) => tokens.includes(member.name.toLowerCase()))
-    .map((member) => member.id);
+  // 名字全等匹配即算（重名成员都算，与旧语义一致）；去重保序。
+  const ids: string[] = [];
+  for (const token of tokens) {
+    for (const member of members) {
+      if (member.name.toLowerCase() === token.name.toLowerCase() && !ids.includes(member.id)) {
+        ids.push(member.id);
+      }
+    }
+  }
+  return ids;
 }
 
+/** 人类成员（Owner，恒为单数）：mention 解析与简介弹窗的数据来源。 */
+export function getOwner(): MemberRow | undefined {
+  return getDb().listMembers().find((m) => m.type === "human");
+}
+
+/**
+ * 创建 agent（ADR-0001）：默认自动在 <dataDir>/agents/<slug>-<id8>/ 生成专属家目录
+ * 并预置 MEMORY.md 固定大纲（删除身份时随家目录一并删除）；显式 workspacePath
+ * 仅用于测试/内部路径（生产创建流程不传，绑定项目目录走 changeAgentWorkspace）。
+ * 模型/推理强度为可选项：route 层创建契约强制必选；null = 继承全局默认。
+ */
 export function createAgent(input: {
   name: string;
   description?: string;
   workspacePath?: string | null;
+  provider?: string | null;
+  modelId?: string | null;
+  thinkingLevel?: string | null;
 }): MemberRow {
   const name = input.name.trim();
   if (!name) throw new Error("Agent name is required");
   if (name.length > 32) throw new Error("Agent name must be 32 characters or fewer");
 
+  const modelProvider = input.provider ?? null;
+  const modelId = input.modelId ?? null;
+  const thinkingLevel = input.thinkingLevel ?? null;
+  if ((modelProvider === null) !== (modelId === null)) {
+    throw new Error("Model provider and model id must be set or cleared together");
+  }
+
+  const agentId = randomUUID();
   let workspacePath: string | null = null;
   if (input.workspacePath) {
     workspacePath = assertWorkspaceDir(input.workspacePath);
-    if (agentWorkspaceByAnother(workspacePath, "")) {
-      throw new Error("This workspace directory is already bound to another agent");
+  } else {
+    workspacePath = agentHomeDir(getDb().paths.dataDir, agentId, name);
+    mkdirSync(workspacePath, { recursive: true });
+    const memoryFile = join(workspacePath, MEMORY_FILE_NAME);
+    if (!existsSync(memoryFile)) {
+      writeFileSync(memoryFile, buildMemoryTemplate(name, input.description ?? ""));
     }
   }
 
   const agent = getDb().insertMember({
+    id: agentId,
     type: "agent",
     name,
     description: (input.description ?? "").trim(),
     role: "member",
     workspacePath,
     status: "offline",
+    modelProvider,
+    modelId,
+    thinkingLevel,
   });
   // #all 全员自动加入（§3.2）
   getDb().addChannelMember(BUILTIN_CHANNEL_ID, agent.id);
@@ -117,12 +166,13 @@ export function createAgent(input: {
 /**
  * 校验候选绑定目录（§3.6 workspace 区）：存在、可写校验前先抛错——变更类操作
  * 必须在动 session/绑定之前校验，避免坏路径先杀掉存活会话。
+ * ADR-0001：不再拒绝多 agent 绑定同一目录（协作项目目录），仅拒绝绑定他人家目录。
  */
 export function validateAgentWorkspace(agentId: string, workspacePath: string): string {
   getAgent(agentId);
   const normalized = assertWorkspaceDir(workspacePath);
-  if (agentWorkspaceByAnother(normalized, agentId)) {
-    throw new Error("This workspace directory is already bound to another agent");
+  if (homeDirOfAnotherAgent(normalized, agentId)) {
+    throw new Error("This directory is another agent's home; bind a shared project directory instead");
   }
   return normalized;
 }

@@ -1,5 +1,7 @@
+import { existsSync } from "fs";
+import { join } from "path";
 import { getDb } from "../raft/db-singleton.ts";
-import { getAgent } from "../raft/members.ts";
+import { getAgent, agentHomePath } from "../raft/members.ts";
 import { isChannelMember, joinChannel } from "../raft/channels.ts";
 import { sendMessage, type SendMessageResult } from "../raft/messages.ts";
 import { claimTask, updateTaskStatus } from "../raft/tasks.ts";
@@ -14,6 +16,7 @@ import {
 import { extractMentionedMemberIds } from "./wake.ts";
 import { publishAgentStatus } from "../agent-status.ts";
 import { getAgentRuntime } from "../agent-runtime.ts";
+import { MEMORY_FILE_NAME } from "../data/dirs.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/db.ts";
 
 /**
@@ -110,6 +113,7 @@ export function buildReplyPrompt(input: {
   tasks: Array<{ number: number; status: string; preview: string; ownerName: string }>;
   targetId: string;
   baseSeq: number;
+  memoryFile?: string | null;
 }): string {
   const lines: string[] = [];
   lines.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
@@ -144,6 +148,11 @@ export function buildReplyPrompt(input: {
   lines.push(
     '- When you finish a task you own: {"task":{"number":N,"op":"complete"}} — the task moves to in_review for someone else to verify (builders never verify their own work). To step away: {"task":{"number":N,"op":"unclaim"}}.',
   );
+  if (input.memoryFile) {
+    lines.push(
+      `- Long-term memory: your memory file is at ${input.memoryFile}. Read it when you need context about who you are or ongoing work; after meaningful progress, update its "## 当前工作" section and clear it when the work is done. It survives session resets.`,
+    );
+  }
   lines.push(roomMarker(input.targetId, input.baseSeq));
   return lines.join("\n");
 }
@@ -524,6 +533,12 @@ export function ownsInProgressTaskAt(agentId: string, targetId: string): boolean
   return Boolean(task && task.status === "in_progress" && task.owner_id === agentId);
 }
 
+/** MEMORY.md 路径（ADR-0001）：家目录预置存在才告知 agent，缺失不补种。 */
+export function agentMemoryFile(agent: MemberRow): string | null {
+  const file = join(agentHomePath(agent), MEMORY_FILE_NAME);
+  return existsSync(file) ? file : null;
+}
+
 export async function runAgentRound(
   agentId: string,
   targetId: string,
@@ -594,6 +609,7 @@ export async function runAgentRound(
     tasks: listRelatedTasks(targetId),
     targetId,
     baseSeq,
+    memoryFile: agentMemoryFile(agent),
   });
   try {
     const first = await promptSession(session, prompt);

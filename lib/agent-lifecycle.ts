@@ -5,18 +5,22 @@ import {
   setAgentSessionFile,
   updateAgentWorkspace,
   validateAgentWorkspace,
+  agentHomePath,
+  normalizeWorkspacePath,
   AgentNotFoundError,
 } from "./raft/members.ts";
 import { publishAgentStatus } from "./agent-status.ts";
 import { getAgentRuntime, BusyCwdError, type AgentRuntime } from "./agent-runtime.ts";
+import { MEMORY_FILE_NAME } from "./data/dirs.ts";
+import type { MemberRow } from "./data/db.ts";
 
 /**
- * agent 生命周期（§3.6 重置粒度）：
+ * agent 生命周期（§3.6 重置粒度，ADR-0001 目录两分）：
  * - Restart：沿用现有 session 接着干（销毁运行时，按同一 session 文件重启）；
  * - Session reset：清会话上下文（删该 cwd 全部 session 文件），workspace 保留；
- * - Full reset：会话 + workspace 内容全清（目录本身保留）；
+ * - Full reset：仅当工作区是家目录——清会话 + 家目录内容（MEMORY.md 保留）；共享项目目录拒绝；
  * - 更换 workspace：先校验新路径，再销毁旧 cwd 会话（换目录即换会话），最后改绑定；
- * - 删除身份：销毁会话、清理 workspace 目录、soft-delete 成员（历史消息保留）。
+ * - 删除身份：销毁会话、仅当工作区是家目录时删除该目录、soft-delete 成员（历史消息保留）。
  */
 
 export type LifecycleErrorCode = 400 | 404 | 409;
@@ -31,10 +35,17 @@ function removeSessionFile(agentId: string, sessionFile: string | null): void {
   setAgentSessionFile(agentId, null);
 }
 
-/** 清空 workspace 目录内容（保留目录本身，供后续 rebind/重建）。 */
+/** 当前工作区是否为该 agent 自己的家目录（ADR-0001：删除/Full reset 只作用于家目录）。 */
+function isOwnHome(agent: MemberRow): boolean {
+  if (!agent.workspace_path) return false;
+  return normalizeWorkspacePath(agent.workspace_path) === normalizeWorkspacePath(agentHomePath(agent));
+}
+
+/** 清空 workspace 目录内容（保留目录本身与 MEMORY.md——长期记忆是身份资产，ADR-0001）。 */
 function clearWorkspaceContents(workspacePath: string | null): void {
   if (!workspacePath || !existsSync(workspacePath)) return;
   for (const entry of readdirSync(workspacePath, { withFileTypes: true })) {
+    if (entry.name === MEMORY_FILE_NAME) continue;
     rmSync(`${workspacePath}/${entry.name}`, { recursive: true, force: true });
   }
 }
@@ -70,6 +81,12 @@ export async function sessionResetAgent(agentId: string, runtime?: AgentRuntime)
 export async function fullResetAgent(agentId: string, runtime?: AgentRuntime): Promise<void> {
   const rt = await resolveRuntime(runtime);
   const agent = getAgent(agentId);
+  // ADR-0001：共享项目目录不能全量清（可能绑定多个 agent）；Full reset 只作用于家目录
+  if (!isOwnHome(agent)) {
+    throw new Error(
+      "Full reset only applies to the agent's home directory; the bound project directory is shared with other agents",
+    );
+  }
   await rt.destroySession(agent);
   await clearSessionFilesForAgent(agent.id, agent.workspace_path, rt);
   clearWorkspaceContents(agent.workspace_path);
@@ -102,7 +119,8 @@ export async function deleteAgentIdentity(
   const agent = getAgent(agentId);
   await rt.destroySession(agent);
   removeSessionFile(agent.id, agent.pi_session_file);
-  if (agent.workspace_path && existsSync(agent.workspace_path)) {
+  // ADR-0001：只删家目录；绑定共享项目目录时绝不 rm（可能正在被其他 agent 使用）
+  if (isOwnHome(agent) && agent.workspace_path && existsSync(agent.workspace_path)) {
     rmSync(agent.workspace_path, { recursive: true, force: true });
   }
   deleteAgent(agent.id);

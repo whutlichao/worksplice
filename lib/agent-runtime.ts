@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from "fs";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MemberRow } from "./data/db.ts";
+import { getDb } from "./raft/db-singleton.ts";
 import { normalizeWorkspacePath, setAgentSessionFile } from "./raft/members.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
 import type { AgentSessionWrapper } from "./rpc-manager.ts";
@@ -68,6 +69,15 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
     return globalThis.__workspliceAgentSessions;
   })();
 
+  /** 被任一成员 pi_session_file 引用的 session 文件集合（共享 cwd 的精确作用依据）。 */
+  const referencedSessionFiles = (): Set<string> => {
+    const referenced = new Set<string>();
+    for (const member of getDb().listMembers()) {
+      if (member.pi_session_file) referenced.add(normalize(member.pi_session_file));
+    }
+    return referenced;
+  };
+
   const findSession = (member: MemberRow): AgentSessionWrapper | undefined => {
     const session = memberSessions.get(member.id);
     if (session?.isAlive()) return session;
@@ -83,11 +93,19 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
   /**
    * 按 cwd 解析该 agent 最近一个 session 文件（§5.2 按需重建：
    * members.pi_session_file 未回填或文件已丢失时，沿用 cwd 下最新 jsonl）。
+   * ADR-0001 共享项目目录：跳过被其他成员引用（pi_session_file）的文件，
+   * 避免第二个 agent 启动时继承第一个 agent 的会话上下文。
    */
   async function resolveLatestSessionFile(cwd: string): Promise<string | null> {
     const sessions = await SessionManager.listAll();
     const targetCwd = normalize(cwd);
-    const matches = sessions.filter((s) => s.cwd && normalize(s.cwd) === targetCwd);
+    const referenced = referencedSessionFiles();
+    const matches = sessions.filter(
+      (s) =>
+        s.cwd &&
+        normalize(s.cwd) === targetCwd &&
+        !(s.path && referenced.has(s.path)),
+    );
     if (matches.length === 0) return null;
     const latest = matches.sort((a, b) => {
       const ta = a.modified instanceof Date ? a.modified.getTime() : 0;
@@ -164,9 +182,12 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
 
     async removeSessionFilesForCwd(cwd) {
       const targetCwd = normalize(cwd);
+      // ADR-0001 共享项目目录：只删未被任何成员引用的文件——调用方已先清掉本成员
+      // 的 pi_session_file 引用，故本成员的文件会被删、其他 agent 的会被保留。
+      const referenced = referencedSessionFiles();
       const sessions = await SessionManager.listAll();
       for (const s of sessions) {
-        if (s.cwd && normalize(s.cwd) === targetCwd && s.path) {
+        if (s.cwd && normalize(s.cwd) === targetCwd && s.path && !referenced.has(s.path)) {
           rmSync(s.path, { force: true });
         }
       }

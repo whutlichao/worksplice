@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
-import { DirectoryPicker } from "./DirectoryPicker";
+import { ModelPicker } from "./ModelPicker";
+import type { ModelsData } from "@/lib/models-cache";
 
 const INK = "#141111";
 
@@ -29,6 +30,21 @@ const LABEL_STYLE: React.CSSProperties = {
   margin: "12px 0 5px",
 };
 
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+/** 创建默认推理强度：模型 pin 优先，否则 medium（ADR-0001 创建时必选但预选默认）。 */
+function defaultThinkingLevel(
+  models: ModelsData | null,
+  provider: string,
+  modelId: string,
+): string {
+  const pinned = models?.thinkingLevelPins?.[`${provider}:${modelId}`];
+  return pinned && THINKING_LEVELS.includes(pinned) ? pinned : "medium";
+}
+
+/**
+ * 创建 agent（ADR-0001）：不选目录——家目录自动生成；模型/推理强度必选（预选全局默认）。
+ */
 export function CreateAgentModal({
   onClose,
   onCreated,
@@ -39,12 +55,45 @@ export function CreateAgentModal({
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [workspacePath, setWorkspacePath] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [models, setModels] = useState<ModelsData | null>(null);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [model, setModel] = useState<{ provider: string; modelId: string } | null>(null);
+  const [thinkingLevel, setThinkingLevel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = name.trim().length > 0 && !busy;
+  // 模型列表（全局默认 scope——创建时还没有项目目录）；预选全局默认模型
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/models");
+        const body = (await res.json().catch(() => ({}))) as ModelsData;
+        if (disposed) return;
+        setModels(body);
+        const options = body.modelList ?? [];
+        const defaultKey = body.defaultModel
+          ? `${body.defaultModel.provider}:${body.defaultModel.modelId}`
+          : null;
+        const initial = defaultKey
+          ? options.find((o) => `${o.provider}:${o.id}` === defaultKey)
+          : undefined;
+        const chosen = initial ?? options[0];
+        if (chosen) {
+          setModel({ provider: chosen.provider, modelId: chosen.id });
+          setThinkingLevel(defaultThinkingLevel(body, chosen.provider, chosen.id));
+        }
+      } finally {
+        if (!disposed) setModelsLoading(false);
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  const canSubmit =
+    name.trim().length > 0 && model !== null && thinkingLevel !== null && !busy;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -57,7 +106,9 @@ export function CreateAgentModal({
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim(),
-          workspacePath,
+          provider: model!.provider,
+          modelId: model!.modelId,
+          thinkingLevel,
         }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -98,74 +149,27 @@ export function CreateAgentModal({
           style={{ ...FIELD_STYLE, resize: "vertical" }}
         />
 
-        <label style={LABEL_STYLE} htmlFor="agent-workspace">
-          {t("agent.bindWorkspace")}
-        </label>
-        <div
-          id="agent-workspace"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 10px",
-            border: `2px solid ${INK}`,
-            background: "#ffffff",
+        <label style={LABEL_STYLE}>{t("agent.modelAndThinking")}</label>
+        <ModelPicker
+          models={models}
+          loading={modelsLoading}
+          model={model}
+          thinkingLevel={thinkingLevel}
+          onModelChange={(provider, modelId) => {
+            setModel({ provider, modelId });
+            setThinkingLevel(defaultThinkingLevel(models, provider, modelId));
           }}
-        >
-          <span
-            style={{
-              flex: 1,
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              fontFamily: "var(--font-space-mono)",
-              fontSize: 12,
-              color: workspacePath ? "var(--text)" : "var(--text-dim)",
-            }}
-          >
-            {workspacePath ?? t("agent.workspaceNotBound")}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            style={{
-              padding: "4px 10px",
-              fontFamily: "var(--font-hanken)",
-              fontWeight: 700,
-              fontSize: 12,
-              background: "#ffffff",
-              color: "var(--text)",
-              border: `2px solid ${INK}`,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {t("agent.pickWorkspace")}
-          </button>
-          {workspacePath && (
-            <button
-              type="button"
-              onClick={() => setWorkspacePath(null)}
-              aria-label={t("message.clearQuote")}
-              title={t("message.clearQuote")}
-              style={{
-                padding: "4px 8px",
-                fontFamily: "var(--font-hanken)",
-                fontWeight: 700,
-                fontSize: 12,
-                background: "#ffffff",
-                color: "var(--text)",
-                border: `2px solid ${INK}`,
-                cursor: "pointer",
-              }}
-            >
-              ✕
-            </button>
-          )}
-        </div>
+          onClearModel={() => setModel(null)}
+          onThinkingChange={setThinkingLevel}
+          onClearThinking={() => setThinkingLevel(null)}
+        />
+        {!modelsLoading && (models?.modelList.length ?? 0) === 0 && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+            {t("agent.modelsEmpty")}
+          </div>
+        )}
         <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
-          {t("agent.workspaceHint")}
+          {t("agent.homeHint")}
         </div>
 
         {error && (
@@ -217,16 +221,6 @@ export function CreateAgentModal({
           </button>
         </div>
       </div>
-
-      {pickerOpen && (
-        <DirectoryPicker
-          onCancel={() => setPickerOpen(false)}
-          onSelect={(path) => {
-            setWorkspacePath(path);
-            setPickerOpen(false);
-          }}
-        />
-      )}
     </BrutalModal>
   );
 }
