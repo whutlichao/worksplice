@@ -881,7 +881,8 @@ span.linenumber {
 }
 
 /* ==========================================================================
-   三栏骨架（§3.1）：左 channels+agents / 中央 channel 消息流+Tasks / 右 agent 详情
+   三栏骨架（§3.1，ticket 13）：左 channels+agents / 中央 channel 消息流+Tasks /
+   右非长驻单槽面板（agent | human | thread | null——无选中时整栏不渲染，中央吃满宽度）
    ========================================================================== */
 
 .ws-shell {
@@ -914,7 +915,7 @@ span.linenumber {
 .ws-right {
   display: flex;
   flex-direction: column;
-  width: 300px;
+  width: 380px;
   flex-shrink: 0;
   border-left: 2px solid var(--ink);
   background: var(--bg-panel);

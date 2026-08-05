@@ -7,11 +7,6 @@ import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
 import type { ChannelRow, MemberRow } from "@/lib/data/db";
 
-export type SidebarSelection =
-  | { kind: "channel"; id: string }
-  | { kind: "agent"; id: string }
-  | null;
-
 const INK = "#141111";
 const LABEL_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-space-mono)",
@@ -33,12 +28,17 @@ const REST_STYLE = {
   transform: "none",
 } as const;
 
+/**
+ * 左栏（ticket 13）：只高亮频道行（中央 = 当前频道）；agent 行点击 = 打开右栏面板，无选中态。
+ * 中央与面板状态解耦：选中 agent 不再触碰中央频道。
+ */
 export function WorkspaceSidebar({
   channels,
   agents,
   error,
-  selected,
-  onSelect,
+  selectedChannelId,
+  onSelectChannel,
+  onOpenAgent,
   onNewChannel,
   onNewAgent,
   onOpenModels,
@@ -51,8 +51,9 @@ export function WorkspaceSidebar({
   channels: ChannelRow[];
   agents: MemberRow[];
   error: string | null;
-  selected: SidebarSelection;
-  onSelect: (selection: SidebarSelection) => void;
+  selectedChannelId: string | null;
+  onSelectChannel: (channelId: string) => void;
+  onOpenAgent: (agentId: string) => void;
   onNewChannel: () => void;
   onNewAgent: () => void;
   onOpenModels: () => void;
@@ -286,12 +287,12 @@ export function WorkspaceSidebar({
           </div>
         )}
         {channels.map((channel) => {
-          const isSelected = selected?.kind === "channel" && selected.id === channel.id;
+          const isSelected = selectedChannelId === channel.id;
           return (
             <button
               key={channel.id}
               type="button"
-              onClick={() => onSelect({ kind: "channel", id: channel.id })}
+              onClick={() => onSelectChannel(channel.id)}
               style={rowStyle(isSelected)}
             >
               <span
@@ -324,13 +325,13 @@ export function WorkspaceSidebar({
           </div>
         )}
         {agents.map((agent) => {
-          const isSelected = selected?.kind === "agent" && selected.id === agent.id;
+          // ticket 13：agent 行无选中态——点击打开右栏面板，中央频道不动
           return (
             <button
               key={agent.id}
               type="button"
-              onClick={() => onSelect({ kind: "agent", id: agent.id })}
-              style={rowStyle(isSelected)}
+              onClick={() => onOpenAgent(agent.id)}
+              style={rowStyle(false)}
             >
               <PixelAvatar seed={agent.id} name={agent.name} size={28} />
               <span

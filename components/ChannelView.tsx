@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlarmClock, Bell, BellOff, Check, CornerDownRight, FileText, Link, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { MentionText } from "./MentionText";
-import { MemberProfileModal } from "./MemberProfileModal";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
 import { ReminderModal } from "./ReminderModal";
@@ -13,6 +12,7 @@ import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
 import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
 import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/data/db";
 import { extractAtQuery, buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
+import { memberPanel, subscribePinnedChanged, type PanelContent } from "@/lib/panel-state";
 
 export type CenterTab = "messages" | "tasks";
 
@@ -22,13 +22,13 @@ export interface ChannelWithMeta extends ChannelRow {
 }
 
 /** §3.4 reaction 聚合（与 lib/raft/reactions.ts 同形）。 */
-interface ReactionSummary {
+export interface ReactionSummary {
   emoji: string;
   count: number;
   memberIds: string[];
 }
 
-interface ChannelMessage {
+export interface ChannelMessage {
   id: string;
   target_id: string;
   seq: number;
@@ -64,7 +64,7 @@ interface MessagesPage {
 }
 
 /** §3.5 pinned 项（/api/channels/[id]/pinned 返回形态）。 */
-interface PinnedItem {
+export interface PinnedItem {
   message: ChannelMessage;
   order: number;
   pinnedAt: string;
@@ -1531,7 +1531,7 @@ export function Composer({
   );
 }
 
-/** 中央：channel 消息流 / Tasks tab（§3.1）。ticket 04 起承载消息闭环：发送/分页/thread/引用/复制链接。 */
+/** 中央：channel 消息流 / Tasks tab（§3.1）。ticket 04 起承载消息闭环：发送/分页/引用/复制链接。ticket 13 起线程迁出至右栏面板（onOpenPanel）。 */
 export function ChannelView({
   channel,
   tab,
@@ -1541,7 +1541,7 @@ export function ChannelView({
   focusMessageId,
   agents = [],
   owner = null,
-  onSelectAgent,
+  onOpenPanel,
 }: {
   channel: ChannelWithMeta | null;
   tab: CenterTab;
@@ -1551,7 +1551,8 @@ export function ChannelView({
   focusMessageId?: string | null;
   agents?: MemberRow[];
   owner?: MemberRow | null;
-  onSelectAgent?: (agentId: string) => void;
+  /** 打开右栏面板（ticket 13）：agent / human / thread 单槽替换；中央频道消息流不动。 */
+  onOpenPanel?: (content: PanelContent) => void;
 }) {
   const { t } = useI18n();
 
@@ -1568,9 +1569,7 @@ export function ChannelView({
   const [creatingTask, setCreatingTask] = useState(false);
   const [taskNotice, setTaskNotice] = useState<string | null>(null);
 
-  const [openThread, setOpenThread] = useState<ChannelMessage | null>(null);
-  const [threadMessages, setThreadMessages] = useState<ChannelMessage[]>([]);
-  const [threadLoading, setThreadLoading] = useState(false);
+  // 引用态（ticket 13 线程迁出后变为 channel 局部——线程引用在面板 ThreadPanel 内自持）
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
 
   // §3.5 pinned 区：当前成员在该 channel 的个性化 pinned
@@ -1623,19 +1622,12 @@ export function ChannelView({
     [agents, owner],
   );
 
-  // 人类成员简介弹窗（mention 点击）
-  const [profileMember, setProfileMember] = useState<MemberRow | null>(null);
-
-  /** mention 点击（§3.2）：agent → 右栏详情面板；人类 → 简介弹窗。 */
+  /** mention 点击（§3.2）：agent / 人类都进右栏面板（ticket 13 人类简介弹窗已删除）。 */
   const openMention = useCallback(
     (token: { memberId: string; name: string; isHuman: boolean }) => {
-      if (token.isHuman) {
-        setProfileMember(owner ?? null);
-      } else {
-        onSelectAgent?.(token.memberId);
-      }
+      onOpenPanel?.(memberPanel(token.memberId, token.isHuman));
     },
-    [owner, onSelectAgent],
+    [onOpenPanel],
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1690,6 +1682,9 @@ export function ChannelView({
       })
       .catch((e) => setPinnedError(e instanceof Error ? e.message : String(e)));
   }, [channel, pinnedSort]);
+
+  // ticket 13：面板线程内 pin/unpin 后刷新本频道 pinned 列表（服务端事实，中央/面板双端自洽）
+  useEffect(() => subscribePinnedChanged(() => loadPinned()), [loadPinned]);
 
   /** §3.2 mute 状态加载（channel 内全部 agent 成员的静音开关）。 */
   const loadMutes = useCallback(() => {
@@ -1779,7 +1774,6 @@ export function ChannelView({
   useEffect(() => {
     setMessages([]);
     setHasMore(false);
-    setOpenThread(null);
     setQuoting(null);
     setHeldNotice(null);
     setTasks([]);
@@ -1831,7 +1825,7 @@ export function ChannelView({
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages.length, openThread]);
+  }, [messages.length]);
 
   const loadEarlier = useCallback(() => {
     if (!channel || !hasMore || messages.length === 0) return;
@@ -1845,29 +1839,10 @@ export function ChannelView({
       .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, [channel, hasMore, messages, loadPage]);
 
-  const loadThread = useCallback(
-    async (messageId: string) => {
-      setThreadLoading(true);
-      try {
-        const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/thread`);
-        if (!res.ok) throw new Error(`GET thread: ${res.status}`);
-        const body = (await res.json()) as { anchor: ChannelMessage; messages: ChannelMessage[] };
-        setOpenThread(body.anchor);
-        setThreadMessages(body.messages);
-      } catch (e) {
-        setLoadError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setThreadLoading(false);
-      }
-    },
-    [],
-  );
-
   const handleSend = useCallback(
     async (targetId: string, content: string, quoteId?: string, files?: File[]) => {
       if (!channel) return;
-      const inThread = targetId === openThread?.id;
-      const baseSeq = inThread ? threadMessages[threadMessages.length - 1]?.seq ?? 0 : maxSeq;
+      const baseSeq = maxSeq;
       let res: Response;
       if (files && files.length > 0) {
         // §3.5 附件随消息一起 multipart 提交：一次请求原子完成（held 时服务端不落盘）。
@@ -1899,35 +1874,27 @@ export function ChannelView({
       if (!res.ok) {
         if (body.held) {
           setHeldNotice(body.whatHappened ?? "held");
-          if (inThread) {
-            void loadThread(openThread.id);
-          } else {
-            loadLatest();
-          }
+          loadLatest();
           throw new Error(t("message.held"));
         }
         throw new Error(body.error ?? `POST messages: ${res.status}`);
       }
       if (body.message) {
-        if (inThread) {
-          setThreadMessages((prev) => [...prev, body.message as ChannelMessage]);
-        } else {
-          setMessages((prev) => [...prev, body.message as ChannelMessage]);
-          setMaxSeq((prev) => Math.max(prev, (body.message as ChannelMessage).seq));
-        }
+        setMessages((prev) => [...prev, body.message as ChannelMessage]);
+        setMaxSeq((prev) => Math.max(prev, (body.message as ChannelMessage).seq));
       }
       setQuoting(null);
       // §3.7 创建途径 2：发送时勾 As Task → 发送成功后转为任务
-      if (!inThread && asTask && body.message) {
+      if (asTask && body.message) {
         const converted = await convertMessageToTask(body.message);
         if (converted) setAsTask(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [channel, openThread, maxSeq, threadMessages, loadLatest, loadThread, t, asTask],
+    [channel, maxSeq, loadLatest, t, asTask],
   );
 
-  /** §3.4 reaction 切换：POST 后把返回的聚合写回消息状态（channel / thread 各自）。 */
+  /** §3.4 reaction 切换：POST 后把返回的聚合写回消息状态（channel 局部；线程在面板内自持）。 */
   const toggleReaction = useCallback(
     async (message: ChannelMessage, emoji: string) => {
       try {
@@ -1939,23 +1906,14 @@ export function ChannelView({
         if (!res.ok) throw new Error(`reaction: ${res.status}`);
         const body = (await res.json()) as { reactions?: ReactionSummary[] };
         if (!body.reactions) return;
-        if (message.target_id === channel?.id) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === message.id ? { ...m, reactions: body.reactions } : m)),
-          );
-        } else {
-          setThreadMessages((prev) =>
-            prev.map((m) => (m.id === message.id ? { ...m, reactions: body.reactions } : m)),
-          );
-          setOpenThread((prev) =>
-            prev && prev.id === message.id ? { ...prev, reactions: body.reactions } : prev,
-          );
-        }
+        setMessages((prev) =>
+          prev.map((m) => (m.id === message.id ? { ...m, reactions: body.reactions } : m)),
+        );
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : String(e));
       }
     },
-    [channel?.id],
+    [],
   );
 
   /** §3.5 pin / unpin：切换后重拉 pinned 列表（按钮态 = pinnedItems 含该消息）。 */
@@ -2007,7 +1965,7 @@ export function ChannelView({
     [channel, pinnedItems, loadPinned],
   );
 
-  /** 打开 pinned 消息：channel 消息滚动定位；thread 消息展开其线程。 */
+  /** 打开 pinned 消息：channel 消息滚动定位；thread 消息在右栏面板打开其线程（ticket 13）。 */
   const openPinnedMessage = useCallback(
     (message: ChannelMessage) => {
       if (message.target_id === channel?.id) {
@@ -2026,10 +1984,10 @@ export function ChannelView({
           });
         });
       } else {
-        void loadThread(message.target_id);
+        onOpenPanel?.({ kind: "thread", id: message.target_id });
       }
     },
-    [channel, messages, loadPage, loadThread],
+    [channel, messages, loadPage, onOpenPanel],
   );
 
   /** 把消息转为任务（§3.7 创建途径 1/2 共用）；返回 null 表示失败（错误已提示）。 */
@@ -2137,7 +2095,7 @@ export function ChannelView({
     [channel, creatingTask, loadTasks, loadLatest, t],
   );
 
-  // 深链：hash `#c/<channelId>?m=<messageId>` → 打开对应消息（thread 消息自动展开其线程）
+  // 深链：hash `#c/<channelId>?m=<messageId>` → 打开对应消息（thread 消息在右栏面板展开其线程）
   useEffect(() => {
     if (!channel || !focusMessageId) return;
     setLoadError(null);
@@ -2157,11 +2115,11 @@ export function ChannelView({
             document.getElementById(`msg-${target.id}`)?.scrollIntoView({ block: "center" });
           });
         } else {
-          void loadThread(target.target_id);
+          onOpenPanel?.({ kind: "thread", id: target.target_id });
         }
       })
       .catch(() => undefined);
-  }, [channel, focusMessageId, loadPage, loadThread]);
+  }, [channel, focusMessageId, loadPage, onOpenPanel]);
 
   const joined = channel?.joined ?? false;
   const isArchived = channel?.archived === 1;
@@ -2468,9 +2426,10 @@ export function ChannelView({
                     type="button"
                     title={member.description || member.name}
                     onClick={() =>
-                      member.type === "human"
-                        ? setProfileMember(member)
-                        : onSelectAgent?.(member.id)
+                      onOpenPanel?.({
+                        kind: member.type === "human" ? "human" : "agent",
+                        id: member.id,
+                      })
                     }
                     style={{ ...actionButton, display: "flex", alignItems: "center", gap: 6 }}
                   >
@@ -2724,14 +2683,14 @@ export function ChannelView({
                     canConvertToTask={!tasks.some((task) => task.message_id === m.id)}
                     mentionMembers={mentionMembers}
                     onOpenMention={openMention}
-                    onReply={(target) => void loadThread(target.id)}
+                    onReply={(target) => onOpenPanel?.({ kind: "thread", id: target.id })}
                     onQuote={setQuoting}
                     onCopyLink={(target) => void handleCopyLink(target)}
                     onConvertToTask={(target) => void convertMessageToTask(target)}
                     onSetReminder={joined ? openMessageReminder : undefined}
                     onToggleReaction={joined ? toggleReaction : undefined}
                     onTogglePin={joined ? togglePin : undefined}
-                    onOpenThread={(target) => void loadThread(target.id)}
+                    onOpenThread={(target) => onOpenPanel?.({ kind: "thread", id: target.id })}
                   />
                 </div>
               ))}
@@ -2775,7 +2734,7 @@ export function ChannelView({
             notice={taskNotice}
             onCreateTask={(content) => void createTaskFromBoard(content)}
             onAction={(task, action, status) => void runTaskAction(task, action, status)}
-            onOpenThread={(anchor) => void loadThread(anchor.id)}
+            onOpenThread={(anchor) => onOpenPanel?.({ kind: "thread", id: anchor.id })}
           />
         )}
       </main>
@@ -2795,105 +2754,6 @@ export function ChannelView({
         />
       )}
 
-      {/* thread 侧栏（§3.1 回复气泡展开；不可嵌套 → 无回复入口） */}
-      {openThread && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: "min(420px, 92%)",
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--bg)",
-            borderLeft: `2px solid ${INK}`,
-            boxShadow: "-4px 0 0 0 rgba(20, 17, 17, 0.25)",
-            zIndex: 20,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "10px 14px",
-              borderBottom: `2px solid ${INK}`,
-              background: "var(--yellow)",
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 14 }}>
-              {t("message.thread")} #{openThread.seq}
-            </span>
-            <button
-              type="button"
-              aria-label={t("detail.close")}
-              onClick={() => setOpenThread(null)}
-              style={{
-                marginLeft: "auto",
-                width: 24,
-                height: 24,
-                background: "#ffffff",
-                border: `2px solid ${INK}`,
-                cursor: "pointer",
-                fontSize: 12,
-                lineHeight: 1,
-              }}
-            >
-              <X size={13} style={{ display: "block", margin: "auto" }} />
-            </button>
-          </div>
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-            <MessageRow
-              message={openThread}
-              isAnchor
-              currentMemberId={currentMemberId}
-              pinned={pinnedItems.some((item) => item.message.id === openThread.id)}
-              canConvertToTask={!tasks.some((task) => task.message_id === openThread.id)}
-              onReply={() => undefined}
-              onQuote={setQuoting}
-              onCopyLink={(target) => void handleCopyLink(target)}
-              onConvertToTask={(target) => void convertMessageToTask(target)}
-              onSetReminder={joined ? openMessageReminder : undefined}
-              onToggleReaction={joined ? toggleReaction : undefined}
-              onTogglePin={joined ? togglePin : undefined}
-            />
-            {threadLoading ? (
-              <div style={{ padding: 16, color: "var(--text-dim)", fontSize: 12 }}>
-                {t("message.threadLoading")}
-              </div>
-            ) : (
-              threadMessages.map((m) => (
-                <MessageRow
-                  key={m.id}
-                  message={m}
-                  currentMemberId={currentMemberId}
-                  pinned={pinnedItems.some((item) => item.message.id === m.id)}
-                  canConvertToTask={false}
-                  mentionMembers={mentionMembers}
-                  onOpenMention={openMention}
-                  onReply={() => undefined}
-                  onQuote={setQuoting}
-                  onCopyLink={(target) => void handleCopyLink(target)}
-                  onToggleReaction={joined ? toggleReaction : undefined}
-                  onTogglePin={joined ? togglePin : undefined}
-                />
-              ))
-            )}
-          </div>
-          <Composer
-            targetId={openThread.id}
-            disabled={composerDisabled}
-            disabledHint={composerDisabledHint}
-            quoting={quoting}
-            onClearQuote={() => setQuoting(null)}
-            onSend={handleSend}
-            members={mentionable}
-          />
-        </div>
-      )}
-
       {reminderTarget && channel && (
         <ReminderModal
           targetId={reminderTarget.targetId}
@@ -2903,10 +2763,6 @@ export function ChannelView({
           onClose={() => setReminderTarget(null)}
           onChanged={loadLatest}
         />
-      )}
-
-      {profileMember && (
-        <MemberProfileModal member={profileMember} onClose={() => setProfileMember(null)} />
       )}
     </div>
   );

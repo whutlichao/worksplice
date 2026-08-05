@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Menu } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useViewportHeight } from "@/hooks/useViewportHeight";
-import { WorkspaceSidebar, type SidebarSelection } from "./WorkspaceSidebar";
+import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { ChannelView, type CenterTab, type ChannelWithMeta } from "./ChannelView";
 import { SearchView } from "./SearchView";
-import { AgentDetailPanel } from "./AgentDetailPanel";
+import { DetailPanel } from "./DetailPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateAgentModal } from "./CreateAgentModal";
 import { MyRemindersModal } from "./MyRemindersModal";
@@ -15,8 +15,7 @@ import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/db";
 import { OWNER_MEMBER_ID } from "@/lib/data/schema";
-
-const INK = "#141111";
+import { closePanel, onChannelSwitched, openPanel, type PanelContent } from "@/lib/panel-state";
 
 /** 深链格式（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` */
 function parseDeepLink(raw: string): { channelId: string; messageId?: string } | null {
@@ -30,9 +29,10 @@ function parseDeepLink(raw: string): { channelId: string; messageId?: string } |
 }
 
 /**
- * 三栏骨架（spec §3.1）：
+ * 三栏骨架（spec §3.1，ticket 13 重构）：
  * 左 = channel 列表（含 #all）+ agent 成员列表；中央 = channel 消息流 / Tasks tab；
- * 右 = agent 详情面板（可选）。整体重写，不复用 pi-web 单聊天窗口骨架。
+ * 右 = 非长驻单槽面板（agent | human | thread | null）——中央与面板状态解耦，
+ * 点 agent/人类/线程只在右栏展示，无选中时整栏消失、中央占满。
  */
 export function AppShell() {
   const { t } = useI18n();
@@ -44,7 +44,10 @@ export function AppShell() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const [selected, setSelected] = useState<SidebarSelection>(null);
+  // ticket 13 状态解耦：中央（当前频道）与面板（agent | human | thread | null）两个独立状态。
+  // 选中 agent/人类/线程只在右栏展示，中央频道消息流不再被清空；切换频道清空面板。
+  const [centerSelection, setCenterSelection] = useState<string | null>(null);
+  const [panelContent, setPanelContent] = useState<PanelContent>(null);
   const [centerTab, setCenterTab] = useState<CenterTab>("messages");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
@@ -148,7 +151,8 @@ export function AppShell() {
   const applyDeepLink = useCallback((raw?: string) => {
     const link = parseDeepLink(raw ?? window.location.hash);
     if (!link) return;
-    setSelected({ kind: "channel", id: link.channelId });
+    setCenterSelection(link.channelId);
+    setPanelContent((prev) => onChannelSwitched(prev));
     setCenterTab("messages");
     setFocusMessageId(link.messageId ?? null);
     setSidebarOpen(false);
@@ -178,25 +182,48 @@ export function AppShell() {
 
   // 默认选中 #all（内建频道）
   useEffect(() => {
-    if (selected) return;
+    if (centerSelection) return;
     const fallback = channels.find((c) => c.id === "#all") ?? channels[0];
-    if (fallback) setSelected({ kind: "channel", id: fallback.id });
-  }, [channels, selected]);
+    if (fallback) setCenterSelection(fallback.id);
+  }, [channels, centerSelection]);
 
-  const selectedChannel =
-    selected?.kind === "channel"
-      ? channels.find((c) => c.id === selected.id) ?? null
-      : null;
-  const selectedAgent =
-    selected?.kind === "agent" ? agents.find((m) => m.id === selected.id) ?? null : null;
+  const selectedChannel = centerSelection
+    ? channels.find((c) => c.id === centerSelection) ?? null
+    : null;
 
-  const handleSelect = (next: SidebarSelection) => {
-    setSelected(next);
+  /** 选中频道：清空面板（切换频道不被上一频道残留详情误导），中央切到消息 tab。 */
+  const handleSelectChannel = (id: string) => {
+    setCenterSelection(id);
+    setPanelContent((prev) => onChannelSwitched(prev));
     setFocusMessageId(null);
     setSearchOpen(false);
-    if (next?.kind === "channel") setCenterTab("messages");
+    setCenterTab("messages");
     setSidebarOpen(false);
   };
+
+  /** 打开面板：单槽替换（任何内容互斥，id 透传）；紧凑端滑入覆盖。 */
+  const handleOpenPanel = (content: PanelContent) => {
+    if (!content) return;
+    setPanelContent((prev) => openPanel(prev, content));
+    setSearchOpen(false);
+    setSidebarOpen(false);
+  };
+
+  const handleClosePanel = () => {
+    setPanelContent((prev) => closePanel(prev));
+  };
+
+  /** 面板可解析性：agent/human 找不到（删除/未加载）时视为空面板——右栏整栏消失而非空占位。 */
+  const resolvablePanel = useMemo<NonNullable<PanelContent> | null>(() => {
+    if (!panelContent) return null;
+    if (panelContent.kind === "agent") {
+      return agents.some((a) => a.id === panelContent.id) ? panelContent : null;
+    }
+    if (panelContent.kind === "human") {
+      return owner && owner.id === panelContent.id ? panelContent : null;
+    }
+    return panelContent;
+  }, [panelContent, agents, owner]);
 
   return (
     <div
@@ -215,8 +242,9 @@ export function AppShell() {
           channels={channels}
           agents={agents}
           error={loadError}
-          selected={selected}
-          onSelect={handleSelect}
+          selectedChannelId={centerSelection}
+          onSelectChannel={handleSelectChannel}
+          onOpenAgent={(id) => handleOpenPanel({ kind: "agent", id })}
           onNewChannel={() => setCreateChannelOpen(true)}
           onNewAgent={() => setCreateAgentOpen(true)}
           onOpenModels={() => setModelsOpen(true)}
@@ -259,65 +287,36 @@ export function AppShell() {
             focusMessageId={focusMessageId}
             agents={agents}
             owner={owner}
-            onSelectAgent={(id) => handleSelect({ kind: "agent", id })}
+            onOpenPanel={handleOpenPanel}
           />
         )}
       </div>
 
-      {/* 右栏（可选）：agent 详情面板；桌面常驻，紧凑端滑入 */}
-      <aside className={`ws-right${selectedAgent ? " ws-right-open" : ""}`}>
-        {selectedAgent ? (
-          <AgentDetailPanel
-            agent={selectedAgent}
-            onClose={() => setSelected(null)}
+      {/* 右栏（非长驻单槽 dock，ticket 13）：无选中/不可解析时整栏消失（中央吃满宽度）；桌面 380px，紧凑端滑入覆盖 */}
+      {resolvablePanel && (
+        <aside className="ws-right ws-right-open">
+          <DetailPanel
+            content={resolvablePanel}
+            channel={selectedChannel}
+            agents={agents}
+            owner={owner}
+            currentMemberId={OWNER_MEMBER_ID}
+            onClose={handleClosePanel}
             onChanged={() => setRefreshKey((k) => k + 1)}
+            onOpenPanel={handleOpenPanel}
           />
-        ) : (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              padding: 24,
-              textAlign: "center",
-              color: "var(--text-dim)",
-              fontSize: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                display: "grid",
-                placeItems: "center",
-                background: "#ffffff",
-                border: `2px solid ${INK}`,
-                boxShadow: "var(--shadow-sm)",
-                fontFamily: "var(--font-space-mono)",
-                fontSize: 24,
-                fontWeight: 700,
-                color: "var(--text)",
-              }}
-            >
-              ●
-            </div>
-            <div>{t("agent.notSelected")}</div>
-          </div>
-        )}
-      </aside>
+        </aside>
+      )}
 
       {/* 紧凑端遮罩：点按关闭浮层（桌面端被 CSS 隐藏） */}
-      {(sidebarOpen || selectedAgent) && (
+      {(sidebarOpen || resolvablePanel) && (
         <div
           className="ws-backdrop"
           onClick={() => {
             if (sidebarOpen) {
               setSidebarOpen(false);
-            } else if (selected?.kind === "agent") {
-              setSelected(null);
+            } else if (resolvablePanel) {
+              handleClosePanel();
             }
           }}
         />

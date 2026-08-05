@@ -168,6 +168,8 @@ lib/
   file-paths.ts        client/server path encoding helpers
   markdown.ts          shared markdown helpers
   npx.ts               npx runner used by skill install
+  panel-state.ts       ticket 13 面板转移纯模块：openPanel（单槽替换）/ closePanel / onChannelSwitched（清空）
+                       + memberPanel（mention → 面板映射）+ subscribePinnedChanged/notifyPinnedChanged（面板↔中央 pinned 双端收敛）
   pi-types.ts          local structural types for pi SDK objects
   rpc-manager.ts      AgentSessionWrapper + registry + startRpcSession
   session-reader.ts   SessionManager wrappers + path cache + buildSessionContext adapter
@@ -179,13 +181,19 @@ lib/
   worktree.ts         project/worktree resolution and git worktree operations
 
 components/
-  AppShell.tsx           三栏骨架 + URL hash 深链（#c/<channelId>?m=<messageId>）+ 弹窗编排
-  WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）
-  ChannelView.tsx        channel 消息流：seq 分页 / thread 侧栏 / 引用 / 复制链接 / join-leave-archive
+  AppShell.tsx           三栏骨架 + URL hash 深链（#c/<channelId>?m=<messageId>）+ 弹窗编排；
+                         ticket 13：中央（centerSelection）与右栏面板（panelContent）状态解耦——点 agent/人类/线程只在右栏展示，中央频道不动；
+                         切换频道清空面板；右栏非长驻（无选中整栏消失）
+  WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）；只高亮频道行，agent 行点击 = 打开右栏面板
+  ChannelView.tsx        channel 消息流：seq 分页 / 引用 / 复制链接 / join-leave-archive
                           / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskBoard（§3.7）
                           / 提醒入口（header ⏰ + 消息动作栏 ⏰，§5.6）
                           / reaction（快捷栏 + 选择器 + 聚合条，§3.4）/ pinned 区（header `Pin` 展开，sort 三选一 + 重排，§3.5）
                           / 附件（Composer `Paperclip` + 消息内预览/下载，§3.5）
+                          / 线程经 onOpenPanel 在右栏打开（ticket 13 起不再内嵌侧栏）
+  DetailPanel.tsx        右栏单槽容器：按 kind 分派 agent → AgentDetailPanel / human → 薄资料卡 / thread → ThreadPanel（ticket 13）
+  ThreadPanel.tsx        右栏线程面板：锚点 + 消息 + composer + 面板局部引用 + 3s 轮询（THREAD_POLL_MS，后台 tab 暂停）
+                         freshness baseSeq 按线程自己的 seq 空间；pin/unpin 经 notifyPinnedChanged 通知中央刷新
   CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
   CreateAgentModal.tsx   建 agent
   ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
@@ -299,8 +307,8 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **Freshness-hold**（§6.3）：`sendMessage` 带 `baseSeq`（客户端最新 `maxSeq`），事务内比对 `maxSeq(targetId)`，不等返回 `{ held, roomSeq, whatHappened }`，route 层 409；UI 收 held 后重新拉取并提示，agent 的四选一流程属 ticket 06。
 - **权限面**：写消息要求作者是 channel 成员（thread 回复继承 channel 规则）；私有 channel 加入/移除成员、归档都仅 Owner（`CURRENT_MEMBER_ID` = `"owner"`，人类恒为 Owner）；`#all` 不可离开；新 agent 创建时自动加入 `#all`（seed 也会在迁移时补齐既有成员）。
 - **引用 = 物化**：消息不可编辑，quote 以块引用文本（`> **#seq author**\n> preview`）拼进发送内容，不留结构化引用。
-- **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel 与 thread 两个 Composer 共享——两个 Composer 各持自己的 `targetId`，`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
-- **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。
+- **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel composer 独享（ticket 13 线程迁出右栏后引用态变面板局部——`ThreadPanel` 自持 quoting，channel 与 thread 引用互不污染）；`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
+- **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。右栏线程面板（`ThreadPanel`）另有同纪律 3s 轮询（`THREAD_POLL_MS`），任务线程回复自动冒出，与中央轮询并存为两套循环。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
 - **身份 vs 会话**：agent 是持久身份（members 行），会话是 pi session（`pi_session_file` 回填）。三种重置粒度只动会话/工作区，身份与绑定保持；**删除 = soft-delete**（`members.deleted=1`，schema v3 ALTER 迁移）——行保留以承载不可变消息的外键与作者渲染，但移出全部 channel、任务 owner 置空、消费游标清空。
