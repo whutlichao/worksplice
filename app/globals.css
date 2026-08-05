@@ -953,6 +953,21 @@ span.linenumber {
   padding-left: 16px;
 }
 
+/* §3.3 消息行：无分割线，hover 整行高亮；锚点（thread 打开的消息）常显黄色 */
+.ws-message-row {
+  background: #ffffff;
+  transition: background 0.12s ease;
+}
+.ws-message-row-anchor {
+  background: var(--yellow);
+}
+.ws-message-row:hover {
+  background: var(--bg-hover);
+}
+.ws-message-row-anchor:hover {
+  background: var(--yellow);
+}
+
 /* §3.3 消息动作栏：hover 才显示；emoji 二级层展开（ws-message-actions-open）时保持可见 */
 .ws-message-actions {
   display: none;

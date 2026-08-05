@@ -707,7 +707,7 @@ export function MessageRow({
   ];
   return (
     <div
-      className="ws-message-row"
+      className={isAnchor ? "ws-message-row ws-message-row-anchor" : "ws-message-row"}
       onContextMenu={(e) => {
         e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY });
@@ -716,8 +716,6 @@ export function MessageRow({
         display: "flex",
         gap: 10,
         padding: "10px 16px",
-        background: isAnchor ? "var(--yellow)" : "#ffffff",
-        borderBottom: "2px solid var(--border)",
       }}
     >
       <PixelAvatar seed={message.author_id} name={message.author?.name ?? "?"} size={40} />
