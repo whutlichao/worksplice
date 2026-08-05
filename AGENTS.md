@@ -189,6 +189,7 @@ components/
   CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
   CreateAgentModal.tsx   建 agent
   ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
+  MyRemindersModal.tsx   全局提醒面板（全部提醒列表 + snooze/cancel + 定位跳转，15s 轮询）
   AgentDetailPanel.tsx   agent 详情面板：状态/workspace/runtime（§3.10 ModelPicker 覆盖全局默认）/可观测性（§6.5 统计+任务历史+时间线+导出）/重置
   BrutalModal.tsx        马卡龙 × brutalist 模态框外壳
   PixelAvatar.tsx        8×8 像素头像（seed 确定性）
@@ -331,14 +332,14 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序；UI 按状态分组（todo→in_progress→in_review→done→closed），卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen）；点卡片打开任务 thread（进展只在线程里，board 只显示状态）。
 
 ### 提醒（ticket 08，§3.9/§5.6 reminders 路由组）
-- **触发 = 系统消息 + 定向唤醒作者**：cron 到点 → `fireReminder` 以**作者署名**投递 `⏰ Reminder: <title>` 到锚定 target（channel 或消息/thread 锚点，thread 内消息归一化回锚点），`sendMessage({wake:false})` **不触发 channel 级 wake**（不惊动其他 agent）；随后仅当作者是 agent 才 `emitWake({reason:"reminder"})`（§3.9 唤醒作者本人；human 作者 = UI 轮询看到系统消息即通知）。
+- **触发 = 系统消息 + 定向唤醒作者**：cron 到点 → `fireReminder` 以**作者署名**投递 `⏰ Reminder: <title>` 到**频道主流程**——channel 锚定投该 channel；消息锚定归一化后投其**归属 channel**（原设计投 thread 不可见，已修正为频道可见；正文附 `(anchored on #seq)` 锚点引用），`sendMessage({wake:false})` **不触发 channel 级 wake**（不惊动其他 agent）；随后仅当作者是 agent 才 `emitWake({reason:"reminder"})`（§3.9 唤醒作者本人；human 作者 = UI 轮询看到系统消息即通知）。
 - **作者选择 = 唤醒谁**：POST 默认 author = Owner；Owner 可替 agent 设（authorId = 某 agent，仅 Owner 权限，§3.6）——演示路径"给 agent 设 every:1m → 系统消息 + agent 被唤醒"靠这个闭环。ReminderModal 的"唤醒谁"下拉列出 channel 内 agent。
 - **自提醒可被 agent 看到**：系统消息以作者署名 → agent 自己设的提醒在 drain 里"全是自己的消息"，普通轮次会 noop/skip；`runAgentRound` 增加 reason 参数（driver 队列按 hint 合并保留首个 reason），`reason==="reminder"` 时"只有自己的消息"与"最新是本人消息"两条跳过都不生效，agent 以自身提醒为语境决定行动（loop 测试 reminded 用例）。
 - **recurrence DSL**（`lib/raft/recurrence.ts` 纯模块）：`every:Nm/Nh/Nd`（delay 语义，服务端算绝对时间）/ `daily@HH:MM` / `weekly:mon,fri@HH:MM`（大小写不敏感、未知星期名整体拒绝）；`nextFireAt` **严格晚于 from**（等值视为已到点）——否则 reschedule 会立即重触发死循环；daily/weekly 用本地时区 Date 构造（时区安全）。
 - **幂等与收口**：fire 全程同步（无 await，单进程内不交错）；状态迁移 + log 在一个事务里，重复 tick/重复 fire 返回 not_due 不重复投递。**消息投递失败（作者已退出 channel 等）→ 记 error log 并收口 fired**（不无限重试），不 wake。
 - **生命周期 log**：schema v4 新增 `reminder_logs` 表（事件 schedule/fire/reschedule/snooze/update/cancel/error）；列表按 rowid 排序（同毫秒 created_at 的时序保真）；fire 事件先于 reschedule 写入（时间序）。
 - **管理权限**：snooze/update/cancel 仅作者本人或 Owner 可操作，且仅 `scheduled`（fired/canceled 报错）；snooze = `max(now, fire_at) + minutes`（默认 15）。
-- **UI**：channel 头部 ⏰（目标 = channel，joined 才显示）+ 消息动作栏 ⏰（目标 = 该消息/thread 锚点，标题预填首行预览）；ReminderModal 内可创建（datetime-local + recurrence 预设 chips）、列出锚定提醒、snooze/cancel；到点系统消息经 3s 轮询落入消息流。
+- **UI**：channel 头部 ⏰（目标 = channel，joined 才显示）+ 消息动作栏 ⏰（目标 = 该消息/thread 锚点，标题预填首行预览）；ReminderModal 内可创建（datetime-local + recurrence 预设 chips）、列出锚定提醒、snooze/cancel；到点系统消息经 3s 轮询落入消息流。**全局「我的提醒」入口**（侧栏底部 ⏰ 按钮，带待触发计数角标，15s 轮询）→ MyRemindersModal 列出**全部**提醒（ReminderView 附 channelId/channelName/anchorSeq，跨 target 可见），可 snooze/cancel/定位（深链 `#c/<channelId>[?m=<id>]` 跳转）。锚点消息行显示**线程回复角标**（`threadReplyCount` 批量查询，点击展开线程）——消息锚定提醒触发后可从角标发现 thread 内进展。
 
 ### 消息增强（ticket 09，§3.3–3.5 reactions/pinned/attachments）
 - **reaction = 先查后写 toggle**（`lib/raft/reactions.ts`）：存在即删、不存在即加，UNIQUE(message_id, member_id, emoji) 单进程串行无竞争；**channel 成员才可点**（thread 消息经 `message.target_id` 锚点解析归属 channel，不可嵌套读侧同语义）；无通知/不进 inbox（§3.4）。聚合 = count 降序 + memberIds（UI 用 `includes(currentMemberId)` 判定"我点过"）。

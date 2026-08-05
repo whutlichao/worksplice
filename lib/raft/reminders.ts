@@ -35,6 +35,11 @@ export class ReminderNotAuthorizedError extends Error {
 export interface ReminderView extends ReminderRow {
   author: MemberRow | null;
   target: { kind: "channel" | "message"; id: string } | null;
+  /** 归属 channel（消息锚定的提醒也归一化回其 channel；无 target 时为 null）。 */
+  channelId: string | null;
+  channelName: string | null;
+  /** 消息锚定时锚点消息的 seq（定位/展示用）；channel 锚定或无线索时为 null。 */
+  anchorSeq: number | null;
 }
 
 export type FireOutcome =
@@ -49,15 +54,25 @@ export function systemReminderContent(reminder: ReminderRow): string {
 
 function toView(reminder: ReminderRow): ReminderView {
   let target: ReminderView["target"] = null;
+  let channelId: string | null = null;
+  let anchorSeq: number | null = null;
   if (reminder.target_id) {
-    target = getChannel(reminder.target_id)
-      ? { kind: "channel", id: reminder.target_id }
-      : { kind: "message", id: reminder.target_id };
+    const channel = resolveChannelForTarget(reminder.target_id);
+    channelId = channel?.id ?? null;
+    if (getChannel(reminder.target_id)) {
+      target = { kind: "channel", id: reminder.target_id };
+    } else {
+      target = { kind: "message", id: reminder.target_id };
+      anchorSeq = getDb().getMessage(reminder.target_id)?.seq ?? null;
+    }
   }
   return {
     ...reminder,
     author: getMember(reminder.author_id) ?? null,
     target,
+    channelId,
+    channelName: channelId ? getChannel(channelId)?.name ?? null : null,
+    anchorSeq,
   };
 }
 
@@ -236,9 +251,11 @@ export function getReminderLog(id: string): Array<{ event: ReminderLogEvent; det
 }
 
 /**
- * 触发单个到点提醒（§5.6 fire）：投递系统消息到锚定 target（wake: false —— 不惊动
- * channel 其他 agent）+ 定向唤醒作者（agent → emitWake reason=reminder；human → 系统
- * 消息即 UI 通知）。recurrence 续算下一次 fire_at；无 recurrence → fired。
+ * 触发单个到点提醒（§5.6 fire）：投递系统消息到**频道主流程**（channel 锚定 → 该
+ * channel；消息锚定 → 其归属 channel，正文附锚点 #seq 引用，§3.9 可见性修正），
+ * wake: false —— 不惊动 channel 其他 agent）+ 定向唤醒作者（agent → emitWake
+ * reason=reminder；human → 系统消息即 UI 通知）。recurrence 续算下一次 fire_at；
+ * 无 recurrence → fired。
  * 幂等：status/fire_at 校验在触发前，重复调用返回 not_due，不重复投递。
  * 消息投递失败（作者已退出 channel 等）→ 记 error log 并收口 fired（不无限重试）。
  * 全程同步执行（无 await），单进程内不存在两个 tick 交错——状态迁移与投递原子可见。
@@ -255,10 +272,18 @@ export function fireReminder(id: string, now: Date = new Date()): FireOutcome {
   let postError: string | undefined;
   if (reminder.target_id) {
     try {
+      // 消息锚定的提醒投到其归属 channel 主流程（原设计投 thread 不可见，修正为频道可见）
+      const channel = resolveChannelForTarget(reminder.target_id);
+      const deliveryTarget = channel ? channel.id : reminder.target_id;
+      let content = systemReminderContent(reminder);
+      if (channel && !getChannel(reminder.target_id)) {
+        const anchorSeq = getDb().getMessage(reminder.target_id)?.seq;
+        if (anchorSeq !== undefined) content += ` (anchored on #${anchorSeq})`;
+      }
       const sent = sendMessage({
-        targetId: reminder.target_id,
+        targetId: deliveryTarget,
         authorId: reminder.author_id,
-        content: systemReminderContent(reminder),
+        content,
         wake: false,
       });
       if (!sent.held) {

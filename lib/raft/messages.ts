@@ -24,6 +24,8 @@ export interface MessageWithAuthor extends MessageRow {
   reactions: ReactionSummary[];
   /** §3.5 附件元数据（文件实体在 ~/.worksplice/attachments/，经 /api/attachments/[id] 下载）。 */
   attachments: AttachmentRow[];
+  /** 线程回复数（thread 消息以锚点消息 id 为 target；UI 锚点角标，§6.1）。 */
+  threadReplyCount: number;
 }
 
 interface ResolvedTarget {
@@ -33,12 +35,16 @@ interface ResolvedTarget {
   anchor: MessageRow | null;
 }
 
-export function messageWithAuthor(message: MessageRow): MessageWithAuthor {
+export function messageWithAuthor(
+  message: MessageRow,
+  opts?: { threadReplyCount?: number },
+): MessageWithAuthor {
   return {
     ...message,
     author: getMember(message.author_id) ?? null,
     reactions: listReactionSummaries(message.id),
     attachments: getDb().listAttachments(message.id),
+    threadReplyCount: opts?.threadReplyCount ?? getDb().threadReplyCount(message.id),
   };
 }
 
@@ -161,8 +167,9 @@ export function listMessages(
   rows.reverse();
   const oldest = rows[0]?.seq;
   const hasMore = oldest !== undefined && getDb().hasMessagesBefore(targetId, oldest);
+  const replyCounts = rows.length > 0 ? getDb().threadReplyCounts(rows.map((r) => r.id)) : new Map<string, number>();
   return {
-    messages: rows.map(messageWithAuthor),
+    messages: rows.map((row) => messageWithAuthor(row, { threadReplyCount: replyCounts.get(row.id) ?? 0 })),
     hasMore,
     maxSeq: getDb().maxSeq(targetId),
   };

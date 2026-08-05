@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlarmClock, Bell, BellOff, Check, FileText, Link, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
+import { AlarmClock, Bell, BellOff, Check, CornerDownRight, FileText, Link, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { MentionText } from "./MentionText";
 import { MemberProfileModal } from "./MemberProfileModal";
@@ -38,6 +38,8 @@ interface ChannelMessage {
   author: MemberRow | null;
   reactions?: ReactionSummary[];
   attachments?: AttachmentRow[];
+  /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */
+  threadReplyCount?: number;
 }
 
 /** §3.7 任务 = 消息 + 元数据：board 只显示状态，进展都在任务 thread。 */
@@ -658,6 +660,7 @@ export function MessageRow({
   onSetReminder,
   onToggleReaction,
   onTogglePin,
+  onOpenThread,
 }: {
   message: ChannelMessage;
   isAnchor?: boolean;
@@ -679,6 +682,7 @@ export function MessageRow({
   onSetReminder?: (message: ChannelMessage) => void;
   onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
   onTogglePin?: (message: ChannelMessage) => void;
+  onOpenThread?: (message: ChannelMessage) => void;
 }) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -738,6 +742,32 @@ export function MessageRow({
           <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-dim)" }}>
             {messageTime(message.created_at)}
           </span>
+          {onOpenThread && (message.threadReplyCount ?? 0) > 0 && (
+            <button
+              type="button"
+              title={t("message.openThreadBadge")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenThread(message);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "1px 6px",
+                fontFamily: "var(--font-space-mono)",
+                fontSize: 10,
+                fontWeight: 700,
+                background: "var(--cyan)",
+                color: "var(--text)",
+                border: `2px solid ${INK}`,
+                cursor: "pointer",
+              }}
+            >
+              <CornerDownRight size={10} />
+              {message.threadReplyCount}
+            </button>
+          )}
         </div>
         <div className="ws-message-content" style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)" }}>
           <MentionText
@@ -2701,6 +2731,7 @@ export function ChannelView({
                     onSetReminder={joined ? openMessageReminder : undefined}
                     onToggleReaction={joined ? toggleReaction : undefined}
                     onTogglePin={joined ? togglePin : undefined}
+                    onOpenThread={(target) => void loadThread(target.id)}
                   />
                 </div>
               ))}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, X } from "lucide-react";
+import { AlarmClock, Search, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
@@ -43,6 +43,8 @@ export function WorkspaceSidebar({
   onNewAgent,
   onOpenModels,
   onOpenSkills,
+  onOpenReminders,
+  scheduledReminderCount,
   onCloseMenu,
   onSearch,
 }: {
@@ -55,6 +57,8 @@ export function WorkspaceSidebar({
   onNewAgent: () => void;
   onOpenModels: () => void;
   onOpenSkills: () => void;
+  onOpenReminders: () => void;
+  scheduledReminderCount: number;
   onCloseMenu: () => void;
   onSearch: (query: string) => void;
 }) {
@@ -340,7 +344,7 @@ export function WorkspaceSidebar({
         })}
       </div>
 
-      {/* 底部设置：模型 + 技能 + 语言（§3.10 全局设置保留） */}
+      {/* 底部设置：提醒 + 模型 + 技能 + 语言（§3.10 全局设置保留；提醒入口 §5.6） */}
       <div
         style={{
           display: "flex",
@@ -350,6 +354,29 @@ export function WorkspaceSidebar({
           flexShrink: 0,
         }}
       >
+        <button
+          type="button"
+          onClick={onOpenReminders}
+          title={t("reminders.all")}
+          style={{
+            flex: 1,
+            height: 28,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 5,
+            background: scheduledReminderCount > 0 ? "var(--yellow)" : "#ffffff",
+            color: INK,
+            border: `2px solid ${INK}`,
+            cursor: "pointer",
+            fontFamily: "var(--font-hanken)",
+            fontWeight: 700,
+            fontSize: 12,
+          }}
+        >
+          <AlarmClock size={13} />
+          {scheduledReminderCount > 0 ? scheduledReminderCount : t("reminders.all")}
+        </button>
         <button
           type="button"
           onClick={onOpenModels}

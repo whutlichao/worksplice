@@ -10,6 +10,7 @@ import { SearchView } from "./SearchView";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { CreateAgentModal } from "./CreateAgentModal";
+import { MyRemindersModal } from "./MyRemindersModal";
 import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/db";
@@ -56,6 +57,8 @@ export function AppShell() {
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
+  const [scheduledReminderCount, setScheduledReminderCount] = useState(0);
 
   const load = useCallback(() => {
     void Promise.all([
@@ -82,6 +85,28 @@ export function AppShell() {
   useEffect(() => {
     load();
   }, [load, refreshKey]);
+
+  // 全局提醒入口角标：15s 轮询待触发提醒数（面板打开时也靠它保证计数新鲜）
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      void fetch("/api/reminders")
+        .then(async (res) => {
+          if (!res.ok) return;
+          const body = (await res.json()) as { reminders?: Array<{ status: string }> };
+          if (!cancelled) {
+            setScheduledReminderCount((body.reminders ?? []).filter((r) => r.status === "scheduled").length);
+          }
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    const timer = setInterval(refresh, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   // agent 状态点实时流（§3.6）：SSE 推送 { memberId: status } 快照，合并进列表
   useEffect(() => {
@@ -196,6 +221,8 @@ export function AppShell() {
           onNewAgent={() => setCreateAgentOpen(true)}
           onOpenModels={() => setModelsOpen(true)}
           onOpenSkills={() => setSkillsOpen(true)}
+          onOpenReminders={() => setRemindersOpen(true)}
+          scheduledReminderCount={scheduledReminderCount}
           onCloseMenu={() => setSidebarOpen(false)}
           onSearch={(q) => {
             setSearchQuery(q);
@@ -317,6 +344,22 @@ export function AppShell() {
       )}
       {modelsOpen && <ModelsConfig onClose={() => setModelsOpen(false)} />}
       {skillsOpen && <SkillsConfig onClose={() => setSkillsOpen(false)} />}
+      {remindersOpen && (
+        <MyRemindersModal
+          onClose={() => setRemindersOpen(false)}
+          onLocate={(channelId, messageId) => {
+            setRemindersOpen(false);
+            const hash = messageId
+              ? `#c/${encodeURIComponent(channelId)}?m=${messageId}`
+              : `#c/${encodeURIComponent(channelId)}`;
+            if (window.location.hash === hash) {
+              applyDeepLink(hash);
+            } else {
+              window.location.hash = hash;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

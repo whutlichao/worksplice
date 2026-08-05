@@ -337,6 +337,23 @@ export class RaftStore {
     return row !== undefined;
   }
 
+  /** 线程回复数（thread 消息以锚点消息 id 为 target，§6.1）。 */
+  threadReplyCount(messageId: string): number {
+    return this.threadReplyCounts([messageId]).get(messageId) ?? 0;
+  }
+
+  /** 批量线程回复数（一次 GROUP BY 查询，channel 分页免 N+1）。 */
+  threadReplyCounts(messageIds: string[]): Map<string, number> {
+    const map = new Map<string, number>();
+    if (messageIds.length === 0) return map;
+    const placeholders = messageIds.map(() => "?").join(",");
+    const rows = this.db
+      .prepare(`SELECT target_id, COUNT(*) AS count FROM messages WHERE target_id IN (${placeholders}) GROUP BY target_id`)
+      .all(...messageIds) as Array<{ target_id: string; count: number }>;
+    for (const row of rows) map.set(row.target_id, row.count);
+    return map;
+  }
+
   /** seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。附 rowid 供 mute 判定。 */
   listMessagesAfter(targetId: string, afterSeq: number): MessageRow[] {
     return this.db

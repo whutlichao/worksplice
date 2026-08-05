@@ -26,7 +26,7 @@ export interface DrainResult {
 
 /** §5.5 getSince(target, sinceSeq)：seq 增量查询（ASC）。 */
 export function getSince(targetId: string, sinceSeq: number): MessageWithAuthor[] {
-  return getDb().listMessagesAfter(targetId, sinceSeq).map(messageWithAuthor);
+  return getDb().listMessagesAfter(targetId, sinceSeq).map((m) => messageWithAuthor(m));
 }
 
 /**
@@ -53,7 +53,7 @@ export function drain(agentId: string, targetId: string): DrainResult {
     : rows;
   return {
     targetId,
-    messages: visible.map(messageWithAuthor),
+    messages: visible.map((m) => messageWithAuthor(m)),
     hasMore: false,
     consumedSeq,
     maxSeq: getDb().maxSeq(targetId),
