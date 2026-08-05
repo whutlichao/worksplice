@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
-import { MarkdownBody } from "./MarkdownBody";
+import { MentionText } from "./MentionText";
+import { MemberProfileModal } from "./MemberProfileModal";
 import { PixelAvatar } from "./PixelAvatar";
+import { StatusDot } from "./StatusDot";
 import { ReminderModal } from "./ReminderModal";
 import { copyText } from "@/lib/clipboard";
 import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
 import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
 import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/data/db";
+import { extractAtQuery, buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
 
 export type CenterTab = "messages" | "tasks";
 
@@ -66,6 +69,8 @@ const INK = "#141111";
 const PAGE_LIMIT = 50;
 /** agent-loop 回复轮询间隔（§5.4 demo：agent 回复落入消息流）。 */
 const INBOX_POLL_MS = 3000;
+/** @ 提及补全菜单最大展示条数。 */
+const AT_MATCH_LIMIT = 20;
 /** 任务板状态分组顺序（§3.7）。 */
 const TASK_STATUS_ORDER: TaskStatus[] = ["todo", "in_progress", "in_review", "done", "closed"];
 /** §3.4 hover 快捷 reaction（常用若干）。 */
@@ -626,6 +631,8 @@ export function MessageRow({
   canConvertToTask,
   currentMemberId,
   pinned,
+  mentionMembers,
+  onOpenMention,
   onReply,
   onQuote,
   onCopyLink,
@@ -639,6 +646,14 @@ export function MessageRow({
   canConvertToTask?: boolean;
   currentMemberId?: string;
   pinned?: boolean;
+  mentionMembers?: Array<{ id: string; name: string; type: "agent" | "human" }>;
+  onOpenMention?: (token: {
+    memberId: string;
+    name: string;
+    isHuman: boolean;
+    start: number;
+    end: number;
+  }) => void;
   onReply: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
@@ -692,7 +707,11 @@ export function MessageRow({
           </span>
         </div>
         <div className="ws-message-content" style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)" }}>
-          <MarkdownBody>{message.content}</MarkdownBody>
+          <MentionText
+            content={message.content}
+            members={mentionMembers}
+            onOpenMember={onOpenMention}
+          />
         </div>
         <AttachmentList attachments={message.attachments ?? []} />
         {currentMemberId && onToggleReaction && (
@@ -985,6 +1004,7 @@ export function Composer({
   onAsTaskChange,
   onClearQuote,
   onSend,
+  members,
 }: {
   targetId: string;
   disabled: boolean;
@@ -994,6 +1014,7 @@ export function Composer({
   onAsTaskChange?: (checked: boolean) => void;
   onClearQuote: () => void;
   onSend: (targetId: string, content: string, quoteId?: string, files?: File[]) => Promise<unknown>;
+  members?: Array<{ id: string; name: string; status: MemberRow["status"]; joined: boolean }>;
 }) {
   const { t } = useI18n();
   const [value, setValue] = useState("");
@@ -1002,6 +1023,81 @@ export function Composer({
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // §3.2 @ 提及补全：镜像 ChatInput 的 @ token 模式（extractAtQuery / 键盘导航 / 引号形式插入）
+  const [atQuery, setAtQuery] = useState<AtQueryMatch | null>(null);
+  const [atMenuOpen, setAtMenuOpen] = useState(false);
+  const [atActiveIndex, setAtActiveIndex] = useState(0);
+  const atItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const updateAtQuery = useCallback((text: string, cursor: number | null) => {
+    if (cursor === null) {
+      setAtQuery(null);
+      return;
+    }
+    setAtQuery(extractAtQuery(text.slice(0, cursor)));
+  }, []);
+
+  const atTokenKey = atQuery === null ? null : `${atQuery.start}:${atQuery.quoted ? 1 : 0}:${atQuery.query}`;
+  useEffect(() => {
+    if (atTokenKey === null) {
+      setAtMenuOpen(false);
+      setAtActiveIndex(0);
+      return;
+    }
+    setAtMenuOpen(true);
+    setAtActiveIndex(0);
+  }, [atTokenKey]);
+
+  const atMatches = useMemo(() => {
+    if (!members) return [];
+    const query = (atQuery?.query ?? "").toLowerCase();
+    if (!query) return members.slice(0, AT_MATCH_LIMIT);
+    return members
+      .map((m) => {
+        const name = m.name.toLowerCase();
+        let score = 0;
+        if (name === query) score = 100;
+        else if (name.startsWith(query)) score = 80;
+        else if (name.includes(query)) score = 50;
+        else if (name.split(/\s+/).some((part) => part.startsWith(query))) score = 40;
+        return { m, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.m.name.localeCompare(b.m.name))
+      .slice(0, AT_MATCH_LIMIT)
+      .map((x) => x.m);
+  }, [members, atQuery?.query]);
+
+  useEffect(() => {
+    atItemRefs.current[atActiveIndex]?.scrollIntoView({ block: "nearest" });
+  }, [atActiveIndex, atMenuOpen]);
+
+  const applyAtCompletion = useCallback(
+    (member: { id: string; name: string; status: MemberRow["status"]; joined: boolean }) => {
+      if (!atQuery) return;
+      const ta = textareaRef.current;
+      const cursor = ta?.selectionStart ?? value.length;
+      const before = value.slice(0, atQuery.start);
+      let after = value.slice(cursor);
+      // 引号 token 内补全：替换自带收尾引号，去掉光标后残留的旧引号（镜像 ChatInput）
+      if (atQuery.quoted && after.startsWith('"')) {
+        after = after.slice(1);
+      }
+      const insert = buildAtInsertText(member.name, false);
+      const newValue = before + insert.text + after;
+      const newPos = before.length + insert.cursorOffset;
+      setValue(newValue);
+      setAtQuery(extractAtQuery(newValue.slice(0, newPos)));
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(newPos, newPos);
+      });
+    },
+    [atQuery, value],
+  );
 
   const addFiles = (picked: FileList | null) => {
     if (!picked || picked.length === 0) return;
@@ -1117,32 +1213,149 @@ export function Composer({
         </div>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-          placeholder={disabled ? disabledHint : t("message.composerPlaceholder")}
-          disabled={disabled}
-          rows={2}
-          style={{
-            flex: 1,
-            padding: "8px 10px",
-            border: `2px solid ${INK}`,
-            background: "#ffffff",
-            color: "var(--text)",
-            fontFamily: "var(--font-space-grotesk)",
-            fontSize: 13,
-            resize: "vertical",
-            outline: "none",
-            opacity: disabled ? 0.55 : 1,
-          }}
-        />
+        <div style={{ position: "relative", flex: 1, display: "flex" }}>
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              updateAtQuery(e.target.value, e.target.selectionStart);
+            }}
+            onKeyDown={(e) => {
+              // @ 提及补全键盘导航（IME 组合期不拦截，镜像 ChatInput）
+              if (atMenuOpen && atQuery !== null && !e.nativeEvent.isComposing) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setAtActiveIndex((i) => Math.min(Math.max(0, atMatches.length - 1), i + 1));
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setAtActiveIndex((i) => Math.max(0, i - 1));
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setAtMenuOpen(false);
+                  return;
+                }
+                if ((e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) && atMatches[atActiveIndex]) {
+                  e.preventDefault();
+                  applyAtCompletion(atMatches[atActiveIndex]);
+                  return;
+                }
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+            placeholder={disabled ? disabledHint : t("message.composerPlaceholder")}
+            disabled={disabled}
+            rows={2}
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              border: `2px solid ${INK}`,
+              background: "#ffffff",
+              color: "var(--text)",
+              fontFamily: "var(--font-space-grotesk)",
+              fontSize: 13,
+              resize: "vertical",
+              outline: "none",
+              opacity: disabled ? 0.55 : 1,
+            }}
+          />
+          {atMenuOpen && atQuery !== null && !disabled && (
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: "calc(100% + 6px)",
+                zIndex: 40,
+                background: "var(--bg)",
+                border: `2px solid ${INK}`,
+                boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
+                maxHeight: 260,
+                overflowY: "auto",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "6px 10px",
+                  borderBottom: `1px solid ${INK}`,
+                  fontFamily: "var(--font-hanken)",
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                <span>{t("mention.title")}</span>
+                <span style={{ fontFamily: "var(--font-space-mono)", fontWeight: 400, color: "var(--text-muted)" }}>
+                  {t("chat.tabEnter")}
+                </span>
+              </div>
+              {atMatches.length === 0 ? (
+                <div style={{ padding: "8px 10px", fontSize: 12, color: "var(--text-muted)" }}>
+                  {t("mention.noMatch")}
+                </div>
+              ) : (
+                atMatches.map((member, index) => {
+                  const active = index === atActiveIndex;
+                  return (
+                    <button
+                      key={member.id}
+                      ref={(node) => {
+                        atItemRefs.current[index] = node;
+                      }}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        applyAtCompletion(member);
+                      }}
+                      onMouseEnter={() => setAtActiveIndex(index)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 10px",
+                        border: "none",
+                        borderBottom: index < atMatches.length - 1 ? `1px solid ${INK}` : "none",
+                        background: active ? "var(--cyan)" : "#ffffff",
+                        color: "var(--text)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontFamily: "var(--font-hanken)",
+                        fontWeight: 700,
+                        fontSize: 12,
+                      }}
+                    >
+                      <StatusDot status={member.status} />
+                      <span>@{member.name}</span>
+                      {!member.joined && (
+                        <span
+                          style={{
+                            marginLeft: "auto",
+                            fontFamily: "var(--font-space-mono)",
+                            fontSize: 10,
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {t("mention.notJoined")}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
           {onAsTaskChange && (
             <label
@@ -1237,6 +1450,9 @@ export function ChannelView({
   currentMemberId,
   onChannelChanged,
   focusMessageId,
+  agents = [],
+  owner = null,
+  onSelectAgent,
 }: {
   channel: ChannelWithMeta | null;
   tab: CenterTab;
@@ -1244,6 +1460,9 @@ export function ChannelView({
   currentMemberId: string;
   onChannelChanged: () => void;
   focusMessageId?: string | null;
+  agents?: MemberRow[];
+  owner?: MemberRow | null;
+  onSelectAgent?: (agentId: string) => void;
 }) {
   const { t } = useI18n();
 
@@ -1275,6 +1494,55 @@ export function ChannelView({
   const [muteOpen, setMuteOpen] = useState(false);
   const [mutes, setMutes] = useState<Array<{ memberId: string; name: string; muted: boolean }>>([]);
   const [muteNotice, setMuteNotice] = useState<string | null>(null);
+
+  // 👥 频道成员面板：channel 内 agent 列表（状态点）+ Owner 替 agent 加入/移除
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(new Set());
+  const [membersError, setMembersError] = useState<string | null>(null);
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberNotice, setMemberNotice] = useState<string | null>(null);
+
+  /** 频道内 agent 成员（状态取自全量 agents，SSE 实时）；@ 补全候选 = 全部 agent + joined 标记。 */
+  const channelAgents = useMemo(
+    () => agents.filter((a) => channelMemberIds.has(a.id)),
+    [agents, channelMemberIds],
+  );
+  const mentionable = useMemo(
+    () =>
+      agents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        joined: channelMemberIds.has(a.id),
+      })),
+    [agents, channelMemberIds],
+  );
+
+  // §3.2 mention 渲染成员表（agents + owner 全量，高亮解析用）
+  const mentionMembers = useMemo(
+    () =>
+      [...agents, ...(owner ? [owner] : [])].map((m) => ({
+        id: m.id,
+        name: m.name,
+        type: m.type,
+      })),
+    [agents, owner],
+  );
+
+  // 人类成员简介弹窗（mention 点击）
+  const [profileMember, setProfileMember] = useState<MemberRow | null>(null);
+
+  /** mention 点击（§3.2）：agent → 右栏详情面板；人类 → 简介弹窗。 */
+  const openMention = useCallback(
+    (token: { memberId: string; name: string; isHuman: boolean }) => {
+      if (token.isHuman) {
+        setProfileMember(owner ?? null);
+      } else {
+        onSelectAgent?.(token.memberId);
+      }
+    },
+    [owner, onSelectAgent],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -1346,6 +1614,74 @@ export function ChannelView({
       .catch(() => undefined);
   }, [channel]);
 
+  /** 👥 频道成员加载（channel 内成员 id 集合）。 */
+  const loadMembers = useCallback(() => {
+    if (!channel) {
+      setChannelMemberIds(new Set());
+      return;
+    }
+    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/members`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`GET members: ${res.status}`);
+        const body = (await res.json()) as { members?: MemberRow[] };
+        setChannelMemberIds(new Set((body.members ?? []).map((m) => m.id)));
+        setMembersError(null);
+      })
+      .catch((e) => setMembersError(e instanceof Error ? e.message : String(e)));
+  }, [channel]);
+
+  /** 👥 Owner 替 agent 加入频道（公开/私有均可；#all 已全员加入，按钮不出现）。 */
+  const addChannelMember = async (member: MemberRow) => {
+    if (!channel) return;
+    setMemberBusy(true);
+    setMemberNotice(null);
+    try {
+      const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? "join failed");
+      }
+      setChannelMemberIds((prev) => new Set(prev).add(member.id));
+      setMemberNotice(t("mention.added", { name: member.name }));
+    } catch (e) {
+      setMemberNotice(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMemberBusy(false);
+    }
+  };
+
+  /** 👥 Owner 从频道移除 agent（#all 不可移除）。 */
+  const removeChannelMember = async (member: MemberRow) => {
+    if (!channel) return;
+    setMemberBusy(true);
+    setMemberNotice(null);
+    try {
+      const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? "leave failed");
+      }
+      setChannelMemberIds((prev) => {
+        const next = new Set(prev);
+        next.delete(member.id);
+        return next;
+      });
+      setMemberNotice(t("mention.removed", { name: member.name }));
+    } catch (e) {
+      setMemberNotice(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMemberBusy(false);
+    }
+  };
+
   useEffect(() => {
     setMessages([]);
     setHasMore(false);
@@ -1360,12 +1696,17 @@ export function ChannelView({
     setMuteOpen(false);
     setMutes([]);
     setMuteNotice(null);
+    setMembersOpen(false);
+    setChannelMemberIds(new Set());
+    setMembersError(null);
+    setMemberNotice(null);
     loadLatest();
     // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
     loadTasks();
     loadPinned();
     loadMutes();
-  }, [channel?.id, loadLatest, loadTasks, loadPinned, loadMutes]);
+    loadMembers();
+  }, [channel?.id, loadLatest, loadTasks, loadPinned, loadMutes, loadMembers]);
 
   useEffect(() => {
     if (tab === "tasks") loadTasks();
@@ -1947,6 +2288,16 @@ export function ChannelView({
                 🔕 {mutes.filter((m) => m.muted).length > 0 ? mutes.filter((m) => m.muted).length : ""}
               </button>
             )}
+            {joined && (
+              <button
+                type="button"
+                title={t("channel.membersPanel")}
+                style={{ ...actionButton, background: membersOpen ? "var(--yellow)" : "#ffffff" }}
+                onClick={() => setMembersOpen((open) => !open)}
+              >
+                👥 {channelAgents.length > 0 ? channelAgents.length : ""}
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -1991,6 +2342,104 @@ export function ChannelView({
           )}
           {muteNotice && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{muteNotice}</div>
+          )}
+        </div>
+      )}
+
+      {/* 👥 频道成员面板（channel 头部可展开）：channel 内 agent 列表（状态点，点击进详情）+ 添加/移除成员 */}
+      {channel && membersOpen && joined && (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "8px 16px 12px",
+            borderBottom: `2px solid ${INK}`,
+            background: "var(--bg)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 13 }}>
+              {t("channel.membersPanel")}
+            </span>
+            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+              {t("mention.hint")}
+            </span>
+          </div>
+          {membersError && (
+            <div style={{ marginBottom: 8, fontSize: 12, color: "var(--coral)" }}>{membersError}</div>
+          )}
+          {channelAgents.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("channel.membersEmpty")}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+              {channelAgents.map((member) => (
+                <div key={member.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    type="button"
+                    title={member.description || member.name}
+                    onClick={() => onSelectAgent?.(member.id)}
+                    style={{ ...actionButton, display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <StatusDot status={member.status} />
+                    {member.name}
+                  </button>
+                  {channel.id !== BUILTIN_CHANNEL_ID && (
+                    <button
+                      type="button"
+                      title={t("mention.remove", { name: member.name })}
+                      disabled={memberBusy}
+                      onClick={() => void removeChannelMember(member)}
+                      style={{ ...actionButton, padding: "4px 7px", fontSize: 10, opacity: memberBusy ? 0.55 : 1 }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {channel.id !== BUILTIN_CHANNEL_ID && (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 10,
+                  paddingTop: 8,
+                  borderTop: `1px dashed ${INK}`,
+                }}
+              >
+                <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 12 }}>
+                  {t("mention.addTitle")}
+                </span>
+                {mentionable.length === channelAgents.length ? (
+                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+                    {t("mention.allJoined")}
+                  </span>
+                ) : (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {mentionable
+                      .filter((m) => !m.joined)
+                      .map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          title={t("mention.add", { name: m.name })}
+                          disabled={memberBusy}
+                          onClick={() => void addChannelMember(agents.find((a) => a.id === m.id)!)}
+                          style={{ ...actionButton, display: "flex", alignItems: "center", gap: 6, opacity: memberBusy ? 0.55 : 1 }}
+                        >
+                          <StatusDot status={m.status} />
+                          {m.name}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+              {memberNotice && (
+                <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{memberNotice}</div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -2178,6 +2627,8 @@ export function ChannelView({
                     currentMemberId={currentMemberId}
                     pinned={pinnedItems.some((item) => item.message.id === m.id)}
                     canConvertToTask={!tasks.some((task) => task.message_id === m.id)}
+                    mentionMembers={mentionMembers}
+                    onOpenMention={openMention}
                     onReply={(target) => void loadThread(target.id)}
                     onQuote={setQuoting}
                     onCopyLink={(target) => void handleCopyLink(target)}
@@ -2244,6 +2695,7 @@ export function ChannelView({
           onAsTaskChange={setAsTask}
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
+          members={mentionable}
         />
       )}
 
@@ -2323,6 +2775,8 @@ export function ChannelView({
                   currentMemberId={currentMemberId}
                   pinned={pinnedItems.some((item) => item.message.id === m.id)}
                   canConvertToTask={false}
+                  mentionMembers={mentionMembers}
+                  onOpenMention={openMention}
                   onReply={() => undefined}
                   onQuote={setQuoting}
                   onCopyLink={(target) => void handleCopyLink(target)}
@@ -2339,6 +2793,7 @@ export function ChannelView({
             quoting={quoting}
             onClearQuote={() => setQuoting(null)}
             onSend={handleSend}
+            members={mentionable}
           />
         </div>
       )}
@@ -2352,6 +2807,10 @@ export function ChannelView({
           onClose={() => setReminderTarget(null)}
           onChanged={loadLatest}
         />
+      )}
+
+      {profileMember && (
+        <MemberProfileModal member={profileMember} onClose={() => setProfileMember(null)} />
       )}
     </div>
   );

@@ -38,6 +38,7 @@ export function AppShell() {
 
   const [channels, setChannels] = useState<ChannelWithMeta[]>([]);
   const [agents, setAgents] = useState<MemberRow[]>([]);
+  const [owner, setOwner] = useState<MemberRow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -64,7 +65,8 @@ export function AppShell() {
       }),
       fetch("/api/members").then(async (r) => {
         if (!r.ok) throw new Error(`GET /api/members: ${r.status}`);
-        const body = (await r.json()) as { agents?: MemberRow[] };
+        const body = (await r.json()) as { agents?: MemberRow[]; owner?: MemberRow | null };
+        setOwner(body.owner ?? null);
         return body.agents ?? [];
       }),
     ])
@@ -227,6 +229,9 @@ export function AppShell() {
             currentMemberId={OWNER_MEMBER_ID}
             onChannelChanged={load}
             focusMessageId={focusMessageId}
+            agents={agents}
+            owner={owner}
+            onSelectAgent={(id) => handleSelect({ kind: "agent", id })}
           />
         )}
       </div>

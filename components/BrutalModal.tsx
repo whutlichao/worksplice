@@ -30,7 +30,10 @@ export function BrutalModal({
     <div
       role="presentation"
       onClick={(e) => {
-        if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+        // 只响应 backdrop 自身的点击；子组件（含 createPortal 到 body 的
+        // DirectoryPicker 等）的点击沿 React 树冒泡到这里，ref.current.contains
+        // 对 portal 内容恒为 false，会误关整个 modal。
+        if (e.target === e.currentTarget) onClose();
       }}
       style={{
         position: "fixed",
