@@ -1536,6 +1536,11 @@ export function ChannelView({
     () => agents.filter((a) => channelMemberIds.has(a.id)),
     [agents, channelMemberIds],
   );
+  /** 频道内全部成员（agent + 人类）：数量与成员面板共用——agent 删除后随 agents prop 刷新即更新，人类始终可见。 */
+  const channelMembers = useMemo(() => {
+    const members = agents.filter((a) => channelMemberIds.has(a.id));
+    return owner && channelMemberIds.has(owner.id) ? [...members, owner] : members;
+  }, [agents, owner, channelMemberIds]);
   const mentionable = useMemo(
     () =>
       agents.map((a) => ({
@@ -2246,12 +2251,6 @@ export function ChannelView({
             <>
               <Badge>{channel.type === "private" ? t("channel.private") : t("channel.public")}</Badge>
               {isArchived && <Badge>{t("channel.archived")}</Badge>}
-              <Badge>
-                {t("channel.members", {
-                  count: String(channel.memberCount),
-                  countSuffix: channel.memberCount === 1 ? "" : "s",
-                })}
-              </Badge>
             </>
           )}
         </div>
@@ -2327,7 +2326,7 @@ export function ChannelView({
                 style={{ ...actionButton, background: membersOpen ? "var(--yellow)" : "#ffffff" }}
                 onClick={() => setMembersOpen((open) => !open)}
               >
-                <Users size={14} /> {channelAgents.length > 0 ? channelAgents.length : ""}
+                <Users size={14} /> {channelMembers.length > 0 ? channelMembers.length : ""}
               </button>
             )}
           </div>
@@ -2378,7 +2377,7 @@ export function ChannelView({
         </div>
       )}
 
-      {/* 👥 频道成员面板（channel 头部可展开）：channel 内 agent 列表（状态点，点击进详情）+ 添加/移除成员 */}
+      {/* 👥 频道成员面板（channel 头部可展开）：全部成员（agent 点击进详情 + 移除；人类点击看简介弹窗）+ 添加成员 */}
       {channel && membersOpen && joined && (
         <div
           style={{
@@ -2399,22 +2398,26 @@ export function ChannelView({
           {membersError && (
             <div style={{ marginBottom: 8, fontSize: 12, color: "var(--coral)" }}>{membersError}</div>
           )}
-          {channelAgents.length === 0 ? (
+          {channelMembers.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("channel.membersEmpty")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
-              {channelAgents.map((member) => (
+              {channelMembers.map((member) => (
                 <div key={member.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button
                     type="button"
                     title={member.description || member.name}
-                    onClick={() => onSelectAgent?.(member.id)}
+                    onClick={() =>
+                      member.type === "human"
+                        ? setProfileMember(member)
+                        : onSelectAgent?.(member.id)
+                    }
                     style={{ ...actionButton, display: "flex", alignItems: "center", gap: 6 }}
                   >
                     <StatusDot status={member.status} />
                     {member.name}
                   </button>
-                  {channel.id !== BUILTIN_CHANNEL_ID && (
+                  {member.type === "agent" && channel.id !== BUILTIN_CHANNEL_ID && (
                     <button
                       type="button"
                       title={t("mention.remove", { name: member.name })}

@@ -206,12 +206,12 @@ export function resolveChannelForTarget(targetId: string): ChannelRow | undefine
   return getDb().getChannel(anchor.target_id);
 }
 
-/** channel 成员列表（含成员详情）。 */
+/** channel 成员列表（含成员详情；软删成员不出现在任何 channel——§3.6 删除即移出）。 */
 export function listChannelMembers(channelId: string): MemberRow[] {
   const rows = getDb().listChannelMembers(channelId);
   return rows
     .map((row) => getDb().getMember(row.member_id))
-    .filter((m): m is MemberRow => Boolean(m));
+    .filter((m): m is MemberRow => m !== undefined && m !== null && m.deleted !== 1);
 }
 
 /** 侧栏/列表用：每个 channel 附 加入状态 + 成员数（针对某成员）。 */

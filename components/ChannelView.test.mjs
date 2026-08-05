@@ -161,7 +161,7 @@ test("ChannelView renders the select-a-channel empty state without a channel", (
   assert.match(html, /Tasks/);
 });
 
-test("ChannelView shows the channel header with member count and archive badge", () => {
+test("ChannelView shows the channel header with the members entry and archive badge", () => {
   const channel = {
     id: "c1",
     name: "general",
@@ -184,8 +184,10 @@ test("ChannelView shows the channel header with member count and archive badge",
   );
 
   assert.match(html, /general/);
-  assert.match(html, /2 members/);
   assert.match(html, /Archived/);
+  // 成员数不再有独立徽标：数量只出现在可展开的成员面板入口按钮（含人类）
+  assert.match(html, /Channel members/);
+  assert.doesNotMatch(html, /2 members/);
 });
 
 test("mergeIncomingMessages dedupes by id and keeps messages sorted by seq (agent-loop 轮询合并)", () => {

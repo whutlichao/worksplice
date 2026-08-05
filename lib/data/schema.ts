@@ -233,8 +233,13 @@ function seed(db: Database.Database): void {
      VALUES (?, 'human', 'Owner', 'Worksplice owner', 'owner', 'online', ?)`,
   ).run(OWNER_MEMBER_ID, createdAt);
   // #all 全员自动加入（§3.2）：迁移时补齐既有成员，新成员由服务层在创建时加入。
+  // 软删成员（deleted=1）绝不补齐：seed 每次打开都会执行，删除时虽已移出全部 channel
+  // （§3.6），若不在此过滤会把已删除的 agent 重新加回 #all（幽灵成员，成员数虚高）。
+  db.prepare(
+    `DELETE FROM channel_members WHERE member_id IN (SELECT id FROM members WHERE deleted = 1)`,
+  ).run();
   db.prepare(
     `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
-     SELECT ?, id, ? FROM members`,
+     SELECT ?, id, ? FROM members WHERE deleted = 0`,
   ).run(BUILTIN_CHANNEL_ID, createdAt);
 }
