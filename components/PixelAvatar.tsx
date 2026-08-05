@@ -42,7 +42,7 @@ export function PixelAvatar({
   }
 
   const svg = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true">`,
     `<rect width="8" height="8" fill="${bg}"/>`,
     ...cells,
     `<rect x="0" y="0" width="8" height="8" fill="none" stroke="${ink}" stroke-width="1"/>`,
