@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlarmClock, Bell, BellOff, Check, FileText, Link, Paperclip, Pin, Quote, TriangleAlert, Users, X } from "lucide-react";
+import { AlarmClock, Bell, BellOff, Check, FileText, Link, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { MentionText } from "./MentionText";
 import { MemberProfileModal } from "./MemberProfileModal";
@@ -85,6 +85,23 @@ const EMOJI_PICKER_OPTIONS = [
   "😂", "😅", "😮", "😢", "😡", "🥳",
   "👏", "🙌", "🤝", "📌", "⏰", "🔧",
 ];
+
+/** 消息动作按钮统一外框（§3.3 动作栏 + reaction 聚合条共用；全 lucide 13px，消灭文本字形宽差）。 */
+const actionButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  padding: "3px 8px",
+  minHeight: 26,
+  fontFamily: "var(--font-hanken)",
+  fontWeight: 700,
+  fontSize: 11,
+  background: "#ffffff",
+  color: "var(--text)",
+  border: `2px solid ${INK}`,
+  boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
+  cursor: "pointer",
+};
 
 const messageTime = (iso: string): string => {
   const d = new Date(iso);
@@ -273,17 +290,9 @@ function ReactionChips({
             type="button"
             onClick={() => onToggle(reaction.emoji)}
             style={{
-              display: "inline-flex",
-              alignItems: "center",
+              ...actionButtonStyle,
               gap: 5,
-              padding: "2px 8px",
-              fontFamily: "var(--font-hanken)",
-              fontWeight: 700,
-              fontSize: 12,
               background: mine ? "var(--yellow)" : "#ffffff",
-              color: "var(--text)",
-              border: `2px solid ${INK}`,
-              cursor: "pointer",
             }}
           >
             <span style={{ fontSize: 14, lineHeight: 1 }}>{reaction.emoji}</span>
@@ -432,7 +441,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
   );
 }
 
-/** 消息动作栏（§3.2）：回复 thread / 引用 / 复制链接 / 设提醒（§5.6 UI 入口）。 */
+/** 消息动作栏（§3.2/§3.3）：hover 浮出；回复 / 引用 / 复制链接 / 设提醒（§5.6）/ Pin / emoji+（点开展开二级快捷 bar，再点开完整选择器）。 */
 function MessageActions({
   message,
   onReply,
@@ -442,6 +451,8 @@ function MessageActions({
   onToggleReaction,
   onTogglePin,
   pinned,
+  reactOpen,
+  onToggleReactOpen,
 }: {
   message: ChannelMessage;
   onReply: (message: ChannelMessage) => void;
@@ -451,75 +462,39 @@ function MessageActions({
   onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
   onTogglePin?: (message: ChannelMessage) => void;
   pinned?: boolean;
+  reactOpen?: boolean;
+  onToggleReactOpen?: () => void;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const buttonStyle: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 4,
-    padding: "3px 8px",
-    fontFamily: "var(--font-hanken)",
-    fontWeight: 700,
-    fontSize: 11,
-    background: "#ffffff",
-    color: "var(--text)",
-    border: `2px solid ${INK}`,
-    boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
-    cursor: "pointer",
-  };
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", position: "relative" }}>
-      {onToggleReaction && (
-        <>
-          {QUICK_REACTIONS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              title={t("message.react")}
-              style={{ ...buttonStyle, fontSize: 13, padding: "3px 7px" }}
-              onClick={() => onToggleReaction(message, emoji)}
-            >
-              {emoji}
-            </button>
-          ))}
-          <button
-            type="button"
-            title={t("message.addReaction")}
-            style={{ ...buttonStyle, fontSize: 12 }}
-            onClick={() => setPickerOpen((open) => !open)}
-          >
-            ＋
-          </button>
-          {pickerOpen && (
-            <div style={{ position: "absolute", top: 26, left: 0, zIndex: 60 }}>
-              <EmojiPicker
-                onPick={(emoji) => {
-                  onToggleReaction(message, emoji);
-                  setPickerOpen(false);
-                }}
-                onClose={() => setPickerOpen(false)}
-              />
-            </div>
-          )}
-        </>
+      {onToggleReaction && onToggleReactOpen && (
+        <button
+          type="button"
+          title={t("message.addReaction")}
+          style={{ ...actionButtonStyle, background: reactOpen ? "var(--yellow)" : "#ffffff" }}
+          onClick={onToggleReactOpen}
+        >
+          <SmilePlus size={13} />
+        </button>
       )}
       <button
         type="button"
         title={t("message.reply")}
-        style={buttonStyle}
+        style={actionButtonStyle}
         onClick={() => onReply(message)}
       >
-        ↩
+        <Reply size={13} />
       </button>
-      <button type="button" title={t("message.quote")} style={buttonStyle} onClick={() => onQuote(message)}>
+      <button type="button" title={t("message.quote")} style={actionButtonStyle} onClick={() => onQuote(message)}>
         <Quote size={13} />
       </button>
       <button
         type="button"
         title={t("message.copyLink")}
-        style={buttonStyle}
+        style={actionButtonStyle}
         onClick={() => {
           onCopyLink(message);
           setCopied(true);
@@ -532,7 +507,7 @@ function MessageActions({
         <button
           type="button"
           title={t("reminders.messageAction")}
-          style={buttonStyle}
+          style={actionButtonStyle}
           onClick={() => onReminder(message)}
         >
           <AlarmClock size={13} />
@@ -542,11 +517,45 @@ function MessageActions({
         <button
           type="button"
           title={pinned ? t("message.unpin") : t("message.pin")}
-          style={{ ...buttonStyle, background: pinned ? "var(--yellow)" : "#ffffff" }}
+          style={{ ...actionButtonStyle, background: pinned ? "var(--yellow)" : "#ffffff" }}
           onClick={() => onTogglePin(message)}
         >
           <Pin size={13} />
         </button>
+      )}
+      {reactOpen && (
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexBasis: "100%" }}>
+          {QUICK_REACTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              title={t("message.react")}
+              style={{ ...actionButtonStyle, fontSize: 13 }}
+              onClick={() => onToggleReaction?.(message, emoji)}
+            >
+              {emoji}
+            </button>
+          ))}
+          <span style={{ position: "relative", display: "inline-flex" }}>
+            <button
+              type="button"
+              title={t("message.addReaction")}
+              style={{ ...actionButtonStyle, fontSize: 12 }}
+              onClick={() => setPickerOpen((open) => !open)}
+            >
+              ＋
+            </button>
+            {pickerOpen && (
+              <EmojiPicker
+                onPick={(emoji) => {
+                  onToggleReaction?.(message, emoji);
+                  setPickerOpen(false);
+                }}
+                onClose={() => setPickerOpen(false)}
+              />
+            )}
+          </span>
+        </div>
       )}
     </div>
   );
@@ -673,6 +682,23 @@ export function MessageRow({
 }) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [reactOpen, setReactOpen] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!reactOpen) return;
+    const close = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) setReactOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setReactOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [reactOpen]);
   const items = [
     { label: t("message.reply"), onClick: () => onReply(message) },
     ...(canConvertToTask && onConvertToTask
@@ -730,7 +756,11 @@ export function MessageRow({
             onToggle={(emoji) => onToggleReaction(message, emoji)}
           />
         )}
-        <div className="ws-message-actions" style={{ marginTop: 6 }}>
+        <div
+          ref={actionsRef}
+          className={reactOpen ? "ws-message-actions ws-message-actions-open" : "ws-message-actions"}
+          style={{ marginTop: 6 }}
+        >
           <MessageActions
             message={message}
             onReply={onReply}
@@ -740,6 +770,8 @@ export function MessageRow({
             onToggleReaction={onToggleReaction}
             onTogglePin={onTogglePin}
             pinned={pinned}
+            reactOpen={reactOpen}
+            onToggleReactOpen={() => setReactOpen((open) => !open)}
           />
         </div>
       </div>

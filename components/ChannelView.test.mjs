@@ -51,11 +51,11 @@ test("MessageRow renders author, seq, content and the three §3.2 actions", () =
   assert.match(html, /Owner/);
   assert.match(html, /#4/);
   assert.match(html, /hello <strong>world<\/strong>/);
-  assert.match(html, /↩/);
-  assert.match(html, /❝/);
-  assert.match(html, /🔗/);
-  // §5.6 UI 入口：未提供 onSetReminder 时不渲染 ⏰ 按钮
-  assert.doesNotMatch(html, /⏰/);
+  assert.match(html, /title="Reply in thread"/);
+  assert.match(html, /title="Quote"/);
+  assert.match(html, /title="Copy link"/);
+  // §5.6 UI 入口：未提供 onSetReminder 时不渲染提醒按钮
+  assert.doesNotMatch(html, /Set a reminder on this message/);
 });
 
 test("MessageRow renders the ⏰ reminder action when onSetReminder is provided (§5.6)", () => {
@@ -71,7 +71,7 @@ test("MessageRow renders the ⏰ reminder action when onSetReminder is provided 
       },
     }),
   );
-  assert.match(html, /⏰/);
+  assert.match(html, /Set a reminder on this message/);
   assert.deepEqual(calls, { reminder: null });
 });
 
@@ -252,12 +252,14 @@ test("MessageRow renders quick reactions, picker, pin and attachments (§3.4/§3
   assert.match(html, /👍/);
   assert.match(html, /❤️/);
   assert.match(html, /2/);
-  assert.match(html, /＋/);
-  assert.match(html, /📌/);
+  // 动作栏默认折叠：只出 SmilePlus 入口；emoji 快捷条与 ＋ 选择器需展开才有
+  assert.match(html, /title="Add a reaction"/);
+  assert.doesNotMatch(html, /＋/);
+  assert.match(html, /title="Unpin"/);
   // text-like 附件 = 展开预览按钮；其余 = 下载链接
   assert.match(html, /note\.txt/);
   assert.match(html, /2\.0 KB/);
-  assert.match(html, /📄/);
+  assert.match(html, /lucide-file-text/);
   assert.match(html, /bundle\.zip/);
   assert.match(html, /\/api\/attachments\/att-2/);
 });
@@ -286,7 +288,7 @@ test("Composer renders the paperclip attach control (§3.5)", () => {
       onSend: async () => undefined,
     }),
   );
-  assert.match(html, /📎/);
+  assert.match(html, /Attach files \(max 50 MB each\)/);
   assert.match(html, /type="file"/);
 });
 
@@ -311,5 +313,5 @@ test("ChannelView header exposes the pinned toggle for joined members (§3.5)", 
       focusMessageId: null,
     }),
   );
-  assert.match(html, /📌/);
+  assert.match(html, /Toggle pinned messages/);
 });

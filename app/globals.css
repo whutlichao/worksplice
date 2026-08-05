@@ -953,6 +953,15 @@ span.linenumber {
   padding-left: 16px;
 }
 
+/* §3.3 消息动作栏：hover 才显示；emoji 二级层展开（ws-message-actions-open）时保持可见 */
+.ws-message-actions {
+  display: none;
+}
+.ws-message-row:hover .ws-message-actions,
+.ws-message-actions-open {
+  display: flex;
+}
+
 @media (max-width: 640px) {
   textarea,
   input,
