@@ -915,7 +915,8 @@ span.linenumber {
 .ws-right {
   display: flex;
   flex-direction: column;
-  width: 380px;
+  /* 桌面 dock 宽度（grilling 定案）：大屏 480px，窄窗口按视口比例收缩保护中央频道 */
+  width: min(480px, 44vw);
   flex-shrink: 0;
   border-left: 2px solid var(--ink);
   background: var(--bg-panel);
