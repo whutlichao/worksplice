@@ -24,6 +24,8 @@
 - **freshness 按线程 seq 空间**：`ThreadPanel.tsx:201-236`——`baseSeq = 线程最后一条 seq`；`held` → `loadThread(anchorId)` 重拉 + 提示 `t("message.held")`，不静默丢消息
 - **两套轮询并存**：中央 `ChannelView` 自有 `INBOX_POLL_MS` effect（`ChannelView.test.mjs` 断言其存在），面板轮询独立 effect——打开线程期间中央照常轮询
 - **切 channel → 面板清空**：`AppShell.tsx:197` `handleSelectChannel` → `onChannelSwitched(prev)`（面板随容器销毁，线程状态不残留）
-- **测试通过**：`components/DetailPanel.test.mjs`（13 例：thread 变体渲染锚点/消息/加载态 + ThreadPanel 轮询 `setInterval`/`THREAD_POLL_MS`/`document.hidden`/清理的源码断言）+ `lib/panel-state.test.mjs` 全绿；`tsc --noEmit` 干净；`npm run lint` 干净；全量 `node --test` 565/567 通过（2 例失败为存量环境依赖问题——`lib/skill-lock.test.mjs` 取真实 HOME、`app/api/models-config/test/route.ts` 被 `node --test` 误当测试文件加载 `next/server`——均与本次无关，文件自 repo bootstrap 后未改动）
+- **测试通过**：`components/DetailPanel.test.mjs`（14 例：thread 变体渲染锚点/消息/加载态 + ThreadPanel 轮询 `setInterval`/`THREAD_POLL_MS`/`document.hidden`/清理的源码断言 + 轮询自愈断言）+ `lib/panel-state.test.mjs` 全绿；`tsc --noEmit` 干净；`npm run lint` 干净；全量 `node --test` 566/568 通过（2 例失败为存量环境依赖问题——`lib/skill-lock.test.mjs` 取真实 HOME、`app/api/models-config/test/route.ts` 被 `node --test` 误当测试文件加载 `next/server`——均与本次无关，文件自 repo bootstrap 后未改动）
+
+**Code review 修正**：Spec 轴发现"初始拉取失败后锚点永不自愈"（`ThreadPanel` 轮询 `setAnchor` 在 `prev` 为 null 时丢弃 `body.anchor`，线程永久停留无锚点空列表，违反验收 3）——已修复为 `!prev || prev.id === body.anchor.id`（轮询自愈采纳锚点），并补源码断言测试。
 
 备注：同 commit 亦包含 01–03（panel-state 纯模块 / 状态解耦非长驻右栏 / 容器 + 人类资料卡），验收随本 commit 一并完成。

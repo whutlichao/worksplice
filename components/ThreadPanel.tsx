@@ -173,7 +173,8 @@ export function ThreadPanel({
         .then(async (res) => {
           if (!res.ok || cancelled) return;
           const body = (await res.json()) as { anchor: ChannelMessage; messages: ChannelMessage[] };
-          setAnchor((prev) => (prev && prev.id === body.anchor.id ? body.anchor : prev));
+          // 初始拉取失败（anchor 为 null）时轮询自愈：只要服务端锚点仍指向同一消息即采纳
+          setAnchor((prev) => (!prev || prev.id === body.anchor.id ? body.anchor : prev));
           setMessages((prev) => mergeIncomingMessages(prev, body.messages));
         })
         .catch(() => undefined);

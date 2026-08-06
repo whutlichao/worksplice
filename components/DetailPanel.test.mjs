@@ -157,3 +157,8 @@ test("ThreadPanel 轮询纪律：setInterval + THREAD_POLL_MS + document.hidden 
   assert.match(source, /document\.hidden/);
   assert.match(source, /clearInterval/);
 });
+
+test("ThreadPanel 轮询自愈：初始拉取失败后轮询补回锚点（!prev 分支采纳 body.anchor）", async () => {
+  const source = await readFile(new URL("../components/ThreadPanel.tsx", import.meta.url), "utf-8");
+  assert.match(source, /setAnchor\(\(prev\) => \(!prev \|\| prev\.id === body\.anchor\.id \? body\.anchor : prev\)\)/);
+});
