@@ -26,4 +26,4 @@
 
 **隔离实例实测**（临时 `WORKSPLICE_DATA_DIR` + 项目副本 + 端口 30142，避免污染真实数据）：启动即自动创建 Susan（`GET /api/members` 可见、办公室频道 + Owner 署名欢迎事件落库）；**重启（kill 后同数据目录再起）不重建**（Susan id 不变、办公室不重复建、欢迎事件不重复投）；7 条速查 curl 逐条 2xx；建频道/建 agent 事件消息经 curl 可见。真实 agent-loop 链路（事件 → wake → driver → 会话）在隔离实例的 Susan session jsonl 中可见房间标记（`[worksplice:target=<id> seq=N]` 落在办公室/`#all`/新建频道），模型侧回复为空系本机 openrouter 连通性，非机制问题——回复落库由服务层 E2E 确定性覆盖。
 
-类型检查（tsc --noEmit）0 错误、eslint 0 错误 0 警告（1 既有警告在 ChannelView.tsx，与本票无关）；全量测试 616 条中 615 绿，唯一失败为既有环境性 `skill-lock.test.mjs`（干净树同样失败，与 02/03/07 记录一致）；手动 curl 复验测试需隔离实例（无实例时按文档跳过，属预期）。
+类型检查（tsc --noEmit）0 错误、eslint 0 错误 0 警告（1 既有警告在 ChannelView.tsx，与本票无关）；全量测试 616 条中 615 绿，唯一失败为既有环境性 `skill-lock.test.mjs`（干净树同样失败，与 02/03/07 记录一致）；curl 复验测试（`memory-quickref-curl.test.mjs`，与 `system-guide-curl.test.mjs` 同款约定）需手动起隔离实例后运行——无实例时因连不上 30142 报错属预期（头部注释写明用法），非全量套件的一部分。

@@ -84,6 +84,10 @@ function fillPlaceholders(s) {
 
 /** 逐条回放速查表：成功类全部 2xx（表内无错误示例）。 */
 test("§9.2-5 MEMORY.md 速查 7 条 curl 全链路回放（全部 2xx）", () => {
+  // -G 回归守卫：buildArgs 对 -G 分支是"重合成 GET"而非透传，丢 -G 的改动不会自然失败——
+  // 显式断言搜索行保留 -G（否则 --data-urlencode 语义变成 POST body，服务端 405）
+  const searchRow = quickRefCurls().find((c) => c.includes("/api/search"));
+  assert.ok(searchRow.includes("-G"), "search quick-ref must keep -G (GET + --data-urlencode)");
   const curls = quickRefCurls();
   assert.equal(curls.length, 7, `expected 7 quick-ref curls, got ${curls.length}`);
   let executed = 0;
