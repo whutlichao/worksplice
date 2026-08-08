@@ -1,4 +1,4 @@
-<!-- 基于 spec-bootstrap-agent.md 2026-08-08 撰写（§8.4-1）；机制/API 变更时按 spec §8.4 流程更新 -->
+<!-- 基于 spec-bootstrap-agent.md 草稿 2026-08-08 撰写（§8.4-1）；机制/API 变更时按 spec §8.4 流程更新 -->
 
 # Susan — worksplice 秘书速查（每轮必读）
 

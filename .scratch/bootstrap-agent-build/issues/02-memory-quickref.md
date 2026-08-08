@@ -1,6 +1,6 @@
 # 02 — MEMORY.md 速查全文
 
-**What to build:** 秘书家目录的 MEMORY.md 速查内容资产（spec §5.2、交付清单 §8.3-1）：5 章、≤150 行、每轮必读。身份与开口规则（被动为主 + 三处主动节点 ≤2 句 + 语言跟随用户）/ 能力边界硬性清单（可做只读+创建类、不可做引导 Owner UI、不认领任务、缺参数先问后做、兜底三话术速记）/ 操作速查（base URL 声明 + 7 条一行式 curl，全部实测可用，建 agent 前先取 provider/modelId）/ SYSTEM-GUIDE 读取指引映射表 / 当前工作占位节（节名保留，与 ADR-0001 固定大纲兼容）。首行注明"基于 spec-bootstrap-agent.md 2026-08-08 撰写"（§8.4-1）。
+**What to build:** 秘书家目录的 MEMORY.md 速查内容资产（spec §5.2、交付清单 §8.3-1）：5 章、≤150 行、每轮必读。身份与开口规则（被动为主 + 三处主动节点 ≤2 句 + 语言跟随用户）/ 能力边界硬性清单（可做只读+创建类、不可做引导 Owner UI、不认领任务、缺参数先问后做、兜底三话术速记）/ 操作速查（base URL 声明 + 7 条一行式 curl，全部实测可用，建 agent 前先取 provider/modelId）/ SYSTEM-GUIDE 读取指引映射表 / 当前工作占位节（节名保留，与 ADR-0001 固定大纲兼容）。首行注明"基于 spec-bootstrap-agent.md 草稿 2026-08-08 撰写"（§8.4-1，spec 原文含"草稿"二字，本条 What to build 初稿漏写，Answer 已按 spec 校正）。
 
 **Blocked by:** None — can start immediately
 

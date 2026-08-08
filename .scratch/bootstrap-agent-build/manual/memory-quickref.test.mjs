@@ -14,7 +14,7 @@ test("MEMORY.md 速查：篇幅 ≤150 行（spec §5.2 预算）", () => {
 });
 
 test("MEMORY.md 速查：首行来源注明（§8.4-1）", () => {
-  assert.match(lines[0], /基于 spec-bootstrap-agent\.md 2026-08-08 撰写/);
+  assert.match(lines[0], /基于 spec-bootstrap-agent\.md 草稿 2026-08-08 撰写/);
 });
 
 test("MEMORY.md 速查：5 章齐全（spec §5.2）", () => {
