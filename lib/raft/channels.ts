@@ -1,4 +1,5 @@
 import { getDb } from "./db-singleton.ts";
+import { notifyAgentJoinedChannel, notifyChannelCreated, findSusanMember } from "./event-messages.ts";
 import type { ChannelRow, MemberRow } from "../data/db.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../data/schema.ts";
 
@@ -48,6 +49,12 @@ export function createChannel(input: {
     assertMember(memberId);
     getDb().addChannelMember(channel.id, memberId);
   }
+  // §7 新建公开频道必加：秘书静默加入（不触发欢迎事件；私有频道由创建者预勾选决定）。
+  if (channel.type === "public") {
+    const susan = findSusanMember();
+    if (susan) getDb().addChannelMember(channel.id, susan.id);
+  }
+  notifyChannelCreated(channel);
   return channel;
 }
 
@@ -68,7 +75,9 @@ export function joinChannel(
   if (channel.type === "private" && actorId !== OWNER_MEMBER_ID) {
     throw new Error("Only the owner can add members to a private channel");
   }
+  const isNewMember = !getDb().isChannelMember(channelId, memberId);
   getDb().addChannelMember(channelId, memberId);
+  if (isNewMember) notifyAgentJoinedChannel(channelId, memberId);
 }
 
 /**

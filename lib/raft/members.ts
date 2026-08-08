@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, statSync, writeFileSync } from "fs";
 import { isAbsolute, join, resolve } from "path";
 import { randomUUID } from "crypto";
 import { getDb } from "./db-singleton.ts";
+import { notifyAgentJoinedChannel } from "./event-messages.ts";
 import type { MemberRow, MemberStatus } from "../data/db.ts";
 import { BUILTIN_CHANNEL_ID } from "../data/schema.ts";
 import { agentHomeDir, buildMemoryTemplate, MEMORY_FILE_NAME } from "../data/dirs.ts";
@@ -160,6 +161,7 @@ export function createAgent(input: {
   });
   // #all 全员自动加入（§3.2）
   getDb().addChannelMember(BUILTIN_CHANNEL_ID, agent.id);
+  notifyAgentJoinedChannel(BUILTIN_CHANNEL_ID, agent.id);
   return agent;
 }
 
