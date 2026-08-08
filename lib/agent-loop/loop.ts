@@ -68,33 +68,78 @@ export function roomMarker(targetId: string, seq: number): string {
   return `[worksplice:target=${targetId} seq=${seq}]`;
 }
 
+/** 提取文本中首个完整平衡的 JSON 对象子串（字符串字面量内的 {} 不参与配对）。 */
+function extractJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 /** 解析 agent 的结构化回复；非 JSON（或 json 代码块）按整段文本作为回复内容。 */
 export function parseAgentAction(text: string): AgentAction {
   const cleaned = text
     .trim()
     .replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/, "$1")
     .trim();
+  // 整串直接解析失败时（模型常夹带 <|eom|> 之类的记号或前后散文），
+  // 在杂质文本里提取首个完整 JSON 对象再试；仅当对象符合协议形状（有合法 action 字段）
+  // 才采纳，避免把含 JSON 字面量的普通散文误判成协议回复。
+  let parsed: Record<string, unknown> | null = null;
   try {
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const action: AgentAction["action"] = parsed.action === "ignore" ? "ignore" : "reply";
-      const content = typeof parsed.content === "string" ? parsed.content.trim() : "";
-      const onConflict: ConflictChoice = CONFLICT_CHOICES.has(String(parsed.onConflict))
-        ? (parsed.onConflict as ConflictChoice)
-        : "revise";
-      let task: AgentAction["task"];
-      const rawTask = parsed.task;
-      if (rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)) {
-        const number = Number((rawTask as Record<string, unknown>).number);
-        const op = String((rawTask as Record<string, unknown>).op);
-        if (Number.isInteger(number) && number > 0 && TASK_OPS.has(op as TaskOp)) {
-          task = { number, op: op as TaskOp };
-        }
-      }
-      return task ? { action, content, onConflict, task } : { action, content, onConflict };
-    }
+    const direct = JSON.parse(cleaned);
+    if (direct && typeof direct === "object" && !Array.isArray(direct)) parsed = direct;
   } catch {
-    // 非 JSON：整段文本即回复
+    const candidate = extractJsonObject(cleaned);
+    if (candidate) {
+      try {
+        const extracted = JSON.parse(candidate) as Record<string, unknown>;
+        if (
+          extracted &&
+          typeof extracted === "object" &&
+          !Array.isArray(extracted) &&
+          (extracted.action === "reply" || extracted.action === "ignore")
+        ) {
+          parsed = extracted;
+        }
+      } catch {
+        // 提取出的候选仍是坏 JSON：按明文处理
+      }
+    }
+  }
+  if (parsed) {
+    const action: AgentAction["action"] = parsed.action === "ignore" ? "ignore" : "reply";
+    const content = typeof parsed.content === "string" ? parsed.content.trim() : "";
+    const onConflict: ConflictChoice = CONFLICT_CHOICES.has(String(parsed.onConflict))
+      ? (parsed.onConflict as ConflictChoice)
+      : "revise";
+    let task: AgentAction["task"];
+    const rawTask = parsed.task;
+    if (rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)) {
+      const number = Number((rawTask as Record<string, unknown>).number);
+      const op = String((rawTask as Record<string, unknown>).op);
+      if (Number.isInteger(number) && number > 0 && TASK_OPS.has(op as TaskOp)) {
+        task = { number, op: op as TaskOp };
+      }
+    }
+    return task ? { action, content, onConflict, task } : { action, content, onConflict };
   }
   return { action: "reply", content: cleaned || text.trim(), onConflict: "revise" };
 }
