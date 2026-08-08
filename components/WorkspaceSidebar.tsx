@@ -359,24 +359,47 @@ export function WorkspaceSidebar({
           type="button"
           onClick={onOpenReminders}
           title={t("reminders.all")}
+          aria-label={t("reminders.all")}
           style={{
-            flex: 1,
+            position: "relative",
+            flexShrink: 0,
+            width: 34,
             height: 28,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 5,
             background: scheduledReminderCount > 0 ? "var(--yellow)" : "#ffffff",
             color: INK,
             border: `2px solid ${INK}`,
             cursor: "pointer",
-            fontFamily: "var(--font-hanken)",
-            fontWeight: 700,
-            fontSize: 12,
           }}
         >
-          <AlarmClock size={13} />
-          {scheduledReminderCount > 0 ? scheduledReminderCount : t("reminders.all")}
+          <AlarmClock size={18} strokeWidth={2.2} />
+          {scheduledReminderCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: -8,
+                right: -8,
+                minWidth: 16,
+                height: 16,
+                padding: "0 3px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#ffffff",
+                border: `2px solid ${INK}`,
+                borderRadius: "50%",
+                fontFamily: "var(--font-space-mono)",
+                fontSize: 10,
+                fontWeight: 700,
+                lineHeight: 1,
+                color: INK,
+              }}
+            >
+              {scheduledReminderCount > 99 ? "99+" : scheduledReminderCount}
+            </span>
+          )}
         </button>
         <button
           type="button"
