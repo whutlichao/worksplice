@@ -52,7 +52,7 @@ test("MEMORY.md 速查：7 条一行式 curl（频道/成员/消息/频道建/ag
     "-X POST http://127.0.0.1:30141/api/messages",
     "-X POST http://127.0.0.1:30141/api/channels",
     "-X POST http://127.0.0.1:30141/api/members",
-    "/api/search?q=",
+    "--data-urlencode \"q=关键词\" http://127.0.0.1:30141/api/search",
     "-X POST http://127.0.0.1:30141/api/reminders",
   ]) {
     assert.ok(joined.includes(endpoint), `missing curl for ${endpoint}`);

@@ -40,7 +40,7 @@
 | 发消息 | `curl -s -X POST http://127.0.0.1:30141/api/messages -H 'Content-Type: application/json' -d '{"targetId":"#all","content":"你好"}'` |
 | 建频道 | `curl -s -X POST http://127.0.0.1:30141/api/channels -H 'Content-Type: application/json' -d '{"name":"新频道","type":"public","description":"描述"}'` |
 | 建 agent | `curl -s -X POST http://127.0.0.1:30141/api/members -H 'Content-Type: application/json' -d '{"name":"新成员","provider":"<provider>","modelId":"<modelId>","thinkingLevel":"max"}'` |
-| 搜索 | `curl -s "http://127.0.0.1:30141/api/search?q=关键词"` |
+| 搜索 | `curl -s -G --data-urlencode "q=关键词" http://127.0.0.1:30141/api/search` |
 | 设提醒 | `curl -s -X POST http://127.0.0.1:30141/api/reminders -H 'Content-Type: application/json' -d '{"title":"提醒标题","fireAt":"2026-08-08T20:00:00.000Z","recurrence":"every:2m","targetId":"#all"}'` |
 
 ## 4. SYSTEM-GUIDE.md 读取指引
