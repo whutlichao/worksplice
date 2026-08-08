@@ -5,6 +5,8 @@ import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
 import { ModelPicker } from "./ModelPicker";
 import type { ModelsData } from "@/lib/models-cache";
+import type { MemberRow } from "@/lib/data/db";
+import { hasLiveSusan, resolveBootstrapModel } from "@/lib/secretary-bootstrap";
 
 const INK = "#141111";
 
@@ -44,13 +46,20 @@ function defaultThinkingLevel(
 
 /**
  * 创建 agent（ADR-0001）：不选目录——家目录自动生成；模型/推理强度必选（预选全局默认）。
+ * 启动助手入口（spec §6.3）：成员列表无存活 Susan 时显示「创建启动助手」按钮——模型已配置
+ * → 直接创建并走 04 完整初始化流程（POST /api/secretary/init）；未配置 → 引导打开模型配置。
+ * 与普通表单并列互不干扰（表单可建任意 agent，含与 Susan 同名的手动边角，spec §6.4）。
  */
 export function CreateAgentModal({
   onClose,
   onCreated,
+  agents,
+  onOpenModelsConfig,
 }: {
   onClose: () => void;
   onCreated: () => void;
+  agents: MemberRow[];
+  onOpenModelsConfig: () => void;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState("");
@@ -60,6 +69,7 @@ export function CreateAgentModal({
   const [model, setModel] = useState<{ provider: string; modelId: string } | null>(null);
   const [thinkingLevel, setThinkingLevel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bootstrapBusy, setBootstrapBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 模型列表（全局默认 scope——创建时还没有项目目录）；预选全局默认模型
@@ -95,6 +105,37 @@ export function CreateAgentModal({
   const canSubmit =
     name.trim().length > 0 && model !== null && thinkingLevel !== null && !busy;
 
+  // 启动助手（spec §6.3）：无存活 Susan 时显示；点击——模型已配置 → 直接创建走 04 初始化，
+  // 未配置 → 引导打开模型配置（配置完成后再点即可创建）
+  const showBootstrap = !hasLiveSusan(agents);
+
+  const bootstrap = async () => {
+    if (bootstrapBusy) return;
+    const configured = resolveBootstrapModel(models);
+    if (!configured) {
+      onOpenModelsConfig();
+      return;
+    }
+    setBootstrapBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/secretary/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: configured.provider,
+          modelId: configured.modelId,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? "Failed to create secretary");
+      onCreated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBootstrapBusy(false);
+    }
+  };
+
   const submit = async () => {
     if (!canSubmit) return;
     setBusy(true);
@@ -123,6 +164,44 @@ export function CreateAgentModal({
   return (
     <BrutalModal title={t("agent.create")} onClose={onClose}>
       <div style={{ padding: "4px 16px 16px" }}>
+        {showBootstrap && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: "12px 12px 10px",
+              border: `2px dashed ${INK}`,
+              background: "#fffdf5",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <button
+              type="button"
+              disabled={bootstrapBusy || modelsLoading}
+              onClick={() => void bootstrap()}
+              style={{
+                flexShrink: 0,
+                padding: "8px 12px",
+                fontFamily: "var(--font-hanken)",
+                fontWeight: 700,
+                fontSize: 13,
+                background: "var(--yellow)",
+                color: "var(--ink)",
+                border: `2px solid ${INK}`,
+                boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
+                cursor: bootstrapBusy || modelsLoading ? "wait" : "pointer",
+                opacity: bootstrapBusy || modelsLoading ? 0.7 : 1,
+              }}
+            >
+              {bootstrapBusy ? "…" : t("agent.bootstrap")}
+            </button>
+            <span style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45 }}>
+              {t("agent.bootstrapHint")}
+            </span>
+          </div>
+        )}
+
         <label style={LABEL_STYLE} htmlFor="agent-name">
           {t("agent.name")}
         </label>

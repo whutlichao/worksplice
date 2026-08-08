@@ -495,6 +495,8 @@ export const enLocale: LocalePlugin = {
     "attachments.remove": "Remove file",
     "attachments.tooBig": "{name} exceeds the 50 MB limit",
     "agent.create": "Create agent",
+    "agent.bootstrap": "Create secretary",
+    "agent.bootstrapHint": "One-click create Susan, the secretary — joins every channel with the system manual ready",
     "agent.name": "Name",
     "agent.description": "Description (optional)",
     "agent.workspace": "Workspace",

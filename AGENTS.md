@@ -105,6 +105,8 @@ app/api/
   reminders/[id]/cancel/route.ts  POST cancel（仅 scheduled → canceled，cron 不再触发）
   reminders/[id]/log/route.ts     GET 生命周期事件流（schedule/fire/reschedule/snooze/update/cancel/error）
   search/route.ts                 GET ?q=&limit= — FTS5 全文搜索（结果 = id + 命中上下文摘要 + 归属 channel/thread + 作者）
+  secretary/init/route.ts         POST 启动助手入口（spec-bootstrap-agent §6.3）：薄封装 initSecretaryFlow（§6.2 五步初始化），
+                                  provider/modelId/thinkingLevel 可选（缺省继承全局默认）
 
 lib/raft/                         raft 服务层（app/api 仅薄封装）
   channels.ts                     create/join/leave/archive/members + mute/unmute/getChannelMute（§3.2 mute）

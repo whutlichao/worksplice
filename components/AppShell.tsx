@@ -334,10 +334,16 @@ export function AppShell() {
       )}
       {createAgentOpen && (
         <CreateAgentModal
+          agents={agents}
           onClose={() => setCreateAgentOpen(false)}
           onCreated={() => {
             setCreateAgentOpen(false);
             setRefreshKey((k) => k + 1);
+          }}
+          onOpenModelsConfig={() => {
+            // 启动助手：模型未配置 → 引导打开模型配置（spec §6.3），配置完成后再点即可创建
+            setCreateAgentOpen(false);
+            setModelsOpen(true);
           }}
         />
       )}

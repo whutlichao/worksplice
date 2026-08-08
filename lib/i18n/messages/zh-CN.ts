@@ -495,6 +495,8 @@ export const zhCNLocale: LocalePlugin = {
     "attachments.remove": "移除附件",
     "attachments.tooBig": "{name} 超过 50MB 上限",
     "agent.create": "创建 agent",
+    "agent.bootstrap": "创建启动助手",
+    "agent.bootstrapHint": "一键创建秘书 Susan——自动加入全部频道并备好系统手册，马上就能 @ 它",
     "agent.name": "名称",
     "agent.description": "描述（可选）",
     "agent.workspace": "工作区",
