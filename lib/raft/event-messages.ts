@@ -86,3 +86,15 @@ export function notifyChannelCreated(channel: ChannelRow): void {
   const targetId = isChannelMember(channel.id, susan.id) ? channel.id : BUILTIN_CHANNEL_ID;
   deliverEventMessage(targetId, `${mentionText(susan.name)} 新频道 #${channel.name} 已建立`);
 }
+
+/** 节点 3 欢迎事件正文（spec §4.1/§6.2-⑤，构建 effort ticket 04）：只含关注对象，欢迎语由秘书回复。 */
+export const SECRETARY_WELCOME_CONTENT = `${mentionText(SUSAN_MEMBER_NAME)} 欢迎入职——这是你的办公室频道`;
+
+/**
+ * 节点 3：办公室频道欢迎语（spec §4.1/§6.2-⑤，构建 effort ticket 04）——秘书初始化流程
+ * 以 Owner 署名向办公室频道投事件消息 → @mention 穿透唤醒秘书 → 其正常回复欢迎语（≤2 句）。
+ * 铁律：不以秘书署名触发（loop 对"drain 到的全是自己的消息"直接 noop）。
+ */
+export function notifySecretaryWelcome(channelId: string): void {
+  deliverEventMessage(channelId, SECRETARY_WELCOME_CONTENT);
+}
