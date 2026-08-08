@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlarmClock, Bell, BellOff, Check, CornerDownRight, FileText, Link, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { MentionText } from "./MentionText";
@@ -1637,6 +1637,30 @@ export function ChannelView({
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** 消息流滚动位置保存（tasks 与 messages 共用一个 main 滚动容器：切到任务板时内容变矮，
+   *  浏览器会把 scrollTop 钳制到 0，切回来即丢位置——切走前按 channel 记下，切回时恢复）。 */
+  const savedScrollRef = useRef<{ channelId: string; top: number } | null>(null);
+
+  const handleTabChange = useCallback(
+    (next: CenterTab) => {
+      if (tab === "messages" && next !== "messages") {
+        savedScrollRef.current = {
+          channelId: channel?.id ?? "",
+          top: scrollRef.current?.scrollTop ?? 0,
+        };
+      }
+      onTabChange(next);
+    },
+    [tab, channel?.id, onTabChange],
+  );
+
+  useLayoutEffect(() => {
+    if (tab !== "messages") return;
+    const saved = savedScrollRef.current;
+    if (!saved || saved.channelId !== channel?.id) return;
+    savedScrollRef.current = null;
+    scrollRef.current?.scrollTo({ top: saved.top });
+  }, [tab, channel?.id]);
 
   const loadPage = useCallback(
     async (targetId: string, before?: number) => {
@@ -2642,7 +2666,7 @@ export function ChannelView({
             type="button"
             role="tab"
             aria-selected={tab === tabId}
-            onClick={() => onTabChange(tabId)}
+            onClick={() => handleTabChange(tabId)}
             style={tabButtonStyle(tab === tabId)}
           >
             {tabId === "messages" ? t("center.messages") : t("center.tasks")}
