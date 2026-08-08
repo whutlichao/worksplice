@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
 import { PixelAvatar } from "./PixelAvatar";
+import { liveSusanMemberId, precheckSusanForPrivateChannel } from "@/lib/secretary-bootstrap";
 import type { MemberRow } from "@/lib/data/db";
 
 const INK = "#141111";
@@ -48,9 +49,19 @@ export function CreateChannelModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // §7 新建私有频道默认预勾选 Susan（可取消）：活存 Susan 的 id；用户手动勾/取消过 Susan 后不再自动补。
+  const susanId = liveSusanMemberId(agents);
+  const susanTouchedRef = useRef(false);
+
   const canSubmit = name.trim().length > 0 && !busy;
 
+  const selectType = (value: "public" | "private") => {
+    setType(value);
+    setMemberIds((prev) => precheckSusanForPrivateChannel(prev, value, susanId, susanTouchedRef.current));
+  };
+
   const toggleMember = (id: string) => {
+    if (id === susanId) susanTouchedRef.current = true;
     setMemberIds((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
   };
 
@@ -102,7 +113,7 @@ export function CreateChannelModal({
             <button
               key={value}
               type="button"
-              onClick={() => setType(value)}
+              onClick={() => selectType(value)}
               style={{
                 flex: 1,
                 padding: "7px 10px",
