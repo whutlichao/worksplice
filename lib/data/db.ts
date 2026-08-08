@@ -376,6 +376,13 @@ export class RaftStore {
       | undefined;
   }
 
+  /** 按名字查原始行（含 soft-deleted）：秘书唯一性判定（spec-bootstrap-agent §6.1，判定键 = 名字 + 软删标记）。 */
+  getMemberByName(name: string): MemberRow | undefined {
+    return this.db.prepare("SELECT * FROM members WHERE name = ? LIMIT 1").get(name) as
+      | MemberRow
+      | undefined;
+  }
+
   insertMember(input: {
     id?: string;
     type: MemberType;
