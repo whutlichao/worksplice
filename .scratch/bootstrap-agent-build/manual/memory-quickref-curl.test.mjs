@@ -147,7 +147,7 @@ test("§9.2-2 建 agent → 事件消息可见（@Susan 新成员欢迎）", () 
   assert.ok(created.id, "agent created");
 
   const page = JSON.parse(curl([`${BASE}/api/channels/%23all/messages`]));
-  const eventMsg = page.messages.find((m) => m.content.includes("@Susan 新成员"));
+  const eventMsg = page.messages.find((m) => m.content.includes(`@Susan 新成员 @${name} 加入频道`));
   assert.ok(eventMsg, "agent-created event message must be visible via curl");
   assert.equal(eventMsg.author_id, "owner");
   assert.equal(eventMsg.content, `@Susan 新成员 @${name} 加入频道`);
