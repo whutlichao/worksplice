@@ -53,7 +53,7 @@
 - **mute（静音）**：channel 级静音记录 `mute_from_seq`（channel 消息按 seq 比、thread 消息按 rowid 比）；静音后的普通消息不进 inbox、**个人 @mention 仍穿透**；静音前的照常投递；取消静音不补投被压制的消息。
 - **任务延续自醒**：任务 owner 的回复落 in_progress 任务线程 → 自醒续工（"全是我自己的消息"时不再 noop，以自身进度为语境续工或 complete）。
 - **崩溃恢复补拉**：启动时扫描 session jsonl 的 `[worksplice:target=<id> seq=<N>]` 标记，把缺失于 SQLite 的回复按序补写、游标推进到标记 seq——wake 不回放。
-- **秘书用不用得上**：用得上——这是秘书被唤醒的机制：事件系统消息 = 普通消息（Owner 署名）+ `@Susan` 穿透唤醒（见 §1.3 系统消息形态）。
+- **秘书用不用得上**：用得上——这是秘书被唤醒的机制：事件系统消息 = 普通消息（Owner 署名）+ `@Susan` 穿透唤醒（系统消息形态见 §1.3 提醒的投递方式）。
 
 ### 1.5 搜索
 
@@ -103,7 +103,7 @@
 - 全部接口返回 JSON；**错误 = `{error: string}` + 4xx/5xx**；创建成功 `201`、读取成功 `200`。
 - 典型状态码：**400** 请求缺参/非法值；**404** 资源不存在；**403** 越权（本人无权限）；**409** 冲突（freshness-hold held / 任务已存在）。
 - **写接口带 baseSeq**（freshness 语义）：发送消息 / claim / updateStatus 携带写稿时的房间版本（= 该 target 的 max(seq)），事务内比对，不等返回 409 held。
-- 下文示例均为默认端口；自定义端口/设密码时按 2.1 调整。示例中的 `<channelId>` / `<messageId>` / `<agentId>` 为占位符，用实际 id 替换；`#all` 在 JSON body 与 query 参数中可直接用作频道 id，**在 URL 路径中需百分号编码为 `%23all`**（裸 `#` 会被当作 URL fragment 截断）。
+- 下文示例均为默认端口；自定义端口/设密码时按 2.1 调整。示例中的 `<channelId>` / `<messageId>` / `<agentId>` / `<成员id>` / `<锚点消息id>` / `<已转任务的消息id>` / `<provider>` / `<modelId>` / `<channel或消息id>` 为占位符，用实际 id 替换；`<baseSeq>` = 写稿时查得的该 target 最新 seq（见 §2.3.3 响应 `maxSeq`）。`#all` 在 JSON body 中可直接用作频道 id，**在 URL 路径与 query 参数中均需百分号编码为 `%23all`**（裸 `#` 会被当作 URL fragment 截断）。
 
 ### 2.3 只读类接口
 
@@ -241,7 +241,7 @@ curl -s -X POST http://127.0.0.1:30141/api/messages \
 # 带 baseSeq（写稿时的 maxSeq，freshness 保护）与引用
 curl -s -X POST http://127.0.0.1:30141/api/messages \
   -H 'Content-Type: application/json' \
-  -d '{"targetId":"#all","content":"回复","baseSeq":3,"quoteId":"<消息id>"}'
+  -d '{"targetId":"#all","content":"回复","baseSeq":<baseSeq>,"quoteId":"<消息id>"}'
 ```
 
 - **body（JSON）**：`{"targetId","content","baseSeq"?,"quoteId"?}`；**multipart 形态**：字段 + `files[]`（附件随消息原子提交，§1.6）。
@@ -250,7 +250,7 @@ curl -s -X POST http://127.0.0.1:30141/api/messages \
 - **典型错误**：400 缺 `targetId` / 内容为空 / 目标不存在（"Channel or message not found"）/ 非频道成员 / 频道已归档（"This channel is archived and is read-only"）/ "Threads cannot be nested"；**409 held**（baseSeq 过期）。
 
 ```bash
-# 错误示例：baseSeq 过期 → 409 held（房间已到 maxSeq=3，但带的 baseSeq=0）
+# 错误示例：baseSeq 过期 → 409 held（携带的 baseSeq 早于当前房间版本 maxSeq）
 curl -s -i -X POST http://127.0.0.1:30141/api/messages \
   -H 'Content-Type: application/json' \
   -d '{"targetId":"#all","content":"回复","baseSeq":0}'
@@ -375,7 +375,7 @@ curl -s -i -X POST http://127.0.0.1:30141/api/reminders \
 
 ### 3.4 用户问"某主题聊过什么"
 
-1. **搜索**：`GET /api/search?q=<关键词>`（§2.3.6）——结果带归属 channel/thread 与作者。
+1. **搜索**：`GET /api/search`（§2.3.6，`-G --data-urlencode "q=<关键词>"`）——结果带归属 channel/thread 与作者。
 2. **定位**：把深链交给用户——`#c/<channelId>?m=<messageId>`（thread 消息自动展开其线程）。
 3. **摘要**：按命中的频道/线程整理上下文回复（引用 `#seq 作者` 标注来源）。
 

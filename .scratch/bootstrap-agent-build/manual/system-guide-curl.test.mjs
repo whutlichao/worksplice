@@ -1,6 +1,6 @@
 // SYSTEM-GUIDE.md 手册 curl 实测回放（spec §8.3-2：curl 示例逐个实测）
 // 用法：先起隔离实例（临时 WORKSPLICE_DATA_DIR + 端口），再
-//   node --test .scratch/bootstrap-agent-build/manual/system-guide-curl.test.mjs
+//   PORT=30142 SERVER_CWD=<实例目录> node --test .scratch/bootstrap-agent-build/manual/system-guide-curl.test.mjs
 // 环境变量 PORT 覆盖目标端口（默认 30142，手册正文为默认 30141，回放时替换）。
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -13,6 +13,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const BASE_PORT = process.env.PORT ?? "30142";
 const BASE = `http://127.0.0.1:${BASE_PORT}`;
 const HOSTPORT = `127.0.0.1:${BASE_PORT}`;
+const TEST_PROVIDER = "opencode-go";
+const TEST_MODEL = "deepseek-v4-flash";
+const TEST_THINKING = "max";
 const manual = fs.readFileSync(path.join(here, "SYSTEM-GUIDE.md"), "utf8");
 
 const curl = (args) =>
@@ -34,7 +37,7 @@ const created = JSON.parse(
   curl([
     "-X", "POST", `${BASE}/api/members`,
     "-H", "Content-Type: application/json",
-    "-d", JSON.stringify({ name: "回放测试成员", provider: "opencode-go", modelId: "deepseek-v4-flash", thinkingLevel: "max" }),
+    "-d", JSON.stringify({ name: "回放测试成员", provider: TEST_PROVIDER, modelId: TEST_MODEL, thinkingLevel: TEST_THINKING }),
   ]),
 ).agent;
 const agentId = created.id;
@@ -58,25 +61,34 @@ try {
   ]);
 } catch { /* 目录不存在等忽略 */ }
 
-const seen = new Set();
-
-/** 解析手册 bash 代码块中的 curl 命令（# 注释行跳过、\ 续行合并），返回 {cmd, url, args, isError} */
+/**
+ * 解析手册 bash 代码块中的 curl 命令。
+ * 返回 [{cmd, expected}]: cmd = 合并续行的命令；expected = 错误示例（-i）后面
+ * `# → HTTP/1.1 <code>` 注释行声明的期望状态码（无则 null）。
+ * # 注释行跳过；\ 续行合并。期望状态码注释跟在命令之后，更新最近一条结果。
+ */
 function parseCurls() {
   const results = [];
   const re = /```bash\n([\s\S]*?)```/g;
   let m;
   while ((m = re.exec(manual)) !== null) {
     const block = m[1];
-    const lines = block.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
     let buf = "";
-    for (const line of lines) {
-      buf += line.trim().replace(/\\$/, "");
+    for (const line of block.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("#")) {
+        const match = trimmed.match(/^# → HTTP\/1\.1 (\d+)/);
+        if (match) {
+          const last = results[results.length - 1];
+          if (last && last.expected === null) last.expected = Number(match[1]);
+        }
+        continue;
+      }
+      buf += trimmed.replace(/\\$/, "");
       if (line.trimEnd().endsWith("\\")) continue;
-      if (!buf.startsWith("curl ")) { buf = ""; continue; }
-      results.push(buf);
+      if (buf.startsWith("curl ")) results.push({ cmd: buf, expected: null });
       buf = "";
     }
-    if (buf.startsWith("curl ")) results.push(buf);
   }
   return results;
 }
@@ -119,53 +131,63 @@ function buildArgs(cmd) {
   return { method, url, headers: args };
 }
 
+function liveMaxSeq() {
+  const page = JSON.parse(curl([`${BASE}/api/channels/${channelId === "#all" ? "%23all" : channelId}/messages`]));
+  return page.maxSeq;
+}
+
 function fillPlaceholders(s) {
   const encodedChannel = channelId === "#all" ? "%23all" : channelId;
   return s
     .replace(/<channelId>/g, encodedChannel)
     .replace(/<消息id>/g, messageId)
+    .replace(/<已转任务的消息id>/g, messageId)
     .replace(/<agentId>/g, agentId)
     .replace(/<成员id>/g, agentId)
-    .replace(/<provider>/g, "opencode-go")
-    .replace(/<modelId>/g, "deepseek-v4-flash")
+    .replace(/<provider>/g, TEST_PROVIDER)
+    .replace(/<modelId>/g, TEST_MODEL)
+    .replace(/<锚点消息id>/g, messageId)
+    .replace(/<channel或消息id>/g, encodedChannel)
+    .replace(/<baseSeq>/g, String(liveMaxSeq()))
     .replace(/127\.0\.0\.1:30141/g, HOSTPORT);
 }
 
+/** 命令仍有未填充占位符（body/URL 任一位置）→ 不可回放，跳过。 */
+function isFillable(cmd) {
+  const filled = fillPlaceholders(cmd);
+  return !filled.includes("<");
+}
+
+const seen = new Set();
+
 test("SYSTEM-GUIDE.md 手册：成功类 curl 全部可回放（2xx）", () => {
-  const curls = parseCurls().filter((c) => !c.includes("-i")); // 错误示例用 -i 标记，另测
+  const curls = parseCurls().filter((c) => c.expected === null); // 错误示例有期望状态码，另测
   assert.ok(curls.length >= 20, `expected >=20 curls, got ${curls.length}`);
   let executed = 0;
-  for (const raw of curls) {
-    const { method, url, headers } = buildArgs(fillPlaceholders(raw));
-    if (url.includes("<")) continue; // 含未填充占位符的跳过（错误示例用 -i 标记，另测）
-    if (seen.has(url + method)) continue;
-    seen.add(url + method);
+  for (const { cmd } of curls) {
+    if (!isFillable(cmd)) continue;
+    const key = fillPlaceholders(cmd);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const { method, url, headers } = buildArgs(fillPlaceholders(cmd));
     const code = jsonStatus([...(method === "GET" ? [] : ["-X", method]), ...headers, url]);
     assert.ok(
       code >= 200 && code < 300,
-      `FAIL ${method} ${url} => ${code}\ncmd: ${raw}`,
+      `FAIL ${method} ${url} => ${code}\ncmd: ${cmd}`,
     );
     executed++;
   }
   assert.ok(executed >= 8, `expected >=8 unique success curls, got ${executed}`);
 });
 
-test("SYSTEM-GUIDE.md 手册：错误示例 400/404/409 可回放（手册标注的语义一致）", () => {
-  const curls = parseCurls().filter((c) => c.includes("-i"));
+test("SYSTEM-GUIDE.md 手册：错误示例 400/404/409 与手册注释声明一致", () => {
+  const curls = parseCurls().filter((c) => c.expected !== null);
   assert.ok(curls.length >= 5, `expected >=5 error examples, got ${curls.length}`);
-  for (const raw of curls) {
-    const { method, url, headers } = buildArgs(fillPlaceholders(raw));
-    if (url.includes("<")) continue;
+  for (const { cmd, expected } of curls) {
+    if (!isFillable(cmd)) continue;
+    const { method, url, headers } = buildArgs(fillPlaceholders(cmd));
     const code = jsonStatus([...(method === "GET" ? [] : ["-X", method]), ...headers, url]);
-    const expects409 = raw.includes("baseSeq") || raw.includes("转两次");
-    const expects404 = raw.includes("不存在");
-    if (expects409) {
-      assert.equal(code, 409, `expected 409 for: ${raw} (got ${code})`);
-    } else if (expects404) {
-      assert.equal(code, 404, `expected 404 for: ${raw} (got ${code})`);
-    } else {
-      assert.equal(code, 400, `expected 400 for: ${raw} (got ${code})`);
-    }
+    assert.equal(code, expected, `expected ${expected} for: ${cmd} (got ${code})`);
   }
 });
 
