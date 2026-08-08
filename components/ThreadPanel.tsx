@@ -9,6 +9,7 @@ import { Composer, MessageRow, mergeIncomingMessages, type ChannelMessage, type 
 import { ReminderModal } from "./ReminderModal";
 import type { MemberRow } from "@/lib/data/db";
 import { memberPanel, notifyPinnedChanged, type PanelContent } from "@/lib/panel-state";
+import { composerMentionCandidates } from "@/lib/mention";
 
 const INK = "#141111";
 /** 面板线程轮询间隔（与中央轮询同纪律：3s、后台 tab 暂停、卸载清理）。 */
@@ -67,15 +68,9 @@ export function ThreadPanel({
   // 👥 频道成员 id 集合（@ 补全的 joined 标记 + mention 渲染）
   const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(new Set());
 
-  /** @ 提及补全候选 = 全部 agent + joined 标记（§3.2，镜像中央 Composer 的形态）。 */
+  /** @ 提及补全候选 = 频道成员 agent（§3.2，镜像中央 Composer；非成员手输名字仍可穿透唤醒）。 */
   const mentionable = useMemo(
-    () =>
-      (agents ?? []).map((a) => ({
-        id: a.id,
-        name: a.name,
-        status: a.status,
-        joined: channelMemberIds.has(a.id),
-      })),
+    () => composerMentionCandidates(agents ?? [], channelMemberIds),
     [agents, channelMemberIds],
   );
 

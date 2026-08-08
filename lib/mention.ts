@@ -4,6 +4,8 @@
  * 渲染侧额外跳过代码围栏与行内代码内的 @token，避免破坏 markdown 结构。
  */
 
+import type { MemberStatus } from "./data/db.ts";
+
 export interface MentionMember {
   id: string;
   name: string;
@@ -83,4 +85,14 @@ export function parseMentionTokens(
     });
   }
   return tokens;
+}
+
+/** Composer @ 补全候选（§3.2）：仅频道成员 agent，按 agent 列表序；非成员不列入菜单（手输名字仍可穿透唤醒）。 */
+export function composerMentionCandidates(
+  agents: Array<{ id: string; name: string; status: MemberStatus }>,
+  channelMemberIds: ReadonlySet<string>,
+): Array<{ id: string; name: string; status: MemberStatus; joined: boolean }> {
+  return agents
+    .filter((a) => channelMemberIds.has(a.id))
+    .map((a) => ({ id: a.id, name: a.name, status: a.status, joined: true }));
 }

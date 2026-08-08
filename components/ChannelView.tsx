@@ -12,6 +12,7 @@ import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
 import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
 import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/data/db";
 import { extractAtQuery, buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
+import { composerMentionCandidates } from "@/lib/mention";
 import { memberPanel, subscribePinnedChanged, type PanelContent } from "@/lib/panel-state";
 
 export type CenterTab = "messages" | "tasks";
@@ -1610,6 +1611,11 @@ export function ChannelView({
       })),
     [agents, channelMemberIds],
   );
+  /** Composer @ 补全候选 = 频道成员 agent（§3.2；非成员不列入菜单，手输名字仍可穿透唤醒）。 */
+  const composerMembers = useMemo(
+    () => composerMentionCandidates(agents, channelMemberIds),
+    [agents, channelMemberIds],
+  );
 
   // §3.2 mention 渲染成员表（agents + owner 全量，高亮解析用）
   const mentionMembers = useMemo(
@@ -2750,7 +2756,7 @@ export function ChannelView({
           onAsTaskChange={setAsTask}
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
-          members={mentionable}
+          members={composerMembers}
         />
       )}
 
