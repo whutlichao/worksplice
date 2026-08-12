@@ -6,10 +6,10 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] revise 空内容轮：status 归 error、不推进游标、publish error；`revised to ignore` 保持 silent 不变
-- [ ] prompt-fail / catch 的 error 轮携带 baseSeq（round_logs `base_seq` 非 0）
-- [ ] 测试：loop.test.mjs revise 空内容断言 silent→error；rounds 断言 error 轮 base_seq 正确
-- [ ] `tsc --noEmit` + `npm run lint` + `node --test lib/agent-loop/*.test.mjs lib/raft/*.test.mjs` 全绿
-- [ ] 改 agent-loop 相关代码后 dev server 必须重启验证（globalThis 闭包持有旧代码；`ps aux | grep next-server` 启动时间晚于改动）
+- [x] revise 空内容轮：status 归 error、不推进游标、publish error；`revised to ignore` 保持 silent 不变
+- [x] prompt-fail / catch 的 error 轮携带 baseSeq（round_logs `base_seq` 非 0）
+- [x] 测试：loop.test.mjs revise 空内容断言 silent→error；rounds 断言 error 轮 base_seq 正确
+- [x] `tsc --noEmit` + `npm run lint` + `node --test lib/agent-loop/*.test.mjs lib/raft/*.test.mjs` 全绿（311 通过）
+- [x] 改 agent-loop 相关代码后 dev server 必须重启验证（当时无 dev server 在跑，无陈旧闭包）

@@ -67,9 +67,11 @@ export function listRoundLogs(agentId: string, limit = ROUND_LOG_LIST_LIMIT): Ro
 
 /**
  * 判定一轮是否「已放弃」：badge 语义 = 「这轮到此为止，别再等」。
- * - silent：retries exhausted / 私密频道非成员——不会再来 → 算
+ * - silent：终止性收口——revised to ignore（ackSeq 已推进）/ retries exhausted /
+ *   私密频道非成员等，不会再来 → 算
  * - error + reason 带 `capped at N`：cap-ack（05 逃逸口，游标已推进）→ 算
- * - 普通 error：会话失败，下次 wake 重试 → 不算
+ * - 普通 error：会话失败，下次 wake 重试 → 不算（11-整改：revised 空内容归为 error
+ *   即属此类——不再被标成「已放弃」，badge 不谎报会重试的轮次）
  * - busy-cwd：driver 等占用会话 settle 后重试（02）→ 不算
  * - yielded：任务让路，续工会再来 → 不算
  * - ignored：05 正常协议选择 → 不算（07 决策：ignore 仅可观测页可见）

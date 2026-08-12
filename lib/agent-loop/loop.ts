@@ -359,7 +359,8 @@ export type ReplySender = (opts: {
 export type DeliverOutcome =
   | { status: "replied"; message: MessageRow; ackSeq: number }
   | { status: "anyway"; message: MessageRow; ackSeq: number }
-  | { status: "silent"; reason?: string; ackSeq: number };
+  | { status: "silent"; reason?: string; ackSeq: number }
+  | { status: "error"; reason?: string; ackSeq: number };
 
 /**
  * 回复投递（§3.3/§6.3）：携带写稿时的 baseSeq 走 freshness 校验；
@@ -431,8 +432,11 @@ export async function deliverWithFreshness(input: {
           return { status: "silent", reason: "revised to ignore", ackSeq };
         }
         if (!revised.content) {
-          // 重写也退化（reply 无内容）：不推进游标——被 hold 的消息保持 pending 供下次 wake 重试
-          return { status: "silent", reason: "revised reply had no content", ackSeq: input.baseSeq };
+          // 11-整改：重写也退化（reply 无内容）与直接空 reply 路径归类一致 = error 轮——
+          // 不推进游标（被 hold 的消息保持 pending 供下次 wake 重试）、error 状态点；
+          // 不再是 silent：silent 会被 isAbandonedRound 标成「已放弃」badge，但实际会重试——badge 说谎。
+          // 区别于 "revised to ignore"（ackSeq 已推进、真正终止，保持 silent）。
+          return { status: "error", reason: "revised reply had no content", ackSeq: input.baseSeq };
         }
         action = revised;
         baseSeq = result.roomSeq;
@@ -597,6 +601,16 @@ export async function runTaskOperation(input: {
   }
   ack(agent.id, input.targetId, baseSeq);
   ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
+  if ("status" in replyOutcome && replyOutcome.status === "error") {
+    // 11-整改：线程回复失败（revised 空内容等）= error 轮——不标「已放弃」badge；
+    // 线程游标停在已读版本、被 hold 的消息保持 pending，下次 wake 续工重试
+    // （任务状态收口已完成，不阻塞；claim 路径的同类 error 也透传）
+    return {
+      status: "error",
+      reason: "reason" in replyOutcome ? replyOutcome.reason : "reply delivery failed",
+      baseSeq,
+    };
+  }
   return { status: "silent", reason: `task ${taskOp.op} → ${targetStatus}`, baseSeq };
 }
 
@@ -625,6 +639,8 @@ async function deliverToTaskThread(input: {
   return {
     status: outcome.status,
     message: delivered,
+    // 11：透传失败原因（revised 空内容等），任务路径的 error 轮 reason 不丢失
+    reason: "reason" in outcome ? outcome.reason : undefined,
     // baseSeq 此处为线程版本（非 channel 版本）：线程收口用，见调用方 ack
     baseSeq: threadAckSeq,
     threadAckSeq,
@@ -674,6 +690,8 @@ export async function runAgentRound(
 
   const drained = drain(agentId, targetId);
   if (drained.messages.length === 0) return { status: "noop", baseSeq: drained.maxSeq };
+  // 本轮房间版本（回复 freshness + error 轮 baseSeq 共用；= drain 时的 max(seq)）
+  const baseSeq = drained.maxSeq;
   const incoming = drained.messages.filter((message) => message.author_id !== agent.id);
   // §3.2 @mention = 注意力信号而非投递过滤：未加入 channel 的 agent 被个人 @mention
   // 时穿透送达——非成员仍推进本轮（drain 语境可见），未被 mention 则跳过。
@@ -718,7 +736,12 @@ export async function runAgentRound(
         return { status: "busy-cwd", reason: error.message };
       }
       publishAgentStatus(agent.id, "error");
-      return { status: "error", reason: error instanceof Error ? error.message : String(error) };
+      return {
+        status: "error",
+        reason: error instanceof Error ? error.message : String(error),
+        // 11-整改：error 轮携带本轮 drain 的房间版本（round_logs base_seq 非 0）
+        baseSeq,
+      };
     }
     session = rt.findSession(agent);
   }
@@ -726,7 +749,6 @@ export async function runAgentRound(
   if (session.isRunning()) return { status: "busy" };
 
   publishAgentStatus(agent.id, "working");
-  const baseSeq = drained.maxSeq;
   const prompt = buildReplyPrompt({
     agent,
     channel,
@@ -740,7 +762,8 @@ export async function runAgentRound(
     const first = await promptSession(session, prompt);
     if (!first.ok) {
       publishAgentStatus(agent.id, "error");
-      return { status: "error", reason: first.error };
+      // 11-整改：prompt-fail 的 error 轮携带本轮 drain 的房间版本
+      return { status: "error", reason: first.error, baseSeq };
     }
     const action = parseAgentAction(first.text);
     // §3.7 任务操作：先 claim 再开工；claim 失败就让路（不回复、只收口游标）
@@ -762,7 +785,11 @@ export async function runAgentRound(
         },
       });
       resetMustRespondFailures(agent.id, targetId);
-      publishAgentStatus(agent.id, "online");
+      if (outcome.status === "error") {
+        publishAgentStatus(agent.id, "error");
+      } else {
+        publishAgentStatus(agent.id, "online");
+      }
       return outcome;
     }
     if (action.action === "ignore") {
@@ -818,6 +845,12 @@ export async function runAgentRound(
         return revised.ok ? revised.text : "";
       },
     });
+    if (outcome.status === "error") {
+      // 11-整改：revised 空内容 = error 轮——不推进游标（触发消息保持 pending 供下次 wake
+      // 重试）、error 状态点；与直接空 reply 路径（reply action without content）归类一致
+      publishAgentStatus(agent.id, "error");
+      return { status: "error", reason: outcome.reason, baseSeq: outcome.ackSeq };
+    }
     // ack 到 agent 本轮实际读到/被告知的房间版本（held 后随 roomSeq 推进）
     ack(agentId, targetId, outcome.ackSeq ?? baseSeq);
     resetMustRespondFailures(agent.id, targetId);
@@ -828,6 +861,7 @@ export async function runAgentRound(
     return { status: outcome.status, message: outcome.message, baseSeq: outcome.ackSeq };
   } catch (error) {
     publishAgentStatus(agent.id, "error");
-    return { status: "error", reason: error instanceof Error ? error.message : String(error) };
+    // 11-整改：catch 的 error 轮携带本轮 drain 的房间版本
+    return { status: "error", reason: error instanceof Error ? error.message : String(error), baseSeq };
   }
 }
