@@ -3,6 +3,7 @@ import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels
 import { getMember } from "./members.ts";
 import { notifyMessageWakes } from "../agent-loop/wake.ts";
 import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
+import { listAbandonedMarks, type AbandonedMark } from "./rounds.ts";
 import {
   discardAttachmentFiles,
   stageAttachmentFiles,
@@ -26,6 +27,8 @@ export interface MessageWithAuthor extends MessageRow {
   attachments: AttachmentRow[];
   /** 线程回复数（thread 消息以锚点消息 id 为 target；UI 锚点角标，§6.1）。 */
   threadReplyCount: number;
+  /** §09 「未回复（已放弃）」标记（消息流即时 badge，见 rounds.ts listAbandonedMarks）。 */
+  abandonedMarks?: AbandonedMark[];
 }
 
 interface ResolvedTarget {
@@ -37,7 +40,7 @@ interface ResolvedTarget {
 
 export function messageWithAuthor(
   message: MessageRow,
-  opts?: { threadReplyCount?: number },
+  opts?: { threadReplyCount?: number; abandonedMarks?: AbandonedMark[] },
 ): MessageWithAuthor {
   return {
     ...message,
@@ -45,6 +48,7 @@ export function messageWithAuthor(
     reactions: listReactionSummaries(message.id),
     attachments: getDb().listAttachments(message.id),
     threadReplyCount: opts?.threadReplyCount ?? getDb().threadReplyCount(message.id),
+    abandonedMarks: opts?.abandonedMarks,
   };
 }
 
@@ -168,8 +172,21 @@ export function listMessages(
   const oldest = rows[0]?.seq;
   const hasMore = oldest !== undefined && getDb().hasMessagesBefore(targetId, oldest);
   const replyCounts = rows.length > 0 ? getDb().threadReplyCounts(rows.map((r) => r.id)) : new Map<string, number>();
+  // §09 已放弃标记：整页按 target 批量查一次（round_logs 按 rowid 倒序，服务层取每 agent 最新一轮），
+  // 再按 baseSeq 归位到对应 seq 的消息——避免逐条查询。
+  const marksBySeq = new Map<number, AbandonedMark[]>();
+  for (const mark of listAbandonedMarks(targetId)) {
+    const bucket = marksBySeq.get(mark.baseSeq) ?? [];
+    bucket.push(mark);
+    marksBySeq.set(mark.baseSeq, bucket);
+  }
   return {
-    messages: rows.map((row) => messageWithAuthor(row, { threadReplyCount: replyCounts.get(row.id) ?? 0 })),
+    messages: rows.map((row) =>
+      messageWithAuthor(row, {
+        threadReplyCount: replyCounts.get(row.id) ?? 0,
+        abandonedMarks: marksBySeq.get(row.seq),
+      }),
+    ),
     hasMore,
     maxSeq: getDb().maxSeq(targetId),
   };

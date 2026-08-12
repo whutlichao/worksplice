@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { getAgent, AgentNotFoundError } from "@/lib/raft/members";
 import { listAgentTasks, buildAgentTimeline } from "@/lib/raft/observability";
+import { listRoundLogs } from "@/lib/raft/rounds";
 import { aggregateAgentUsage } from "@/lib/session-stats";
 import { resolveSessionIdByPath } from "@/lib/session-reader";
 import { getAgentRuntime } from "@/lib/agent-runtime";
 
-// GET /api/members/[id]/observability — 可观测性（spec §3.6 / §6.5）：
+// GET /api/members/[id]/observability — 可观测性（spec §3.6 / §6.5 / §07）：
 // ① 状态点（成员行）② token/成本（session jsonl 只读解析，按 agent 聚合，不落库）
-// ③ 任务历史（该 agent 参与的任务 + 状态变更时间线）④ 会话导出与上下文状态。
+// ③ 任务历史（该 agent 参与的任务 + 状态变更时间线）④ 会话导出与上下文状态
+// ⑤ 轮次记录（round_logs：区分「自判 ignore」与「处理失败」，cap-ack 的 (capped) 标记在此可见）。
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -49,6 +51,7 @@ export async function GET(
       stats,
       tasks: listAgentTasks(agent.id),
       timeline: buildAgentTimeline(agent.id),
+      rounds: listRoundLogs(agent.id),
       session: {
         file: agent.pi_session_file,
         sessionId,

@@ -277,6 +277,63 @@ test("MessageRow hides reaction UI when handlers are absent", () => {
   assert.doesNotMatch(html, /📌/);
 });
 
+test("MessageRow renders the not-replied badge with agent name in the tooltip (§09)", () => {
+  const calls = { member: null };
+  const html = renderI18n(
+    React.createElement(MessageRow, {
+      message: {
+        ...MESSAGE,
+        abandonedMarks: [
+          { agentId: "agent-1", agentName: "Nova", reason: "retries exhausted", baseSeq: 4, createdAt: "2026-08-12T00:00:00.000Z" },
+        ],
+      },
+      onReply: () => undefined,
+      onQuote: () => undefined,
+      onCopyLink: () => undefined,
+      onOpenMember: (memberId) => {
+        calls.member = memberId;
+      },
+    }),
+  );
+
+  assert.match(html, /title="Nova：retries exhausted"/);
+  assert.match(html, /No reply/);
+  assert.match(html, /lucide-circle-slash/);
+});
+
+test("MessageRow renders a count badge when multiple agents abandoned the message", () => {
+  const html = renderI18n(
+    React.createElement(MessageRow, {
+      message: {
+        ...MESSAGE,
+        abandonedMarks: [
+          { agentId: "agent-1", agentName: "Nova", reason: "r1", baseSeq: 4, createdAt: "2026-08-12T00:00:00.000Z" },
+          { agentId: "agent-2", agentName: "Pulse", reason: "r2", baseSeq: 4, createdAt: "2026-08-12T00:00:00.000Z" },
+        ],
+      },
+      onReply: () => undefined,
+      onQuote: () => undefined,
+      onCopyLink: () => undefined,
+    }),
+  );
+
+  assert.match(html, /title="Nova：r1；Pulse：r2"/);
+  assert.match(html, /2 agents did not reply/);
+});
+
+test("MessageRow does not render the not-replied badge without abandonedMarks", () => {
+  const html = renderI18n(
+    React.createElement(MessageRow, {
+      message: MESSAGE,
+      onReply: () => undefined,
+      onQuote: () => undefined,
+      onCopyLink: () => undefined,
+    }),
+  );
+  assert.doesNotMatch(html, /No reply/);
+  assert.doesNotMatch(html, /lucide-circle-slash/);
+});
+
 test("Composer renders the paperclip attach control (§3.5)", () => {
   const html = renderI18n(
     React.createElement(Composer, {

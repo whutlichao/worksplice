@@ -175,6 +175,14 @@ interface ObservabilityData {
         title: string;
       }
   >;
+  rounds: Array<{
+    id: string;
+    targetId: string;
+    status: "replied" | "ignored" | "silent" | "anyway" | "yielded" | "error" | "busy-cwd";
+    reason: string;
+    baseSeq: number;
+    createdAt: string;
+  }>;
   session: {
     file: string | null;
     sessionId: string | null;
@@ -751,6 +759,101 @@ export function AgentDetailPanel({
                 </div>
               )}
             </>
+          )}
+        </Card>
+
+        {/* ③b §07 轮次记录：有结论的轮次（区分自判 ignore 与处理失败；cap-ack 的 (capped) 标记在此） */}
+        <Card>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+            {t("observability.rounds")}
+          </div>
+          {obsLoading || !obs ? (
+            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{t("runtime.loading")}</div>
+          ) : obs.rounds.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+              {t("observability.roundsEmpty")}
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                maxHeight: 260,
+                overflowY: "auto",
+              }}
+            >
+              {obs.rounds.map((round) => {
+                const failed = round.status === "error";
+                return (
+                  <div
+                    key={round.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 8px",
+                      border: `2px solid ${INK}`,
+                      background: failed ? "#ffe9e9" : "var(--bg-panel)",
+                      fontSize: 11,
+                    }}
+                  >
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        fontFamily: "var(--font-space-mono)",
+                        fontWeight: 700,
+                        padding: "1px 5px",
+                        border: `2px solid ${INK}`,
+                        background: failed
+                          ? "#ff6b6b"
+                          : round.status === "replied"
+                            ? "var(--success, #a9d877)"
+                            : "#ffffff",
+                      }}
+                    >
+                      {t("observability.roundStatus." + round.status)}
+                    </span>
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        color: "var(--text-muted)",
+                      }}
+                      title={round.reason}
+                    >
+                      {round.reason || "—"}
+                    </span>
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        fontFamily: "var(--font-space-mono)",
+                        color: "var(--text-dim)",
+                        maxWidth: "30%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={`target: ${round.targetId}`}
+                    >
+                      {round.targetId}
+                    </span>
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        fontFamily: "var(--font-space-mono)",
+                        color: "var(--text-dim)",
+                      }}
+                    >
+                      #{round.baseSeq} · {formatTime(round.createdAt)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </Card>
 

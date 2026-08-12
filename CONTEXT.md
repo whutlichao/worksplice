@@ -24,22 +24,58 @@ _Avoid_: 仓库、共享目录
 成员当前绑定的目录——未绑定项目目录时为家目录，绑定后为项目目录；更换工作区即更换会话。
 _Avoid_: 目录、文件夹
 
+**会话文件 (Session File)**:
+pi 运行时在工作区写出的会话记录（jsonl），app 只读不解析（读写权归 SDK）。成员行 `pi_session_file` 登记某个会话文件 = **固化 (Fixation)**：文件归该成员所有，是会话文件所有权的唯一凭证。
+_Avoid_: 会话、session
+
+**无主文件 (Unowned Session File)**:
+工作区内未被任何成员固化引用的会话文件——人类 pi 会话、已删除 agent 遗留、他人历史文件均属此类。规则：**永不解析**——agent 启动只复用自己固化过的文件；家目录（构造上唯一私有）内的文件例外，可安全回填。
+_Avoid_: 孤儿文件（内部术语，避免对外）
+
+**backfill 归属门禁 (Backfill Ownership Gate)**:
+启动补拉（backfill）补写前对 session 文件做的文件级归属校验（ADR-0004）——header cwd == 成员 workspace ∧ 不被其他活成员引用 ∧ 文件 mtime 不早于成员创建时间；任一不过 → **整文件跳过**（不补写、不推进游标、记日志、不清绑）。与 startSession 的复用校验（ADR-0003）同基准但职责独立：startSession 看可否复用，backfill 看补写是否安全。
+_Avoid_: 复用校验（那是 startSession 的）
+
+**跨作者内容去重 (Cross-author Content Dedup)**:
+backfill 补写前查 `(target, content)` 是否已被**其他**作者落库；命中 = 疑似继承文件的他人回复（soft-delete 保留消息）→ 跳过该轮补写且该 target 游标保持 pending（留给正常 wake 重读重做）。兜底文件级门禁漏掉的「mtime 被原 owner 更新过」的继承文件。
+_Avoid_: 内容查重（会与同作者幂等去重混淆）
+
 **频道 (Channel)**:
-消息的聚合容器。加入 = 订阅该频道的全部普通消息。
+消息的聚合容器。加入 = 订阅该频道的全部普通消息（可见性）。
 _Avoid_: 群组、room
+
+**订阅 (Subscription)**:
+加入频道即订阅——drain 可见该 target 全部消息（拉取式，与是否被唤醒无关）。订阅 ≠ 行动：被唤醒后是否回应由 agent 自判（见回应判断）。
+_Avoid_: 通知
+
+**唤醒 (Wake)**:
+消息落库后触发 agent 跑一轮的注意力信号（hint 只含 agentId/targetId/seq/reason，不含正文）。面 = 目标频道的全部 agent 成员（除作者、静音者）+ 未加入但被点名的穿透 + 定向（任务 owner 自醒 / 提醒作者 / 秘书）。全量唤醒下"是否回应"由 agent 自判——唤醒是注意力，不是命令。
+_Avoid_: 通知、提醒
+
+**回应判断 (Response Judgment)**:
+agent 每轮 decide 的回应规则（rubric，§05）：确定信号（被点名 / 进行中任务 owner 收到线程他人消息 / 提醒指向自己）= 必须回应；明确无关（他人任务线程、进度播报、无关闲聊）= 必须 ignore 不插话；其余按相关性自判。确定信号下 ignore 按失败处理（不 ack、error 状态点、连续 2 次后 cap-ack 防死循环）。
+_Avoid_: 过滤、优先级
+
+**轮次 (Round)**:
+agent 一次 wake→drain→decide→act→reply→ack 的处理周期。每轮以**轮次结果**收口，是回应判断的执行载体。
+_Avoid_: 会话、session（那是 pi session）
+
+**轮次结果 (Round Outcome)**:
+一轮的处理结论（status/reason/baseSeq/target/时间），有结论的轮次（已回复/忽略/静默/强制发送/让路/失败/等待占用）落盘 round_logs 供可观测页展示——区分「自判 ignore（正常协议选择）」与「处理失败（需排查）」的事实来源；cap-ack 的 `(capped)` 标记在 reason 里可见。瞬态轮次（无新消息/已回复/正忙）不落盘。
+_Avoid_: 日志（console 日志不落盘、不可事后查）
 
 **频道成员 (Channel Member)**:
 已加入某频道的成员。`#all` 自动加入且不可离开；thread 回复继承频道规则。
 
 **提及 (Mention / @mention)**:
-消息正文里的 `@名字` token（含空格的名字用 `@"带空格名字"` 引号形式）解析为成员 id。个人提及是注意力信号：被提及的 agent 被唤醒，且穿透 mute 与未加入限制。渲染侧命中成员名的 token 高亮显示，点击可查看成员（agent → 详情面板，人类 → 简介弹窗）。
+消息正文里的 `@名字` token（含空格的名字用 `@"带空格名字"` 引号形式）解析为成员 id。个人提及是注意力信号：被提及的 agent 被唤醒，且穿透 mute 与未加入限制。渲染侧命中成员名的 token 高亮显示，点击可查看成员（agent → 详情面板，人类 → 简介弹窗）。被点名是确定信号——必须回应，ignore 按失败处理（见回应判断）。
 _Avoid_: @ 关联、艾特
 
 **穿透 (Penetration)**:
 未加入频道的 agent 被个人提及时仍被唤醒送达（但回复需自行加入频道）。mute 的静音只挡普通消息，个人提及仍穿透。
 
 **静音 (Mute)**:
-频道级通知开关：静音后普通消息不进该成员 inbox，个人提及仍穿透；取消后不补投静音期间被压制的消息。
+频道的退订开关：静音后普通消息不进该成员 inbox、不唤醒，个人提及仍穿透；取消后不补投静音期间被压制的消息。与回应判断正交：mute 是"连看都不看"，回应判断是"看着但决定不回应"。
 
 **任务 (Task)**:
 锚定于一条频道消息的协作单元，带状态机（todo→in_progress→in_review→done/closed→reopen）。互审：构建者不验证自己。

@@ -5,7 +5,7 @@
 ## Quick Start
 
 ```bash
-npm run dev   # port 30141
+npm run dev   # port 30142
 ```
 
 Typecheck: `node_modules/.bin/tsc --noEmit`  
@@ -97,7 +97,7 @@ app/api/
   tasks/route.ts                  POST { messageId } 转任务 | { channelId, content } 发消息并建任务
   tasks/[id]/claim/route.ts       POST { baseSeq? } — claim；409 held / 409 conflict（失败让路）
   tasks/[id]/update-status/route.ts POST { status, baseSeq? } — 状态机转移；409 held
-  channels/[id]/tasks/route.ts    GET 任务板（按 number 升序，UI 侧按状态分组）
+  channels/[id]/tasks/route.ts    GET 任务板（按 number 升序，UI 侧按状态分组；每任务附 reachable 拖拽落点，ADR-0002）
   reminders/route.ts              GET ?authorId=&targetId= 列表 | POST { title, fireAt, recurrence?, targetId?, authorId? }
                                   （authorId 仅 Owner 可替 agent 设，§3.9 唤醒作者本人）
   reminders/[id]/route.ts         PATCH update（title/fireAt/recurrence/targetId）| GET 单条
@@ -188,7 +188,7 @@ components/
                          切换频道清空面板；右栏非长驻（无选中整栏消失）
   WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）；只高亮频道行，agent 行点击 = 打开右栏面板
   ChannelView.tsx        channel 消息流：seq 分页 / 引用 / 复制链接 / join-leave-archive
-                          / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskBoard（§3.7）
+                          / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskViews（§3.7 List|Board 切换，ADR-0002）
                           / 提醒入口（header ⏰ + 消息动作栏 ⏰，§5.6）
                           / reaction（快捷栏 + 选择器 + 聚合条，§3.4）/ pinned 区（header `Pin` 展开，sort 三选一 + 重排，§3.5）
                           / 附件（Composer `Paperclip` + 消息内预览/下载，§3.5）
@@ -340,7 +340,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **并发保护**（§6.3 同消息语义）：claim/updateStatus 携带 `baseSeq` = channel `max(seq)`，事务内比对不等返回 held（`summarizeChanges` 摘要复用）；claim 已认领返回 conflict（route 409）。UI 收 held 后刷新并提示。
 - **自动认领（agent-loop）**：协议扩展 `"task":{"number":N,"op":"claim"|"complete"|"unclaim"}`（`parseAgentAction` 向后兼容，无 task 字段行为不变）；`runTaskOperation` 先 `claimTask` 再开工——**held/conflict/非 owner → 让路**（`RoundStatus "yielded"`，不回复、channel 游标只推进到已读版本，更新的消息经 wake 重试重读）。回复投递到**任务线程**（anchor 消息 target，thread 自己的 seq/freshness 空间）；complete 的回复先落线程再置 in_review（状态更新 held 按 roomSeq 重试 ≤3 次，失败不吞回复）。
 - **任务延续自醒**（wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。
-- **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序；UI 按状态分组（todo→in_progress→in_review→done→closed），卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen）；点卡片打开任务 thread（进展只在线程里，board 只显示状态）。
+- **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序、每任务附 `reachable`（ADR-0002：服务端按人类 owner 身份推导的合法转移落点，含 todo→in_progress 的 claim 边；客户端不镜像状态机表）；UI 侧 List|Board 两种任务视图（ADR-0002，localStorage 记忆，默认列表）——List 按状态分组（todo→in_progress→in_review→done→closed），Board 5 列 = 5 状态常显、跨列拖拽 = 请求一次状态转移（HTML5 DnD，**不做乐观移动**：松手等服务端确认，非法落点弹回+提示）；卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen，与拖拽同权）；点卡片打开任务 thread（进展只在线程里，视图只显示状态）。
 
 ### 提醒（ticket 08，§3.9/§5.6 reminders 路由组）
 - **触发 = 系统消息 + 定向唤醒作者**：cron 到点 → `fireReminder` 以**作者署名**投递 `⏰ Reminder: <title>` 到**频道主流程**——channel 锚定投该 channel；消息锚定归一化后投其**归属 channel**（原设计投 thread 不可见，已修正为频道可见；正文附 `(anchored on #seq)` 锚点引用），`sendMessage({wake:false})` **不触发 channel 级 wake**（不惊动其他 agent）；随后仅当作者是 agent 才 `emitWake({reason:"reminder"})`（§3.9 唤醒作者本人；human 作者 = UI 轮询看到系统消息即通知）。

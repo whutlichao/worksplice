@@ -1094,6 +1094,18 @@ export function hasBusyRpcSessionForCwd(cwd: string): boolean {
   );
 }
 
+/**
+ * 同 cwd 正在运行的会话 wrapper（02-决策一：busy-cwd 轮次的等待对象）。
+ * 只找 running wrapper：starting 窗口内尚无 wrapper，而 per-cwd 启动互斥
+ * （02-决策二）已保证 loop 路径不会在窗口内抛 BusyCwdError。
+ */
+export function findBusyRpcSessionForCwd(cwd: string): AgentSessionWrapper | undefined {
+  const targetCwd = normalizeRpcCwd(cwd);
+  return Array.from(getRegistry().values()).find(
+    (session) => normalizeRpcCwd(session.cwd) === targetCwd && session.isRunning(),
+  );
+}
+
 export async function destroyRpcSessionsForCwd(cwd: string): Promise<number> {
   const targetCwd = normalizeRpcCwd(cwd);
   const sessions = Array.from(getRegistry().values()).filter(
@@ -1223,7 +1235,10 @@ export async function startRpcSession(
     const defaultProvider = services.settingsManager.getDefaultProvider();
     const defaultModelId = services.settingsManager.getDefaultModel();
     const hasExistingMessages = sessionManager.getBranch().some((entry) => entry.type === "message");
-    const initial = hasExistingMessages
+    // 已有消息的会话默认保留文件里保存的模型；但显式 initialModel（如 §3.10
+    // per-agent runtime 配置）必须覆盖——否则 agent 配置对老 session 永不生效，
+    // 且文件里被污染/过期的模型（如错误 provider 名）会一直拦截请求。
+    const initial = hasExistingMessages && !initialModel
       ? { scopedModels: [...scope.scopedModels] }
       : selectInitialModelScope(scope, {
         ...(initialModel ? { requestedModel: initialModel } : {}),

@@ -92,6 +92,17 @@ export interface ReminderLogRow {
   created_at: string;
 }
 
+/** §07 轮次结果（Round Outcome）落盘行：一次有结论的 agent-loop 轮次。 */
+export interface RoundLogRow {
+  id: string;
+  agent_id: string;
+  target_id: string;
+  status: "replied" | "ignored" | "silent" | "anyway" | "yielded" | "error" | "busy-cwd";
+  reason: string;
+  base_seq: number;
+  created_at: string;
+}
+
 export interface ReactionRow {
   id: string;
   message_id: string;
@@ -366,6 +377,13 @@ export class RaftStore {
   listMembers(): MemberRow[] {
     return this.db
       .prepare("SELECT * FROM members WHERE deleted = 0 ORDER BY created_at, id")
+      .all() as MemberRow[];
+  }
+
+  /** 原始行列表（含 soft-deleted）：归属引用集需要被删成员的固化登记（ticket 08，§3.6 行保留承载所有权）。 */
+  listMembersIncludingDeleted(): MemberRow[] {
+    return this.db
+      .prepare("SELECT * FROM members ORDER BY created_at, id")
       .all() as MemberRow[];
   }
 
@@ -798,6 +816,57 @@ export class RaftStore {
       .all(reminderId) as ReminderLogRow[];
   }
 
+  insertRoundLog(input: {
+    id?: string;
+    agentId: string;
+    targetId: string;
+    status: RoundLogRow["status"];
+    reason?: string;
+    baseSeq?: number;
+    createdAt?: string;
+  }): RoundLogRow {
+    const row: RoundLogRow = {
+      id: input.id ?? randomUUID(),
+      agent_id: input.agentId,
+      target_id: input.targetId,
+      status: input.status,
+      reason: input.reason ?? "",
+      base_seq: input.baseSeq ?? 0,
+      created_at: input.createdAt ?? new Date().toISOString(),
+    };
+    this.db
+      .prepare(
+        "INSERT INTO round_logs (id, agent_id, target_id, status, reason, base_seq, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(row.id, row.agent_id, row.target_id, row.status, row.reason, row.base_seq, row.created_at);
+    return row;
+  }
+
+  /** 某 agent 的轮次记录（rowid 倒序 = 最近在前）。 */
+  listRoundLogs(agentId: string, limit = 50): RoundLogRow[] {
+    return this.db
+      .prepare("SELECT * FROM round_logs WHERE agent_id = ? ORDER BY rowid DESC LIMIT ?")
+      .all(agentId, limit) as RoundLogRow[];
+  }
+
+  /** §09 某 target 的全部轮次（rowid 倒序 = 最近在前）；按 agent 取最新一轮由服务层收口。 */
+  listRoundLogsByTarget(targetId: string): RoundLogRow[] {
+    return this.db
+      .prepare("SELECT * FROM round_logs WHERE target_id = ? ORDER BY rowid DESC")
+      .all(targetId) as RoundLogRow[];
+  }
+
+  /** 每 agent 保留最近 retain 条，超出删除旧行（§07 ring cap）。 */
+  pruneRoundLogs(agentId: string, retain: number): void {
+    this.db
+      .prepare(
+        `DELETE FROM round_logs WHERE agent_id = ? AND rowid NOT IN (
+          SELECT rowid FROM round_logs WHERE agent_id = ? ORDER BY rowid DESC LIMIT ?
+        )`,
+      )
+      .run(agentId, agentId, retain);
+  }
+
   insertReaction(input: {
     id?: string;
     messageId: string;
@@ -1007,6 +1076,18 @@ export class RaftStore {
         "SELECT 1 AS hit FROM messages WHERE target_id = ? AND author_id = ? AND content = ? LIMIT 1",
       )
       .get(targetId, authorId, content) as { hit: number } | undefined;
+    return row !== undefined;
+  }
+
+  /** ticket 04：同 target 同内容是否已被**其他**作者落库（backfill 跨作者去重：
+   * 继承文件的他人回复大多已由原 owner 投递且 soft-delete 保留，同内容同 target
+   * 跨作者几乎必然是他人回复而非本 agent 的崩溃残留）。 */
+  hasMessageByContentByOther(targetId: string, authorId: string, content: string): boolean {
+    const row = this.db
+      .prepare(
+        "SELECT 1 AS hit FROM messages WHERE target_id = ? AND content = ? AND author_id != ? LIMIT 1",
+      )
+      .get(targetId, content, authorId) as { hit: number } | undefined;
     return row !== undefined;
   }
 

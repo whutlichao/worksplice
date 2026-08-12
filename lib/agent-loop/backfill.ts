@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, statSync } from "fs";
+import { normalize } from "path";
 import { getDb } from "../raft/db-singleton.ts";
-import { listAgents } from "../raft/members.ts";
+import { listAgents, normalizeWorkspacePath } from "../raft/members.ts";
 import type { MemberRow } from "../data/db.ts";
 import { ROOM_MARKER_PATTERN, parseAgentAction } from "./loop.ts";
 
@@ -21,6 +22,87 @@ export interface SessionReply {
   targetId: string;
   markerSeq: number;
   content: string;
+}
+
+/**
+ * 解析 session jsonl 文件头（type:"session" 条目）的 cwd 字段。
+ * 与 SDK SessionManager.listAll 的 cwd 同源（同从 header 解析，已核对），
+ * 使 backfill 做归属校验时无需 import SDK（保持启动路径轻量）。
+ */
+export function readSessionHeaderCwd(filePath: string): string | null {
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line) as { type?: string; cwd?: unknown };
+      if (entry?.type === "session" && typeof entry.cwd === "string" && entry.cwd) {
+        return entry.cwd;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * 固化引用的 session 文件集合（不含本成员自己的登记；含 soft-deleted 成员——
+ * ticket 08：软删行保留 pi_session_file 是 ADR-0003 的所有权凭证，被删成员仍登记
+ * 的文件同样不得由其他成员补写）。
+ */
+function referencedSessionFilesExcluding(agentId: string): Set<string> {
+  const referenced = new Set<string>();
+  for (const member of getDb().listMembersIncludingDeleted()) {
+    if (member.id === agentId) continue;
+    if (member.pi_session_file) referenced.add(normalize(member.pi_session_file));
+  }
+  return referenced;
+}
+
+/**
+ * backfill 归属门禁（ticket 04，ADR-0003 的 backfill 侧落地，文件级）：
+ * 补写前确认该文件仍属于该 agent——
+ * 1. header cwd 必须等于成员 workspace（跨 cwd 错绑 = 历史脏数据）；
+ * 2. 文件不得被其他活成员固化引用（03 修复前双绑定残留 → 防同文件双作者补写）；
+ * 3. 文件 mtime 不得早于成员创建时间（成员不可能在自己创建之前拥有会话——
+ *    继承自 deleted/他人 agent 的旧文件必然更老，确定性规则无逻辑误杀）。
+ * 任一不过 → 整文件跳过：不补写、不推进游标（避免"只补写跳过、游标却推进"的半截态）。
+ */
+export function backfillOwnershipGate(
+  agent: MemberRow,
+  referencedByOthers: ReadonlySet<string>,
+): { pass: boolean; reason: string | null } {
+  const file = agent.pi_session_file;
+  if (!file) return { pass: false, reason: "no session file bound" };
+  if (!existsSync(file)) return { pass: false, reason: "session file missing on disk" };
+  if (!agent.workspace_path) return { pass: false, reason: "member has no workspace" };
+  const headerCwd = readSessionHeaderCwd(file);
+  if (headerCwd === null) {
+    return { pass: false, reason: "session file header has no cwd" };
+  }
+  if (normalize(headerCwd) !== normalizeWorkspacePath(agent.workspace_path)) {
+    return {
+      pass: false,
+      reason: `header cwd (${headerCwd}) != workspace (${agent.workspace_path})`,
+    };
+  }
+  if (referencedByOthers.has(normalize(file))) {
+    return { pass: false, reason: "session file also referenced by another member" };
+  }
+  const mtime = statSync(file).mtime.getTime();
+  const createdAt = new Date(agent.created_at).getTime();
+  if (mtime < createdAt) {
+    return {
+      pass: false,
+      reason: `file mtime (${new Date(mtime).toISOString()}) predates member creation (${agent.created_at})`,
+    };
+  }
+  return { pass: true, reason: null };
 }
 
 /** 解析 session jsonl：每个房间标记之后只保留最后一条 assistant 文本作为该轮回复。 */
@@ -104,6 +186,14 @@ export interface BackfillResult {
 export function backfillAgentReplies(agent: MemberRow): BackfillResult {
   const file = agent.pi_session_file;
   if (!file || !existsSync(file)) return { inserted: 0, targets: [] };
+
+  // ticket 04 归属门禁：文件级校验不过 → 整文件跳过（不补写、不推进游标）。
+  const gate = backfillOwnershipGate(agent, referencedSessionFilesExcluding(agent.id));
+  if (!gate.pass) {
+    console.warn(`[backfill] skipping session file ${file} for member ${agent.id}: ${gate.reason}`);
+    return { inserted: 0, targets: [] };
+  }
+
   const replies = scanSessionReplies(file);
   if (replies.length === 0) return { inserted: 0, targets: [] };
 
@@ -111,8 +201,18 @@ export function backfillAgentReplies(agent: MemberRow): BackfillResult {
   let inserted = 0;
   const targets = new Set<string>();
   const cursorByTarget = new Map<string, number>();
+  const contentBlockedTargets = new Set<string>();
   db.withTransaction(() => {
     for (const reply of replies) {
+      // ticket 04 轮级兑底（跨作者内容去重）：同 target 同内容已被他人落库 =
+      // 疑似继承文件的他人回复（soft-delete 保留消息）——跳过补写，且该 target
+      // 游标不推进（保持 pending，留给正常 wake 流程重读重做），避免把他人回复
+      // 冒充为本 agent 的投递。真实崩溃恢复中同内容跨作者几乎不可能（各 agent
+      // 回复独立），误杀率极低。
+      if (db.hasMessageByContentByOther(reply.targetId, agent.id, reply.content)) {
+        contentBlockedTargets.add(reply.targetId);
+        continue;
+      }
       cursorByTarget.set(
         reply.targetId,
         Math.max(cursorByTarget.get(reply.targetId) ?? 0, reply.markerSeq),
@@ -124,6 +224,13 @@ export function backfillAgentReplies(agent: MemberRow): BackfillResult {
       targets.add(reply.targetId);
     }
   });
+  if (contentBlockedTargets.size > 0) {
+    console.warn(
+      `[backfill] member ${agent.id}: skipped ${contentBlockedTargets.size} reply round(s) whose ` +
+        `content already exists under another author (targets: ${[...contentBlockedTargets].join(", ")}); ` +
+        `cursor left pending for re-read`, 
+    );
+  }
   for (const [targetId, seq] of cursorByTarget) {
     db.setConsumedSeq(agent.id, targetId, Math.max(db.getConsumedSeq(agent.id, targetId), seq));
   }

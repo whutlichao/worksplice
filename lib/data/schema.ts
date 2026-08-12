@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 10;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -68,6 +68,18 @@ const SCHEMA_STATEMENTS: string[] = [
     reminder_id TEXT NOT NULL REFERENCES reminders(id),
     event TEXT NOT NULL CHECK (event IN ('schedule', 'fire', 'reschedule', 'snooze', 'update', 'cancel', 'error')),
     detail TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
+  // §07 轮次结果落盘（可观测性）：每次 agent-loop 有结论的轮次一行
+  // （replied/ignored/silent/anyway/yielded/error/busy-cwd；noop/skipped/busy 瞬态不记）。
+  // 区分「自判 ignore」与「处理失败」的事实来源；ring cap 由服务层维护（每 agent 保留最近 200 轮）。
+  `CREATE TABLE IF NOT EXISTS round_logs (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES members(id),
+    target_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('replied', 'ignored', 'silent', 'anyway', 'yielded', 'error', 'busy-cwd')),
+    reason TEXT NOT NULL DEFAULT '',
+    base_seq INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS reactions (

@@ -15,7 +15,7 @@ import {
 } from "../raft/inbox.ts";
 import { extractMentionedMemberIds } from "./wake.ts";
 import { publishAgentStatus } from "../agent-status.ts";
-import { getAgentRuntime } from "../agent-runtime.ts";
+import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/db.ts";
 
@@ -40,6 +40,8 @@ export interface LoopSession {
 export interface LoopRuntime {
   findSession(member: MemberRow): LoopSession | undefined;
   startSession(member: MemberRow): Promise<{ sessionId: string; sessionFile: string | null }>;
+  /** 02-决策一：同 cwd 被他人会话占用时返回占用中的会话（busy-cwd 的等待对象）。 */
+  findBusySessionForCwd?(cwd: string): LoopSession | undefined;
 }
 
 // ----------------------------------------------------------------------------
@@ -52,6 +54,30 @@ const CONFLICT_CHOICES = new Set(["revise", "resend", "silent", "anyway"]);
 /** 任务操作（§3.7）：claim = 认领并开工；complete = 完成（置 in_review 待互审）；unclaim = 释放回池。 */
 export type TaskOp = "claim" | "complete" | "unclaim";
 export const TASK_OPS = new Set<TaskOp>(["claim", "complete", "unclaim"]);
+
+/** §05 兜底上限：确定信号（个人 @mention / 进行中任务线程收到他人消息）下连续 ignore 达此值 → ack 并记 error（防死循环）。 */
+export const MUST_RESPOND_FAILURE_CAP = 2;
+
+declare global {
+  var __workspliceMustRespondFailures: Map<string, number> | undefined;
+}
+
+function mustRespondFailureCount(agentId: string, targetId: string): number {
+  return globalThis.__workspliceMustRespondFailures?.get(`${agentId}|${targetId}`) ?? 0;
+}
+
+function recordMustRespondFailure(agentId: string, targetId: string): number {
+  if (!globalThis.__workspliceMustRespondFailures) {
+    globalThis.__workspliceMustRespondFailures = new Map();
+  }
+  const next = mustRespondFailureCount(agentId, targetId) + 1;
+  globalThis.__workspliceMustRespondFailures.set(`${agentId}|${targetId}`, next);
+  return next;
+}
+
+function resetMustRespondFailures(agentId: string, targetId: string): void {
+  globalThis.__workspliceMustRespondFailures?.delete(`${agentId}|${targetId}`);
+}
 
 export interface AgentAction {
   action: "reply" | "ignore";
@@ -185,6 +211,17 @@ export function buildReplyPrompt(input: {
     'Choose ONE next action and reply with JSON only: {"action":"reply"|"ignore","content":"your reply text","onConflict":"revise"|"resend"|"silent"|"anyway"}',
   );
   lines.push('- "reply" posts content to the channel; "ignore" says nothing.');
+  lines.push("- Deciding is yours, but follow these response rules:");
+  lines.push(
+    "- MUST reply: you are personally @mentioned in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
+  );
+  lines.push(
+    "- MAY reply: the message concerns your role, your workspace, or your current work — answer when you can add value.",
+  );
+  lines.push(
+    "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. An @mention of you overrides all of this — being mentioned is a demand for a response, and ignoring it is treated as a failure.",
+  );
+  lines.push('- A "reply" must carry non-empty content text — a reply without content cannot be posted.');
   lines.push(
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
   );
@@ -250,6 +287,12 @@ export function buildRevisionPrompt(input: {
 /** 一次 prompt 完成/失败的会话事件集合（driver 的 busy 重试复用同一份清单）。 */
 export const PROMPT_DONE_EVENTS = new Set(["prompt_done", "agent_end", "agent_settled"]);
 
+/** 会话"可能不再忙"的完整事件面（driver busy 重试用）：prompt 收口 + compaction 收口。
+ * 区别于 PROMPT_DONE_EVENTS——compaction_end 不该让进行中的 prompt 提前收口，
+ * 但 manual/extension 触发的 compaction 期间 isRunning()=true 且只发 compaction_end
+ * （不发 prompt 收口事件），busy 等待必须监听它才能解挂（见 driver.waitForSettle）。 */
+export const SETTLE_EVENTS = new Set([...PROMPT_DONE_EVENTS, "compaction_end", "auto_compaction_end"]);
+
 /** 等待一次 prompt 完成（prompt_done / agent_end / agent_settled；prompt_error 视为失败）。 */
 export function waitForPromptCompletion(
   session: LoopSession,
@@ -291,7 +334,12 @@ export async function promptSession(
   const last = (await session.send({ type: "get_last_assistant_text" })) as
     | { text?: string }
     | undefined;
-  return { ok: true, text: (last?.text ?? "").trim() };
+  const text = (last?.text ?? "").trim();
+  // SDK 对模型/API 报错（如 openrouter 402）不 reject prompt()：事件流照发 prompt_done，
+  // 但最后一条 assistant 无文本。空文本只能来自失败轮（合法的 ignore 也返回 JSON 文本），
+  // 必须按失败处理——否则游标被 ack、消息被静默消费、agent 永不回复。
+  if (!text) return { ok: false, error: "model returned no text (request failed?)", text: "" };
+  return { ok: true, text };
 }
 
 // ----------------------------------------------------------------------------
@@ -379,8 +427,12 @@ export async function deliverWithFreshness(input: {
           }),
         );
         const revised = parseAgentAction(revisedText);
-        if (revised.action === "ignore" || !revised.content) {
+        if (revised.action === "ignore") {
           return { status: "silent", reason: "revised to ignore", ackSeq };
+        }
+        if (!revised.content) {
+          // 重写也退化（reply 无内容）：不推进游标——被 hold 的消息保持 pending 供下次 wake 重试
+          return { status: "silent", reason: "revised reply had no content", ackSeq: input.baseSeq };
         }
         action = revised;
         baseSeq = result.roomSeq;
@@ -398,6 +450,7 @@ export type RoundStatus =
   | "noop" // 无新消息
   | "skipped" // 无条件响应（未绑定/非成员/已回复）
   | "busy" // 会话正忙（driver 在 settle 后重试）
+  | "busy-cwd" // 同 cwd 被他人会话占用（BusyCwdError；driver 等占用会话 settle 后重试）
   | "replied"
   | "ignored"
   | "silent"
@@ -584,6 +637,22 @@ export function ownsInProgressTaskAt(agentId: string, targetId: string): boolean
   return Boolean(task && task.status === "in_progress" && task.owner_id === agentId);
 }
 
+/** §05 确定信号：当轮 incoming 里个人 @mention 了本 agent，或本 agent 是进行中任务 owner
+ * 且任务线程来了别人的消息——这类轮次必须回应，ignore 按失败处理（rubric 同款标准）。 */
+export function hasMustRespondSignal(
+  agentId: string,
+  targetId: string,
+  incoming: Array<{ content: string; author_id: string }>,
+): boolean {
+  if (incoming.some((message) => extractMentionedMemberIds(message.content).includes(agentId))) {
+    return true;
+  }
+  if (incoming.length > 0 && ownsInProgressTaskAt(agentId, targetId)) {
+    return true;
+  }
+  return false;
+}
+
 /** MEMORY.md 路径（ADR-0001）：家目录预置存在才告知 agent，缺失不补种。 */
 export function agentMemoryFile(agent: MemberRow): string | null {
   const file = join(agentHomePath(agent), MEMORY_FILE_NAME);
@@ -643,6 +712,11 @@ export async function runAgentRound(
     try {
       await rt.startSession(agent);
     } catch (error) {
+      // 02-决策一：BusyCwdError 是瞬态（占用会话必然 settle）——映射为 busy-cwd，
+      // driver 等占用会话 settle 后重试：不丢 hint、状态不变 error（error 轮会被丢弃）。
+      if (error instanceof BusyCwdError) {
+        return { status: "busy-cwd", reason: error.message };
+      }
       publishAgentStatus(agent.id, "error");
       return { status: "error", reason: error instanceof Error ? error.message : String(error) };
     }
@@ -687,12 +761,42 @@ export async function runAgentRound(
           return revised.ok ? revised.text : "";
         },
       });
+      resetMustRespondFailures(agent.id, targetId);
       publishAgentStatus(agent.id, "online");
       return outcome;
     }
-    if (action.action === "ignore" || !action.content) {
+    if (action.action === "ignore") {
+      // §05 兜底：确定信号（个人 @mention / 进行中任务线程收到他人消息）下 ignore 不合法——
+      // 本轮按失败处理（不 ack、error 状态点可见、触发消息保持 pending 供下次 wake 重试）。
+      // 连续失败达 MUST_RESPOND_FAILURE_CAP 后 ack 并记 error：防模型系统性 ignore 造成的
+      // 永久 pending + 反复失败（cap-ack 是逃逸口，状态点仍可见 error）。
+      if (hasMustRespondSignal(agent.id, targetId, incoming)) {
+        const failures = recordMustRespondFailure(agent.id, targetId);
+        publishAgentStatus(agent.id, "error");
+        if (failures >= MUST_RESPOND_FAILURE_CAP) {
+          ack(agentId, targetId, baseSeq);
+          resetMustRespondFailures(agent.id, targetId);
+          console.error(
+            `[worksplice] agent ${agent.name} ignored a must-respond signal ${MUST_RESPOND_FAILURE_CAP} times; cursor acked at ${baseSeq} (capped)`,
+          );
+          return {
+            status: "error",
+            reason: `ignore on must-respond signal (capped at ${MUST_RESPOND_FAILURE_CAP})`,
+            baseSeq,
+          };
+        }
+        return { status: "error", reason: "ignore on must-respond signal", baseSeq };
+      }
+      resetMustRespondFailures(agent.id, targetId);
       ack(agentId, targetId, baseSeq);
       return { status: "ignored", baseSeq };
+    }
+    if (!action.content) {
+      // §3.8 空内容回复（模型退化输出 {"action":"reply"} 无 content）：声明了 reply
+      // 却给不出文本 = 本轮失败，与空文本同语义——不推进游标、publish error，触发消息
+      // 保持 pending 供下次 wake 重试；否则消息被静默消费、agent 永不回复。
+      publishAgentStatus(agent.id, "error");
+      return { status: "error", reason: "reply action without content", baseSeq };
     }
     // §3.2 mention 穿透的回复：agent 可自行加入公开 channel（加入 = 订阅全部消息）；
     // 私有 channel 不能自行加入——回复不可投递，收口游标后静默让路
@@ -716,6 +820,7 @@ export async function runAgentRound(
     });
     // ack 到 agent 本轮实际读到/被告知的房间版本（held 后随 roomSeq 推进）
     ack(agentId, targetId, outcome.ackSeq ?? baseSeq);
+    resetMustRespondFailures(agent.id, targetId);
     publishAgentStatus(agent.id, "online");
     if (outcome.status === "silent") {
       return { status: "silent", reason: outcome.reason, baseSeq: outcome.ackSeq };

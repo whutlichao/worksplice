@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlarmClock, Bell, BellOff, Check, CornerDownRight, FileText, Kanban, Link, List, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
+import { AlarmClock, Bell, BellOff, Check, CircleSlash, CornerDownRight, FileText, Kanban, Link, List, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { TranslationParams } from "@/lib/i18n/types";
 import { MentionText } from "./MentionText";
@@ -42,6 +42,14 @@ export interface ChannelMessage {
   attachments?: AttachmentRow[];
   /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */
   threadReplyCount?: number;
+  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/raft/rounds.ts）。 */
+  abandonedMarks?: Array<{
+    agentId: string;
+    agentName: string;
+    reason: string;
+    baseSeq: number;
+    createdAt: string;
+  }>;
 }
 
 /** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread。 */
@@ -657,6 +665,7 @@ export function MessageRow({
   pinned,
   mentionMembers,
   onOpenMention,
+  onOpenMember,
   onReply,
   onQuote,
   onCopyLink,
@@ -679,6 +688,8 @@ export function MessageRow({
     start: number;
     end: number;
   }) => void;
+  /** §09 已放弃 badge 点击：打开该 agent 的面板（轮次记录在可观测页）。 */
+  onOpenMember?: (memberId: string) => void;
   onReply: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
@@ -771,6 +782,36 @@ export function MessageRow({
               <CornerDownRight size={10} />
               {message.threadReplyCount}
             </button>
+          )}
+          {message.abandonedMarks && message.abandonedMarks.length > 0 && (
+            <span
+              title={message.abandonedMarks
+                .map((mark) => `${mark.agentName}：${mark.reason || t("message.notReplied")}`)
+                .join("；")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "1px 6px",
+                fontFamily: "var(--font-space-mono)",
+                fontSize: 10,
+                fontWeight: 700,
+                background: "var(--yellow)",
+                color: "var(--text)",
+                border: `2px solid ${INK}`,
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenMember?.(message.abandonedMarks![0].agentId);
+              }}
+            >
+              <CircleSlash size={10} />
+              {message.abandonedMarks.length > 1
+                ? t("message.notRepliedMany", { count: String(message.abandonedMarks.length) })
+                : t("message.notReplied")}
+            </span>
           )}
         </div>
         <div className="ws-message-content" style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)" }}>
@@ -2986,6 +3027,7 @@ export function ChannelView({
                     canConvertToTask={!tasks.some((task) => task.message_id === m.id)}
                     mentionMembers={mentionMembers}
                     onOpenMention={openMention}
+                    onOpenMember={(memberId) => onOpenPanel?.(memberPanel(memberId, false))}
                     onReply={(target) => onOpenPanel?.({ kind: "thread", id: target.id })}
                     onQuote={setQuoting}
                     onCopyLink={(target) => void handleCopyLink(target)}
