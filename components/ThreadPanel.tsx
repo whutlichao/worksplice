@@ -377,6 +377,7 @@ export function ThreadPanel({
             canConvertToTask={!taskMessageIds.has(anchor.id)}
             mentionMembers={mentionMembers}
             onOpenMention={openMention}
+            onOpenMember={(memberId) => onOpenPanel(memberPanel(memberId, false))}
             onReply={() => undefined}
             onQuote={setQuoting}
             onCopyLink={(target) => void handleCopyLink(target)}
@@ -400,6 +401,7 @@ export function ThreadPanel({
               canConvertToTask={false}
               mentionMembers={mentionMembers}
               onOpenMention={openMention}
+              onOpenMember={(memberId) => onOpenPanel(memberPanel(memberId, false))}
               onReply={() => undefined}
               onQuote={setQuoting}
               onCopyLink={(target) => void handleCopyLink(target)}

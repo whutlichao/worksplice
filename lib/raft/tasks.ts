@@ -20,6 +20,8 @@ export interface TaskView extends TaskRow {
   channelId: string;
   anchor: MessageWithAuthor;
   owner: MemberRow | null;
+  /** §3.7 看板拖拽（ADR-0002）：以 actorId（默认人类 owner）从当前状态可发起的合法转移集合；todo 含 claim 边。 */
+  reachable: TaskStatus[];
 }
 
 export type TaskClaimResult =
@@ -86,12 +88,28 @@ const TRANSITIONS: Record<
   },
 };
 
-function toTaskView(task: TaskRow, anchor: MessageRow): TaskView {
+/**
+ * 看板拖拽的可达落点（§3.7/ADR-0002）：从当前状态、以 actorId 的身份可发起的合法转移。
+ * 状态机转移表是唯一裁决者；todo 的 claim 是独立操作（claimTask），此处合成该边——
+ * 重开封锁（reopened）下仅人类（CURRENT_MEMBER_ID）可认领，与 claimTask 的封锁一致。
+ */
+export function reachableStatuses(task: TaskRow, actorId: string): TaskStatus[] {
+  const transitions = TRANSITIONS[task.status];
+  const viaTable = (Object.keys(transitions) as TaskStatus[]).filter((to) =>
+    transitions[to]!.authorized(task, actorId),
+  );
+  if (task.status !== "todo") return viaTable;
+  const claimable = task.reopened === 1 ? actorId === CURRENT_MEMBER_ID : true;
+  return claimable ? [...viaTable, "in_progress"] : viaTable;
+}
+
+function toTaskView(task: TaskRow, anchor: MessageRow, actorId: string = CURRENT_MEMBER_ID): TaskView {
   return {
     ...task,
     channelId: anchor.target_id,
     anchor: messageWithAuthor(anchor),
     owner: task.owner_id ? (getMember(task.owner_id) ?? null) : null,
+    reachable: reachableStatuses(task, actorId),
   };
 }
 

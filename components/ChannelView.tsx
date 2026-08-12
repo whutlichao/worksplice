@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlarmClock, Bell, BellOff, Check, CornerDownRight, FileText, Link, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
+import { AlarmClock, Bell, BellOff, Check, CornerDownRight, FileText, Kanban, Link, List, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
+import type { TranslationParams } from "@/lib/i18n/types";
 import { MentionText } from "./MentionText";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
@@ -43,7 +44,7 @@ export interface ChannelMessage {
   threadReplyCount?: number;
 }
 
-/** §3.7 任务 = 消息 + 元数据：board 只显示状态，进展都在任务 thread。 */
+/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread。 */
 interface ChannelTask {
   id: string;
   message_id: string;
@@ -56,6 +57,8 @@ interface ChannelTask {
   channelId: string;
   anchor: ChannelMessage;
   owner: MemberRow | null;
+  /** §3.7/ADR-0002 看板拖拽：服务端按当前身份推导的合法转移落点（与状态机一致，客户端不镜像）。 */
+  reachable: TaskStatus[];
 }
 
 interface MessagesPage {
@@ -811,8 +814,374 @@ export function MessageRow({
   );
 }
 
-/** 任务板（§3.7 视图）：按状态分组；board 只显示状态，进展都在任务 thread（点击卡片打开）。 */
-export function TaskBoard({
+/** §3.7 任务状态徽标样式（List 分组标题 / Board 列头共用）。 */
+const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => {
+  const background: Record<TaskStatus, string> = {
+    todo: "#ffffff",
+    in_progress: "var(--yellow)",
+    in_review: "var(--cyan)",
+    done: "#b9ecd0",
+    closed: "#c9c7c2",
+  };
+  return {
+    fontFamily: "var(--font-space-mono)",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    padding: "2px 7px",
+    border: `2px solid ${INK}`,
+    background: background[status],
+    color: "var(--text)",
+    whiteSpace: "nowrap",
+  };
+};
+
+const taskCardButtonStyle: React.CSSProperties = {
+  padding: "4px 9px",
+  fontFamily: "var(--font-hanken)",
+  fontWeight: 700,
+  fontSize: 11,
+  background: "#ffffff",
+  color: "var(--text)",
+  border: `2px solid ${INK}`,
+  boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
+  cursor: "pointer",
+};
+
+/** 视图切换按钮样式（List | Board）。 */
+const taskViewButtonStyle = (active: boolean): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  padding: "6px 10px",
+  fontFamily: "var(--font-hanken)",
+  fontWeight: 700,
+  fontSize: 11,
+  background: active ? "var(--yellow)" : "#ffffff",
+  color: "var(--text)",
+  border: `2px solid ${INK}`,
+  boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
+  cursor: "pointer",
+});
+
+const TASK_VIEW_KEY = "worksplice-task-view";
+
+/** 任务视图偏好（ADR-0002）：localStorage 全局记忆，默认列表。 */
+function readTaskViewPref(): "list" | "board" {
+  try {
+    return window.localStorage.getItem(TASK_VIEW_KEY) === "board" ? "board" : "list";
+  } catch {
+    return "list";
+  }
+}
+
+/** §3.7 任务卡片动作（List/Board 共用；与服务端状态机一致：互审 + owner 限定）。 */
+function taskActionsFor(
+  task: ChannelTask,
+  currentMemberId: string,
+  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void,
+  t: (key: string, params?: TranslationParams) => string,
+): Array<{ label: string; onClick: () => void }> {
+  const mine = task.owner_id === currentMemberId;
+  switch (task.status) {
+    case "todo":
+      return [{ label: t("tasks.claim"), onClick: () => onAction(task, "claim") }];
+    case "in_progress":
+      return mine
+        ? [
+            { label: t("tasks.complete"), onClick: () => onAction(task, "updateStatus", "in_review") },
+            { label: t("tasks.unclaim"), onClick: () => onAction(task, "updateStatus", "todo") },
+            { label: t("tasks.close"), onClick: () => onAction(task, "updateStatus", "closed") },
+          ]
+        : [];
+    case "in_review":
+      return mine
+        ? [{ label: t("tasks.close"), onClick: () => onAction(task, "updateStatus", "closed") }]
+        : [
+            { label: t("tasks.approve"), onClick: () => onAction(task, "updateStatus", "done") },
+            { label: t("tasks.reject"), onClick: () => onAction(task, "updateStatus", "in_progress") },
+          ];
+    case "done":
+    case "closed":
+      return [{ label: t("tasks.reopen"), onClick: () => onAction(task, "updateStatus", "todo") }];
+  }
+}
+
+/** §3.7 任务卡片（List/Board 共用）：#number + reopened 徽标 + 预览 + owner；点击打开任务 thread。 */
+function TaskCard({
+  task,
+  currentMemberId,
+  busy,
+  onAction,
+  onOpenThread,
+  draggable = false,
+  onDragStart,
+  onDragEnd,
+}: {
+  task: ChannelTask;
+  currentMemberId: string;
+  busy: boolean;
+  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
+  onOpenThread: (anchor: ChannelMessage) => void;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>, task: ChannelTask) => void;
+  onDragEnd?: () => void;
+}) {
+  const { t } = useI18n();
+  const actions = taskActionsFor(task, currentMemberId, onAction, t);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      title={t("tasks.threadHint")}
+      onClick={() => onOpenThread(task.anchor)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onOpenThread(task.anchor);
+      }}
+      draggable={draggable}
+      onDragStart={onDragStart ? (e) => onDragStart(e, task) : undefined}
+      onDragEnd={onDragEnd}
+      style={{
+        padding: "10px 12px",
+        background: "#ffffff",
+        border: `2px solid ${INK}`,
+        boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
+        cursor: "pointer",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: "var(--font-space-mono)", fontWeight: 700, fontSize: 13 }}>
+          #{task.number}
+        </span>
+        {task.reopened === 1 && (
+          <span
+            title={t("tasks.reopenedHint")}
+            style={{
+              fontFamily: "var(--font-space-mono)",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              padding: "2px 7px",
+              border: `2px solid ${INK}`,
+              background: "var(--orange)",
+              color: "#ffffff",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t("tasks.reopenedBadge")}
+          </span>
+        )}
+        <span style={{ flex: 1, fontSize: 13, color: "var(--text)", minWidth: 120 }}>
+          {previewLine(task.anchor.content)}
+        </span>
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            fontFamily: "var(--font-hanken)",
+            fontWeight: 700,
+            fontSize: 11,
+          }}
+        >
+          <PixelAvatar seed={task.owner_id ?? "none"} name={task.owner?.name ?? "?"} size={28} />
+          {task.owner ? task.owner.name : t("tasks.unassigned")}
+        </span>
+      </div>
+      {actions.length > 0 && (
+        <div
+          style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              disabled={busy}
+              onClick={action.onClick}
+              style={{ ...taskCardButtonStyle, opacity: busy ? 0.55 : 1, cursor: busy ? "not-allowed" : "pointer" }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 任务列表（§3.7 任务视图）：按状态分组纵向堆叠（原任务板视图，ADR-0002 后更名）。 */
+function TaskList({
+  tasks,
+  currentMemberId,
+  busy,
+  onAction,
+  onOpenThread,
+}: {
+  tasks: ChannelTask[];
+  currentMemberId: string;
+  busy: boolean;
+  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
+  onOpenThread: (anchor: ChannelMessage) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <>
+      {TASK_STATUS_ORDER.filter((status) => tasks.some((task) => task.status === status)).map((status) => {
+        const group = tasks.filter((task) => task.status === status);
+        return (
+          <section key={status} style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={taskBadgeStyle(status)}>{t(`task.status.${status}`)}</span>
+              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-dim)" }}>
+                {group.length}
+              </span>
+              <span style={{ flex: 1, borderTop: `2px solid var(--border)` }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {group.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  currentMemberId={currentMemberId}
+                  busy={busy}
+                  onAction={onAction}
+                  onOpenThread={onOpenThread}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+/** 任务看板（§3.7 任务视图 / ADR-0002）：5 列 = 5 状态常显；跨列拖拽 = 请求一次状态转移（服务端裁决，不做乐观移动）。 */
+function TaskBoard({
+  tasks,
+  currentMemberId,
+  busy,
+  onAction,
+  onOpenThread,
+  onInvalidDrop,
+}: {
+  tasks: ChannelTask[];
+  currentMemberId: string;
+  busy: boolean;
+  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
+  onOpenThread: (anchor: ChannelMessage) => void;
+  onInvalidDrop: (task: ChannelTask, status: TaskStatus) => void;
+}) {
+  const { t } = useI18n();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
+  const dragTask = dragId ? tasks.find((task) => task.id === dragId) ?? null : null;
+
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: ChannelTask) => {
+    if (busy) {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.setData("text/plain", task.id);
+    e.dataTransfer.effectAllowed = "move";
+    setDragId(task.id);
+  };
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: "flex",
+        gap: 12,
+        alignItems: "stretch",
+        overflowX: "auto",
+        overflowY: "auto",
+        paddingBottom: 8,
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => e.preventDefault()}
+    >
+      {TASK_STATUS_ORDER.map((status) => {
+        const group = tasks.filter((task) => task.status === status);
+        const validTarget = dragTask !== null && status !== dragTask.status && dragTask.reachable.includes(status);
+        const active = validTarget && dragOver === status;
+        const invalid =
+          dragTask !== null && status !== dragTask.status && dragOver === status && !dragTask.reachable.includes(status);
+        return (
+          <div
+            key={status}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(status);
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(null);
+              const id = e.dataTransfer.getData("text/plain");
+              const task = tasks.find((x) => x.id === id) ?? null;
+              setDragId(null);
+              if (!task || task.status === status) return;
+              if (!task.reachable.includes(status)) {
+                onInvalidDrop(task, status);
+                return;
+              }
+              onAction(task, "updateStatus", status);
+            }}
+            style={{
+              flex: "0 0 236px",
+              display: "flex",
+              flexDirection: "column",
+              background: invalid ? "var(--coral)" : active ? "var(--yellow)" : "var(--bg-panel)",
+              border: `2px solid ${active || invalid ? "var(--accent)" : INK}`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 10px",
+                borderBottom: `2px solid ${INK}`,
+              }}
+            >
+              <span style={taskBadgeStyle(status)}>{t(`task.status.${status}`)}</span>
+              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-dim)" }}>
+                {group.length}
+              </span>
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, padding: 8, minHeight: 64 }}>
+              {group.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  currentMemberId={currentMemberId}
+                  busy={busy}
+                  onAction={onAction}
+                  onOpenThread={onOpenThread}
+                  draggable={!busy}
+                  onDragStart={handleDragStart}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setDragOver(null);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 任务视图容器（§3.7/ADR-0002）：创建栏 + List|Board 切换（localStorage 记忆）+ 视图；两者共享同一批任务数据。 */
+export function TaskViews({
   tasks,
   currentMemberId,
   busy,
@@ -822,6 +1191,7 @@ export function TaskBoard({
   onCreateTask,
   onAction,
   onOpenThread,
+  onNotice,
 }: {
   tasks: ChannelTask[];
   currentMemberId: string;
@@ -832,67 +1202,19 @@ export function TaskBoard({
   onCreateTask: (content: string) => void;
   onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
   onOpenThread: (anchor: ChannelMessage) => void;
+  onNotice: (message: string) => void;
 }) {
   const { t } = useI18n();
+  const [view, setView] = useState<"list" | "board">(readTaskViewPref);
   const [formOpen, setFormOpen] = useState(false);
   const [content, setContent] = useState("");
 
-  const badgeStyle = (status: TaskStatus): React.CSSProperties => {
-    const background: Record<TaskStatus, string> = {
-      todo: "#ffffff",
-      in_progress: "var(--yellow)",
-      in_review: "var(--cyan)",
-      done: "#b9ecd0",
-      closed: "#c9c7c2",
-    };
-    return {
-      fontFamily: "var(--font-space-mono)",
-      fontSize: 10,
-      fontWeight: 700,
-      letterSpacing: "0.06em",
-      padding: "2px 7px",
-      border: `2px solid ${INK}`,
-      background: background[status],
-      color: "var(--text)",
-      whiteSpace: "nowrap",
-    };
-  };
-
-  const cardButton: React.CSSProperties = {
-    padding: "4px 9px",
-    fontFamily: "var(--font-hanken)",
-    fontWeight: 700,
-    fontSize: 11,
-    background: "#ffffff",
-    color: "var(--text)",
-    border: `2px solid ${INK}`,
-    boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
-    cursor: "pointer",
-  };
-
-  const actionsFor = (task: ChannelTask): Array<{ label: string; onClick: () => void }> => {
-    const mine = task.owner_id === currentMemberId;
-    switch (task.status) {
-      case "todo":
-        return [{ label: t("tasks.claim"), onClick: () => onAction(task, "claim") }];
-      case "in_progress":
-        return mine
-          ? [
-              { label: t("tasks.complete"), onClick: () => onAction(task, "updateStatus", "in_review") },
-              { label: t("tasks.unclaim"), onClick: () => onAction(task, "updateStatus", "todo") },
-              { label: t("tasks.close"), onClick: () => onAction(task, "updateStatus", "closed") },
-            ]
-          : [];
-      case "in_review":
-        return mine
-          ? [{ label: t("tasks.close"), onClick: () => onAction(task, "updateStatus", "closed") }]
-          : [
-              { label: t("tasks.approve"), onClick: () => onAction(task, "updateStatus", "done") },
-              { label: t("tasks.reject"), onClick: () => onAction(task, "updateStatus", "in_progress") },
-            ];
-      case "done":
-      case "closed":
-        return [{ label: t("tasks.reopen"), onClick: () => onAction(task, "updateStatus", "todo") }];
+  const switchView = (next: "list" | "board") => {
+    setView(next);
+    try {
+      window.localStorage.setItem(TASK_VIEW_KEY, next);
+    } catch {
+      // 存储失败不影响本次会话内的切换。
     }
   };
 
@@ -905,8 +1227,15 @@ export function TaskBoard({
   };
 
   return (
-    <div style={{ padding: "12px 16px 24px" }}>
-      {/* 创建途径 3：Tasks tab Create Task */}
+    <div
+      style={{
+        // 看板模式：板面撑满 main 剩余高度并在面板内滚动，横向滚动条钉在可视区域底部
+        // （否则滚动条随内容沉底，需要先滚到底才看得到）
+        padding: "12px 16px 24px",
+        ...(view === "board" ? { height: "100%", display: "flex", flexDirection: "column", minHeight: 0 } : {}),
+      }}
+    >
+      {/* 创建途径 3：Tasks tab Create Task；右侧 List|Board 视图切换（ADR-0002） */}
       <div
         style={{
           display: "flex",
@@ -947,11 +1276,11 @@ export function TaskBoard({
               type="button"
               disabled={disabled || !content.trim()}
               onClick={submitCreate}
-              style={{ ...cardButton, padding: "9px 14px", background: "var(--pink)" }}
+              style={{ ...taskCardButtonStyle, padding: "9px 14px", background: "var(--pink)" }}
             >
               {t("tasks.create")}
             </button>
-            <button type="button" style={cardButton} onClick={() => setFormOpen(false)}>
+            <button type="button" style={taskCardButtonStyle} onClick={() => setFormOpen(false)}>
               {t("tasks.cancel")}
             </button>
           </>
@@ -960,7 +1289,7 @@ export function TaskBoard({
             type="button"
             disabled={disabled}
             onClick={() => setFormOpen(true)}
-            style={{ ...cardButton, padding: "8px 14px", background: "var(--pink)" }}
+            style={{ ...taskCardButtonStyle, padding: "8px 14px", background: "var(--pink)" }}
           >
             + {t("tasks.new")}
           </button>
@@ -970,113 +1299,57 @@ export function TaskBoard({
             {notice}
           </span>
         )}
+        <div role="tablist" aria-label={t("tasks.view")} style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "list"}
+            onClick={() => switchView("list")}
+            style={taskViewButtonStyle(view === "list")}
+          >
+            <List size={13} /> {t("tasks.viewList")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "board"}
+            onClick={() => switchView("board")}
+            style={taskViewButtonStyle(view === "board")}
+          >
+            <Kanban size={13} /> {t("tasks.viewBoard")}
+          </button>
+        </div>
       </div>
-      {error && (
-        <div style={{ marginBottom: 12, color: "var(--coral)", fontSize: 12 }}>{error}</div>
-      )}
+      {error && <div style={{ marginBottom: 12, color: "var(--coral)", fontSize: 12 }}>{error}</div>}
 
       {tasks.length === 0 ? (
         <div style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6 }}>
           {t("tasks.emptyHint")}
         </div>
+      ) : view === "list" ? (
+        <TaskList
+          tasks={tasks}
+          currentMemberId={currentMemberId}
+          busy={busy}
+          onAction={onAction}
+          onOpenThread={onOpenThread}
+        />
       ) : (
-        TASK_STATUS_ORDER.filter((status) => tasks.some((task) => task.status === status)).map((status) => {
-          const group = tasks.filter((task) => task.status === status);
-          return (
-            <section key={status} style={{ marginBottom: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <span style={badgeStyle(status)}>{t(`task.status.${status}`)}</span>
-                <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-dim)" }}>
-                  {group.length}
-                </span>
-                <span style={{ flex: 1, borderTop: `2px solid var(--border)` }} />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {group.map((task) => {
-                  const actions = actionsFor(task);
-                  return (
-                    <div
-                      key={task.id}
-                      role="button"
-                      tabIndex={0}
-                      title={t("tasks.threadHint")}
-                      onClick={() => onOpenThread(task.anchor)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") onOpenThread(task.anchor);
-                      }}
-                      style={{
-                        padding: "10px 12px",
-                        background: "#ffffff",
-                        border: `2px solid ${INK}`,
-                        boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontFamily: "var(--font-space-mono)", fontWeight: 700, fontSize: 13 }}>
-                          #{task.number}
-                        </span>
-                        {task.reopened === 1 && (
-                          <span
-                            title={t("tasks.reopenedHint")}
-                            style={{
-                              fontFamily: "var(--font-space-mono)",
-                              fontSize: 10,
-                              fontWeight: 700,
-                              letterSpacing: "0.06em",
-                              padding: "2px 7px",
-                              border: `2px solid ${INK}`,
-                              background: "var(--orange)",
-                              color: "#ffffff",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {t("tasks.reopenedBadge")}
-                          </span>
-                        )}
-                        <span style={{ flex: 1, fontSize: 13, color: "var(--text)", minWidth: 120 }}>
-                          {previewLine(task.anchor.content)}
-                        </span>
-                        <span
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 5,
-                            fontFamily: "var(--font-hanken)",
-                            fontWeight: 700,
-                            fontSize: 11,
-                          }}
-                        >
-                          <PixelAvatar seed={task.owner_id ?? "none"} name={task.owner?.name ?? "?"} size={28} />
-                          {task.owner ? task.owner.name : t("tasks.unassigned")}
-                        </span>
-                      </div>
-                      {actions.length > 0 && (
-                        <div
-                          style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          {actions.map((action) => (
-                            <button
-                              key={action.label}
-                              type="button"
-                              disabled={busy}
-                              onClick={action.onClick}
-                              style={{ ...cardButton, opacity: busy ? 0.55 : 1, cursor: busy ? "not-allowed" : "pointer" }}
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })
+        <TaskBoard
+          tasks={tasks}
+          currentMemberId={currentMemberId}
+          busy={busy}
+          onAction={onAction}
+          onOpenThread={onOpenThread}
+          onInvalidDrop={(task, status) =>
+            onNotice(
+              t("tasks.dropInvalid", {
+                from: t(`task.status.${task.status}`),
+                to: t(`task.status.${status}`),
+              }),
+            )
+          }
+        />
       )}
     </div>
   );
@@ -2755,7 +3028,7 @@ export function ChannelView({
             </>
           )
         ) : (
-          <TaskBoard
+          <TaskViews
             tasks={tasks}
             currentMemberId={currentMemberId}
             busy={busyAction}
@@ -2765,6 +3038,7 @@ export function ChannelView({
             onCreateTask={(content) => void createTaskFromBoard(content)}
             onAction={(task, action, status) => void runTaskAction(task, action, status)}
             onOpenThread={(anchor) => onOpenPanel?.({ kind: "thread", id: anchor.id })}
+            onNotice={setTaskNotice}
           />
         )}
       </main>
