@@ -85,7 +85,7 @@
 ### 3.3 工具与 API 访问
 
 - 秘书会话工具集 = 系统默认（`PRESET_DEFAULT`：read / bash / edit / write）——**bash 开箱即用，curl 可用，零配置**；禁忌任何入口传 `toolNames: []`（全禁工具 + 清空 system prompt）。**[锁定]**（01 研究，tool-presets.ts + rpc-manager.ts:1198-1207）
-- base URL：默认写死 `http://127.0.0.1:30141`（四处硬编码一致，loopback 恒放行）；自定义端口场景把 base URL 写进 MEMORY.md 速查 §3；设了 `WORKSPLICE_PASSWORD` 时 curl 加 `-u pi:<密码>`。**[锁定]**（01 研究）
+- base URL：默认写死 `http://127.0.0.1:30142`（四处硬编码一致，loopback 恒放行）；自定义端口场景把 base URL 写进 MEMORY.md 速查 §3；设了 `WORKSPLICE_PASSWORD` 时 curl 加 `-u pi:<密码>`。**[锁定]**（01 研究）
 - 会话启动不传 toolNames 即默认启用 DEFAULT；如需 grep/find/ls 按 `CODING_TOOL_NAMES` 7 个工具名配置（构建 effort 定是否追加）。**[锁定]**（01 研究）
 
 ### 3.4 任务板纪律
@@ -153,14 +153,14 @@
 
 1. **身份与开口规则**：Susan / 秘书定位；被动为主 + 三处主动节点（均一次 ≤2 句）；语言跟随用户
 2. **能力边界（硬性）**：可做清单（只读 + 创建类）/ 不可做清单（引导 Owner UI）/ 不认领任务；缺参数先问后做；兜底三话术速记
-3. **操作速查**：base URL 声明（`http://127.0.0.1:30141`，自定义端口改此文件；设了密码加 `-u pi:<密码>`）+ 7 条一行式 curl（频道列表 / 成员列表 / 发消息 / 建频道 / 建 agent / 搜索 / 设提醒；建 agent 先 `GET /api/models` 取 provider/modelId）
+3. **操作速查**：base URL 声明（`http://127.0.0.1:30142`，自定义端口改此文件；设了密码加 `-u pi:<密码>`）+ 7 条一行式 curl（频道列表 / 成员列表 / 发消息 / 建频道 / 建 agent / 搜索 / 设提醒；建 agent 先 `GET /api/models` 取 provider/modelId）
 4. **SYSTEM-GUIDE.md 读取指引**：映射表（概念不懂 → 手册 §1；API 不会调 → §2；"怎么 X" → §3；权限/越权 → §4）
 5. **当前工作 / 工作流程 / Skill 使用**：与 ADR-0001 固定大纲兼容的节名保留（"当前工作"节名必须保留），正文为占位骨架，不依赖 Skill
 
 ### 5.3 SYSTEM-GUIDE.md 手册（5 章）**[锁定]**（03 大纲 B）
 
 1. **产品概念**（~25 行/概念，完整缩写）：频道与 thread（target 归一化、不可嵌套、消息不可变）/ 任务板（状态机 + reopened 封锁）/ 提醒（recurrence DSL + 唤醒作者本人）/ inbox 与 wake（拉取式游标、@mention 穿透、mute）/ 搜索（FTS）/ 附件 / reaction / pinned；每节附"秘书用不用得上"一行
-2. **系统 API 用法**：地址来源（默认 127.0.0.1:30141、loopback 恒放行、无运行时发现）+ 只读类/创建类接口，每接口 curl 示例 + 响应要点 + 典型错误（400/404/409 held）
+2. **系统 API 用法**：地址来源（默认 127.0.0.1:30142、loopback 恒放行、无运行时发现）+ 只读类/创建类接口，每接口 curl 示例 + 响应要点 + 典型错误（400/404/409 held）
 3. **常见操作路径**："怎么 X" 标准指引（建频道/建 agent → 代办 + 回执；最近动静 → 轮询 + 摘要；主题追溯 → 搜索 + 定位；越权 → §4 兜底）
 4. **权限边界与兜底话术**：越权清单与标准应答 + 兜底三话术完整版
 5. **术语表**：channel / thread / seq / inbox / freshness-hold / target / 任务板 / 提醒 / pinned / FTS……
