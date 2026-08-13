@@ -416,6 +416,7 @@ export const enLocale: LocalePlugin = {
     "shell.createAgent": "New agent",
     "shell.noChannels": "No channels yet",
     "shell.noAgents": "No agents yet",
+    "shell.unread": "{count} unread messages",
     "shell.language": "Language",
     "search.placeholder": "Search messages…",
     "search.title": "Search",

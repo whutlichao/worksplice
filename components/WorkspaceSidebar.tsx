@@ -5,7 +5,8 @@ import { AlarmClock, Search, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
-import type { ChannelRow, MemberRow } from "@/lib/data/db";
+import type { ChannelWithMeta } from "./ChannelView";
+import type { MemberRow } from "@/lib/data/db";
 
 const INK = "#141111";
 const LABEL_STYLE: React.CSSProperties = {
@@ -48,7 +49,7 @@ export function WorkspaceSidebar({
   onCloseMenu,
   onSearch,
 }: {
-  channels: ChannelRow[];
+  channels: ChannelWithMeta[];
   agents: MemberRow[];
   error: string | null;
   selectedChannelId: string | null;
@@ -309,10 +310,32 @@ export function WorkspaceSidebar({
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {channel.name}
               </span>
-              {channel.archived === 1 && (
-                <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-dim)" }}>
-                  {t("channel.archived")}
+              {channel.unread > 0 && !isSelected ? (
+                <span
+                  title={t("shell.unread", { count: String(channel.unread) })}
+                  style={{
+                    marginLeft: "auto",
+                    minWidth: 20,
+                    padding: "1px 5px",
+                    fontFamily: "var(--font-space-mono)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    lineHeight: 1.5,
+                    textAlign: "center",
+                    background: "var(--yellow)",
+                    color: "var(--text)",
+                    border: `2px solid ${INK}`,
+                    borderRadius: 999,
+                  }}
+                >
+                  {channel.unread > 99 ? "99+" : channel.unread}
                 </span>
+              ) : (
+                channel.archived === 1 && (
+                  <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-dim)" }}>
+                    {t("channel.archived")}
+                  </span>
+                )
               )}
             </button>
           );

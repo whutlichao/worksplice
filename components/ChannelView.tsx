@@ -21,6 +21,8 @@ export type CenterTab = "messages" | "tasks";
 export interface ChannelWithMeta extends ChannelRow {
   joined: boolean;
   memberCount: number;
+  /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */
+  unread: number;
 }
 
 /** §3.4 reaction 聚合（与 lib/raft/reactions.ts 同形）。 */

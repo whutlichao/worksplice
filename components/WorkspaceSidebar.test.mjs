@@ -59,3 +59,50 @@ test("reminder entry stays icon-only when count is 0 (no stub label)", () => {
   const { inner } = reminderButtonHtml(0);
   assert.doesNotMatch(inner, /<span/);
 });
+
+function sidebarHtml(channels) {
+  return renderI18n(
+    React.createElement(WorkspaceSidebar, {
+      channels,
+      agents: [],
+      error: null,
+      selectedChannelId: null,
+      onSelectChannel: () => undefined,
+      onOpenAgent: () => undefined,
+      onNewChannel: () => undefined,
+      onNewAgent: () => undefined,
+      onOpenModels: () => undefined,
+      onOpenSkills: () => undefined,
+      onOpenReminders: () => undefined,
+      scheduledReminderCount: 0,
+      onCloseMenu: () => undefined,
+      onSearch: () => undefined,
+    }),
+  );
+}
+
+function channelRow(html, name) {
+  const re = new RegExp(`<button[^>]*>[\\s\\S]*?${name}[\\s\\S]*?<\\/button>`);
+  const row = html.match(re)?.[0];
+  assert.ok(row, `channel row for ${name} should render`);
+  return row;
+}
+
+test("BAI-6: a channel with unread shows a count badge", () => {
+  const html = sidebarHtml([{ id: "c1", name: "reads", type: "public", unread: 3 }]);
+  const row = channelRow(html, "reads");
+  assert.match(row, />3<\/span>/);
+  assert.match(row, /99\+|3/);
+});
+
+test("BAI-6: unread is capped at 99+", () => {
+  const html = sidebarHtml([{ id: "c1", name: "many", type: "public", unread: 120 }]);
+  const row = channelRow(html, "many");
+  assert.match(row, /99\+/);
+});
+
+test("BAI-6: no badge when unread is 0", () => {
+  const html = sidebarHtml([{ id: "c1", name: "quiet", type: "public", unread: 0 }]);
+  const row = channelRow(html, "quiet");
+  assert.doesNotMatch(row, /99\+|>[1-9]\d*<\/span>/);
+});

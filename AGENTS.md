@@ -74,6 +74,8 @@ app/api/
   channels/[id]/messages/route.ts GET ?targetId&before&limit — seq 游标分页（channel/thread 共用）
   channels/[id]/join/route.ts     POST { memberId? } — 公开自由加入；私有须 Owner
   channels/[id]/leave/route.ts    POST { memberId? } — `#all` 不可离开
+  channels/[id]/read/route.ts     POST — BAI-6 未读角标：推进 Owner 已读游标到当前 max(seq)，清除角标
+  lib/raft/reads.ts               BAI-6 未读角标服务层：unreadCount / markChannelRead / listChannelsWithUnread
   channels/[id]/archive/route.ts  POST { archived } — Owner only，冻结写入
   channels/[id]/members/route.ts  GET member list
   messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）；
@@ -311,6 +313,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **引用 = 物化**：消息不可编辑，quote 以块引用文本（`> **#seq author**\n> preview`）拼进发送内容，不留结构化引用。
 - **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel composer 独享（ticket 13 线程迁出右栏后引用态变面板局部——`ThreadPanel` 自持 quoting，channel 与 thread 引用互不污染）；`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
 - **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。右栏线程面板（`ThreadPanel`）另有同纪律 3s 轮询（`THREAD_POLL_MS`），任务线程回复自动冒出，与中央轮询并存为两套循环。
+- **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq > read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/raft/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
 - **身份 vs 会话**：agent 是持久身份（members 行），会话是 pi session（`pi_session_file` 回填）。三种重置粒度只动会话/工作区，身份与绑定保持；**删除 = soft-delete**（`members.deleted=1`，schema v3 ALTER 迁移）——行保留以承载不可变消息的外键与作者渲染，但移出全部 channel、任务 owner 置空、消费游标清空。

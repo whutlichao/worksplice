@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -123,6 +123,15 @@ const SCHEMA_STATEMENTS: string[] = [
     mute_rowid INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     PRIMARY KEY (channel_id, member_id)
+  )`,
+  // §BAI-6 未读角标：Owner 对每个频道的已读游标（read_seq = 该成员在频道内已读到的最大 seq）。
+  // 未读数 = 频道内 author 非本人且 seq > read_seq 的消息数；打开频道即推进到当前 max(seq)。
+  `CREATE TABLE IF NOT EXISTS channel_reads (
+    member_id TEXT NOT NULL REFERENCES members(id),
+    channel_id TEXT NOT NULL REFERENCES channels(id),
+    read_seq INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (member_id, channel_id)
   )`,
   // §6.4 全文搜索：trigram tokenizer —— unicode61 把连续 CJK 当作单 token，中文子串搜不到；
   // trigram 按 3-gram 索引，中英文子串均可命中（查询 token <3 字符时由 searchMessages 走 LIKE 兜底）。

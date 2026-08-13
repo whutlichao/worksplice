@@ -417,6 +417,7 @@ export const zhCNLocale: LocalePlugin = {
     "shell.noChannels": "还没有频道",
     "shell.noAgents": "还没有 agent 成员",
     "shell.language": "语言",
+    "shell.unread": "{count} 条未读消息",
     "search.placeholder": "搜索消息…",
     "search.title": "全文搜索",
     "search.close": "关闭搜索",

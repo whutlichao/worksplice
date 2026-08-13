@@ -111,6 +111,24 @@ export function AppShell() {
     };
   }, []);
 
+  // BAI-6 未读角标：15s 轮询频道列表刷新未读数（agent 回复/新消息入流后侧栏角标保持新鲜）。
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void fetch("/api/channels")
+        .then(async (res) => {
+          if (!res.ok) return;
+          const body = (await res.json()) as { channels?: ChannelWithMeta[] };
+          if (!body.channels) return;
+          setChannels((prev) => {
+            const byId = new Map(body.channels!.map((c) => [c.id, c]));
+            return prev.map((c) => (byId.has(c.id) ? { ...c, unread: byId.get(c.id)!.unread } : c));
+          });
+        })
+        .catch(() => undefined);
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, []);
+
   // agent 状态点实时流（§3.6）：SSE 推送 { memberId: status } 快照，合并进列表
   useEffect(() => {
     let disposed = false;
@@ -199,6 +217,10 @@ export function AppShell() {
     setSearchOpen(false);
     setCenterTab("messages");
     setSidebarOpen(false);
+    // BAI-6 未读角标：打开频道即推进已读游标（服务端幂等），本地立即清零。
+    void fetch(`/api/channels/${encodeURIComponent(id)}/read`, { method: "POST" }).catch(() => undefined);
+    setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
+    setRefreshKey((k) => k + 1);
   };
 
   /** 打开面板：单槽替换（任何内容互斥，id 透传）；紧凑端滑入覆盖。 */

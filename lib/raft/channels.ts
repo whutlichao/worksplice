@@ -223,11 +223,14 @@ export function listChannelMembers(channelId: string): MemberRow[] {
     .filter((m): m is MemberRow => m !== undefined && m !== null && m.deleted !== 1);
 }
 
-/** 侧栏/列表用：每个 channel 附 加入状态 + 成员数（针对某成员）。 */
-export function listChannelsWithMeta(memberId: string): Array<ChannelRow & { joined: boolean; memberCount: number }> {
+/** 侧栏/列表用：每个 channel 附 加入状态 + 成员数 + Owner 未读数（BAI-6 未读角标）。 */
+export function listChannelsWithMeta(
+  memberId: string,
+): Array<ChannelRow & { joined: boolean; memberCount: number; unread: number }> {
   return listChannels().map((channel) => ({
     ...channel,
     joined: getDb().isChannelMember(channel.id, memberId),
     memberCount: getDb().listChannelMembers(channel.id).length,
+    unread: getDb().countUnreadChannelMessages(memberId, channel.id),
   }));
 }

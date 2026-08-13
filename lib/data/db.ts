@@ -1107,6 +1107,35 @@ export class RaftStore {
       .run(agentId, targetId, seq);
   }
 
+  /** BAI-6 未读角标：成员在某频道的已读游标（read_seq = 已读到的最大 seq；0 = 从未打开）。 */
+  getChannelReadSeq(memberId: string, channelId: string): number {
+    const row = this.db
+      .prepare("SELECT read_seq FROM channel_reads WHERE member_id = ? AND channel_id = ?")
+      .get(memberId, channelId) as { read_seq: number } | undefined;
+    return row?.read_seq ?? 0;
+  }
+
+  /** BAI-6 未读角标：推进（或初始化）成员在某频道的已读游标。 */
+  setChannelReadSeq(memberId: string, channelId: string, seq: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO channel_reads (member_id, channel_id, read_seq, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT (member_id, channel_id) DO UPDATE SET read_seq = excluded.read_seq, updated_at = excluded.updated_at`,
+      )
+      .run(memberId, channelId, seq, new Date().toISOString());
+  }
+
+  /** BAI-6 未读角标：频道内「作者非本人且 seq 高于已读游标」的消息数。 */
+  countUnreadChannelMessages(memberId: string, channelId: string): number {
+    const readSeq = this.getChannelReadSeq(memberId, channelId);
+    const row = this.db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM messages WHERE target_id = ? AND author_id != ? AND seq > ?",
+      )
+      .get(channelId, memberId, readSeq) as { n: number };
+    return row?.n ?? 0;
+  }
+
   /** §3.2 mute：记录静音时刻的 channel 版本 + 全局插入序（thread 消息按 rowid 判定）；已静音时幂等。 */
   setChannelMute(channelId: string, memberId: string, muteFromSeq: number, muteRowid: number): void {
     this.db
