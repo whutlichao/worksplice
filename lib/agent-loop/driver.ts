@@ -145,7 +145,12 @@ async function processAgent(agentId: string): Promise<void> {
   }
 }
 
-/** 会话正忙：等 settle 事件后把 target 放回队列重试（不丢 hint）。 */
+/**
+ * busy-cwd 找不到等待对象时的退避间隔（02-终检整改）：
+ * 人类/extension 路径的会话 starting 窗口内 wrapper 尚未入 registry——立即重试会热自旋
+ * （每轮 drain + startSession 全量空转）直到对方启动完成；退避把自旋压到有界。
+ */
+export const BUSY_CWD_RETRY_DELAY_MS = 250;
 async function waitForSettle(agentId: string, targetId: string, reason: WakeReason): Promise<void> {
   const state = getState();
   if (state.waitingForSettle.has(agentId)) return;
@@ -172,7 +177,10 @@ async function waitForSettle(agentId: string, targetId: string, reason: WakeReas
       runtime.findSession(agent) ??
       (agent.workspace_path ? runtime.findBusySessionForCwd?.(agent.workspace_path) : undefined);
     if (!waitTarget) {
-      retry();
+      // starting 窗口（对方会话尚未入 registry）：退避后重试，避免热自旋。
+      // 定时器登记进 settleUnsubs——stop() 时与 settle 监听一并取消，防测试/停机后幽灵重试。
+      const timer = setTimeout(retry, BUSY_CWD_RETRY_DELAY_MS);
+      state.settleUnsubs.set(agentId, () => clearTimeout(timer));
       return;
     }
     const unsub = waitTarget.onEvent((event) => {

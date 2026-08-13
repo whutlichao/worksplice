@@ -43,7 +43,7 @@
 3. **busy-cwd 与启动互斥**（ticket 02）：BusyCwdError 映射 busy-cwd，driver 等占用会话 settle 后重试（不丢 hint、不落 error）；`withCwdStartLock` per-cwd 启动互斥，检查+启动原子化。ADR-0001 串行语义落地为 mutex + 运行期 busy 检查。
 4. **会话文件所有权**（ticket 03/04/08，ADR-0003/0004）：凭证 = 固化登记（`pi_session_file`），复用需过归属校验，失败自愈（清绑+新建空会话）；无主文件永不解析；backfill 五条文件级门禁 + 轮级跨作者去重 + 软删成员登记纳入引用集。
 5. **唤醒面策略**（ticket 05）：唤醒面不收窄，回应与否下放 agent 自判——`buildReplyPrompt` rubric（MUST/MAY/MUST ignore）+ 确定信号（@mention、in_progress owner 线程他人消息）下 ignore = 失败 + 连续 2 次 cap-ack。
-6. **轮次记录**（ticket 07）：round_logs 表（schema v9，7 种有结论状态，ring cap 200/agent，driver 唯一收口点）；可观测页「轮次记录」卡片；状态点保持四态不动。
+6. **轮次记录**（ticket 07）：round_logs 表（SCHEMA_VERSION 8→10 一次落地，7 种有结论状态，ring cap 200/agent，driver 唯一收口点）；可观测页「轮次记录」卡片；状态点保持四态不动。
 7. **「未回复（已放弃）」badge**（ticket 09）：派生自 round_logs——`isAbandonedRound`（silent + error/capped）→ 每 (agent,target) 最新一轮 → 锚 `base_seq` 对应 seq 消息 → `listMessages` 批量挂 `abandonedMarks`（`listRoundLogsByTarget` 新查询，SCHEMA_VERSION 10）→ MessageRow 小字 badge（CircleSlash + 未回复/{count} 人未回复 + tooltip + 点击开 agent 面板）。
 8. **术语**（ticket 05/07）：订阅/唤醒/点名/退订、轮次/轮次结果 入 CONTEXT.md；ADR-0002/0003/0004 已记录。
 
@@ -52,7 +52,7 @@
 - 测试原则：只测外部行为，不测实现细节；fake runtime 注入（`LoopRuntime` 结构子集）零 SDK 依赖——node TS strip 模式无法解析 rpc-manager 的 parameter properties，绝不能静态 import。
 - 测试 seam：`lib/agent-loop/*.test.mjs`（fake runtime 驱动 loop/driver/backfill）、`lib/raft/*.test.mjs`（服务层 + 内存 tmp DB）、`components/ChannelView.test.mjs`（react-dom/server 渲染断言）、`lib/request-security.test.mjs` / `*-route.test.mjs`（route 源码级断言）。
 - 基线：`ticket06: RED` 复现脚手架（四场景覆盖矩阵）→ 08 修复后转绿；软删 corner 由 08 关闭。
-- 当前全量：`node --test lib/agent-loop/*.test.mjs lib/raft/*.test.mjs components/ChannelView.test.mjs` = **323 用例全绿**；`tsc --noEmit` 干净；`npm run lint` 干净。
+- 当前全量：`node --test lib/agent-loop/*.test.mjs lib/raft/*.test.mjs components/ChannelView.test.mjs` = **330 用例全绿**（终检时点，含 claim 边/streak/退避等 review 整改用例）；`tsc --noEmit` 干净；`npm run lint` 干净。
 
 ## Out of Scope
 

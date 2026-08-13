@@ -14,7 +14,8 @@
   （不补写、不推进游标、`console.warn` 记日志、不清绑——清绑是 `startSession` 自愈的职责，backfill 是只读恢复路径）：
   1. **header cwd == 成员 workspace**：jsonl 文件头（`type:"session"` 条目）的 `cwd` 字段——与 SDK
      `SessionManager.listAll()` 的 cwd 同源（同从 header 解析），backfill 无需 import SDK（保持启动路径轻量）。
-  2. **不被其他活成员固化引用**：防 03 修复前的双绑定残留（同一文件被 A、B 同时固化 → 双作者补写同一份回复）。
+  2. **不被其他成员固化引用（含软删登记）**：防 03 修复前的双绑定残留（同一文件被 A、B 同时固化 → 双作者补写同一份回复）；
+     软删成员行的 `pi_session_file` 是 ADR-0003 的所有权凭证（ticket 08 起 `listMembersIncludingDeleted` 计入引用集）。
   3. **文件 mtime ≥ 成员 created_at**：成员不可能在自己创建之前拥有会话——mtime 早于创建时间的文件**必然**
      不是该成员自己的（继承自 deleted/他人 agent 的旧文件），确定性规则，无逻辑误杀面。
 - **轮级跨作者内容去重（兜底）**：文件级门禁通过后，补写前查 `(target, content)` 是否已被**其他**作者落库——

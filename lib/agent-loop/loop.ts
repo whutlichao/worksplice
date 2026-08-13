@@ -733,7 +733,8 @@ export async function runAgentRound(
       // 02-决策一：BusyCwdError 是瞬态（占用会话必然 settle）——映射为 busy-cwd，
       // driver 等占用会话 settle 后重试：不丢 hint、状态不变 error（error 轮会被丢弃）。
       if (error instanceof BusyCwdError) {
-        return { status: "busy-cwd", reason: error.message };
+        // 07-承诺：busy-cwd 轮同 error 轮——携带本轮 drain 的房间版本（round_logs base_seq 非 0）
+        return { status: "busy-cwd", reason: error.message, baseSeq };
       }
       publishAgentStatus(agent.id, "error");
       return {
@@ -784,10 +785,13 @@ export async function runAgentRound(
           return revised.ok ? revised.text : "";
         },
       });
-      resetMustRespondFailures(agent.id, targetId);
       if (outcome.status === "error") {
+        // 05-终检整改：任务 error 轮不是成功轮——不重置 must-respond streak
+        // （与 reply 路径一致：成功投递/任务收口/无信号 ignore 才重置）。
+        // 否则模型可交替「ignore → 任务 error」无限规避 cap-ack 逃逸口。
         publishAgentStatus(agent.id, "error");
       } else {
+        resetMustRespondFailures(agent.id, targetId);
         publishAgentStatus(agent.id, "online");
       }
       return outcome;

@@ -55,6 +55,30 @@ export class TaskNotAuthorizedError extends Error {
   }
 }
 
+/** claim 边冲突（§3.7/ADR-0002）：update-status 路由按 kind 映射 409
+ * （conflict/blocked，与 /claim 路由同语义同状态码——终检整改）。 */
+export class TaskClaimConflictError extends Error {
+  readonly kind: "conflict" | "blocked";
+  constructor(kind: "conflict" | "blocked", message: string) {
+    super(message);
+    this.name = "TaskClaimConflictError";
+    this.kind = kind;
+  }
+}
+
+/**
+ * claim 前置判定（§3.7 认领封锁）：owner 唯一 + 重开封锁。
+ * claimTask 与 updateTaskStatus 的 claim 边共用同一判定——单点维护，封锁条件增改不漂移
+ * （终检整改：此前两处手工复刻，claimTask 加条件时 claim 边不会跟随）。
+ */
+function claimBlockReason(current: TaskRow, memberId: string): string | null {
+  if (current.owner_id !== null) return "Task is already claimed";
+  if (current.reopened === 1 && memberId !== CURRENT_MEMBER_ID) {
+    return "Task was reopened — awaiting the owner";
+  }
+  return null;
+}
+
 /**
  * 状态机转移表（§3.7）：key = 当前状态，value = 可达状态 → 授权谓词。
  * clearOwner：转移后释放回池（unclaim/reopen）。
@@ -189,11 +213,12 @@ export function claimTask(input: {
       return { status: "held" as const, roomSeq, whatHappened: summarizeChanges(channelId, input.baseSeq) };
     }
     const current = getDb().getTaskById(task.id);
-    if (!current || current.owner_id !== null) {
-      return { status: "conflict" as const, reason: "Task is already claimed" };
-    }
-    if (current.reopened === 1 && input.memberId !== CURRENT_MEMBER_ID) {
-      return { status: "blocked" as const, reason: "Task was reopened — awaiting the owner" };
+    if (!current) return { status: "conflict" as const, reason: "Task is already claimed" };
+    const blockReason = claimBlockReason(current, input.memberId);
+    if (blockReason) {
+      return current.owner_id !== null
+        ? { status: "conflict" as const, reason: blockReason }
+        : { status: "blocked" as const, reason: blockReason };
     }
     const updated = getDb().updateTask(current.id, {
       status: "in_progress",
@@ -229,13 +254,16 @@ export function updateTaskStatus(input: {
     if (!current) throw new Error("Task not found in this channel");
 
     // §3.7/ADR-0002 claim 边：todo → in_progress 由 reachable 合成（看板拖拽落点），
-    // 语义 = claimTask（owner 唯一 + 重开封锁，拖拽者成为 owner 并清标）——状态机转移表不重复该边。
+    // 语义 = claimTask（owner 唯一 + 重开封锁，拖拽者成为 owner 并清标）——状态机转移表不重复该边；
+    // 封锁判定与 claimTask 共用 claimBlockReason，冲突以 TaskClaimConflictError 抛出
+    // （路由映射 409 conflict/blocked，与 /claim 同语义同状态码）。
     if (current.status === "todo" && input.status === "in_progress") {
-      if (current.owner_id !== null) {
-        throw new TaskNotAuthorizedError("Task is already claimed");
-      }
-      if (current.reopened === 1 && input.memberId !== CURRENT_MEMBER_ID) {
-        throw new TaskNotAuthorizedError("Task was reopened — awaiting the owner");
+      const blockReason = claimBlockReason(current, input.memberId);
+      if (blockReason) {
+        throw new TaskClaimConflictError(
+          current.owner_id !== null ? "conflict" : "blocked",
+          blockReason,
+        );
       }
       const claimed = getDb().updateTask(current.id, {
         status: "in_progress",
