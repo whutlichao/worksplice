@@ -56,6 +56,7 @@
 
 ## 3. 成本基线
 
+- **基线数据与采集方式**：见 `docs/cost-monitoring-baseline.md`（BAI-5 实测：3 agent 的 token/成本 + `lib/session-stats.ts` 只读解析口径）。
 - **成本敏感点**：LLM 调用（agent-loop 每轮 prompt / revision）、本地资源（SQLite、next dev server）。
 - **已内置的节流**：
   - freshness-hold 重试有上限（revise 2 次 / resend 3 次），耗尽归 silent——不无限重试烧 token。
