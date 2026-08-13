@@ -29,9 +29,10 @@ function writeModelsJson(data: Record<string, unknown>): void {
 }
 
 function sanitizeModelsJson(data: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...data };
   const providers = data.providers;
   if (!providers || typeof providers !== "object" || Array.isArray(providers)) {
-    return { providers: {} };
+    return result;
   }
   const cleaned: Record<string, unknown> = {};
   for (const [name, provider] of Object.entries(providers as Record<string, unknown>)) {
@@ -47,7 +48,7 @@ function sanitizeModelsJson(data: Record<string, unknown>): Record<string, unkno
     }
     cleaned[name] = entry;
   }
-  return { providers: cleaned };
+  return { ...result, providers: cleaned };
 }
 
 export async function GET() {
