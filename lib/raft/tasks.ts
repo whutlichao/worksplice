@@ -228,6 +228,24 @@ export function updateTaskStatus(input: {
     const current = getDb().getTaskById(task.id);
     if (!current) throw new Error("Task not found in this channel");
 
+    // §3.7/ADR-0002 claim 边：todo → in_progress 由 reachable 合成（看板拖拽落点），
+    // 语义 = claimTask（owner 唯一 + 重开封锁，拖拽者成为 owner 并清标）——状态机转移表不重复该边。
+    if (current.status === "todo" && input.status === "in_progress") {
+      if (current.owner_id !== null) {
+        throw new TaskNotAuthorizedError("Task is already claimed");
+      }
+      if (current.reopened === 1 && input.memberId !== CURRENT_MEMBER_ID) {
+        throw new TaskNotAuthorizedError("Task was reopened — awaiting the owner");
+      }
+      const claimed = getDb().updateTask(current.id, {
+        status: "in_progress",
+        ownerId: input.memberId,
+        reopened: 0,
+      });
+      if (!claimed) throw new Error("Task not found");
+      return { status: "updated" as const, task: toTaskView(claimed, getDb().getMessage(claimed.message_id)!) };
+    }
+
     const transition = TRANSITIONS[current.status]?.[input.status];
     if (!transition) throw new InvalidTaskTransitionError(current.status, input.status);
     if (!transition.authorized(current, input.memberId)) {
