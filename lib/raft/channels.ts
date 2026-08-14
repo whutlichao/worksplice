@@ -1,6 +1,6 @@
 import { getDb } from "./db-singleton.ts";
 import { notifyAgentJoinedChannel, notifyChannelCreated, findSusanMember } from "./event-messages.ts";
-import type { ChannelRow, MemberRow } from "../data/db.ts";
+import type { ChannelRow, MemberRow } from "../data/types.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../data/schema.ts";
 
 /** 当前人类用户恒为 Owner（§3.6：本地单机形态下 Owner 级操作由 human 在 UI 直接执行）。 */

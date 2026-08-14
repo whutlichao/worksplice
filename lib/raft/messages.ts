@@ -10,7 +10,7 @@ import {
   type MessageAttachmentDraft,
 } from "./attachments.ts";
 import { previewLine } from "../preview.ts";
-import type { AttachmentRow, ChannelRow, MemberRow, MessageRow } from "../data/db.ts";
+import type { AttachmentRow, ChannelRow, MemberRow, MessageRow } from "../data/types.ts";
 
 const DEFAULT_PAGE_LIMIT = 50;
 const MAX_PAGE_LIMIT = 200;

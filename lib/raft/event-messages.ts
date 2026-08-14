@@ -3,7 +3,7 @@ import { getMember, listAgents } from "./members.ts";
 import { sendMessage } from "./messages.ts";
 import { emitWake } from "./wake.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../data/schema.ts";
-import type { ChannelRow, MemberRow } from "../data/db.ts";
+import type { ChannelRow, MemberRow } from "../data/types.ts";
 
 /**
  * 事件系统消息（spec-bootstrap-agent.md §4.2/§7，构建 effort ticket 01）：

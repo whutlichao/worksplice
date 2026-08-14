@@ -1,6 +1,6 @@
 import { getDb } from "./db-singleton.ts";
 import { getMember } from "./members.ts";
-import type { RoundLogRow } from "../data/db.ts";
+import type { RoundLogRow } from "../data/types.ts";
 
 /**
  * §07 轮次结果（Round Outcome）服务层：区分「自判 ignore」与「处理失败」的事实来源。

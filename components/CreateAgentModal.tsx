@@ -5,7 +5,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
 import { ModelPicker } from "./ModelPicker";
 import type { ModelsData } from "@/lib/models-cache";
-import type { MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/types";
 import { hasLiveSusan, resolveBootstrapModel } from "@/lib/secretary-bootstrap";
 
 const INK = "#141111";

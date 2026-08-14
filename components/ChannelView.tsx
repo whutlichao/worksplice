@@ -11,7 +11,7 @@ import { ReminderModal } from "./ReminderModal";
 import { copyText } from "@/lib/clipboard";
 import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
 import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
-import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/data/db";
+import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/data/types";
 import { extractAtQuery, buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
 import { composerMentionCandidates } from "@/lib/mention";
 import { memberPanel, subscribePinnedChanged, type PanelContent } from "@/lib/panel-state";

@@ -4,7 +4,7 @@ import { getDb } from "./db-singleton.ts";
 import { listChannels, joinChannel, isChannelMember } from "./channels.ts";
 import { createAgent, agentHomePath } from "./members.ts";
 import { findSusanMember, notifySecretaryWelcome, SUSAN_MEMBER_NAME } from "./event-messages.ts";
-import type { MemberRow } from "../data/db.ts";
+import type { MemberRow } from "../data/types.ts";
 import { OWNER_MEMBER_ID } from "../data/schema.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
 

@@ -6,7 +6,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
 import type { ChannelWithMeta } from "./ChannelView";
-import type { MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/types";
 
 const INK = "#141111";
 const LABEL_STYLE: React.CSSProperties = {

@@ -3,7 +3,7 @@ import { getChannel, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { previewLine } from "../preview.ts";
 import { listChannelTasks, type TaskView } from "./tasks.ts";
-import type { TaskRow } from "../data/db.ts";
+import type { TaskRow } from "../data/types.ts";
 
 /**
  * 任务历史（spec §6.5）：该 agent 参与的任务 + 状态变更时间线。

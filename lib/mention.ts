@@ -4,7 +4,7 @@
  * 渲染侧额外跳过代码围栏与行内代码内的 @token，避免破坏 markdown 结构。
  */
 
-import type { MemberStatus } from "./data/db.ts";
+import type { MemberStatus } from "./data/types.ts";
 
 export interface MentionMember {
   id: string;

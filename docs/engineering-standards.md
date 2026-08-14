@@ -12,7 +12,7 @@
   - 服务层函数动词开头（`listXxx` / `createXxx` / `updateXxx` / `markXxx`）；路由文件一律 `export async function GET/POST(...)`。
   - 术语必须用 CONTEXT.md 的领域词表（成员/agent/频道/任务/轮次/唤醒/…），禁止引入同义词造成漂移。
   - 避免 `any`；服务层返回显式 union（如 `SendMessageResult`、状态机转移结果），让类型系统成为文档。
-- **分层**：UI 组件不直连 DB——所有数据经 `lib/raft/*.ts` 服务层 → `app/api/*/route.ts`（薄封装，校验入参 + 映射错误码）。新查询方法落在 `lib/data/db.ts`，服务层只调 getDb()，不写 SQL。
+- **分层**：UI 组件不直连 DB——所有数据经 `lib/raft/*.ts` 服务层 → `app/api/*/route.ts`（薄封装，校验入参 + 映射错误码）。数据存取走 `Store` 契约（`lib/data/store.ts`，Ticket 03 Separate Data Layer；业务模块经 `getDb(): Store` 取实例，不写 SQL、不 import 具体 adapter `lib/data/sqlite.ts`）。新查询方法 = 在 `Store` 接口声明 + 在 `SQLiteAdapter`（sqlite.ts）实现；纯查询辅助（`toFtsQuery`/`buildSearchSnippet`）落在 `lib/data/types.ts`。
 - **错误码语义**：业务冲突用 409（held / conflict / blocked），非法入参用 400，资源缺失用 404。同语义错误跨路由必须同状态码（反例已整改：claim 边 conflict/blocked 与 /claim 对齐 409）。
 - **不要**把密钥/客户数据写入代码、日志、commit。`console.log` 只在服务端排查用，能删则删。
 

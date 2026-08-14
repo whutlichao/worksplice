@@ -1,7 +1,7 @@
 import { existsSync, realpathSync, rmSync } from "fs";
 import { normalize, resolve } from "path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { MemberRow } from "./data/db.ts";
+import type { MemberRow } from "./data/types.ts";
 import { getDb } from "./raft/db-singleton.ts";
 import {
   agentHomePath,

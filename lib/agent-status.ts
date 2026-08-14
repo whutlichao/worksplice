@@ -1,5 +1,5 @@
 import { listAgents, getMember, setAgentStatus } from "./raft/members.ts";
-import type { MemberRow, MemberStatus } from "./data/db.ts";
+import type { MemberRow, MemberStatus } from "./data/types.ts";
 
 /**
  * agent 状态点（§3.6）的进程内事实来源 + 广播器。

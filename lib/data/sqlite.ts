@@ -2,232 +2,37 @@ import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { ensureDataDir, resolveDataDir, type DataPaths } from "./dirs.ts";
 import { runMigrations, SCHEMA_VERSION } from "./schema.ts";
+import { buildSearchSnippet, escapeLike, toFtsQuery } from "./types.ts";
+import type { Store } from "./store.ts";
+import type {
+  AppendMessageInput,
+  AttachmentRow,
+  ChannelMemberRow,
+  ChannelMuteRow,
+  ChannelRow,
+  ChannelType,
+  InsertMessageInput,
+  MemberRole,
+  MemberRow,
+  MemberStatus,
+  MemberType,
+  MessageRow,
+  PinnedMessageRow,
+  ReactionRow,
+  ReminderLogEvent,
+  ReminderLogRow,
+  ReminderRow,
+  ReminderStatus,
+  RoundLogRow,
+  SearchResult,
+  TaskRow,
+  TaskStatus,
+} from "./types.ts";
 
-export type ChannelType = "public" | "private";
-export type MemberType = "human" | "agent";
-export type MemberRole = "owner" | "member";
-export type MemberStatus = "online" | "working" | "error" | "offline";
-export type TaskStatus = "todo" | "in_progress" | "in_review" | "done" | "closed";
-export type ReminderStatus = "scheduled" | "fired" | "canceled";
+// Ticket 03 Separate Data Layer：SQLiteAdapter 是 raft 数据契约 `Store` 的一种实现
+// （业务模块只依赖 lib/data/store.ts 的接口，不直接引用本具体 adapter）。
 
-export interface ChannelRow {
-  id: string;
-  name: string;
-  type: ChannelType;
-  description: string;
-  archived: number;
-  created_at: string;
-}
-
-export interface MemberRow {
-  id: string;
-  type: MemberType;
-  name: string;
-  description: string;
-  role: MemberRole;
-  workspace_path: string | null;
-  pi_session_file: string | null;
-  status: MemberStatus;
-  deleted: number;
-  /** §3.10 per-agent runtime：覆盖全局默认的模型/思考级别（nullable = 继承全局）。 */
-  model_provider: string | null;
-  model_id: string | null;
-  thinking_level: string | null;
-  created_at: string;
-}
-
-export interface ChannelMemberRow {
-  channel_id: string;
-  member_id: string;
-  joined_at: string;
-}
-
-export interface MessageRow {
-  id: string;
-  target_id: string;
-  seq: number;
-  author_id: string;
-  content: string;
-  created_at: string;
-  /** 全局插入序（mute 的"静音后"判定；listMessagesAfter 附上，其余构造路径无）。 */
-  rowid?: number;
-}
-
-export interface TaskRow {
-  id: string;
-  message_id: string;
-  number: number;
-  status: TaskStatus;
-  owner_id: string | null;
-  /** §3.7 重开封锁标记：reopen 置 1、人类认领清 0；置 1 期间 agent-loop 不可自动认领。 */
-  reopened: number;
-  updated_at: string;
-}
-
-export interface ReminderRow {
-  id: string;
-  title: string;
-  fire_at: string;
-  recurrence: string | null;
-  target_id: string | null;
-  author_id: string;
-  status: ReminderStatus;
-  created_at: string;
-}
-
-export type ReminderLogEvent =
-  | "schedule"
-  | "fire"
-  | "reschedule"
-  | "snooze"
-  | "update"
-  | "cancel"
-  | "error";
-
-export interface ReminderLogRow {
-  id: string;
-  reminder_id: string;
-  event: ReminderLogEvent;
-  detail: string;
-  created_at: string;
-}
-
-/** §07 轮次结果（Round Outcome）落盘行：一次有结论的 agent-loop 轮次。 */
-export interface RoundLogRow {
-  id: string;
-  agent_id: string;
-  target_id: string;
-  status: "replied" | "ignored" | "silent" | "anyway" | "yielded" | "error" | "busy-cwd";
-  reason: string;
-  base_seq: number;
-  created_at: string;
-}
-
-export interface ReactionRow {
-  id: string;
-  message_id: string;
-  member_id: string;
-  emoji: string;
-  created_at: string;
-}
-
-export interface AttachmentRow {
-  id: string;
-  message_id: string;
-  file_name: string;
-  mime: string;
-  size_bytes: number;
-  disk_path: string;
-  created_at: string;
-}
-
-export interface PinnedMessageRow {
-  id: string;
-  channel_id: string;
-  message_id: string;
-  member_id: string;
-  order: number;
-  pinned_at: string;
-}
-
-export interface ConsumedSeqRow {
-  agent_id: string;
-  target_id: string;
-  seq: number;
-}
-
-export interface ChannelMuteRow {
-  channel_id: string;
-  member_id: string;
-  mute_from_seq: number;
-  mute_rowid: number;
-  created_at: string;
-}
-
-export interface SearchResult {
-  id: string;
-  target_id: string;
-  seq: number;
-  author_id: string;
-  created_at: string;
-  snippet: string;
-}
-
-export interface InsertMessageInput {
-  id?: string;
-  targetId: string;
-  seq: number;
-  authorId: string;
-  content: string;
-  createdAt?: string;
-}
-
-export interface AppendMessageInput {
-  id?: string;
-  targetId: string;
-  authorId: string;
-  content: string;
-  createdAt?: string;
-}
-
-export function toFtsQuery(input: string): string {
-  const tokens = input.trim().split(/\s+/).filter(Boolean);
-  return tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(" AND ");
-}
-
-/** LIKE 通配符转义（短 token 兜底路径）。 */
-function escapeLike(input: string): string {
-  return input.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-}
-
-const HTML_ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-const escapeHtml = (input: string): string => input.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);
-
-/**
- * 命中上下文摘要（§6.4）：取最早命中词前后 radius 字符，正文转义后仅高亮命中词。
- * 不用 SQL 侧 snippet()（其输出不转义正文，消息内容里的 HTML 会原样透出）；
- * FTS 路径与 LIKE 兜底路径共用，保证两路摘要形态一致。
- */
-export function buildSearchSnippet(content: string, terms: string[], radius = 60): string {
-  const lower = content.toLowerCase();
-  let best = -1;
-  let bestLen = 0;
-  for (const term of terms) {
-    const idx = lower.indexOf(term.toLowerCase());
-    if (idx !== -1 && term.length > bestLen) {
-      best = idx;
-      bestLen = term.length;
-    }
-  }
-  if (best === -1) {
-    const head = content.slice(0, radius * 2);
-    return escapeHtml(head) + (content.length > head.length ? "…" : "");
-  }
-  const start = Math.max(0, best - radius);
-  const end = Math.min(content.length, best + bestLen + radius);
-  const matchStart = best - start;
-  const matchEnd = matchStart + bestLen;
-  const prefix = start > 0 ? "…" : "";
-  const suffix = end < content.length ? "…" : "";
-  return (
-    prefix +
-    escapeHtml(content.slice(start, start + matchStart)) +
-    `<mark>` +
-    escapeHtml(content.slice(start + matchStart, start + matchEnd)) +
-    `</mark>` +
-    escapeHtml(content.slice(start + matchEnd, end)) +
-    suffix
-  );
-}
-
-export class RaftStore {
+export class SQLiteAdapter implements Store {
   readonly db: Database.Database;
   readonly paths: DataPaths;
 
@@ -236,14 +41,14 @@ export class RaftStore {
     this.paths = paths;
   }
 
-  static open(dataDir?: string): RaftStore {
+  static open(dataDir?: string): SQLiteAdapter {
     const dir = dataDir ?? resolveDataDir();
     const paths = ensureDataDir(dir);
     const db = new Database(paths.dbFile);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
     runMigrations(db);
-    return new RaftStore(db, paths);
+    return new SQLiteAdapter(db, paths);
   }
 
   close(): void {
@@ -1178,9 +983,12 @@ declare global {
   var __workspliceDbOpenedVersion: number | undefined;
 }
 
-/** 打开即记录打开时的 schema 版本：getDb() 据此识别热重载后的旧原型实例。 */
-export function openDataDb(dataDir?: string): RaftStore {
-  const store = RaftStore.open(dataDir);
+/** 打开一个 SQLite 持久化 Store；记录打开时的 schema 版本供 db-singleton 识别热重载旧原型。 */
+export function openSqliteAdapter(dataDir?: string): SQLiteAdapter {
+  const store = SQLiteAdapter.open(dataDir);
   globalThis.__workspliceDbOpenedVersion = SCHEMA_VERSION;
   return store;
 }
+
+/** 历史工厂名（== openSqliteAdapter）；保留以免既有测试/调用方标识符改动。 */
+export const openDataDb = openSqliteAdapter;

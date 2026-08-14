@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from "fs";
 import { normalize as normalizePath } from "path";
-import type { MemberRow } from "./data/db.ts";
+import type { MemberRow } from "./data/types.ts";
 import { normalizeWorkspacePath } from "./raft/members.ts";
 
 /**

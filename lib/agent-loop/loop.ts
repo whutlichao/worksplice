@@ -19,7 +19,7 @@ import { logRoundOutcome } from "../raft/rounds.ts";
 import { publishAgentStatus, startAgentStatusSweeper } from "../agent-status.ts";
 import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
-import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/db.ts";
+import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/types.ts";
 
 /**
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：

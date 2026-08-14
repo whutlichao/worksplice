@@ -5,7 +5,7 @@ import { sendMessage } from "./messages.ts";
 import { emitWake } from "./wake.ts";
 import { nextFireAt, isValidRecurrence } from "./recurrence.ts";
 import { OWNER_MEMBER_ID } from "../data/schema.ts";
-import type { MemberRow, MessageRow, ReminderLogEvent, ReminderRow } from "../data/db.ts";
+import type { MemberRow, MessageRow, ReminderLogEvent, ReminderRow } from "../data/types.ts";
 
 /**
  * reminder 服务层（§3.9/§5.6）：schedule / list / snooze / update / cancel / log / fire。

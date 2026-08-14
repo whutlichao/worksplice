@@ -8,7 +8,7 @@ import { StatusDot } from "./StatusDot";
 import { BrutalModal } from "./BrutalModal";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { ModelPicker } from "./ModelPicker";
-import type { MemberRow, MemberStatus, TaskStatus } from "@/lib/data/db";
+import type { MemberRow, MemberStatus, TaskStatus } from "@/lib/data/types";
 import type { ModelsData } from "@/lib/models-cache";
 
 const INK = "#141111";

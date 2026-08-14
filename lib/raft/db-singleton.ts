@@ -1,18 +1,20 @@
-import { openDataDb, type RaftStore } from "../data/db.ts";
+import { openDataDb } from "../data/sqlite.ts";
+import type { Store } from "../data/store.ts";
 import { SCHEMA_VERSION } from "../data/schema.ts";
 
 declare global {
-  var __workspliceDb: RaftStore | undefined;
+  var __workspliceDb: Store | undefined;
 }
 
 /**
- * 进程级 raft.db 单例；globalThis 扛 Next.js 热重载（与 lib/rpc 同模式）。
- * openDataDb 会记录打开时的 schema 版本；热重载后 db.ts 的类已变时（版本不同）
- * 重建实例，避免拿到旧原型的 setMemberPiSessionFile 等新方法缺失报错。
- * 测试直连（globalThis.__workspliceDb = openDataDb(tmp)）同样经过 openDataDb，
+ * 进程级 raft 存储单例（契约类型为 `Store`，运行时是 SQLiteAdapter）；globalThis 扛
+ * Next.js 热重载（与 lib/rpc 同模式）。openSqliteAdapter 会记录打开时的 schema 版本；
+ * 热重载后 SQLiteAdapter 类已变时（版本不同）重建实例，避免拿到旧原型的
+ * setMemberPiSessionFile 等新方法缺失报错。
+ * 测试直连（globalThis.__workspliceDb = openDataDb(tmp)）同样经过 openSqliteAdapter，
  * 版本戳一致，不会被误重建。
  */
-export function getDb(): RaftStore {
+export function getDb(): Store {
   if (
     !globalThis.__workspliceDb ||
     globalThis.__workspliceDbOpenedVersion !== SCHEMA_VERSION

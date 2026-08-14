@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from "path";
 import { randomUUID } from "crypto";
 import { getDb } from "./db-singleton.ts";
 import { notifyAgentJoinedChannel } from "./event-messages.ts";
-import type { MemberRow, MemberStatus } from "../data/db.ts";
+import type { MemberRow, MemberStatus } from "../data/types.ts";
 import { BUILTIN_CHANNEL_ID } from "../data/schema.ts";
 import { agentHomeDir, buildMemoryTemplate, MEMORY_FILE_NAME } from "../data/dirs.ts";
 import { parseMentionTokens } from "../mention.ts";

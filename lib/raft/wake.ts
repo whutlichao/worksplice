@@ -1,7 +1,7 @@
 import { getDb } from "./db-singleton.ts";
 import { getChannelMute, listChannelMembers, resolveChannelForTarget } from "./channels.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
-import type { MessageRow } from "../data/db.ts";
+import type { MessageRow } from "../data/types.ts";
 
 /**
  * wake 事件总线（§5.4/§5.5，Ticket 02 从 agent-loop 下沉到 raft 域）：

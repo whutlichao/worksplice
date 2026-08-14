@@ -2,7 +2,7 @@ import { getDb } from "./db-singleton.ts";
 import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { messageWithAuthor, type MessageWithAuthor } from "./messages.ts";
-import type { MessageRow, PinnedMessageRow } from "../data/db.ts";
+import type { MessageRow, PinnedMessageRow } from "../data/types.ts";
 
 export type PinSortMode = "manual" | "recent" | "az";
 

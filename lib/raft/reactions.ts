@@ -1,6 +1,6 @@
 import { getDb } from "./db-singleton.ts";
 import { resolveChannelForTarget, isChannelMember } from "./channels.ts";
-import type { MessageRow } from "../data/db.ts";
+import type { MessageRow } from "../data/types.ts";
 
 const MAX_EMOJI_LENGTH = 32;
 

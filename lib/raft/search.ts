@@ -1,7 +1,7 @@
 import { getDb } from "./db-singleton.ts";
 import { getChannel, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
-import type { ChannelRow, MemberRow, SearchResult } from "../data/db.ts";
+import type { ChannelRow, MemberRow, SearchResult } from "../data/types.ts";
 
 export const MAX_SEARCH_LIMIT = 50;
 

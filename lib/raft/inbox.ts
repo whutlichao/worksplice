@@ -2,7 +2,7 @@ import { getDb } from "./db-singleton.ts";
 import { getMember, extractMentionedMemberIds } from "./members.ts";
 import { getChannelMute, resolveChannelForTarget } from "./channels.ts";
 import { messageWithAuthor, previewLine, type MessageWithAuthor } from "./messages.ts";
-import type { MessageRow } from "../data/db.ts";
+import type { MessageRow } from "../data/types.ts";
 
 /**
  * inbox 服务层（§5.5）：拉取式收件箱的查询接口。

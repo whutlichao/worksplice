@@ -13,7 +13,7 @@ import { CreateAgentModal } from "./CreateAgentModal";
 import { MyRemindersModal } from "./MyRemindersModal";
 import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
-import type { MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/types";
 import { OWNER_MEMBER_ID } from "@/lib/data/schema";
 import { closePanel, onChannelSwitched, openPanel, type PanelContent } from "@/lib/panel-state";
 

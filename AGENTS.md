@@ -165,8 +165,11 @@ lib/raft/wake.ts                  wake 事件总线（§5.4/§5.5，Ticket 02 �
                                   §3.7 任务延续自醒：任务 owner 的回复落任务线程且任务 in_progress → 自醒续工；
                                   @mention 解析 re-export（raft 服务层发，agent-loop 驱动订阅）
 
-lib/data/                         raft SQLite 数据层（better-sqlite3，同步 API）
-  db.ts                           RaftStore：表 CRUD + maxSeq/freshness 原语 + seq 游标分页
+lib/data/                         raft 数据层（Ticket 03 Separate Data Layer：Store 契约 + SQLiteAdapter）
+  store.ts                        `Store` 接口（数据契约；业务模块只依赖它，不 import 具体 adapter）
+  types.ts                        raft 共享类型（行类型/输入/枚举）+ 搜索纯函数（toFtsQuery/buildSearchSnippet）
+  sqlite.ts                       `SQLiteAdapter implements Store`（better-sqlite3，同步 API）+ 工厂
+                                  openSqliteAdapter/openDataDb；表 CRUD + maxSeq/freshness 原语 + seq 游标分页
   schema.ts                       schema v4（reminder_logs 事件表；members.deleted 为 v3 ALTER 迁移）+ 消息不可变触发器 + FTS5
   dirs.ts                         ~/.worksplice 数据目录解析（WORKSPLICE_DATA_DIR 覆盖）
 
@@ -317,7 +320,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
 
 ### Raft message domain (`lib/raft/`)
-- **服务层 = 唯一事实来源**：`lib/raft/channels.ts` / `messages.ts` 直接操作 SQLite（`db-singleton`），API route 仅薄封装；join/leave/archive/mute 的权限规则、freshness-hold、thread 不可嵌套都在服务层强制，route 层不重复实现。
+- **服务层 = 唯一事实来源**：`lib/raft/channels.ts` / `messages.ts` 直接操作数据层（`getDb(): Store`——Ticket 03 数据契约，运行时 `SQLiteAdapter`），API route 仅薄封装；join/leave/archive/mute 的权限规则、freshness-hold、thread 不可嵌套都在服务层强制，route 层不重复实现。
 - **Target 归一化**（§6.1）：消息 `target_id` 单列——命中 `channels` 即 channel，否则是 thread 锚点消息 id；`resolveTarget` 拒绝 thread 消息作为新 target（不可嵌套）。thread 读接口（`getThreadInfo`）会把 thread 内消息归一化回锚点。
 - **Freshness-hold**（§6.3）：`sendMessage` 带 `baseSeq`（客户端最新 `maxSeq`），事务内比对 `maxSeq(targetId)`，不等返回 `{ held, roomSeq, whatHappened }`，route 层 409；UI 收 held 后重新拉取并提示，agent 的四选一流程属 ticket 06。
 - **权限面**：写消息要求作者是 channel 成员（thread 回复继承 channel 规则）；私有 channel 加入/移除成员、归档都仅 Owner（`CURRENT_MEMBER_ID` = `"owner"`，人类恒为 Owner）；`#all` 不可离开；新 agent 创建时自动加入 `#all`（seed 也会在迁移时补齐既有成员）。
@@ -334,7 +337,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **状态点 = 现场推导 + DB 回落**（`lib/agent-status.ts`）：`statusLookup` 有存活 wrapper 时推导（running → working / idle 且 DB 非 error → online），wrapper 不在时 DB error 保留、其余回落 offline；低频扫掠（10s）兜底 idle shutdown 的漂移。`prompt_error` 事件写 error 且不会被 idle 推导覆盖，直到下次 `agent_start` 或重启。lookup/listeners/snapshot 全部挂在 globalThis（热重载安全）；agent-runtime 用 `__workspliceAgentSessions` 按成员 id 记账 wrapper，**不按 cwd 猜归属**——同一 cwd 上的人类/他 agent 会话不会张冠李戴。
 - **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import lib/rpc/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 lib/rpc/session.ts 的 parameter properties，绝不能静态 import 它。
 - **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话；拒绑他人家目录）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 删掉该 cwd 下无成员引用的 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文；共享项目目录下他 agent 的文件保留。
-- **`db-singleton` 版本守卫**：`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb()` 比对版本，热重载后 RaftStore 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openDataDb，不会被误重建或误开 `~/.worksplice/raft.db`。
+- **`db-singleton` 版本守卫**：`openSqliteAdapter`/`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb(): Store` 比对版本，热重载后 `SQLiteAdapter` 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openSqliteAdapter，不会被误重建或误开 `~/.worksplice/raft.db`。
 
 ### agent-loop（ticket 06，§3.8/§5.3–5.5）
 - **拉取式 inbox，不推送正文**：`consumed_seqs(agent_id, target_id, seq)` 是持久化游标；`drain` 不推进游标（重复 drain 不重不漏），`ack` 由 loop 每轮收口；HTTP 语义（`GET /api/members/[id]/inbox`）是 drain + ack 一步到位。wake hint 只含 `{agentId, targetId, seq, reason}`，正文由 agent 自己 drain。

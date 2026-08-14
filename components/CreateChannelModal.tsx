@@ -6,7 +6,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
 import { PixelAvatar } from "./PixelAvatar";
 import { liveSusanMemberId, precheckSusanForPrivateChannel } from "@/lib/secretary-bootstrap";
-import type { MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/types";
 
 const INK = "#141111";
 

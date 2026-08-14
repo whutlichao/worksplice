@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db-singleton.ts";
 import { MAX_ATTACHMENT_BYTES } from "../preview.ts";
-import type { AttachmentRow } from "../data/db.ts";
+import type { AttachmentRow } from "../data/types.ts";
 
 export { MAX_ATTACHMENT_BYTES } from "../preview.ts";
 

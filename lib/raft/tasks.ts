@@ -2,7 +2,7 @@ import { getDb } from "./db-singleton.ts";
 import { getChannel, isChannelMember, resolveChannelForTarget, CURRENT_MEMBER_ID } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { messageWithAuthor, summarizeChanges, type MessageWithAuthor } from "./messages.ts";
-import type { ChannelRow, MemberRow, MessageRow, TaskRow, TaskStatus } from "../data/db.ts";
+import type { ChannelRow, MemberRow, MessageRow, TaskRow, TaskStatus } from "../data/types.ts";
 
 /**
  * 任务服务层（§3.7）：task = 消息 + 元数据。

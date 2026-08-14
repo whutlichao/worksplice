@@ -12,7 +12,7 @@ import {
 import { publishAgentStatus } from "./agent-status.ts";
 import { getAgentRuntime, BusyCwdError, type AgentRuntime } from "./agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "./data/dirs.ts";
-import type { MemberRow } from "./data/db.ts";
+import type { MemberRow } from "./data/types.ts";
 
 /**
  * agent 生命周期（§3.6 重置粒度，ADR-0001 目录两分）：

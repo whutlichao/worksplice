@@ -7,7 +7,7 @@ import { ThreadPanel } from "./ThreadPanel";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
 import type { ChannelWithMeta } from "./ChannelView";
-import type { MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/types";
 import type { PanelContent } from "@/lib/panel-state";
 
 const INK = "#141111";

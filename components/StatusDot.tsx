@@ -1,6 +1,6 @@
 "use client";
 
-import type { MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/types";
 
 const INK = "#141111";
 

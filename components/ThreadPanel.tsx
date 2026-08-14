@@ -7,7 +7,7 @@ import { copyText } from "@/lib/clipboard";
 import { previewLine } from "@/lib/preview";
 import { Composer, MessageRow, mergeIncomingMessages, type ChannelMessage, type ChannelWithMeta, type PinnedItem, type ReactionSummary } from "./ChannelView";
 import { ReminderModal } from "./ReminderModal";
-import type { MemberRow } from "@/lib/data/db";
+import type { MemberRow } from "@/lib/data/types";
 import { memberPanel, notifyPinnedChanged, type PanelContent } from "@/lib/panel-state";
 import { composerMentionCandidates } from "@/lib/mention";
 
