@@ -1,12 +1,13 @@
-import { getDb } from "../raft/db-singleton.ts";
-import { getChannelMute, listChannelMembers, resolveChannelForTarget } from "../raft/channels.ts";
-import { extractMentionedMemberIds, getMember } from "../raft/members.ts";
+import { getDb } from "./db-singleton.ts";
+import { getChannelMute, listChannelMembers, resolveChannelForTarget } from "./channels.ts";
+import { extractMentionedMemberIds, getMember } from "./members.ts";
 import type { MessageRow } from "../data/db.ts";
 
 /**
- * wake 事件分发（§5.4/§5.5）：inbox 服务收到新消息 → 向目标 agent 的 loop 发唤醒事件。
+ * wake 事件总线（§5.4/§5.5，Ticket 02 从 agent-loop 下沉到 raft 域）：
+ * raft 服务层（消息提交 / 提醒触发）发布唤醒事件，agent-loop 驱动订阅消费。
  * hint 只含 seq/目标信息，不预组 prompt、不含正文（§3.8 拉取式——正文由 agent 自己 drain）。
- * 监听器挂 globalThis 扛热重载；loop 驱动（driver）订阅，服务层只负责发。
+ * 监听器挂 globalThis 扛热重载；服务层只负责发，订阅/取消由调用方（agent-loop driver）管理。
  */
 
 export interface WakeHint {
@@ -83,6 +84,6 @@ export function notifyMessageWakes(message: MessageRow): void {
   }
 }
 
-// §3.2 @mention 解析（内容里的 @名字 token → 成员 id）实现于 raft 服务层（lib/raft/members.ts，
+// §3.2 @mention 解析（内容里的 @名字 token → 成员 id）实现于本域（members.ts，
 // inbox 的 mute 穿透判定与 wake 同源）；此处再导出保持既有导入路径兼容。
-export { extractMentionedMemberIds } from "../raft/members.ts";
+export { extractMentionedMemberIds } from "./members.ts";

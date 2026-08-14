@@ -1,7 +1,7 @@
 import { getChannel, isChannelMember } from "./channels.ts";
 import { getMember, listAgents } from "./members.ts";
 import { sendMessage } from "./messages.ts";
-import { emitWake } from "../agent-loop/wake.ts";
+import { emitWake } from "./wake.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../data/schema.ts";
 import type { ChannelRow, MemberRow } from "../data/db.ts";
 

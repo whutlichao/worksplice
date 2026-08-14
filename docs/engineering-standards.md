@@ -77,5 +77,5 @@
 ## 5. 流程纪律（日常）
 
 - 每个 ticket 结束留可验证产物（修复 + 单测 + 文档），结论写进 `.scratch/<effort>/map.md` 的 Decisions-so-far。
-- 改 agent-loop/driver/wake/backfill 等被 globalThis 闭包引用的模块后，**必须重启 dev server**（热重载不生效），并验证启动时间晚于改动。
+- 改 agent-loop 深模块（loop.ts 内的 driver/wake/backfill/cron 段）等被 globalThis 闭包引用的模块后，**必须重启 dev server**（热重载不生效），并验证启动时间晚于改动。
 - 术语/命名/决策变更：先更新 CONTEXT.md / ADR，再动代码。

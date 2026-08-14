@@ -2,7 +2,7 @@ import { getDb } from "./db-singleton.ts";
 import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { sendMessage } from "./messages.ts";
-import { emitWake } from "../agent-loop/wake.ts";
+import { emitWake } from "./wake.ts";
 import { nextFireAt, isValidRecurrence } from "./recurrence.ts";
 import { OWNER_MEMBER_ID } from "../data/schema.ts";
 import type { MemberRow, MessageRow, ReminderLogEvent, ReminderRow } from "../data/db.ts";

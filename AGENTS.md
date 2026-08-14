@@ -139,22 +139,31 @@ lib/raft/                         raft 服务层（app/api 仅薄封装）
                                   + nextFireAt（严格晚于 from，时区安全，delay 语义）
   db-singleton.ts                 globalThis.__workspliceDb 单例（schema 版本号兜底重建，扛热重载）
 
-lib/agent-loop/                  agent-loop（§5.4 驱动层）
-  wake.ts                         wake hint（只含 agentId/targetId/seq/reason，不含正文）；notifyMessageWakes
-                                  （channel agent 成员除作者 + 未加入被 @mention 的穿透）；@mention 解析；
-                                  §3.7 任务延续自醒：任务 owner 的回复落任务线程且任务 in_progress → 自醒续工
-  loop.ts                         runAgentRound（wake→drain→decide→act→reply→ack）；结构化回复协议
+lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并为单文件深模块）
+  loop.ts                         深模块（round + driver + backfill + reminder-cron 全收编）：
+                                  runAgentRound（wake→drain→decide→act→reply→ack）；结构化回复协议
                                   {"action":"reply"|"ignore","content":...,"onConflict":"revise"|"resend"|"silent"|"anyway",
                                   "task":{"number":N,"op":"claim"|"complete"|"unclaim"}}
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
                                   + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
                                   + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
                                   + §3.2 mention 穿透：非成员被 @mention 推进本轮，回复公开 channel 时自行加入
-  backfill.ts                     崩溃恢复按 seq 补拉：扫描 session jsonl 找回缺失的 assistant 回复按序补写（§5.3）
-  driver.ts                       wake → 逐 agent 串行队列；同 (agent,target) hint 合并（保留首个 reason）；
+                                  + driver 编排：wake → 逐 agent 串行队列；同 (agent,target) hint 合并
+                                  （reason 取宽松侧：含 reminder 即按 reminder 处理）；
                                   busy 时 settle 后重试
-  reminder-cron.ts                §5.6 逐分钟 cron：tickReminderCron 扫描 scheduled 且 fire_at<=now → fireDueReminders
-  index.ts                        startAgentLoop()（instrumentation 调用：状态扫掠 + 补拉 + 驱动 + cron，幂等）
+                                  + backfill 崩溃恢复按 seq 补拉（§5.3）：扫描 session jsonl 找回缺失的
+                                  assistant 回复按序补写
+                                  + reminder cron（§5.6 逐分钟）：tickReminderCron 扫描 scheduled 且
+                                  fire_at<=now → fireDueReminders
+                                  + 公共接口 createAgentLoop() → { start, stop, tick }（start 幂等组装
+                                  状态扫掠 + 补拉 + 驱动 + cron；tick 手动推进 cron 扫描）
+  index.ts                        AgentLoop 公共 API 面（窄）：仅 re-export createAgentLoop / AgentLoop 类型；
+                                  内部函数测试面直接从 ./loop.ts 导入
+lib/raft/wake.ts                  wake 事件总线（§5.4/§5.5，Ticket 02 下沉到 raft 域）：WakeHint（只含
+                                  agentId/targetId/seq/reason，不含正文）；subscribeWake/emitWake；
+                                  notifyMessageWakes（channel agent 成员除作者 + 未加入被 @mention 的穿透）；
+                                  §3.7 任务延续自醒：任务 owner 的回复落任务线程且任务 in_progress → 自醒续工；
+                                  @mention 解析 re-export（raft 服务层发，agent-loop 驱动订阅）
 
 lib/data/                         raft SQLite 数据层（better-sqlite3，同步 API）
   db.ts                           RaftStore：表 CRUD + maxSeq/freshness 原语 + seq 游标分页
@@ -333,7 +342,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **mute（ticket 12，§3.2/§3.8）**：channel 级静音 = `channel_mutes` 表（PK channel+member）记录静音时刻的 `mute_from_seq`（channel max(seq)）与 `mute_rowid`（全表 max(messages.rowid)）。drain/getPendingTargets 过滤：静音后的普通消息不进 inbox，个人 @mention 仍穿透；channel 消息按 seq 比，thread 消息无 channel seq 可比（thread 自己的 seq 空间）按 rowid 比（全局插入序，避免同毫秒 created_at 歧义）。静音前的消息照常投递；取消 mute 后不补投静音期间被压制的消息（游标已推进）。`GET/POST /api/channels/[id]/mute`（Owner 可替任意 agent 设）；ChannelView 头部 `BellOff` 面板逐个 agent 开关。
 - **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author` 消息 + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` → 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 revise。**ack 语义**：ack 到 agent 本轮实际读到/被告知的房间版本（`deliverWithFreshness` 返回 ackSeq，held 后随 roomSeq 推进），避免游标停在旧 baseSeq 导致 target 永久 pending。
 - **freshness-hold 四选一**（`deliverWithFreshness`）：held 后按 agent 声明的 onConflict 执行——revise（`buildRevisionPrompt` 携带期间新消息正文重读重写，最多 2 次）/ resend（携带新 roomSeq 原样重试，最多 3 次）/ silent（静默放弃）/ anyway（不带 baseSeq 显式绕过，连续 hold 的逃逸口）；重试耗尽归入 silent。发送器可注入（`send` 参数，测试脚本化用）。
-- **崩溃恢复补拉**（`backfill.ts`）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`startAgentLoop`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis。
+- **崩溃恢复补拉**（loop.ts 内 backfill 段）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`createAgentLoop().start()`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis（lib/raft/wake.ts）。
 - **driver 编排**：每 agent 一个 FIFO 队列，同 (agent, target) hint 合并；busy（会话运行中）/ busy-cwd（同 cwd 被占用）时挂 settle 监听（`SETTLE_EVENTS`：agent_end/agent_settled/prompt_done/compaction_end/auto_compaction_end）后重试，不丢 hint；busy-cwd 找不到等待对象（对方会话 starting 窗口未入 registry）时退避 `BUSY_CWD_RETRY_DELAY_MS` 后重试（不热自旋，定时器随 stop() 取消）；状态挂 `__workspliceAgentLoopDriver`。loop 只依赖 `LoopRuntime` 结构子集（findSession/startSession/findBusySessionForCwd），测试注入 fake，**不静态 import lib/rpc**。
 - **⚠️ 热重载陷阱（改代码必须重启 dev server）**：wake 监听器（`__workspliceWakeListeners`）在 server 启动时由 `startAgentLoopDriver` 注册，`started` 守卫阻止热重载后重新订阅——**旧监听器闭包永久持有旧 `runAgentRound`/`parseAgentAction`**。改 agent-loop/driver/wake/backfill 等被 globalThis 闭包引用的模块后，热重载不生效，行为照旧（曾因 parseAgentAction 修复不生效，脏 JSON 消息继续落库数小时）。验证手段：查 `ps aux | grep next-server` 的启动时间是否晚于改动。同理，`getAgentRuntime()` 的 wrapper 记账与 session 启动路径同此约束。
 - **状态点**：loop 在 prompt 前后 publish working/online（与 wrapper 的 agent_start/agent_end 事件双保险）；会话错误 publish error 且不推进游标（下次 wake 重试）。
@@ -344,13 +353,13 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **重开封锁**（schema v8 `tasks.reopened` 列）：reopen 置标记回池——**agent-loop 不可自动认领**（`claimTask` 返回 `blocked` → route 409 / loop yielded "task reopened — awaiting the owner"），仅人类（`CURRENT_MEMBER_ID`）可认领接管并**清标**；人类 unclaim 后任务恢复 agent 可认领，再次重开再次封锁。unclaim/reject 不置标。向前生效，存量不追溯。`TaskView`/`listRelatedTasks` 带出标记：UI 任务板显示"重开"徽标、`buildReplyPrompt` 标注 "REOPENED … do not claim" 让模型不发起 claim。
 - **并发保护**（§6.3 同消息语义）：claim/updateStatus 携带 `baseSeq` = channel `max(seq)`，事务内比对不等返回 held（`summarizeChanges` 摘要复用）；claim 已认领返回 conflict（route 409）。UI 收 held 后刷新并提示。
 - **自动认领（agent-loop）**：协议扩展 `"task":{"number":N,"op":"claim"|"complete"|"unclaim"}`（`parseAgentAction` 向后兼容，无 task 字段行为不变）；`runTaskOperation` 先 `claimTask` 再开工——**held/conflict/非 owner → 让路**（`RoundStatus "yielded"`，不回复、channel 游标只推进到已读版本，更新的消息经 wake 重试重读）。回复投递到**任务线程**（anchor 消息 target，thread 自己的 seq/freshness 空间）；complete 的回复先落线程再置 in_review（状态更新 held 按 roomSeq 重试 ≤3 次，失败不吞回复）。
-- **任务延续自醒**（wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。
+- **任务延续自醒**（lib/raft/wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。
 - **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序、每任务附 `reachable`（ADR-0002：服务端按人类 owner 身份推导的合法转移落点，含 todo→in_progress 的 claim 边；客户端不镜像状态机表）；UI 侧 List|Board 两种任务视图（ADR-0002，localStorage 记忆，默认列表）——List 按状态分组（todo→in_progress→in_review→done→closed），Board 5 列 = 5 状态常显、跨列拖拽 = 请求一次状态转移（HTML5 DnD，**不做乐观移动**：松手等服务端确认，非法落点弹回+提示）；卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen，与拖拽同权）；点卡片打开任务 thread（进展只在线程里，视图只显示状态）。
 
 ### 提醒（ticket 08，§3.9/§5.6 reminders 路由组）
 - **触发 = 系统消息 + 定向唤醒作者**：cron 到点 → `fireReminder` 以**作者署名**投递 `⏰ Reminder: <title>` 到**频道主流程**——channel 锚定投该 channel；消息锚定归一化后投其**归属 channel**（原设计投 thread 不可见，已修正为频道可见；正文附 `(anchored on #seq)` 锚点引用），`sendMessage({wake:false})` **不触发 channel 级 wake**（不惊动其他 agent）；随后仅当作者是 agent 才 `emitWake({reason:"reminder"})`（§3.9 唤醒作者本人；human 作者 = UI 轮询看到系统消息即通知）。
 - **作者选择 = 唤醒谁**：POST 默认 author = Owner；Owner 可替 agent 设（authorId = 某 agent，仅 Owner 权限，§3.6）——演示路径"给 agent 设 every:1m → 系统消息 + agent 被唤醒"靠这个闭环。ReminderModal 的"唤醒谁"下拉列出 channel 内 agent。
-- **自提醒可被 agent 看到**：系统消息以作者署名 → agent 自己设的提醒在 drain 里"全是自己的消息"，普通轮次会 noop/skip；`runAgentRound` 增加 reason 参数（driver 队列按 hint 合并保留首个 reason），`reason==="reminder"` 时"只有自己的消息"与"最新是本人消息"两条跳过都不生效，agent 以自身提醒为语境决定行动（loop 测试 reminded 用例）。
+- **自提醒可被 agent 看到**：系统消息以作者署名 → agent 自己设的提醒在 drain 里"全是自己的消息"，普通轮次会 noop/skip；`runAgentRound` 增加 reason 参数（driver 队列按 hint 合并取宽松侧 reason——含 reminder 即按 reminder 处理），`reason==="reminder"` 时"只有自己的消息"与"最新是本人消息"两条跳过都不生效，agent 以自身提醒为语境决定行动（loop 测试 reminded 用例）。
 - **recurrence DSL**（`lib/raft/recurrence.ts` 纯模块）：`every:Nm/Nh/Nd`（delay 语义，服务端算绝对时间）/ `daily@HH:MM` / `weekly:mon,fri@HH:MM`（大小写不敏感、未知星期名整体拒绝）；`nextFireAt` **严格晚于 from**（等值视为已到点）——否则 reschedule 会立即重触发死循环；daily/weekly 用本地时区 Date 构造（时区安全）。
 - **幂等与收口**：fire 全程同步（无 await，单进程内不交错）；状态迁移 + log 在一个事务里，重复 tick/重复 fire 返回 not_due 不重复投递。**消息投递失败（作者已退出 channel 等）→ 记 error log 并收口 fired**（不无限重试），不 wake。
 - **生命周期 log**：schema v4 新增 `reminder_logs` 表（事件 schedule/fire/reschedule/snooze/update/cancel/error）；列表按 rowid 排序（同毫秒 created_at 的时序保真）；fire 事件先于 reschedule 写入（时间序）。

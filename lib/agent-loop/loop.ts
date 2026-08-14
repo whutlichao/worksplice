@@ -1,7 +1,7 @@
-import { existsSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync, statSync } from "fs";
+import { join, normalize } from "path";
 import { getDb } from "../raft/db-singleton.ts";
-import { getAgent, agentHomePath } from "../raft/members.ts";
+import { getAgent, agentHomePath, listAgents, normalizeWorkspacePath } from "../raft/members.ts";
 import { isChannelMember, joinChannel } from "../raft/channels.ts";
 import { sendMessage, type SendMessageResult } from "../raft/messages.ts";
 import { claimTask, updateTaskStatus } from "../raft/tasks.ts";
@@ -13,14 +13,21 @@ import {
   listRelatedTasks,
   type MessageWithAuthor,
 } from "../raft/inbox.ts";
-import { extractMentionedMemberIds } from "./wake.ts";
-import { publishAgentStatus } from "../agent-status.ts";
+import { extractMentionedMemberIds, subscribeWake, type WakeHint, type WakeReason } from "../raft/wake.ts";
+import { fireDueReminders } from "../raft/reminders.ts";
+import { logRoundOutcome } from "../raft/rounds.ts";
+import { publishAgentStatus, startAgentStatusSweeper } from "../agent-status.ts";
 import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/db.ts";
 
 /**
- * agent-loop（§5.4）：wake → drain → decide → act → reply 收口的驱动层。
+ * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
+ * 编排面 = wake 驱动队列（driver）+ 崩溃恢复补拉（backfill）+ 提醒 cron（reminder-cron）
+ * 全部收进本文件；公共接口 = createAgentLoop() → { start, stop, tick }（index.ts 只 re-export 它）。
+ * wake 发布/订阅原语已下沉 lib/raft/wake.ts（raft 服务层发、本模块订阅，依赖方向 raft ← agent-loop）。
+ *
+ * 轮次核心（runAgentRound）：wake → drain → decide → act → reply 收口。
  * - drain：按 consumed_seqs 拉增量，组装 channel 语境 + 新消息 + 相关任务状态；
  * - decide：AX 原则——prompt 给出"能直接用的信息 + 一个明确的 next action"，回复为结构化 JSON；
  * - act：经 raft 服务层执行（回复带 freshness 校验），held 时四选一（§3.3 与 §6.3）：
@@ -868,4 +875,559 @@ export async function runAgentRound(
     // 11-整改：catch 的 error 轮携带本轮 drain 的房间版本
     return { status: "error", reason: error instanceof Error ? error.message : String(error), baseSeq };
   }
+}
+
+// ----------------------------------------------------------------------------
+// driver 编排（§5.4，原 driver.ts）：把 wake hint 编排成逐 agent 串行的 runAgentRound。
+// - 每个 agent 一个 FIFO 队列；同一 (agent, target) 的并发 hint 合并（一次 drain 取尽）；
+// - 合并保留 reason 的宽松侧：只要 hint 里有 reminder 就以 reminder 处理
+//   （reminder 轮不跳过"只有自己的消息"，message 轮次覆盖；反之会丢自提醒）；
+// - 会话正忙（busy / 同 cwd 被他人占用 busy-cwd）时不丢 hint：在 settle 事件后重试一次；
+// - 状态全部挂 globalThis（热重载安全）；runtime 可注入（测试传 fake）。
+// ----------------------------------------------------------------------------
+
+interface QueuedTarget {
+  targetId: string;
+  reason: WakeReason;
+}
+
+interface DriverState {
+  started: boolean;
+  runtime: LoopRuntime | null;
+  stopWake: (() => void) | null;
+  queues: Map<string, QueuedTarget[]>;
+  processing: Set<string>;
+  waitingForSettle: Set<string>;
+  settleUnsubs: Map<string, () => void>;
+}
+
+declare global {
+  var __workspliceAgentLoopDriver: DriverState | undefined;
+}
+
+function getDriverState(): DriverState {
+  if (!globalThis.__workspliceAgentLoopDriver) {
+    globalThis.__workspliceAgentLoopDriver = {
+      started: false,
+      runtime: null,
+      stopWake: null,
+      queues: new Map(),
+      processing: new Set(),
+      waitingForSettle: new Set(),
+      settleUnsubs: new Map(),
+    };
+  }
+  return globalThis.__workspliceAgentLoopDriver;
+}
+
+export function startAgentLoopDriver(deps: { runtime?: LoopRuntime } = {}): () => void {
+  const state = getDriverState();
+  if (state.started) return stopAgentLoopDriver;
+  state.started = true;
+  state.runtime = deps.runtime ?? null;
+  state.stopWake = subscribeWake(enqueueWake);
+  return stopAgentLoopDriver;
+}
+
+export function stopAgentLoopDriver(): void {
+  const state = getDriverState();
+  if (!state.started) return;
+  state.started = false;
+  state.stopWake?.();
+  state.stopWake = null;
+  state.queues.clear();
+  state.processing.clear();
+  state.waitingForSettle.clear();
+  for (const unsub of state.settleUnsubs.values()) unsub();
+  state.settleUnsubs.clear();
+  state.runtime = null;
+}
+
+/** 测试观察用：当前排队中的 (agent, target, reason) 清单。 */
+export function peekAgentLoopQueues(): Array<{
+  agentId: string;
+  entries: Array<{ targetId: string; reason: WakeReason }>;
+}> {
+  return Array.from(getDriverState().queues, ([agentId, targets]) => ({
+    agentId,
+    entries: targets.map((entry) => ({ targetId: entry.targetId, reason: entry.reason })),
+  }));
+}
+
+/** 测试观察用：当前正在等待 settle 的 agent 清单（busy/busy-cwd 等待中）。 */
+export function peekAgentLoopSettleWaiters(): string[] {
+  return [...getDriverState().waitingForSettle];
+}
+
+function enqueueWake(hint: WakeHint): void {
+  const state = getDriverState();
+  if (!state.started) return;
+  let queue = state.queues.get(hint.agentId);
+  if (!queue) {
+    queue = [];
+    state.queues.set(hint.agentId, queue);
+  }
+  const existing = queue.find((entry) => entry.targetId === hint.targetId);
+  if (existing) {
+    // 同 (agent, target) 合并：reminder 是更宽松的处理模式（不跳过自己的消息），
+    // 已排队的 message 轮升级为 reminder 轮也不损失什么；反之会丢自提醒
+    if (hint.reason === "reminder") existing.reason = "reminder";
+    return;
+  }
+  queue.push({ targetId: hint.targetId, reason: hint.reason });
+  void processAgent(hint.agentId);
+}
+
+async function processAgent(agentId: string): Promise<void> {
+  const state = getDriverState();
+  if (state.processing.has(agentId)) return;
+  if (state.waitingForSettle.has(agentId)) return;
+
+  const runtime: LoopRuntime = state.runtime ?? (await getAgentRuntime());
+  state.processing.add(agentId);
+  try {
+    for (;;) {
+      const queue = state.queues.get(agentId);
+      const queued = queue?.shift();
+      if (!queued) break;
+
+      let outcome;
+      try {
+        outcome = await runAgentRound(agentId, queued.targetId, runtime, queued.reason);
+      } catch (error) {
+        // 成员已删除 / target 消失等：跳过该轮，继续队列
+        console.error(
+          "[worksplice] agent loop round failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+        continue;
+      }
+      // §07 轮次结果落盘（有结论的轮次；noop/skipped/busy 由服务层过滤）。
+      // driver 是 runAgentRound 的唯一生产调用点（index.ts 仅 re-export 供测试）。
+      logRoundOutcome(agentId, queued.targetId, outcome);
+      if (outcome.status === "busy" || outcome.status === "busy-cwd") {
+        waitForSettle(agentId, queued.targetId, queued.reason);
+        break;
+      }
+    }
+  } finally {
+    state.processing.delete(agentId);
+  }
+  if (state.queues.get(agentId)?.length && !state.waitingForSettle.has(agentId)) {
+    void processAgent(agentId);
+  }
+}
+
+/**
+ * busy-cwd 找不到等待对象时的退避间隔（02-终检整改）：
+ * 人类/extension 路径的会话 starting 窗口内 wrapper 尚未入 registry——立即重试会热自旋
+ * （每轮 drain + startSession 全量空转）直到对方启动完成；退避把自旋压到有界。
+ */
+export const BUSY_CWD_RETRY_DELAY_MS = 250;
+async function waitForSettle(agentId: string, targetId: string, reason: WakeReason): Promise<void> {
+  const state = getDriverState();
+  if (state.waitingForSettle.has(agentId)) return;
+  state.waitingForSettle.add(agentId);
+  const retry = () => {
+    state.waitingForSettle.delete(agentId);
+    const unsub = state.settleUnsubs.get(agentId);
+    if (unsub) {
+      unsub();
+      state.settleUnsubs.delete(agentId);
+    }
+    const queue = state.queues.get(agentId);
+    if (queue && !queue.some((entry) => entry.targetId === targetId)) {
+      queue.push({ targetId, reason });
+    }
+    void processAgent(agentId);
+  };
+  try {
+    const agent = getAgent(agentId);
+    const runtime: LoopRuntime = state.runtime ?? (await getAgentRuntime());
+    // 02-决策一：自身无会话的 busy-cwd 等占用该 cwd 的会话 settle；
+    // 自身有会话的 busy 等自己 settle。两者同一条等待路径。
+    const waitTarget =
+      runtime.findSession(agent) ??
+      (agent.workspace_path ? runtime.findBusySessionForCwd?.(agent.workspace_path) : undefined);
+    if (!waitTarget) {
+      // starting 窗口（对方会话尚未入 registry）：退避后重试，避免热自旋。
+      // 定时器登记进 settleUnsubs——stop() 时与 settle 监听一并取消，防测试/停机后幽灵重试。
+      const timer = setTimeout(retry, BUSY_CWD_RETRY_DELAY_MS);
+      state.settleUnsubs.set(agentId, () => clearTimeout(timer));
+      return;
+    }
+    const unsub = waitTarget.onEvent((event) => {
+      if (SETTLE_EVENTS.has(event.type)) {
+        retry();
+      }
+    });
+    state.settleUnsubs.set(agentId, unsub);
+    // 订阅窗口竞态（ticket 01-d）：busy 判定与订阅之间会话可能已收口，settle 事件发在
+    // 无人监听时。订阅后复核 isRunning()——已空闲则立即重试，避免 hint 永久挂起。
+    if (!waitTarget.isRunning()) {
+      retry();
+    }
+  } catch {
+    retry();
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 崩溃恢复补拉（§5.3，原 backfill.ts）：启动时按 seq 补拉。
+// 双写流中 raft 消息表是房间事实唯一来源；agent 回复的写序是
+// SDK 写 session jsonl → app 读回补写 SQLite。若在两步之间崩溃，SQLite 落后于
+// session jsonl 的已投递回复——本模块扫描 jsonl（user 条目携带的 target 标记，
+// 见 roomMarker）找回缺失的 assistant 回复，按序补写并推进消费游标。
+// 只读不解析 pi 原生文件（读写权归 SDK），不 import SDK（保持启动路径轻量）。
+//
+// 与实时路径同构：一个标记轮只投递最后一条 assistant 文本（revise 的草稿、
+// 工具调用中间产物都会被后续条目覆盖）；回复内容按 parseAgentAction 解析
+// （JSON 协议取 content，非 JSON 整段为内容，ignore 不落库）。
+// ----------------------------------------------------------------------------
+
+export interface SessionReply {
+  targetId: string;
+  markerSeq: number;
+  content: string;
+}
+
+/**
+ * 解析 session jsonl 文件头（type:"session" 条目）的 cwd 字段。
+ * 与 SDK SessionManager.listAll 的 cwd 同源（同从 header 解析，已核对），
+ * 使 backfill 做归属校验时无需 import SDK（保持启动路径轻量）。
+ */
+export function readSessionHeaderCwd(filePath: string): string | null {
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line) as { type?: string; cwd?: unknown };
+      if (entry?.type === "session" && typeof entry.cwd === "string" && entry.cwd) {
+        return entry.cwd;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * 固化引用的 session 文件集合（不含本成员自己的登记；含 soft-deleted 成员——
+ * ticket 08：软删行保留 pi_session_file 是 ADR-0003 的所有权凭证，被删成员仍登记
+ * 的文件同样不得由其他成员补写）。
+ */
+function referencedSessionFilesExcluding(agentId: string): Set<string> {
+  const referenced = new Set<string>();
+  for (const member of getDb().listMembersIncludingDeleted()) {
+    if (member.id === agentId) continue;
+    if (member.pi_session_file) referenced.add(normalize(member.pi_session_file));
+  }
+  return referenced;
+}
+
+/**
+ * backfill 归属门禁（ticket 04，ADR-0003 的 backfill 侧落地，文件级）：
+ * 补写前确认该文件仍属于该 agent——
+ * 1. header cwd 必须等于成员 workspace（跨 cwd 错绑 = 历史脏数据）；
+ * 2. 文件不得被其他活成员固化引用（03 修复前双绑定残留 → 防同文件双作者补写）；
+ * 3. 文件 mtime 不得早于成员创建时间（成员不可能在自己创建之前拥有会话——
+ *    继承自 deleted/他人 agent 的旧文件必然更老，确定性规则无逻辑误杀）。
+ * 任一不过 → 整文件跳过：不补写、不推进游标（避免"只补写跳过、游标却推进"的半截态）。
+ */
+export function backfillOwnershipGate(
+  agent: MemberRow,
+  referencedByOthers: ReadonlySet<string>,
+): { pass: boolean; reason: string | null } {
+  const file = agent.pi_session_file;
+  if (!file) return { pass: false, reason: "no session file bound" };
+  if (!existsSync(file)) return { pass: false, reason: "session file missing on disk" };
+  if (!agent.workspace_path) return { pass: false, reason: "member has no workspace" };
+  const headerCwd = readSessionHeaderCwd(file);
+  if (headerCwd === null) {
+    return { pass: false, reason: "session file header has no cwd" };
+  }
+  if (normalize(headerCwd) !== normalizeWorkspacePath(agent.workspace_path)) {
+    return {
+      pass: false,
+      reason: `header cwd (${headerCwd}) != workspace (${agent.workspace_path})`,
+    };
+  }
+  if (referencedByOthers.has(normalize(file))) {
+    return { pass: false, reason: "session file also referenced by another member" };
+  }
+  const mtime = statSync(file).mtime.getTime();
+  const createdAt = new Date(agent.created_at).getTime();
+  if (mtime < createdAt) {
+    return {
+      pass: false,
+      reason: `file mtime (${new Date(mtime).toISOString()}) predates member creation (${agent.created_at})`,
+    };
+  }
+  return { pass: true, reason: null };
+}
+
+/** 从 message.content（string 或 text 块数组）提取纯文本；两处内容分支共用（02-review 提取）。 */
+function textFromContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((block) => block && typeof block === "object" && (block as { type?: string }).type === "text")
+      .map((block) => (block as { text?: string }).text ?? "")
+      .join("\n");
+  }
+  return "";
+}
+
+/** 解析 session jsonl：每个房间标记之后只保留最后一条 assistant 文本作为该轮回复。 */
+export function scanSessionReplies(filePath: string): SessionReply[] {
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, "utf-8");
+  } catch {
+    return [];
+  }
+  const replies: SessionReply[] = [];
+  let current: { targetId: string; seq: number } | null = null;
+  let pendingText: string | null = null;
+
+  const flush = () => {
+    if (current && pendingText) {
+      const parsed = parseAgentAction(pendingText);
+      if (parsed.action === "reply" && parsed.content) {
+        replies.push({ targetId: current.targetId, markerSeq: current.seq, content: parsed.content });
+      }
+    }
+    pendingText = null;
+  };
+
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    let entry: {
+      type?: string;
+      message?: { role?: string; content?: unknown };
+    };
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (entry?.type !== "message" || !entry.message) continue;
+    const message = entry.message;
+    if (message.role === "user") {
+      const text = textFromContent(message.content);
+      const match = ROOM_MARKER_PATTERN.exec(text);
+      // 新的 user 条目（无论是否带标记）结束上一轮；带标记才开启新的 raft 轮。
+      // 若该条目是 revise prompt（带 [worksplice:revision]），上一轮 assistant 是
+      // 被 held 的草稿（实时路径从未落库）——丢弃而非按回复补写。
+      if (!text.includes("[worksplice:revision]")) flush();
+      pendingText = null;
+      current = match ? { targetId: match[1], seq: Number(match[2]) } : null;
+      continue;
+    }
+    if (message.role !== "assistant") continue;
+    const text = textFromContent(message.content).trim();
+    if (!text) continue;
+    pendingText = text; // 最后一条胜出
+  }
+  flush();
+  return replies;
+}
+
+export interface BackfillResult {
+  inserted: number;
+  targets: string[];
+}
+
+/**
+ * 单个 agent 的补拉：缺失回复按序补写。
+ * 游标推进到每个标记轮的标记 seq（标记存在即证明该轮 prompt 已进入 agent 上下文，
+ * agent 读过 ≤ 标记 seq 的全部消息）——即使回复已存在（崩溃于补写后 ack 前）也推进。
+ */
+export function backfillAgentReplies(agent: MemberRow): BackfillResult {
+  const file = agent.pi_session_file;
+  if (!file || !existsSync(file)) return { inserted: 0, targets: [] };
+
+  // ticket 04 归属门禁：文件级校验不过 → 整文件跳过（不补写、不推进游标）。
+  const gate = backfillOwnershipGate(agent, referencedSessionFilesExcluding(agent.id));
+  if (!gate.pass) {
+    console.warn(`[backfill] skipping session file ${file} for member ${agent.id}: ${gate.reason}`);
+    return { inserted: 0, targets: [] };
+  }
+
+  const replies = scanSessionReplies(file);
+  if (replies.length === 0) return { inserted: 0, targets: [] };
+
+  const db = getDb();
+  let inserted = 0;
+  const targets = new Set<string>();
+  const cursorByTarget = new Map<string, number>();
+  const contentBlockedTargets = new Set<string>();
+  db.withTransaction(() => {
+    for (const reply of replies) {
+      // ticket 04 轮级兑底（跨作者内容去重）：同 target 同内容已被他人落库 =
+      // 疑似继承文件的他人回复（soft-delete 保留消息）——跳过补写，且该 target
+      // 游标不推进（保持 pending，留给正常 wake 流程重读重做），避免把他人回复
+      // 冒充为本 agent 的投递。真实崩溃恢复中同内容跨作者几乎不可能（各 agent
+      // 回复独立），误杀率极低。
+      if (db.hasMessageByContentByOther(reply.targetId, agent.id, reply.content)) {
+        contentBlockedTargets.add(reply.targetId);
+        continue;
+      }
+      cursorByTarget.set(
+        reply.targetId,
+        Math.max(cursorByTarget.get(reply.targetId) ?? 0, reply.markerSeq),
+      );
+      if (db.hasMessage(reply.targetId, agent.id, reply.content)) continue;
+      const seq = db.maxSeq(reply.targetId) + 1;
+      db.insertMessageAt({ targetId: reply.targetId, authorId: agent.id, content: reply.content, seq });
+      inserted += 1;
+      targets.add(reply.targetId);
+    }
+  });
+  if (contentBlockedTargets.size > 0) {
+    console.warn(
+      `[backfill] member ${agent.id}: skipped ${contentBlockedTargets.size} reply round(s) whose ` +
+        `content already exists under another author (targets: ${[...contentBlockedTargets].join(", ")}); ` +
+        `cursor left pending for re-read`,
+    );
+  }
+  for (const [targetId, seq] of cursorByTarget) {
+    db.setConsumedSeq(agent.id, targetId, Math.max(db.getConsumedSeq(agent.id, targetId), seq));
+  }
+  return { inserted, targets: [...targets] };
+}
+
+/** 启动时全量补拉（对所有未删除 agent）；补写直接落库，不触发 wake。 */
+export function backfillAllAgents(): BackfillResult {
+  let inserted = 0;
+  const targets = new Set<string>();
+  for (const agent of listAgents()) {
+    const result = backfillAgentReplies(agent);
+    inserted += result.inserted;
+    for (const targetId of result.targets) targets.add(targetId);
+  }
+  return { inserted, targets: [...targets] };
+}
+
+// ----------------------------------------------------------------------------
+// reminder cron（§5.6，原 reminder-cron.ts）：进程常驻期间逐分钟轮询 reminders 表
+// （status=scheduled 且 fire_at <= now）→ 触发（fireDueReminders）。
+// 状态挂 globalThis 扛热重载；now 可注入（测试）；timer 幂等启停。
+// ----------------------------------------------------------------------------
+
+interface CronState {
+  started: boolean;
+  timer: NodeJS.Timeout | null;
+  pollMs: number;
+  now: () => Date;
+}
+
+declare global {
+  var __workspliceReminderCron: CronState | undefined;
+}
+
+/** 轮询周期（§5.6 逐分钟）。 */
+export const REMINDER_POLL_MS = 60_000;
+
+function getCronState(): CronState {
+  if (!globalThis.__workspliceReminderCron) {
+    globalThis.__workspliceReminderCron = {
+      started: false,
+      timer: null,
+      pollMs: REMINDER_POLL_MS,
+      now: () => new Date(),
+    };
+  }
+  return globalThis.__workspliceReminderCron;
+}
+
+export function startReminderCron(deps: { pollMs?: number; now?: () => Date } = {}): () => void {
+  const state = getCronState();
+  if (state.started) return stopReminderCron;
+  state.started = true;
+  state.pollMs = deps.pollMs ?? REMINDER_POLL_MS;
+  state.now = deps.now ?? (() => new Date());
+  state.timer = setInterval(() => {
+    try {
+      tickReminderCron(state.now());
+    } catch (error) {
+      console.error(
+        "[worksplice] reminder cron tick failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }, state.pollMs);
+  return stopReminderCron;
+}
+
+export function stopReminderCron(): void {
+  const state = getCronState();
+  if (!state.started) return;
+  state.started = false;
+  if (state.timer) {
+    clearInterval(state.timer);
+    state.timer = null;
+  }
+}
+
+/** 单轮扫描（cron interval 与测试共用）：返回本次触发的提醒数。 */
+export function tickReminderCron(now: Date = new Date()): number {
+  const outcomes = fireDueReminders(now);
+  return outcomes.filter((outcome) => outcome.status === "fired").length;
+}
+
+// ----------------------------------------------------------------------------
+// AgentLoop 公共接口（Ticket 02 窄面）：start / stop / tick。
+// start 组装全套服务（幂等，原 index.ts startAgentLoop 语义）：
+// 1. 状态点低频扫掠（兜底 idle shutdown 漂移）；
+// 2. 崩溃恢复：启动时按 seq 补拉（SQLite 落后于 session jsonl 的回复按序补写，§5.3）；
+// 3. wake 驱动：新消息 → 唤醒对应 agent 的 loop（§5.4）；
+// 4. reminder cron：逐分钟轮询 reminders 表触发到点提醒（§5.6）。
+// tick = 手动推进一次 cron 扫描（测试/诊断入口）；driver 本身是事件驱动（wake → 队列），
+// 无 tick 语义。runtime/pollMs/now 可注入（测试传 fake runtime / 假时钟）。
+// ----------------------------------------------------------------------------
+
+export interface AgentLoop {
+  /** 幂等启动全套服务：状态扫掠 + 崩溃恢复补拉 + wake 驱动 + reminder cron。 */
+  start(): void;
+  /** 幂等停止：取消 wake 订阅与 cron 定时器、清空驱动队列（重复 stop 不炸）。 */
+  stop(): void;
+  /**
+   * 手动推进一次 reminder cron 扫描（测试/诊断入口；等价 cron 定时器的一轮 tick）。
+   * 注意：仅覆盖 cron 子组件——driver 是事件驱动的（wake → 队列），没有 tick 语义。
+   */
+  tick(): void;
+}
+
+export function createAgentLoop(
+  deps: { runtime?: LoopRuntime; pollMs?: number; now?: () => Date } = {},
+): AgentLoop {
+  return {
+    start(): void {
+      startAgentStatusSweeper();
+      try {
+        backfillAllAgents();
+      } catch (error) {
+        console.error(
+          "[worksplice] agent reply backfill failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      startAgentLoopDriver({ runtime: deps.runtime });
+      startReminderCron({ pollMs: deps.pollMs, now: deps.now });
+    },
+    stop(): void {
+      stopAgentLoopDriver();
+      stopReminderCron();
+    },
+    tick(): void {
+      tickReminderCron(deps.now ? deps.now() : new Date());
+    },
+  };
 }

@@ -1,7 +1,7 @@
 import { getDb } from "./db-singleton.ts";
 import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
-import { notifyMessageWakes } from "../agent-loop/wake.ts";
+import { notifyMessageWakes } from "./wake.ts";
 import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
 import { listAbandonedMarks, type AbandonedMark } from "./rounds.ts";
 import {
