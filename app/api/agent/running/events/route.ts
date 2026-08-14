@@ -1,4 +1,4 @@
-import { getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc-manager";
+import { getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc";
 
 export const dynamic = "force-dynamic";
 

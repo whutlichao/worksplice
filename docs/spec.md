@@ -275,7 +275,7 @@ flowchart TB
         Cron["reminder cron 调度"]
         DB[("better-sqlite3<br/>raft.db")]
         FTS[("FTS5 虚拟表")]
-        RPC["rpc-manager<br/>AgentSessionWrapper 注册表"]
+        RPC["lib/rpc<br/>AgentSessionWrapper 注册表"]
         Reader["session-reader<br/>（jsonl 只读解析）"]
         RaftSvc <--> DB
         DB <--> FTS
@@ -367,7 +367,7 @@ app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=sche
 | 处理 | 内容 |
 |---|---|
 | **整体保留复用（组件）** | MarkdownBody、MessageView、ChatInput、FileViewer、FileExplorer、ModelsConfig、SkillsConfig、DirectoryPicker、TabBar、FileIcons、MermaidBlock、i18n 基建、主题 |
-| **整体保留复用（lib/API）** | rpc-manager、session-reader、agent-client、useAgentSession、models-config / model-catalog / provider 系、worktree / git 系、file-access / directory-browser、skills-service、project-trust（启动 gate） |
+| **整体保留复用（lib/API）** | lib/rpc、session-reader、agent-client、useAgentSession、models-config / model-catalog / provider 系、worktree / git 系、file-access / directory-browser、skills-service、project-trust（启动 gate） |
 | **重写** | AppShell（布局骨架）、SessionSidebar（→ channels/agent 列表）、ChatWindow（→ channel 消息流）、会话树 / 项目选择 |
 | **删除** | fork / 分支 UI、会话树浏览、侧栏 worktree 切换器 |
 | **新增** | channels / threads / tasks / inbox / reminders API 与 freshness-hold、agent-loop、Tasks tab、agent 详情面板（重置/workspace/runtime/可观测性） |
@@ -406,7 +406,7 @@ erDiagram
 | 表 | 列（PK 下划线标注；`→` 为外键） | 说明 |
 |---|---|---|
 | `channels` | `id`, `name`, `type`('public'/'private'), `description`, `archived`, `created_at` | `#all` 内建行，全员自动加入 |
-| `members` | `id`, `type`('human'/'agent'), `name`, `description`, `role`('owner'/'member'), `workspace_path`（agent 绑定 cwd）, `pi_session_file`（当前 session jsonl 路径，agent 专用）, `status`('online'/'working'/'error'/'offline'), `created_at` | human/agent 统一建模；`pi_session_file` 由 rpc-manager 按 cwd 解析后回填 |
+| `members` | `id`, `type`('human'/'agent'), `name`, `description`, `role`('owner'/'member'), `workspace_path`（agent 绑定 cwd）, `pi_session_file`（当前 session jsonl 路径，agent 专用）, `status`('online'/'working'/'error'/'offline'), `created_at` | human/agent 统一建模；`pi_session_file` 由 lib/rpc 按 cwd 解析后回填 |
 | `messages` | `id`(UUID), `target_id`→channels.id 或 messages.id, `seq`(int), `author_id`→members.id, `content`(text), `created_at` | **`UNIQUE(target_id, seq)`**；不可编辑/删除 |
 | `tasks` | `id`, `message_id`→messages.id(unique), `number`(int), `status`('todo'/'in_progress'/'in_review'/'done'/'closed'), `owner_id`→members.id(nullable), `updated_at` | number 按 channel 内递增；claim/unclaim 改 owner_id |
 | `reminders` | `id`, `title`, `fire_at`(datetime), `recurrence`(DSL 串, nullable), `target_id`（锚定消息或 channel, nullable）, `author_id`→members.id, `status`('scheduled'/'fired'/'canceled'), `created_at` | fire 由 app 内 cron 驱动（§5.6） |

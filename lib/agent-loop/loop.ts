@@ -28,7 +28,7 @@ import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/db.ts";
  * - reply 收口：回复走双写流落 SQLite，每轮结束后 ack 推进 consumed_seqs（§3.8/§5.5）。
  *
  * 接缝：runtime 注入（AgentRuntime 结构子集）；测试传 fake，生产默认 getAgentRuntime()。
- * 绝不静态 import rpc-manager（node TS strip 无法解析 parameter properties）。
+ * 绝不静态 import lib/rpc（node TS strip 无法解析 parameter properties）。
  */
 
 export interface LoopSession {

@@ -131,7 +131,7 @@ components/
 lib/
   directory-browser.ts # 目录规范化和安全枚举工具
   http-dispatcher.ts  # 服务端 fetch 的 HTTP(S) 代理配置
-  rpc-manager.ts      # AgentSessionWrapper 生命周期和全局 registry
+  rpc/                # AgentSessionWrapper 生命周期和全局 registry（session/registry/caller/subscriber/broadcaster + index）
   session-reader.ts   # 解析 .jsonl 会话文件和分支上下文
   normalize.ts        # 规范化 toolCall 字段名
   file-access.ts      # 文件读取安全边界

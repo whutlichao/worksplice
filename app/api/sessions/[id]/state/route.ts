@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRpcSession } from "@/lib/rpc-manager";
+import { getRpcSession } from "@/lib/rpc";
 import { resolveSessionPath } from "@/lib/session-reader";
 
 export async function GET(

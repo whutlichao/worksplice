@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listAllSessions } from "@/lib/session-reader";
-import { getRunningRpcSessionIds } from "@/lib/rpc-manager";
+import { getRunningRpcSessionIds } from "@/lib/rpc";
 
 export async function GET() {
   try {

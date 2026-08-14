@@ -31,7 +31,7 @@
   ```
 - **测试类型**（按此分层，优先写便宜的那层）：
   - **服务层单测**：`lib/raft/*.test.mjs` — 内存 tmp DB（`openDataDb(mkdtemp)`），验证纯逻辑/状态机/权限。
-  - **agent-loop 单测**：`lib/agent-loop/*.test.mjs` — fake `LoopRuntime`（结构子集）注入，**零 SDK 依赖**。理由：node TS strip 模式无法解析 rpc-manager 的 parameter properties，静态 import 会挂。
+  - **agent-loop 单测**：`lib/agent-loop/*.test.mjs` — fake `LoopRuntime`（结构子集）注入，**零 SDK 依赖**。理由：node TS strip 模式无法解析 lib/rpc/session.ts 的 parameter properties，静态 import 会挂。
   - **路由源码级断言**：`*-route.test.mjs` — `readFile` 断言路由源码含正确调用与错误码映射（薄路由不值得起 HTTP server）。
   - **组件渲染断言**：`components/*.test.mjs` — react-dom/server `renderToStaticMarkup` + jiti。
 - **原则**：

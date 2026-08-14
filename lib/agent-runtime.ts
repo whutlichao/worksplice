@@ -10,7 +10,7 @@ import {
   setAgentSessionFile,
 } from "./raft/members.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
-import type { AgentSessionWrapper } from "./rpc-manager.ts";
+import type { AgentSessionWrapper } from "./rpc/index.ts";
 
 /**
  * agent 运行时抽象：ticket 05 生命周期操作与 pi 运行时之间的接缝。
@@ -173,7 +173,7 @@ declare global {
   var __workspliceCwdStartLocks: Map<string, Promise<unknown>> | undefined;
 }
 
-/** 惰性单例：首次调用才 import pi SDK 与 rpc-manager（node 测试注入 fake 时不会拉起）。 */
+/** 惰性单例：首次调用才 import pi SDK 与 lib/rpc（node 测试注入 fake 时不会拉起）。 */
 export function getAgentRuntime(): Promise<AgentRuntime> {
   if (!runtimePromise) {
     runtimePromise = createRealAgentRuntime();
@@ -187,9 +187,9 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
     findBusyRpcSessionForCwd,
     hasBusyRpcSessionForCwd,
     startRpcSession,
-  } = await import("./rpc-manager.ts");
+  } = await import("./rpc/index.ts");
 
-  // 成员 → 会话映射：agent 的 wrapper 以真实 session id 入 registry（rpc-manager），
+  // 成员 → 会话映射：agent 的 wrapper 以真实 session id 入 registry（lib/rpc），
   // 这里按成员 id 记账，状态推导不把同一 cwd 上的人类/他 agent 会话张冠李戴。
   const memberSessions = (() => {
     if (!globalThis.__workspliceAgentSessions) {

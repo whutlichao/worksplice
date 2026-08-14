@@ -1,5 +1,5 @@
 import { resolveSessionPath } from "@/lib/session-reader";
-import { getRpcSession, startRpcSession, type AgentEvent } from "@/lib/rpc-manager";
+import { getRpcSession, startRpcSession, type AgentEvent } from "@/lib/rpc";
 
 export const dynamic = "force-dynamic";
 

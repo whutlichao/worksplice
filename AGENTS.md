@@ -33,7 +33,7 @@ Browser                Next.js Server              AgentSession (in-process)
 ```
 
 **Session browsing** (read-only): reads `.jsonl` files through SDK `SessionManager` helpers and `lib/session-reader.ts` — no AgentSession created.  
-**Sending a message**: `startRpcSession()` in `lib/rpc-manager.ts` creates an AgentSession in-process.
+**Sending a message**: `startRpcSession()` in `lib/rpc/` creates an AgentSession in-process.
 
 ---
 
@@ -163,7 +163,7 @@ lib/data/                         raft SQLite 数据层（better-sqlite3，同�
 
 lib/
   agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
-  agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import rpc-manager/SDK）+ deriveLiveAgentStatus
+  agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import lib/rpc/SDK）+ deriveLiveAgentStatus
                       + startSession 应用 per-agent 模型覆盖（§3.10）
   agent-lifecycle.ts  Restart / Session reset / Full reset（仅家目录）/ 换 workspace / 删除身份（只 rm 家目录，fs + 运行时 + DB 编排）
   agent-client.ts     typed fetch helper for /api/agent commands
@@ -175,7 +175,9 @@ lib/
   panel-state.ts       ticket 13 面板转移纯模块：openPanel（单槽替换）/ closePanel / onChannelSwitched（清空）
                        + memberPanel（mention → 面板映射）+ subscribePinnedChanged/notifyPinnedChanged（面板↔中央 pinned 双端收敛）
   pi-types.ts          local structural types for pi SDK objects
-  rpc-manager.ts      AgentSessionWrapper + registry + startRpcSession
+  rpc/                RPC 会话管理四模块 + 出口：session.ts（AgentSessionWrapper）/ registry.ts（RpcRegistry
+                      注册表 + busy-cwd）/ caller.ts（RpcCaller.start = startRpcSession）/ subscriber.ts +
+                      broadcaster.ts（运行状态订阅/广播）/ index.ts（公共 API 面 = 原 rpc-manager.ts 11 导出 + 4 个模块类）
   session-reader.ts   SessionManager wrappers + path cache + buildSessionContext adapter
   session-stats.ts    §6.5 session jsonl 只读解析（token/cost/compaction，与 SDK getSessionStats 同口径，不落库）
                       + listAgentSessionFiles（pi_session_file 精确 + workspace cwd 下全部会话）+ aggregateAgentUsage
@@ -232,7 +234,7 @@ hooks/
 ### UI 图标规则（lucide 优先）
 - 除反应数据（`QUICK_REACTIONS` / `REACTION_GRID` / 已存 reaction 的渲染——持久化用户内容）外，UI 一律使用 lucide icon，**禁止新增 emoji**；同一字符可能同时是数据与装饰（如 📌 既是反应选项也是 pin 头部按钮），替换按出现处编辑，禁止全局 replaceAll。
 
-### AgentSession lifecycle (`lib/rpc-manager.ts`)
+### AgentSession lifecycle (`lib/rpc/`)
 - One `AgentSessionWrapper` per session id, keyed in `globalThis.__workspliceSessions`
 - `globalThis` survives Next.js hot-reload; plain module-level Map does not
 - Idle timeout: 10 minutes. Concurrent `startRpcSession()` calls share a single start Promise (`globalThis.__piStartLocks`)
@@ -253,7 +255,7 @@ hooks/
 Pi stores toolCall blocks as `{type:"toolCall", id, name, arguments}` but `ToolCallContent` uses `{toolCallId, toolName, input}`. `normalizeToolCalls()` in `lib/normalize.ts` handles this — called in both `session-reader.ts` (file load) and `ChatWindow.handleAgentEvent()` (streaming).
 
 ### New session tool preset
-Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[]`). For existing sessions, the active preset is inferred on mount via `get_tools` → `getPresetFromTools()`. When tools are fully disabled (`toolNames = []`), `rpc-manager.ts` passes an empty tool allow-list and forces `agent.state.systemPrompt = ""` after startup/reload/resource discovery.
+Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[]`). For existing sessions, the active preset is inferred on mount via `get_tools` → `getPresetFromTools()`. When tools are fully disabled (`toolNames = []`), `lib/rpc/caller.ts` passes an empty tool allow-list and forces `agent.state.systemPrompt = ""` after startup/reload/resource discovery.
 
 ### Model defaults for new sessions
 `GET /api/models` returns `defaultModel` read from `~/.pi/agent/settings.json`. `ChatWindow` pre-selects this on mount for new sessions. Explicit browser model/thinking selections are applied atomically during AgentSession construction, then `lib/startup-preferences.ts` persists their effective values without replaying `set_model`/`set_thinking_level`; implicit `enabledModels` fallbacks and thinking pins are not persisted.
@@ -321,7 +323,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **运行串行**：session 启动时 `hasBusyRpcSessionForCwd`（realpath 语义）拒绝同一 cwd 并发活跃会话（`BusyCwdError` → route 409）——共享目录协作是串行的，真并行走 worktree（不同 cwd）。
 - **共享 cwd 的 session 文件精确作用**：`resolveLatestSessionFile` 跳过被其他成员 `pi_session_file` 引用的文件（避免继承他人上下文）；`removeSessionFilesForCwd` 只删无任何成员引用的文件（调用方先清本成员引用）。
 - **状态点 = 现场推导 + DB 回落**（`lib/agent-status.ts`）：`statusLookup` 有存活 wrapper 时推导（running → working / idle 且 DB 非 error → online），wrapper 不在时 DB error 保留、其余回落 offline；低频扫掠（10s）兜底 idle shutdown 的漂移。`prompt_error` 事件写 error 且不会被 idle 推导覆盖，直到下次 `agent_start` 或重启。lookup/listeners/snapshot 全部挂在 globalThis（热重载安全）；agent-runtime 用 `__workspliceAgentSessions` 按成员 id 记账 wrapper，**不按 cwd 猜归属**——同一 cwd 上的人类/他 agent 会话不会张冠李戴。
-- **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import rpc-manager/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 rpc-manager 的 parameter properties，绝不能静态 import 它。
+- **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import lib/rpc/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 lib/rpc/session.ts 的 parameter properties，绝不能静态 import 它。
 - **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话；拒绑他人家目录）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 删掉该 cwd 下无成员引用的 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文；共享项目目录下他 agent 的文件保留。
 - **`db-singleton` 版本守卫**：`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb()` 比对版本，热重载后 RaftStore 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openDataDb，不会被误重建或误开 `~/.worksplice/raft.db`。
 
@@ -332,7 +334,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author` 消息 + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` → 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 revise。**ack 语义**：ack 到 agent 本轮实际读到/被告知的房间版本（`deliverWithFreshness` 返回 ackSeq，held 后随 roomSeq 推进），避免游标停在旧 baseSeq 导致 target 永久 pending。
 - **freshness-hold 四选一**（`deliverWithFreshness`）：held 后按 agent 声明的 onConflict 执行——revise（`buildRevisionPrompt` 携带期间新消息正文重读重写，最多 2 次）/ resend（携带新 roomSeq 原样重试，最多 3 次）/ silent（静默放弃）/ anyway（不带 baseSeq 显式绕过，连续 hold 的逃逸口）；重试耗尽归入 silent。发送器可注入（`send` 参数，测试脚本化用）。
 - **崩溃恢复补拉**（`backfill.ts`）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`startAgentLoop`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis。
-- **driver 编排**：每 agent 一个 FIFO 队列，同 (agent, target) hint 合并；busy（会话运行中）/ busy-cwd（同 cwd 被占用）时挂 settle 监听（`SETTLE_EVENTS`：agent_end/agent_settled/prompt_done/compaction_end/auto_compaction_end）后重试，不丢 hint；busy-cwd 找不到等待对象（对方会话 starting 窗口未入 registry）时退避 `BUSY_CWD_RETRY_DELAY_MS` 后重试（不热自旋，定时器随 stop() 取消）；状态挂 `__workspliceAgentLoopDriver`。loop 只依赖 `LoopRuntime` 结构子集（findSession/startSession/findBusySessionForCwd），测试注入 fake，**不静态 import rpc-manager**。
+- **driver 编排**：每 agent 一个 FIFO 队列，同 (agent, target) hint 合并；busy（会话运行中）/ busy-cwd（同 cwd 被占用）时挂 settle 监听（`SETTLE_EVENTS`：agent_end/agent_settled/prompt_done/compaction_end/auto_compaction_end）后重试，不丢 hint；busy-cwd 找不到等待对象（对方会话 starting 窗口未入 registry）时退避 `BUSY_CWD_RETRY_DELAY_MS` 后重试（不热自旋，定时器随 stop() 取消）；状态挂 `__workspliceAgentLoopDriver`。loop 只依赖 `LoopRuntime` 结构子集（findSession/startSession/findBusySessionForCwd），测试注入 fake，**不静态 import lib/rpc**。
 - **⚠️ 热重载陷阱（改代码必须重启 dev server）**：wake 监听器（`__workspliceWakeListeners`）在 server 启动时由 `startAgentLoopDriver` 注册，`started` 守卫阻止热重载后重新订阅——**旧监听器闭包永久持有旧 `runAgentRound`/`parseAgentAction`**。改 agent-loop/driver/wake/backfill 等被 globalThis 闭包引用的模块后，热重载不生效，行为照旧（曾因 parseAgentAction 修复不生效，脏 JSON 消息继续落库数小时）。验证手段：查 `ps aux | grep next-server` 的启动时间是否晚于改动。同理，`getAgentRuntime()` 的 wrapper 记账与 session 启动路径同此约束。
 - **状态点**：loop 在 prompt 前后 publish working/online（与 wrapper 的 agent_start/agent_end 事件双保险）；会话错误 publish error 且不推进游标（下次 wake 重试）。
 

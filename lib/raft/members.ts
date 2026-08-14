@@ -11,7 +11,7 @@ import { parseMentionTokens } from "../mention.ts";
 /**
  * workspace 路径归一化（§5.2 隔离单位是 cwd）：绝对路径化，
  * 使 `~/repo` 与相对路径落到同一比较基准；存储保留用户输入形态。
- * 活跃会话冲突由 rpc-manager 的 realpath 语义校验（hasBusyRpcSessionForCwd）。
+ * 活跃会话冲突由 lib/rpc registry 的 realpath 语义校验（hasBusyRpcSessionForCwd）。
  */
 export function normalizeWorkspacePath(workspacePath: string): string {
   return isAbsolute(workspacePath) ? workspacePath : resolve(workspacePath);
