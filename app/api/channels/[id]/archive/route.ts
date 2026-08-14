@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { setChannelArchived, getChannel, CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import { setChannelArchived, getChannel, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
 
 /** 归档/解归档（§3.2）：Owner only；归档冻结写入、保留可读。 */
 export async function POST(

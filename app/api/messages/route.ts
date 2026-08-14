@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { sendMessage, getMessageWithAuthor } from "@/lib/raft/messages";
-import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
-import type { MessageAttachmentDraft } from "@/lib/raft/attachments";
+import { sendMessage, getMessageWithAuthor, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
+import type { MessageAttachmentDraft } from "@/lib/domain/raft";
 
 interface SendInput {
   targetId?: unknown;

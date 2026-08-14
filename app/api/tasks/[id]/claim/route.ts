@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { claimTask, getTaskView } from "@/lib/raft/tasks";
-import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import { claimTask, getTaskView, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
 
 /**
  * POST /api/tasks/[id]/claim（§5.7 tasks 路由组）：claim 即"我负责"。

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cancelReminder, ReminderNotFoundError, ReminderNotAuthorizedError } from "@/lib/raft/reminders";
-import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import { cancelReminder, ReminderNotFoundError, ReminderNotAuthorizedError, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
 
 /**
  * reminders 路由组（§5.7）：POST /api/reminders/[id]/cancel。

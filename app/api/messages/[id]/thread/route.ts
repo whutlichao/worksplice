@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getThreadInfo } from "@/lib/raft/messages";
+import { getThreadInfo } from "@/lib/domain/raft";
 
 /** 线程读取：锚点消息 + 该线程全部消息（§3.1 回复气泡展开 thread）。 */
 export async function GET(

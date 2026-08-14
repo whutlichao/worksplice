@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
-import type { MessageSearchHit } from "@/lib/raft/search";
+import type { MessageSearchHit } from "@/lib/domain/raft";
 
 const INK = "#141111";
 const DEBOUNCE_MS = 250;

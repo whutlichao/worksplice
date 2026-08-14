@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listChannelsWithMeta, createChannel, CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import { listChannelsWithMeta, createChannel, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
 
 export async function GET() {
   try {

@@ -6,7 +6,7 @@ import {
   listChannelMutes,
   muteChannel,
   unmuteChannel,
-} from "@/lib/raft/channels";
+} from "@/lib/domain/raft";
 
 /**
  * §3.2 mute 路由组：

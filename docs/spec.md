@@ -358,7 +358,7 @@ app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=sche
 | reminders | `GET/POST /api/reminders`、snooze/update/cancel/log | 新增 |
 | search | `GET /api/search?q=`（FTS5） | 新增 |
 
-服务层全部在 `lib/` 内实现（`lib/raft/`），API route 仅做薄封装——agent-loop 直接调服务层，不走 HTTP。
+服务层全部在 `lib/` 内实现，API route 仅做薄封装——agent-loop 直接调服务层，不走 HTTP。
 
 ### 5.8 pi-web 改造策略
 

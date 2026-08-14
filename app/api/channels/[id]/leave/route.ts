@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { leaveChannel, getChannel, CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import { leaveChannel, getChannel, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
 
 /** 离开 channel（§3.2）：成员自离或 Owner 移除；`#all` 不可离开。 */
 export async function POST(

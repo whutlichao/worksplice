@@ -1,4 +1,4 @@
-import { listAgents, getMember, setAgentStatus } from "./raft/members.ts";
+import { listAgents, getMember, setAgentStatus } from "./domain/raft/index.ts";
 import type { MemberRow, MemberStatus } from "./data/types.ts";
 
 /**

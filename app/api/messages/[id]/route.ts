@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMessageWithAuthor } from "@/lib/raft/messages";
+import { getMessageWithAuthor } from "@/lib/domain/raft";
 
 /** 单条消息（引用 / 复制链接深链的数据面）。 */
 export async function GET(

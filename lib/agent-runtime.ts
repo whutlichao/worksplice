@@ -2,13 +2,13 @@ import { existsSync, realpathSync, rmSync } from "fs";
 import { normalize, resolve } from "path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MemberRow } from "./data/types.ts";
-import { getDb } from "./raft/db-singleton.ts";
+import { getDb } from "./data/db-singleton.ts";
 import {
   agentHomePath,
   getMember,
   normalizeWorkspacePath,
   setAgentSessionFile,
-} from "./raft/members.ts";
+} from "./domain/raft/index.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
 import type { AgentSessionWrapper } from "./rpc/index.ts";
 

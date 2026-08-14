@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateReminder, getReminderView, ReminderNotFoundError, ReminderNotAuthorizedError } from "@/lib/raft/reminders";
-import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import { updateReminder, getReminderView, ReminderNotFoundError, ReminderNotAuthorizedError, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
 
 /**
  * reminders 路由组（§5.7）：PATCH /api/reminders/[id]（update）。

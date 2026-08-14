@@ -18,7 +18,7 @@
 
 import type { ModelsData } from "./models-cache";
 
-/** 秘书默认名字（与 lib/raft/event-messages.ts SUSAN_MEMBER_NAME 同值；UI 侧避免引 raft 服务层）。 */
+/** 秘书默认名字（与 lib/domain/raft/event-messages.ts SUSAN_MEMBER_NAME 同值；UI 侧避免引 raft 服务层）。 */
 export const SUSAN_NAME = "Susan";
 
 export interface BootstrapAgentLike {

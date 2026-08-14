@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listAgents, createAgent, agentHomePath, getOwner } from "@/lib/raft/members";
+import { listAgents, createAgent, agentHomePath, getOwner } from "@/lib/domain/raft";
 
 export async function GET() {
   try {

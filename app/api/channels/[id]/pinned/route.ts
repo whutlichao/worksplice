@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
-import { pinMessage, unpinMessage, listPinned, type PinSortMode } from "@/lib/raft/pinned";
+import { CURRENT_MEMBER_ID, pinMessage, unpinMessage, listPinned, type PinSortMode } from "@/lib/domain/raft";
 
 /**
  * §3.5 个性化 pinned 区（channel 头部可展开）：
  * GET  ?sort=manual|recent|az → 当前成员在该 channel 的 pinned 列表；
  * POST { messageId }          → pin（幂等，重复 pin 返回既有行）；
  * DELETE ?messageId=          → unpin（幂等）。
- * 权限/存在性校验由服务层强制（lib/raft/pinned.ts），route 仅薄封装。
+ * 权限/存在性校验由服务层强制（lib/domain/raft/pinned.ts），route 仅薄封装。
  */
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {

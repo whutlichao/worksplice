@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
-import { setPinnedOrder } from "@/lib/raft/pinned";
+import { CURRENT_MEMBER_ID, setPinnedOrder } from "@/lib/domain/raft";
 
 /** §3.5 Manual 排序：POST { order: [messageId, ...] } 按顺序重排当前成员的 pinned。 */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {

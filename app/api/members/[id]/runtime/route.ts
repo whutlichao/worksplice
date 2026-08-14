@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgent, setAgentRuntimeConfig, AgentNotFoundError } from "@/lib/raft/members";
+import { getAgent, setAgentRuntimeConfig, AgentNotFoundError } from "@/lib/domain/raft";
 import { getAgentRuntime } from "@/lib/agent-runtime";
 
 // GET /api/members/[id]/runtime — per-agent runtime 配置（§3.10）：

@@ -1,21 +1,30 @@
 import { existsSync, readFileSync, statSync } from "fs";
 import { join, normalize } from "path";
-import { getDb } from "../raft/db-singleton.ts";
-import { getAgent, agentHomePath, listAgents, normalizeWorkspacePath } from "../raft/members.ts";
-import { isChannelMember, joinChannel } from "../raft/channels.ts";
-import { sendMessage, type SendMessageResult } from "../raft/messages.ts";
-import { claimTask, updateTaskStatus } from "../raft/tasks.ts";
+import { getDb } from "../data/db-singleton.ts";
 import {
-  drain,
-  ack,
-  getSince,
-  resolveTargetChannel,
-  listRelatedTasks,
   type MessageWithAuthor,
-} from "../raft/inbox.ts";
-import { extractMentionedMemberIds, subscribeWake, type WakeHint, type WakeReason } from "../raft/wake.ts";
-import { fireDueReminders } from "../raft/reminders.ts";
-import { logRoundOutcome } from "../raft/rounds.ts";
+  type SendMessageResult,
+  type WakeHint,
+  type WakeReason,
+  ack,
+  agentHomePath,
+  claimTask,
+  drain,
+  extractMentionedMemberIds,
+  fireDueReminders,
+  getAgent,
+  getSince,
+  isChannelMember,
+  joinChannel,
+  listAgents,
+  listRelatedTasks,
+  logRoundOutcome,
+  normalizeWorkspacePath,
+  resolveTargetChannel,
+  sendMessage,
+  subscribeWake,
+  updateTaskStatus,
+} from "../domain/raft/index.ts";
 import { publishAgentStatus, startAgentStatusSweeper } from "../agent-status.ts";
 import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
@@ -25,7 +34,7 @@ import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/types.t
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
  * 编排面 = wake 驱动队列（driver）+ 崩溃恢复补拉（backfill）+ 提醒 cron（reminder-cron）
  * 全部收进本文件；公共接口 = createAgentLoop() → { start, stop, tick }（index.ts 只 re-export 它）。
- * wake 发布/订阅原语已下沉 lib/raft/wake.ts（raft 服务层发、本模块订阅，依赖方向 raft ← agent-loop）。
+ * wake 发布/订阅原语已下沉 lib/domain/raft/wake.ts（raft 服务层发、本模块订阅，依赖方向 raft ← agent-loop）。
  *
  * 轮次核心（runAgentRound）：wake → drain → decide → act → reply 收口。
  * - drain：按 consumed_seqs 拉增量，组装 channel 语境 + 新消息 + 相关任务状态；

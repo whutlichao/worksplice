@@ -8,7 +8,7 @@ import {
   agentHomePath,
   normalizeWorkspacePath,
   AgentNotFoundError,
-} from "./raft/members.ts";
+} from "./domain/raft/index.ts";
 import { publishAgentStatus } from "./agent-status.ts";
 import { getAgentRuntime, BusyCwdError, type AgentRuntime } from "./agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "./data/dirs.ts";

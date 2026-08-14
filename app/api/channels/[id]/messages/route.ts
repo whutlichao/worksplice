@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getChannel } from "@/lib/raft/channels";
-import { listMessages, getMessageWithAuthor } from "@/lib/raft/messages";
+import { getChannel, listMessages, getMessageWithAuthor } from "@/lib/domain/raft";
 
 /**
  * 消息流读取（§5.7）：channel 消息与 thread 消息共用同一路由——

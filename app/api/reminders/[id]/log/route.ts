@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getReminderLog, ReminderNotFoundError } from "@/lib/raft/reminders";
+import { getReminderLog, ReminderNotFoundError } from "@/lib/domain/raft";
 
 /**
  * reminders 路由组（§5.7）：GET /api/reminders/[id]/log —— 生命周期事件流

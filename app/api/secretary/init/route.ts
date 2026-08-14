@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { initSecretaryFlow } from "@/lib/raft/secretary-init";
+import { initSecretaryFlow } from "@/lib/domain/raft";
 
 /**
  * 启动助手入口（spec-bootstrap-agent.md §6.3，构建 effort ticket 06）：

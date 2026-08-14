@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { toggleReaction, listReactionSummaries } from "@/lib/raft/reactions";
-import { getMessageWithAuthor } from "@/lib/raft/messages";
-import { CURRENT_MEMBER_ID } from "@/lib/raft/channels";
+import { toggleReaction, listReactionSummaries, getMessageWithAuthor, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
 
 /**
  * §3.4 reaction 读写：

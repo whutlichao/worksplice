@@ -25,7 +25,7 @@ export interface ChannelWithMeta extends ChannelRow {
   unread: number;
 }
 
-/** §3.4 reaction 聚合（与 lib/raft/reactions.ts 同形）。 */
+/** §3.4 reaction 聚合（与 lib/domain/raft/reactions.ts 同形）。 */
 export interface ReactionSummary {
   emoji: string;
   count: number;
@@ -44,7 +44,7 @@ export interface ChannelMessage {
   attachments?: AttachmentRow[];
   /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */
   threadReplyCount?: number;
-  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/raft/rounds.ts）。 */
+  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/domain/raft/rounds.ts）。 */
   abandonedMarks?: Array<{
     agentId: string;
     agentName: string;

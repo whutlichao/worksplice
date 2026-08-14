@@ -12,7 +12,7 @@
   - 服务层函数动词开头（`listXxx` / `createXxx` / `updateXxx` / `markXxx`）；路由文件一律 `export async function GET/POST(...)`。
   - 术语必须用 CONTEXT.md 的领域词表（成员/agent/频道/任务/轮次/唤醒/…），禁止引入同义词造成漂移。
   - 避免 `any`；服务层返回显式 union（如 `SendMessageResult`、状态机转移结果），让类型系统成为文档。
-- **分层**：UI 组件不直连 DB——所有数据经 `lib/raft/*.ts` 服务层 → `app/api/*/route.ts`（薄封装，校验入参 + 映射错误码）。数据存取走 `Store` 契约（`lib/data/store.ts`，Ticket 03 Separate Data Layer；业务模块经 `getDb(): Store` 取实例，不写 SQL、不 import 具体 adapter `lib/data/sqlite.ts`）。新查询方法 = 在 `Store` 接口声明 + 在 `SQLiteAdapter`（sqlite.ts）实现；纯查询辅助（`toFtsQuery`/`buildSearchSnippet`）落在 `lib/data/types.ts`。
+- **分层**：UI 组件不直连 DB——所有数据经 `lib/domain/raft/*.ts` 服务层 → `app/api/*/route.ts`（薄封装，校验入参 + 映射错误码）。数据存取走 `Store` 契约（`lib/data/store.ts`，Ticket 03 Separate Data Layer；业务模块经 `getDb(): Store` 取实例，不写 SQL、不 import 具体 adapter `lib/data/sqlite.ts`）。新查询方法 = 在 `Store` 接口声明 + 在 `SQLiteAdapter`（sqlite.ts）实现；纯查询辅助（`toFtsQuery`/`buildSearchSnippet`）落在 `lib/data/types.ts`。**raft 域唯一导入面**：`lib/domain/raft/index.ts` 是 raft 服务层唯一对外导入面，消费方一律 `from "@/lib/domain/raft"`（或相对等价），**不按子路径逐个导入**子模块；`getDb(): Store` 不在此索引面，归 `lib/data/db-singleton.ts`。
 - **错误码语义**：业务冲突用 409（held / conflict / blocked），非法入参用 400，资源缺失用 404。同语义错误跨路由必须同状态码（反例已整改：claim 边 conflict/blocked 与 /claim 对齐 409）。
 - **不要**把密钥/客户数据写入代码、日志、commit。`console.log` 只在服务端排查用，能删则删。
 
@@ -27,10 +27,10 @@
   ```
   全量基线明细：
   ```bash
-  node --test lib/agent-loop/*.test.mjs lib/raft/*.test.mjs components/ChannelView.test.mjs
+  node --test lib/agent-loop/*.test.mjs lib/domain/raft/*.test.mjs components/ChannelView.test.mjs
   ```
 - **测试类型**（按此分层，优先写便宜的那层）：
-  - **服务层单测**：`lib/raft/*.test.mjs` — 内存 tmp DB（`openDataDb(mkdtemp)`），验证纯逻辑/状态机/权限。
+  - **服务层单测**：`lib/domain/raft/*.test.mjs` — 内存 tmp DB（`openDataDb(mkdtemp)`），验证纯逻辑/状态机/权限。
   - **agent-loop 单测**：`lib/agent-loop/*.test.mjs` — fake `LoopRuntime`（结构子集）注入，**零 SDK 依赖**。理由：node TS strip 模式无法解析 lib/rpc/session.ts 的 parameter properties，静态 import 会挂。
   - **路由源码级断言**：`*-route.test.mjs` — `readFile` 断言路由源码含正确调用与错误码映射（薄路由不值得起 HTTP server）。
   - **组件渲染断言**：`components/*.test.mjs` — react-dom/server `renderToStaticMarkup` + jiti。
