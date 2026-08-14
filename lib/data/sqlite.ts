@@ -869,7 +869,7 @@ export class SQLiteAdapter implements Store {
          JOIN messages anchor ON anchor.id = tasks.message_id
          LEFT JOIN messages thread ON thread.target_id = tasks.message_id
          WHERE tasks.owner_id = ? OR anchor.author_id = ? OR thread.author_id = ?
-         ORDER BY tasks.updated_at DESC`,
+         ORDER BY tasks.updated_at DESC, tasks.rowid DESC`,
       )
       .all(agentId, agentId, agentId) as TaskRow[];
   }
