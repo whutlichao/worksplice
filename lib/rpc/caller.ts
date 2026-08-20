@@ -21,6 +21,7 @@ import { persistExplicitStartupPreferences } from "../startup-preferences";
 import { AgentSessionWrapper, withExtensionTools } from "./session.ts";
 import type { RpcSessionStartOptions } from "./session.ts";
 import { getRpcRegistry } from "./registry.ts";
+import { trackStarting } from "../cwd-mutex.ts";
 
 declare global {
   var __workspliceStartLocks: Map<string, Promise<{ session: AgentSessionWrapper; realSessionId: string }>> | undefined;
@@ -63,7 +64,8 @@ export class RpcCaller {
       sessionManager = SessionManager.create(cwd, undefined);
     }
     const sessionCwd = sessionManager.getCwd();
-    const finishStartingSession = registry.trackStarting(sessionCwd);
+    // 11-收敛：starting 窗口计数器唯一来源 lib/cwd-mutex（原 registry.trackStarting 委托同源）
+    const finishStartingSession = trackStarting(sessionCwd);
     const starting = (async () => {
       // Some extensions access the SDK's global theme even outside the terminal UI.
       initTheme();

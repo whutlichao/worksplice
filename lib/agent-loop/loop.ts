@@ -29,6 +29,13 @@ import { publishAgentStatus, startAgentStatusSweeper } from "../agent-status.ts"
 import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/types.ts";
+import {
+  BUSY_CWD_RETRY_DELAY_MS,
+  PROMPT_DONE_EVENTS,
+  SETTLE_EVENTS,
+  scheduleBusyRetry,
+  waitForSettle as waitForCwdSettle,
+} from "../cwd-mutex.ts";
 
 /**
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
@@ -300,14 +307,9 @@ export function buildRevisionPrompt(input: {
 // prompt 执行
 // ----------------------------------------------------------------------------
 
-/** 一次 prompt 完成/失败的会话事件集合（driver 的 busy 重试复用同一份清单）。 */
-export const PROMPT_DONE_EVENTS = new Set(["prompt_done", "agent_end", "agent_settled"]);
-
-/** 会话"可能不再忙"的完整事件面（driver busy 重试用）：prompt 收口 + compaction 收口。
- * 区别于 PROMPT_DONE_EVENTS——compaction_end 不该让进行中的 prompt 提前收口，
- * 但 manual/extension 触发的 compaction 期间 isRunning()=true 且只发 compaction_end
- * （不发 prompt 收口事件），busy 等待必须监听它才能解挂（见 driver.waitForSettle）。 */
-export const SETTLE_EVENTS = new Set([...PROMPT_DONE_EVENTS, "compaction_end", "auto_compaction_end"]);
+// 11-收敛：PROMPT_DONE_EVENTS / SETTLE_EVENTS / BUSY_CWD_RETRY_DELAY_MS 唯一来源 lib/cwd-mutex；
+// 本模块 re-export 以保持对既有测试（从 loop 导入）的兼容。
+export { BUSY_CWD_RETRY_DELAY_MS, PROMPT_DONE_EVENTS, SETTLE_EVENTS };
 
 /** 等待一次 prompt 完成（prompt_done / agent_end / agent_settled；prompt_error 视为失败）。 */
 export function waitForPromptCompletion(
@@ -1027,12 +1029,7 @@ async function processAgent(agentId: string): Promise<void> {
   }
 }
 
-/**
- * busy-cwd 找不到等待对象时的退避间隔（02-终检整改）：
- * 人类/extension 路径的会话 starting 窗口内 wrapper 尚未入 registry——立即重试会热自旋
- * （每轮 drain + startSession 全量空转）直到对方启动完成；退避把自旋压到有界。
- */
-export const BUSY_CWD_RETRY_DELAY_MS = 250;
+// 11-收敛：busy-cwd 重试改用 cwd-mutex 原语（waitForCwdSettle + scheduleBusyRetry），行为不变。
 async function waitForSettle(agentId: string, targetId: string, reason: WakeReason): Promise<void> {
   const state = getDriverState();
   if (state.waitingForSettle.has(agentId)) return;
@@ -1060,22 +1057,14 @@ async function waitForSettle(agentId: string, targetId: string, reason: WakeReas
       (agent.workspace_path ? runtime.findBusySessionForCwd?.(agent.workspace_path) : undefined);
     if (!waitTarget) {
       // starting 窗口（对方会话尚未入 registry）：退避后重试，避免热自旋。
-      // 定时器登记进 settleUnsubs——stop() 时与 settle 监听一并取消，防测试/停机后幽灵重试。
-      const timer = setTimeout(retry, BUSY_CWD_RETRY_DELAY_MS);
-      state.settleUnsubs.set(agentId, () => clearTimeout(timer));
+      // 11-收敛：退避由 cwd-mutex 的 scheduleBusyRetry 提供（BUSY_CWD_RETRY_DELAY_MS 唯一来源）。
+      const cancel = scheduleBusyRetry(retry);
+      state.settleUnsubs.set(agentId, cancel);
       return;
     }
-    const unsub = waitTarget.onEvent((event) => {
-      if (SETTLE_EVENTS.has(event.type)) {
-        retry();
-      }
-    });
+    // 11-收敛：settle 等待由 cwd-mutex 的 waitForCwdSettle 提供（SETTLE_EVENTS 唯一来源 + 订阅后 isRunning 复核）。
+    const unsub = waitForCwdSettle(waitTarget as unknown as import("../cwd-mutex.ts").SettleableSession, retry);
     state.settleUnsubs.set(agentId, unsub);
-    // 订阅窗口竞态（ticket 01-d）：busy 判定与订阅之间会话可能已收口，settle 事件发在
-    // 无人监听时。订阅后复核 isRunning()——已空闲则立即重试，避免 hint 永久挂起。
-    if (!waitTarget.isRunning()) {
-      retry();
-    }
   } catch {
     retry();
   }

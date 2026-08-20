@@ -6,23 +6,14 @@
 // 数据挂在 globalThis（__workspliceSessions / __workspliceStartingSessionCwds）
 // 以扛 Next.js 热重载；RpcRegistry 实例本身无状态，随模块重生。
 // 对 session.ts 只做 type-only import，避免运行时循环依赖。
+// Cwd 互斥事实来源已收敛至 lib/cwd-mutex（11-收敛）；本文件仅保留注册表职责，
+// busy 探测与窗口计数器委托 cwd-mutex，避免双源漂移。
 
-import { realpathSync } from "fs";
-import { resolve } from "path";
+import { normalizeCwd as normalizeRpcCwd, findBusySession, isCwdBusy, trackStarting as trackStartingCwds } from "../cwd-mutex.ts";
 import type { AgentSessionWrapper } from "./session.ts";
 
 declare global {
   var __workspliceSessions: Map<string, AgentSessionWrapper> | undefined;
-  var __workspliceStartingSessionCwds: Map<string, number> | undefined;
-}
-
-function normalizeRpcCwd(cwd: string): string {
-  const resolvedCwd = resolve(cwd);
-  try {
-    return realpathSync(resolvedCwd);
-  } catch {
-    return resolvedCwd;
-  }
 }
 
 export class RpcRegistry {
@@ -37,25 +28,19 @@ export class RpcRegistry {
     sessions.set(sessionId, wrapper);
   }
 
-  /** 同 cwd 是否有 busy 会话（starting 窗口内也算 busy）。 */
+  /** 同 cwd 是否有 busy 会话（starting 窗口内也算 busy）——委托 cwd-mutex 唯一事实来源。 */
   hasBusyForCwd(cwd: string): boolean {
-    const targetCwd = normalizeRpcCwd(cwd);
-    if (this.startingCwds().has(targetCwd)) return true;
-    return Array.from(this.sessions().values()).some(
-      (session) => normalizeRpcCwd(session.cwd) === targetCwd && session.isRunning(),
-    );
+    return isCwdBusy(cwd);
   }
 
   /**
    * 同 cwd 正在运行的会话 wrapper（02-决策一：busy-cwd 轮次的等待对象）。
    * 只找 running wrapper：starting 窗口内尚无 wrapper，而 per-cwd 启动互斥
    * （02-决策二）已保证 loop 路径不会在窗口内抛 BusyCwdError。
+   * 委托 cwd-mutex 唯一事实来源。
    */
   findBusyForCwd(cwd: string): AgentSessionWrapper | undefined {
-    const targetCwd = normalizeRpcCwd(cwd);
-    return Array.from(this.sessions().values()).find(
-      (session) => normalizeRpcCwd(session.cwd) === targetCwd && session.isRunning(),
-    );
+    return findBusySession(cwd) as AgentSessionWrapper | undefined;
   }
 
   /** 销毁某 cwd 下的全部会话（graceful shutdown），返回销毁数量。 */
@@ -77,16 +62,9 @@ export class RpcRegistry {
     return [...ids];
   }
 
-  /** 跟踪一个正在启动的 session（busy-cwd 探测的 starting 窗口）。返回结束标记。 */
+  /** 跟踪一个正在启动的 session（busy-cwd 探测的 starting 窗口）。返回结束标记。委托 cwd-mutex。 */
   trackStarting(cwd: string): () => void {
-    const startingCwds = this.startingCwds();
-    const key = normalizeRpcCwd(cwd);
-    startingCwds.set(key, (startingCwds.get(key) ?? 0) + 1);
-    return () => {
-      const remaining = (startingCwds.get(key) ?? 1) - 1;
-      if (remaining > 0) startingCwds.set(key, remaining);
-      else startingCwds.delete(key);
-    };
+    return trackStartingCwds(cwd);
   }
 
   /** 进程退出/信号时销毁全部存活 wrapper。 */
@@ -103,11 +81,6 @@ export class RpcRegistry {
       process.once("SIGTERM", cleanup);
     }
     return globalThis.__workspliceSessions;
-  }
-
-  private startingCwds(): Map<string, number> {
-    if (!globalThis.__workspliceStartingSessionCwds) globalThis.__workspliceStartingSessionCwds = new Map();
-    return globalThis.__workspliceStartingSessionCwds;
   }
 }
 

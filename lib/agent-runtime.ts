@@ -1,5 +1,5 @@
-import { existsSync, realpathSync, rmSync } from "fs";
-import { normalize, resolve } from "path";
+import { existsSync, rmSync } from "fs";
+import { normalize } from "path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MemberRow } from "./data/types.ts";
 import { getDb } from "./data/db-singleton.ts";
@@ -11,6 +11,7 @@ import {
 } from "./domain/raft/index.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
 import type { AgentSessionWrapper } from "./rpc/index.ts";
+import { findBusySession, isCwdBusy, withCwdMutex } from "./cwd-mutex.ts";
 
 /**
  * agent 运行时抽象：ticket 05 生命周期操作与 pi 运行时之间的接缝。
@@ -131,46 +132,13 @@ export function chooseSessionFileForStart(input: SessionFileStartInput): Session
 
 // ============================================================================
 // per-cwd 启动互斥（02-决策二）：把 [busy 检查 → 文件选择 → 启动] 串行化
+// 已收敛至 lib/cwd-mutex 深模块（11-收敛）；此处仅保留兼容别名，事实来源在 cwd-mutex。
 // ============================================================================
 
-function getCwdStartLocks(): Map<string, Promise<unknown>> {
-  if (!globalThis.__workspliceCwdStartLocks) {
-    globalThis.__workspliceCwdStartLocks = new Map();
-  }
-  return globalThis.__workspliceCwdStartLocks;
-}
-
-/**
- * per-cwd 启动互斥（02-决策二）：共享 cwd 并发唤醒的多个 agent 排队执行，
- * 后一个等前一个完成后重新决策（对方 idle → 正常启动；running → BusyCwdError），
- * 不再撞启动窗口（trackStartingSession 置位）抛错丢 hint。
- * 键按 realpath 归一（与 hasBusyRpcSessionForCwd 的 normalizeRpcCwd 同基准）；
- * 链式 Promise 挂 globalThis（热重载安全）；失败的 holder 不阻塞后继。
- */
-export function withCwdStartLock<T>(cwd: string, fn: () => Promise<T>): Promise<T> {
-  const resolved = resolve(cwd);
-  let key: string;
-  try {
-    key = realpathSync(resolved);
-  } catch {
-    key = resolved;
-  }
-  const locks = getCwdStartLocks();
-  const prev = locks.get(key) ?? Promise.resolve();
-  const run = prev.then(fn, fn);
-  locks.set(
-    key,
-    run.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  return run;
-}
+export const withCwdStartLock = withCwdMutex;
 
 declare global {
   var __workspliceAgentSessions: Map<string, AgentSessionWrapper> | undefined;
-  var __workspliceCwdStartLocks: Map<string, Promise<unknown>> | undefined;
 }
 
 /** 惰性单例：首次调用才 import pi SDK 与 lib/rpc（node 测试注入 fake 时不会拉起）。 */
@@ -183,11 +151,7 @@ export function getAgentRuntime(): Promise<AgentRuntime> {
 
 async function createRealAgentRuntime(): Promise<AgentRuntime> {
   const { SessionManager } = await import("@earendil-works/pi-coding-agent");
-  const {
-    findBusyRpcSessionForCwd,
-    hasBusyRpcSessionForCwd,
-    startRpcSession,
-  } = await import("./rpc/index.ts");
+  const { startRpcSession } = await import("./rpc/index.ts");
 
   // 成员 → 会话映射：agent 的 wrapper 以真实 session id 入 registry（lib/rpc），
   // 这里按成员 id 记账，状态推导不把同一 cwd 上的人类/他 agent 会话张冠李戴。
@@ -237,7 +201,7 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
 
   const runtime: AgentRuntime = {
     findSession,
-    findBusySessionForCwd: findBusyRpcSessionForCwd,
+    findBusySessionForCwd: findBusySession as unknown as AgentRuntime["findBusySessionForCwd"],
 
     async startSession(member) {
       if (!member.workspace_path) throw new Error("Agent has no workspace bound");
@@ -248,12 +212,13 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
 
       // 02-决策二：per-cwd 启动互斥——[busy 检查 → 文件选择 → 启动] 串行化，
       // 共享 cwd 并发唤醒的多个 agent 排队决策，不再撞启动窗口抛 BusyCwdError。
-      return withCwdStartLock(cwd, async () => {
+      // 11-收敛：唯一事实来源 lib/cwd-mutex（withCwdMutex + isCwdBusy）。
+      return withCwdMutex(cwd, async () => {
         const existing = findSession(member);
         if (existing?.isAlive()) {
           return { sessionId: existing.sessionId, sessionFile: existing.sessionFile || null };
         }
-        if (hasBusyRpcSessionForCwd(cwd)) {
+        if (isCwdBusy(cwd)) {
           throw new BusyCwdError(cwd);
         }
 
