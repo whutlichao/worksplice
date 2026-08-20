@@ -22,18 +22,18 @@
 - [01-pi SDK 能力边界研究](issues/01-pi-sdk-capability-boundary.md) — 可委托 SDK（tools/enabledModels/SessionManager/SettingsManager/ModelRuntime/ResourceLoader/compaction）与不可委托（registry/per-member 记账/BusyCwd/双轨状态/raft 全域/Store 57 方法）清单已收敛，`文件:行号`证据索引完备，04/05/06 可直接引用行号决策
 - [02-数据层选型与 Store 契约去留研究](issues/02-data-layer-selection.md) — 选型 **保留并收敛**（保留 better-sqlite3 + Store 契约，零委托 pi 存储，零换库），`SCHEMA_VERSION 11` 链无破坏，Store 57 方法最小事实面保留、适度收敛，06/08 可在不重置 `raft.db` 前提下落地
 - [03-现状盘点与库存量扫描](issues/03-current-state-inventory.md) — 基线已固化 `research/03` 491 行（E01-E69）：`lib/rpc 1479`/`agent-loop 1442`/`raft 2626`/`data 1813` 行数与 3 处热重载守卫、76 路由 4968 行薄封装、ChannelView 11 概念承载、`SCHEMA_VERSION 11` 14 表 + 5 触发器、Store 57 方法 13 分组、`npm test` 347 全绿；后续 04-09 直接引用行号
+- [05-agent-loop 驱动模型重塑（token 成本/可靠性/可观测性）](issues/05-agent-loop-reshaping-cost-reliability-observability.md) — 重试 2/3/3→1/1/2、默认 `revise→resend`、`lib/cwd-mutex.ts` 窄接口抽取、`round_logs` 增 token 三列+成本看板双视图、Backfill 双层门禁与标记即推进保留、`MUST_RESPOND_CAP=2` 与 error/silent 分级不变；`CONTEXT.md` 新增 Cwd 互斥/成本看板，ADR-0005 已立（`docs/adr/0005`）
+- [07-UI 信息架构简化原型](issues/07-ui-information-architecture-prototype.md) — 三变体对比原型已交付（`prototype-ui/index.html` 单文件，`?variant=a|b|c`），`ChannelView 11 概念/屏 → ≤4`；**采用 B·Guided Journey 首版**（旅程条 4 步常显+强空状态引导+`···` 收敛高级），A 为二期深模块拆分方向，C 否决；秘书五步流作为首访空状态默认入口纳入
+- [08-向后兼容与数据迁移策略](issues/08-backward-compat-and-migration-strategy.md) — 单向前兼容（v1..v11→v12 一键升，不做自动降级、文件覆写回滚）、单事务全量幂等不变式保留、SCHEMA_VERSION 12 仅 `round_logs` 三列 `ALTER ADD COLUMN` 增量、热重载守卫与 `getDb(): Store` 宽总线保留、固化/无主文件/backfill 双门禁保留在 worksplice 侧、附件与家目录不纳入 `runMigrations` 仅入三件套备份清单；ADR-0006 已立、ADR-0005 补立
+- [04-lib/rpc 与 model/skills/extensions 收敛边界](issues/04-rpc-boundary-and-sdk-delegation.md) — `pi 管 pi` 切分线已定：`lib/rpc` 保留 `session+registry+caller+events` 四件套（`withCwdStartLock` 抽至 `lib/cwd-mutex.ts`，`session.ts` 仅薄 Wrapper）、`model-scope` 委托 `resolveModelScopeWithDiagnostics` 的 thin adapter、`models.json/skills/plugins` 存储委托 SDK（`SettingsManager/ResourceLoader/PackageManager`）面板薄封装、`PATCH disable-model-invocation` 短期保留、`tool-presets` 去硬编码、`members` 三列工厂透传；`CONTEXT.md` 新增 SDK 委托边界/薄 Wrapper，ADR-0007 已立（`docs/adr/0007`）
+- [06-目标架构的分层与深模块切分](issues/06-target-architecture-deep-modules.md) — 分层单向固化 `lib/data ← lib/domain/raft (唯一导入面) ← lib/rpc|agent-loop|cwd-mutex ← app/api (薄封装)`，`Store 57` 宽总线与 `getDb(): Store` 单例保留，`lib/rpc` 四件套冻结，`lib/cwd-mutex.ts` 独立深模块，`lib/agent-loop` 单文件深模块保留；Mermaid 图与 7 域 22 文件模块清单已交付；`CONTEXT.md` 新增深模块/唯一导入面，ADR-0008 已立（`docs/adr/0008`）
+- [09-spec 文档形态与迁移计划颗粒度](issues/09-spec-shape-and-migration-plan-granularity.md) — 独立 `docs/spec-rebuild.md` 五段式（现状盘点→目标架构→分步迁移→兼容清单→成本基线）+ 附录 A-E，混合按深模块切四期（`cwd-mutex → lib/rpc → agent-loop → UI B`），硬门禁 + 4 项手动清单，5 条可测验收按段确认；`ADR-0009` 已立，`CONTEXT.md` 无新增，地图闭合
 
 ## Not yet specified
 
 <!-- 迷雾区：在 scope 内但尚不尖锐、无法立刻 ticket 化；随 frontier 推进逐步毕业为新 ticket -->
 
-- 目标架构的深模块切分细节（`lib/` 具体边界、Store 契约是否收窄、agent-loop 是否拆 driver/wake/backfill/cron 的新形态）——待 01/02 研究与 04/05 边界决策后方可细化
-- token 成本优化的具体手段（prompt 压缩、revision 次数、freshness-hold 策略、模型路由）——待 05  grilling 明确优化面后毕业
-- 可靠性保障的量化目标（busy-cwd 串行、游标推进、backfill 门禁、crash 恢复的 SLO）——待 05 决策后毕业
-- 可观测性的产品形态（轮次结果之外的成本/错误看板、用户可感知的失败解释）——待 05 决策后毕业
-- UI 原型的具体交互形态（频道/任务/线程的渐进披露、秘书驱动的轻入口是否纳入）——待 07 原型对比后毕业
-- 迁移计划的分步颗粒度与兼容策略（分几期、每期迁移哪些表/文件、回滚点）——待 02/08 兼容决策后毕业
-- 性能基线与回归门禁（`docs/cost-monitoring-baseline.md` 是否需更新为重构后基线）
+<!-- 地图闭合：09 已决，无剩余前沿，无新增雾区；后续执行按 `docs/spec-rebuild.md §3 四期` 另起 effort 切 ticket -->
 
 ## Out of scope
 

@@ -91,3 +91,27 @@ _Avoid_: 任务面板、kanban 直译
 **补全 (Mention Completion)**:
 Composer 输入 `@` 弹出的成员菜单，列出全部 agent（非频道成员标注"未加入"），插入 `@名字` 或引号形式。
 _Avoid_: 提及菜单
+
+**Cwd 互斥 (CwdMutex)**:
+单机单进程下同一 `workspace_path` 的串行门禁——`withCwdMutex(cwd, fn)` per-cwd promise 链（`realpathSync` 归一）+ starting 窗口计数器 + `isCwdBusy`/`findBusySession` 探测与 `waitForSettle(SETTLE_EVENTS)` 等待。深模块 `lib/cwd-mutex.ts` 唯一事实来源，供 `agent-runtime` 与 `driver` 共用。
+_Avoid_: busy-cwd 锁（仅描述现象）、文件锁（那是 `proper-lockfile`）
+
+**成本看板 (Cost Board)**:
+轮次结果随盘 `prompt_tokens/completion_tokens/cost`（`round_logs` 新增三列）+ `cost-monitoring-baseline.md` 双视图（全量 session 聚合 + 最近 50 轮滑动）的可观测形态。silent/error/capped 显式 badge + reason 原文，must-respond capped 单独解释。
+_Avoid_: 成本日志（不可事后查的 console 日志）
+
+**SDK 委托边界 (SDK Delegation Boundary)**:
+`pi 管 pi、raft 管 raft` 的切分线：SDK 侧收敛 `tools/enabledModels/ThinkingLevel/SessionManager/buildSessionContext/SettingsManager/ModelRuntime/AuthStorage/DefaultResourceLoader/DefaultPackageManager/compaction`，worksplice 侧保留 `lib/rpc registry+caller` 的 per-member 记账与 `Cwd 互斥`、`双轨状态`、`lifecycle 家目录两分`、`pi_session_file 固化门禁`、`raft 域全量`（`Store 57`/`UNIQUE(target_id,seq)`/`freshness-hold`/`FTS5`）与 `project-trust/models-cache/provider-listing` 编排。
+_Avoid_: SDK 边界（泛指）、中层收敛（未指明归属）
+
+**薄 Wrapper (Thin Wrapper)**:
+`AgentSessionWrapper`（`lib/rpc/session.ts:55-65`）的封装厚度约束：仅叠 `promptRunning` 标记 + 订阅转发，不复刻 SDK 的 `isStreaming/isCompacting` 状态机与 `setActiveToolsByName` 激活语义；`toolsOption` 空数组=全禁、`undefined`=不过滤的 SDK 语义直通。
+_Avoid_: 厚 Wrapper（复刻 SDK 状态机）、代理（proxy 泛称）
+
+**深模块 (Deep Module)**:
+对外暴露窄而深的 entry point（`index.ts` 仅 re-export 深层能力），内部子模块直引不经索引回环、实现细节对外隐藏的模块形态。
+_Avoid_: 浅封装（仅做 re-export 转发）、大杂烩模块
+
+**唯一导入面 (Single Entry / Facade)**:
+一域对外唯一的 `index.ts` 聚合出口（如 `lib/domain/raft/index.ts: export *`），消费方只经此单口导入，域内子模块互相直引；测试缝以此单口 mock 整域。
+_Avoid_: 散导入（直引子模块）、桶文件（仅为缩短路径）
