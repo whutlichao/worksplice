@@ -212,6 +212,16 @@ export function buildReplyPrompt(input: {
   const lines: string[] = [];
   lines.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
   lines.push(`New activity arrived in channel ${input.channel.name}:`);
+  // 11-整改（自激循环）：续工轮的 drain 全是 agent 自己的历史回复（线程游标留口），
+  // 模型看到 `@自己` 会误以为被 @mention 而继续回复——标注这些是自己的消息，
+  // 不是他人新活动，@mention 也不构成"必须回应"信号。
+  const ownMessagesOnly =
+    input.messages.length > 0 && input.messages.every((m) => m.author_id === input.agent.id);
+  if (ownMessagesOnly) {
+    lines.push(
+      "(The messages below are YOUR OWN — your prior progress in this thread. They are not new activity from others; being @mentioned within them is a self-mention, not a demand. Decide: continue working, complete the task, or say nothing.)",
+    );
+  }
   lines.push("");
   for (const message of input.messages) {
     const author = message.author?.name ?? "unknown";
@@ -243,6 +253,9 @@ export function buildReplyPrompt(input: {
   );
   lines.push(
     "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. An @mention of you overrides all of this — being mentioned is a demand for a response, and ignoring it is treated as a failure.",
+  );
+  lines.push(
+    "- Never @mention yourself: writing @your-own-name in a reply mentions no one and only creates noise.",
   );
   lines.push('- A "reply" must carry non-empty content text — a reply without content cannot be posted.');
   lines.push(
@@ -687,6 +700,33 @@ export function hasMustRespondSignal(
   return false;
 }
 
+/**
+ * channel 目标的无信号短消息判定（greeting 乒乓收敛）：
+ * 一条人类消息扇出后，各 agent 的"收到/在的"式 greeting 回复会互相 wake，
+ * 形成"你回我也回"的乒乓（rubric 本就要求 MUST ignore 小 talk，但模型不总遵守）。
+ * 这类消息：作者是 agent（人类消息永不过滤）+ 没 @我 + 无问号 + 无任务引用 + 短文本
+ * → 视为 noise：不触发 prompt，直接 ack 越过（静默消费）。
+ * 只用于 channel 主流程；thread 目标不过滤（任务协作信号优先，见 hasMustRespondSignal）。
+ */
+export const CHANNEL_NOISE_MAX_LENGTH = 80;
+
+export function isChannelNoise(
+  agentId: string,
+  message: { content: string; author_id: string; author?: { type?: string } | null },
+): boolean {
+  // 人类（Owner）消息永不过滤
+  if (message.author?.type === "human") return false;
+  // @了我 = 注意力信号，不是 noise
+  if (extractMentionedMemberIds(message.content).includes(agentId)) return false;
+  // 问号 = 可能是问题
+  if (/[?？]/.test(message.content)) return false;
+  // 任务引用 = 实质内容
+  if (/task\s*#\d+/i.test(message.content)) return false;
+  // 长文本 = 可能是实质内容（保守不过滤）
+  if (message.content.length > CHANNEL_NOISE_MAX_LENGTH) return false;
+  return true;
+}
+
 /** MEMORY.md 路径（ADR-0001）：家目录预置存在才告知 agent，缺失不补种。 */
 export function agentMemoryFile(agent: MemberRow): string | null {
   const file = join(agentHomePath(agent), MEMORY_FILE_NAME);
@@ -711,11 +751,19 @@ export async function runAgentRound(
   // 本轮房间版本（回复 freshness + error 轮 baseSeq 共用；= drain 时的 max(seq)）
   const baseSeq = drained.maxSeq;
   const incoming = drained.messages.filter((message) => message.author_id !== agent.id);
+  // greeting 乒乓收敛：channel 主流程里，其他 agent 的无信号短 greeting
+  // （收到/在的式 ack，无 @我、无问号、无任务引用）不触发 prompt——
+  // 直接从 incoming 剔除，后续走正常 noop/skip 路径 ack 越过（静默消费）。
+  // thread 目标不过滤（任务协作信号优先）。
+  const effectiveIncoming =
+    targetId === channel.id
+      ? incoming.filter((message) => !isChannelNoise(agentId, message))
+      : incoming;
   // §3.2 @mention = 注意力信号而非投递过滤：未加入 channel 的 agent 被个人 @mention
   // 时穿透送达——非成员仍推进本轮（drain 语境可见），未被 mention 则跳过。
   const isMember = isChannelMember(channel.id, agent.id);
   if (!isMember) {
-    const mentioned = incoming.some((message) =>
+    const mentioned = effectiveIncoming.some((message) =>
       extractMentionedMemberIds(message.content).includes(agent.id),
     );
     if (!mentioned) {
@@ -728,9 +776,16 @@ export async function runAgentRound(
   // §3.9 reminder 唤醒：系统提醒消息以作者署名投递（作者本人视角 = 全是自己的消息），
   // reminder 驱动的轮次不能按"只有自己的消息"跳过——agent 要看到自己的提醒并行动
   const reminderDriven = reason === "reminder";
-  if (incoming.length === 0 && !continuing && !reminderDriven) {
+  if (effectiveIncoming.length === 0 && !continuing && !reminderDriven) {
     ack(agentId, targetId, drained.maxSeq);
-    return { status: "noop", reason: "only the agent's own messages", baseSeq: drained.maxSeq };
+    return {
+      status: "noop",
+      reason:
+        incoming.length === 0
+          ? "only the agent's own messages"
+          : "only channel noise (agent greetings)",
+      baseSeq: drained.maxSeq,
+    };
   }
   // 崩溃窗口（回复已写、游标未推）内的自愈：最新消息是自己的回复 → 只推进游标，不重复应答
   const latest = getDb().getLatestMessage(targetId);
@@ -771,7 +826,7 @@ export async function runAgentRound(
   const prompt = buildReplyPrompt({
     agent,
     channel,
-    messages: incoming.length > 0 ? incoming : drained.messages,
+    messages: effectiveIncoming.length > 0 ? effectiveIncoming : drained.messages,
     tasks: listRelatedTasks(targetId),
     targetId,
     baseSeq,
@@ -819,7 +874,7 @@ export async function runAgentRound(
       // 本轮按失败处理（不 ack、error 状态点可见、触发消息保持 pending 供下次 wake 重试）。
       // 连续失败达 MUST_RESPOND_FAILURE_CAP 后 ack 并记 error：防模型系统性 ignore 造成的
       // 永久 pending + 反复失败（cap-ack 是逃逸口，状态点仍可见 error）。
-      if (hasMustRespondSignal(agent.id, targetId, incoming)) {
+      if (hasMustRespondSignal(agent.id, targetId, effectiveIncoming)) {
         const failures = recordMustRespondFailure(agent.id, targetId);
         publishAgentStatus(agent.id, "error");
         if (failures >= MUST_RESPOND_FAILURE_CAP) {
@@ -874,7 +929,20 @@ export async function runAgentRound(
       return { status: "error", reason: outcome.reason, baseSeq: outcome.ackSeq };
     }
     // ack 到 agent 本轮实际读到/被告知的房间版本（held 后随 roomSeq 推进）
-    ack(agentId, targetId, outcome.ackSeq ?? baseSeq);
+    // 11-整改（自激循环）：续工轮（任务 in_progress 线程、drain 全是自己消息）回复落库后，
+    // 游标必须推进到回复自身——否则每次回复都触发 wake 自醒、drain 又看到自己的回复，
+    // 形成无界续工循环（模型不 complete 时反复回复 progress + 自 @mention）。
+    // replied/anyway 都有消息落库（anyway 的回复 seq = roomSeq+1，仅 ack 到 roomSeq
+    // 同样漏掉回复自身），统一按落库消息的 seq 收口。
+    ack(
+      agentId,
+      targetId,
+      continuing &&
+        targetId !== channel.id &&
+        (outcome.status === "replied" || outcome.status === "anyway")
+        ? (outcome.message?.seq ?? outcome.ackSeq ?? baseSeq)
+        : (outcome.ackSeq ?? baseSeq),
+    );
     resetMustRespondFailures(agent.id, targetId);
     publishAgentStatus(agent.id, "online");
     if (outcome.status === "silent") {
