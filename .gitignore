@@ -41,6 +41,7 @@ yarn-error.log*
 next-env.d.ts
 .factory
 # pnpm artifacts (this repo uses bun.lock / package-lock.json)
+package-lock.json
 pnpm-lock.yaml
 pnpm-workspace.yaml
 .playwright-mcp/
