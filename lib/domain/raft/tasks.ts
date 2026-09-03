@@ -83,7 +83,14 @@ function claimBlockReason(current: TaskRow, memberId: string): string | null {
  * 状态机转移表（§3.7）：key = 当前状态，value = 可达状态 → 授权谓词。
  * clearOwner：转移后释放回池（unclaim/reopen）。
  * reopen：置 reopened 标记（重开封锁，§3.7）——agent-loop 不可自动认领，人类认领即清标。
+ * 互审授权（§3.7）：approve/reject（in_review → done / in_progress）由非任务 owner 的审者执行——
+ * "构建者不验证自己"。人类 Owner（CURRENT_MEMBER_ID）豁免：作为工作区唯一权威可批准/驳回
+ * 自己的工作（其他角色仍需他人互审）——否则人类单独完成的 in_review 任务无人可审，卡死在该态。
  */
+function reviewAuthorized(task: TaskRow, actorId: string): boolean {
+  return task.owner_id !== actorId || actorId === CURRENT_MEMBER_ID;
+}
+
 const TRANSITIONS: Record<
   TaskStatus,
   Partial<
@@ -100,8 +107,8 @@ const TRANSITIONS: Record<
     closed: { authorized: () => true },
   },
   in_review: {
-    done: { authorized: (task, actorId) => task.owner_id !== null && task.owner_id !== actorId },
-    in_progress: { authorized: (task, actorId) => task.owner_id !== null && task.owner_id !== actorId },
+    done: { authorized: (task, actorId) => task.owner_id !== null && reviewAuthorized(task, actorId) },
+    in_progress: { authorized: (task, actorId) => task.owner_id !== null && reviewAuthorized(task, actorId) },
     closed: { authorized: () => true },
   },
   done: {
