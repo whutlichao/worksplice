@@ -430,3 +430,24 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 --accent --user-bg --tool-bg
 --font-mono
 ```
+
+## 派活策略（Orca orchestration worker 任务规范）
+
+派活（`worker-start`/`dispatch`）时，task spec 必须按任务类型前置对应 skill（只读 skill 在 `~/.pi/agent/skills/`，把路径写进 spec 让 worker 自己读）。skill 更新不影响本策略——规则落在 repo 里。
+
+| 任务类型 | spec 必须写的前置 | 关键约束 |
+|---|---|---|
+| 实施票 | `implement`（内含 `tdd` + 收尾 `code-review`） | 红绿单切片；收尾 Standards+Spec 双轴自审后再 worker_done |
+| 多票并行 | `implement-spec`（frontier 语义） | 每票独立 worktree/分支；worker 间只用 context pointers 稀疏通信；合流后统一 code-review |
+| 修 bug | `diagnosing-bugs` | 先建 tight 反馈回路（必红命令），无回路不许猜；修完留回归测试，`[DEBUG-]` 打扫干净 |
+| 调研 | `research` | 只认 primary sources；结论落 Markdown 文件，不口头回报 |
+| 架构评审 | `improve-codebase-architecture` | 只做 Explore+HTML 报告（`$TMPDIR/architecture-review-<ts>.html`），零代码修改；grilling 是 HITL 环节，worker 到报告为止 |
+| 设计验证 | `prototype` | 先定分支（logic/UI）；throwaway，可一键运行；结论 fold 回票据 |
+| 合并冲突 | `resolving-merge-conflicts` | 按意图解（查 commit/PR/issue），不 `--abort`，不 invent 新行为，跑全检查 |
+| 外部 issue/PR | `triage` | 评论带 AI 免责声明；走状态机；ready-for-agent 才附 brief |
+| 术语/ADR 触及 | `domain-modeling` | 术语变更 inline 更新 CONTEXT.md；ADR 仅三条件全满足才建 |
+| 需人类/凭证/第三方 | 禁止 worker 代办 | 必须 `ask`/`escalation` 问回 coordinator，不许编造、不许代点 |
+
+全局约束：术语用 `codebase-design` 词汇（module/interface/depth/seam/adapter/leverage/locality，不许 component/service/API/boundary）；worker 不做 grilling（open 决策一律 ask 回来）；派活前读 `.scratch/orchestration-dispatch-checklist.md` 逐项打勾。
+
+不进 worker spec 的 skill：`ask-matt`（路由）、`grill-me`/`grill-with-docs`/`grilling`/`wayfinder`/`to-spec`/`to-tickets`/`to-questionnaire`（coordinator 规划侧）、`handoff`/`claude-handoff`（会话间移交）、`setup-matt-pocock-skills`（一次性）、`wizard`（人类步骤生成器——worker 侧只保留 ask 回来）、`teach`/`wait-what`/写作类/video 类/脚手架类/`computer-use`（与代码派活无关）。
