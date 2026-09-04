@@ -1,11 +1,11 @@
 import { stat } from "fs/promises";
 import { resolve } from "path";
-import { createAgentSessionServices, getAgentDir, type SettingsManager } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type SettingsManager } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { loadModelsWithCache, withModelRuntimeError, type ModelsData } from "@/lib/models-cache";
 import { resolveVisibleModels, selectInitialModelScope } from "@/lib/model-scope";
+import { loadModelListingServices } from "@/lib/model-listing";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
-import { projectTrustReloadOptions } from "@/lib/project-trust";
 
 export const dynamic = "force-dynamic";
 
@@ -28,17 +28,13 @@ async function loadModels(cwd: string): Promise<ModelsData> {
   const thinkingLevelMaps: Record<string, Record<string, string | null>> = {};
 
   const agentDir = getAgentDir();
-  // Gate untrusted project extensions: enumerating models still imports and
-  // runs a repository's .pi/extensions factories, so honor project trust here
-  // too (see lib/project-trust.ts, #236).
-  const trustReloadOptions = projectTrustReloadOptions(cwd, agentDir);
-  const services = await createAgentSessionServices({
-    cwd,
-    agentDir,
-    ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
-  });
+  // 模型枚举不需要 extensions（工具/skills/prompts 与可见模型无关），可信 cwd
+  // 走轻量路径（~20ms 而非 ~10s 的 extension/MCP 加载）；未信任的 project cwd
+  // 仍走全量 + SDK trust 门控，保持 project extensions 休眠（#236）。
+  // 见 lib/model-listing.ts。
+  const services = await loadModelListingServices(cwd, agentDir);
   const modelError = services.modelRuntime.getError();
-  const settings: SettingsManager = services.settingsManager;
+  const settings: SettingsManager = services.settings;
   // `enabledModels` supports globs and fuzzy patterns, so resolve it the same
   // way the CLI does instead of comparing pattern strings literally (#307).
   const scope = await resolveVisibleModels(
