@@ -1,6 +1,7 @@
 # worksplice - Development Notes
 
 <!-- CODEGRAPH_START -->
+
 ## CodeGraph
 
 In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
@@ -9,9 +10,11 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 - **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
 
 If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+
 <!-- CODEGRAPH_END -->
 
 <!-- BROWSER_START -->
+
 ## 浏览器操作/测试（ego-browser 优先）
 
 需要进行浏览器测试、页面操作、自动化验证时，**优先使用 ego-browser skill（ego lite）**，不要默认使用 Playwright：
@@ -19,14 +22,16 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - 用法：`skill("ego-browser")` 加载后，通过 Bash 运行 `ego-browser nodejs <<'EOF' ... EOF` heredoc 驱动真实浏览器。
 - 适用：打开页面、点击/输入、截图观察、`js()` 注入探针做前端行为验证（如监测重渲染/滚动跳变）、网络抓取等。
 - 仅当 ego-browser 不可用（未安装且安装失败）或任务明确要求 Playwright 特有能力时才回退到 Playwright。
-<!-- BROWSER_END -->
+  <!-- BROWSER_END -->
 
 <!-- LANGUAGE_START -->
+
 ## Language
+
 - 使用中文进行交流。
 - 文档除了指定结构外，正文尽量使用中文
-<!-- LANGUAGE_START -->
-  
+  <!-- LANGUAGE_START -->
+
 ## Quick Start
 
 ```bash
@@ -268,53 +273,66 @@ hooks/
 
 ---
 
-## Key Design Decisions & Traps
+## Key Design Decisions &amp; Traps
 
 ### UI 图标规则（lucide 优先）
+
 - 除反应数据（`QUICK_REACTIONS` / `REACTION_GRID` / 已存 reaction 的渲染——持久化用户内容）外，UI 一律使用 lucide icon，**禁止新增 emoji**；同一字符可能同时是数据与装饰（如 📌 既是反应选项也是 pin 头部按钮），替换按出现处编辑，禁止全局 replaceAll。
 
 ### AgentSession lifecycle (`lib/rpc/`)
+
 - One `AgentSessionWrapper` per session id, keyed in `globalThis.__workspliceSessions`
 - `globalThis` survives Next.js hot-reload; plain module-level Map does not
 - Idle timeout: 10 minutes. Concurrent `startRpcSession()` calls share a single start Promise (`globalThis.__piStartLocks`)
 
 ### Fork must destroy the wrapper immediately
+
 `AgentSession.fork()` **mutates the wrapper's inner state in-place** — after fork, `inner.sessionId` is the *new* session's id. If the wrapper stays alive in the registry under the old id, the next request gets the already-forked state and subsequent forks produce a corrupt `parentSession` chain.
 
 **Fix**: `send("fork")` captures `newSessionId`, then calls `this.destroy()` before returning. The next request for the original session reloads a clean AgentSession from the original file.
 
 ### Two kinds of branching — don't confuse them
+
 - **Fork** (Fork button on user message): creates a new independent `.jsonl` file. Shown as a child in the sidebar tree via `parentSession` header field.
 - **In-session branch** (Continue button / BranchNavigator): calls `navigate_tree` within the same file. Multiple entries share the same `parentId`. Switching between them calls `/api/sessions/[id]/context?leafId=`.
 
 ### Session files can be fully rewritten
+
 `parentSession` in the header is **display metadata only** — has zero effect on chat content. Safe to `writeFileSync` the entire file (pi does this itself during migrations). Used when cascade-reparenting children on delete.
 
 ### ToolCall field normalization
+
 Pi stores toolCall blocks as `{type:"toolCall", id, name, arguments}` but `ToolCallContent` uses `{toolCallId, toolName, input}`. `normalizeToolCalls()` in `lib/normalize.ts` handles this — called in both `session-reader.ts` (file load) and `ChatWindow.handleAgentEvent()` (streaming).
 
 ### New session tool preset
+
 Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[]`). For existing sessions, the active preset is inferred on mount via `get_tools` → `getPresetFromTools()`. When tools are fully disabled (`toolNames = []`), `lib/rpc/caller.ts` passes an empty tool allow-list and forces `agent.state.systemPrompt = ""` after startup/reload/resource discovery.
 
 ### Model defaults for new sessions
+
 `GET /api/models` returns `defaultModel` read from `~/.pi/agent/settings.json`. `ChatWindow` pre-selects this on mount for new sessions. Explicit browser model/thinking selections are applied atomically during AgentSession construction, then `lib/startup-preferences.ts` persists their effective values without replaying `set_model`/`set_thinking_level`; implicit `enabledModels` fallbacks and thinking pins are not persisted.
 
 ### `enabledModels` scoping
+
 The `enabledModels` setting uses pi's `--models` syntax: minimatch globs against `provider/modelId` or a bare `modelId`, fuzzy matching for non-glob patterns, and an optional `:thinkingLevel` suffix. Never compare those patterns as literal strings — `lib/model-scope.ts` delegates to the SDK's `resolveModelScopeWithDiagnostics()` so worksplice and the TUI agree on the visible model list, and falls back to all available models when patterns resolve to nothing. `startRpcSession()` resolves that scope before creating an AgentSession and passes the selected initial model, thinking pin, and SDK-native `scopedModels` atomically; `GET /api/models` reuses the helper only for selector data, `thinkingLevelPins`, and `modelScopeWarnings` display.
 
 ### SSE reconnect on page refresh mid-stream
+
 On `ChatWindow` mount, `GET /api/agent/[id]` is called. If `state.isStreaming === true`, SSE is reconnected automatically. `thinkingLevel` and `isCompacting` are also synced from this response.
 
 ### Compaction SSE events
+
 Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `auto_compaction_start` / `auto_compaction_end`. `handleAgentEvent` accepts both sets to keep `isCompacting` in sync. Manual compact is a blocking POST — the button stays disabled until the response returns.
 
 ### Running state polling + reconciliation
+
 - The sidebar polls `/api/agent/running` every 2.5 seconds while the tab is visible and pauses polling in background tabs. The session-list response remains the initial fallback.
 - `useAgentSession` treats per-session SSE as primary for chat events and opens it before each prompt. `prompt_done` completes the current UI stage and notification immediately, but the idle SSE stays open for a 30-second grace window and is reused by the next prompt. `agent_start` cancels that close timer; `agent_settled` finishes extension-injected runs that have no wrapper-level `prompt_done` and starts a fresh grace window. Do not close on the first `agent_end`: retries, compaction, and extension-queued messages can continue the same logical prompt.
 - While a run is active, `useAgentSession` periodically calls `GET /api/agent/[id]` and also reconciles on `visibilitychange`/`online`. This fixes missed terminal events from background tabs or half-open connections.
 - Prompt runs use a monotonic run id; late SSE or slow reconciliation responses from an old run must be ignored so they cannot resurrect stale streaming bubbles.
 
 ### Worktrees and project grouping
+
 - `lib/worktree.ts` resolves linked worktree top-levels back to the main repo `projectRoot`; `listAllSessions()` attaches that to each `SessionInfo` so all worktrees for one repo are grouped together in the sidebar.
 - Worktree operations are served by `/api/worktrees` and guarded by the same allowed-root rules as `/api/files`.
 - New worktrees are created under `<repoRoot>-worktrees/<sanitized-branch>`. Existing branches are reused; otherwise `git worktree add -b` creates the branch.
@@ -322,16 +340,19 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - Sessions whose cwd points at a removed worktree are inferred back into the main project instead of becoming a phantom project row.
 
 ### File access allow-list
+
 - `/api/files` is intentionally not a general filesystem browser. Allowed roots come from session cwds, their resolved project roots, `~/pi-cwd-*`, and roots explicitly added with `allowFileRoot()`.
 - `/api/cwd/validate`, `/api/default-cwd`, and `/api/worktrees` call `allowFileRoot()` when they make a new location browsable.
 
 ### Plugins and skills
+
 - `/api/plugins` uses pi's `SettingsManager` + `DefaultPackageManager` for global/project package install, remove, update, enable, and disable. Disabling writes empty `extensions/skills/prompts/themes` arrays for that package entry.
 - `/api/skills` uses `DefaultResourceLoader` so settings paths, package skills, and project `.agents/skills` are listed the same way the runtime sees them.
 - Skill toggling edits only the `disable-model-invocation` frontmatter key on the target `SKILL.md`; keep that surgical so user formatting survives.
 - `/api/skills/install` shells through `npx skills add ... --agent pi`; project installs run with the selected cwd.
 
 ### Auth and model config
+
 - `ModelsConfig` combines models from `~/.pi/agent/models.json` with provider auth status from pi's `AuthStorage`/`ModelRegistry`.
 - Provider listing is capability-driven, never id-driven: `lib/provider-listing.ts` decides membership from `auth.apiKey.login` / `auth.oauth` plus the stored credential type, so dual-auth providers (anthropic and github-copilot today — which providers declare both changes between SDK releases, so never assume it from an id) appear exactly once and never fall through both lists (#309). `lib/provider-listing-runtime.ts` adapts `ModelRuntime` to those pure helpers.
 - auth.json holds **one** credential per provider and `ModelRuntime.logout()` deletes whichever it is. The delete routes therefore use `removeStoredCredentialIfType()` to compare and delete under the same file lock used by pi's auth storage. `ModelsConfig` also refreshes *both* provider lists after any auth change — refreshing one leaves a dual-auth provider rendered twice.
@@ -340,13 +361,16 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - The model test route is `app/api/models-config/test/route.ts`; `app/api/models/test/` is not a real route.
 
 ### Completion sound
+
 - `hooks/useAudio.ts` stores the toggle in `localStorage` as `pi-sound-enabled` and reuses one `AudioContext`.
 - Browser autoplay policy means sound must be unlocked from a user gesture; `ChatInput` calls the unlock hook from interactive controls, and `ChatWindow` plays the tone from `onAgentEnd`.
 
 ### Exported session HTML
+
 - `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
 
 ### Raft message domain (`lib/domain/raft/`)
+
 - **服务层 = 唯一事实来源**：`lib/domain/raft/channels.ts` / `messages.ts` 直接操作数据层（`getDb(): Store`——Ticket 03 数据契约，运行时 `SQLiteAdapter`），API route 仅薄封装；join/leave/archive/mute 的权限规则、freshness-hold、thread 不可嵌套都在服务层强制，route 层不重复实现。
 - **Target 归一化**（§6.1）：消息 `target_id` 单列——命中 `channels` 即 channel，否则是 thread 锚点消息 id；`resolveTarget` 拒绝 thread 消息作为新 target（不可嵌套）。thread 读接口（`getThreadInfo`）会把 thread 内消息归一化回锚点。
 - **Freshness-hold**（§6.3）：`sendMessage` 带 `baseSeq`（客户端最新 `maxSeq`），事务内比对 `maxSeq(targetId)`，不等返回 `{ held, roomSeq, whatHappened }`，route 层 409；UI 收 held 后重新拉取并提示，agent 的四选一流程属 ticket 06。
@@ -354,9 +378,10 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **引用 = 物化**：消息不可编辑，quote 以块引用文本（`> **#seq author**\n> preview`）拼进发送内容，不留结构化引用。
 - **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel composer 独享（ticket 13 线程迁出右栏后引用态变面板局部——`ThreadPanel` 自持 quoting，channel 与 thread 引用互不污染）；`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
 - **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。右栏线程面板（`ThreadPanel`）另有同纪律 3s 轮询（`THREAD_POLL_MS`），任务线程回复自动冒出，与中央轮询并存为两套循环。
-- **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq > read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/domain/raft/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
+- **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq &gt; read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/domain/raft/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
+
 - **身份 vs 会话**：agent 是持久身份（members 行），会话是 pi session（`pi_session_file` 回填）。三种重置粒度只动会话/工作区，身份与绑定保持；**删除 = soft-delete**（`members.deleted=1`，schema v3 ALTER 迁移）——行保留以承载不可变消息的外键与作者渲染，但移出全部 channel、任务 owner 置空、消费游标清空。
 - **目录两分（ADR-0001）**：创建 agent 自动生成唯一**家目录** `<dataDir>/agents/<slug>-<id8>`（slug = 名字小写化 sanitize，空回退 `agent`）并预置 MEMORY.md 固定大纲（角色描述/当前工作/工作流程/Skill 使用/工具使用/其他，正文可空、缺失不补种、Full reset 保留）；**项目目录**可显式绑定且**允许多 agent 共享**（无绑定唯一性），但服务层拒绝把其他 agent 的家目录绑成项目目录（`homeDirOfAnotherAgent`）。工作区 = 单槽 `workspace_path ?? 家目录`。**删除身份只 rm 家目录**（`isOwnHome` 判定，绑共享项目目录时绝不 rm）；**Full reset 只作用于家目录**（项目目录 → 400 拒绝）。创建契约：POST /api/members 必选 provider/modelId/thinkingLevel（预选全局默认），不传目录。
 - **运行串行**：session 启动时 `hasBusyRpcSessionForCwd`（realpath 语义）拒绝同一 cwd 并发活跃会话（`BusyCwdError` → route 409）——共享目录协作是串行的，真并行走 worktree（不同 cwd）。
@@ -364,9 +389,10 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **状态点 = 现场推导 + DB 回落**（`lib/agent-status.ts`）：`statusLookup` 有存活 wrapper 时推导（running → working / idle 且 DB 非 error → online），wrapper 不在时 DB error 保留、其余回落 offline；低频扫掠（10s）兜底 idle shutdown 的漂移。`prompt_error` 事件写 error 且不会被 idle 推导覆盖，直到下次 `agent_start` 或重启。lookup/listeners/snapshot 全部挂在 globalThis（热重载安全）；agent-runtime 用 `__workspliceAgentSessions` 按成员 id 记账 wrapper，**不按 cwd 猜归属**——同一 cwd 上的人类/他 agent 会话不会张冠李戴。
 - **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import lib/rpc/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 lib/rpc/session.ts 的 parameter properties，绝不能静态 import 它。
 - **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话；拒绑他人家目录）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 删掉该 cwd 下无成员引用的 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文；共享项目目录下他 agent 的文件保留。
-- **`db-singleton` 版本守卫**：`openSqliteAdapter`/`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb(): Store` 比对版本，热重载后 `SQLiteAdapter` 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openSqliteAdapter，不会被误重建或误开 `~/.worksplice/raft.db`。
+- `**db-singleton` 版本守卫**：`openSqliteAdapter`/`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb(): Store` 比对版本，热重载后 `SQLiteAdapter` 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openSqliteAdapter，不会被误重建或误开 `~/.worksplice/raft.db`。
 
 ### agent-loop（ticket 06，§3.8/§5.3–5.5）
+
 - **拉取式 inbox，不推送正文**：`consumed_seqs(agent_id, target_id, seq)` 是持久化游标；`drain` 不推进游标（重复 drain 不重不漏），`ack` 由 loop 每轮收口；HTTP 语义（`GET /api/members/[id]/inbox`）是 drain + ack 一步到位。wake hint 只含 `{agentId, targetId, seq, reason}`，正文由 agent 自己 drain。
 - **wake 触发面**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——目标 channel 的 agent 成员（不含作者）全唤醒（§3.2 静音成员除外，不因普通消息唤醒），未加入 channel 但被 `@mention` 的 agent 穿透送达；thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。
 - **mute（ticket 12，§3.2/§3.8）**：channel 级静音 = `channel_mutes` 表（PK channel+member）记录静音时刻的 `mute_from_seq`（channel max(seq)）与 `mute_rowid`（全表 max(messages.rowid)）。drain/getPendingTargets 过滤：静音后的普通消息不进 inbox，个人 @mention 仍穿透；channel 消息按 seq 比，thread 消息无 channel seq 可比（thread 自己的 seq 空间）按 rowid 比（全局插入序，避免同毫秒 created_at 歧义）。静音前的消息照常投递；取消 mute 后不补投静音期间被压制的消息（游标已推进）。`GET/POST /api/channels/[id]/mute`（Owner 可替任意 agent 设）；ChannelView 头部 `BellOff` 面板逐个 agent 开关。
@@ -378,6 +404,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **状态点**：loop 在 prompt 前后 publish working/online（与 wrapper 的 agent_start/agent_end 事件双保险）；会话错误 publish error 且不推进游标（下次 wake 重试）。
 
 ### 任务板（ticket 07，§3.7/§5.7 tasks 路由组）
+
 - **task = 消息 + 元数据**（`lib/domain/raft/tasks.ts`）：`tasks` 表锚定 `message_id`（UNIQUE）；创建三途径——右键菜单 Convert to Task / 发送时勾 As Task / Tasks tab Create Task，全部收敛到 `createTask({messageId})`（board 创建先 `sendMessage` 再转）；**thread 内消息不可转**（锚点 target 必须是 channel）、消息不可重复转（`TaskAlreadyExistsError` → 409）。`number` 按 channel 内递增（join messages 算 max+1），跨 channel 各自从 #1 起。
 - **状态机只走合法转移**（`TRANSITIONS` 表，服务层强制）：`todo ─claim→ in_progress ─complete→ in_review ─approve→ done`；`unclaim/reject` 回退（in_progress→todo、in_review→in_progress，owner 保留）；in_progress/in_review ─close→ closed；`done/closed ─reopen→ todo`（**reopen/unclaim 清 owner 回池**）。claim 只认未认领任务（`owner_id IS NULL`）；**互审"构建者不验证"**：approve/reject 必须由非 owner 的 channel 成员执行，owner 完成置 in_review 后由另一 agent 或人批准。
 - **重开封锁**（schema v8 `tasks.reopened` 列）：reopen 置标记回池——**agent-loop 不可自动认领**（`claimTask` 返回 `blocked` → route 409 / loop yielded "task reopened — awaiting the owner"），仅人类（`CURRENT_MEMBER_ID`）可认领接管并**清标**；人类 unclaim 后任务恢复 agent 可认领，再次重开再次封锁。unclaim/reject 不置标。向前生效，存量不追溯。`TaskView`/`listRelatedTasks` 带出标记：UI 任务板显示"重开"徽标、`buildReplyPrompt` 标注 "REOPENED … do not claim" 让模型不发起 claim。
@@ -387,6 +414,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序、每任务附 `reachable`（ADR-0002：服务端按人类 owner 身份推导的合法转移落点，含 todo→in_progress 的 claim 边；客户端不镜像状态机表）；UI 侧 List|Board 两种任务视图（ADR-0002，localStorage 记忆，默认列表）——List 按状态分组（todo→in_progress→in_review→done→closed），Board 5 列 = 5 状态常显、跨列拖拽 = 请求一次状态转移（HTML5 DnD，**不做乐观移动**：松手等服务端确认，非法落点弹回+提示）；卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen，与拖拽同权）；点卡片打开任务 thread（进展只在线程里，视图只显示状态）。
 
 ### 提醒（ticket 08，§3.9/§5.6 reminders 路由组）
+
 - **触发 = 系统消息 + 定向唤醒作者**：cron 到点 → `fireReminder` 以**作者署名**投递 `⏰ Reminder: <title>` 到**频道主流程**——channel 锚定投该 channel；消息锚定归一化后投其**归属 channel**（原设计投 thread 不可见，已修正为频道可见；正文附 `(anchored on #seq)` 锚点引用），`sendMessage({wake:false})` **不触发 channel 级 wake**（不惊动其他 agent）；随后仅当作者是 agent 才 `emitWake({reason:"reminder"})`（§3.9 唤醒作者本人；human 作者 = UI 轮询看到系统消息即通知）。
 - **作者选择 = 唤醒谁**：POST 默认 author = Owner；Owner 可替 agent 设（authorId = 某 agent，仅 Owner 权限，§3.6）——演示路径"给 agent 设 every:1m → 系统消息 + agent 被唤醒"靠这个闭环。ReminderModal 的"唤醒谁"下拉列出 channel 内 agent。
 - **自提醒可被 agent 看到**：系统消息以作者署名 → agent 自己设的提醒在 drain 里"全是自己的消息"，普通轮次会 noop/skip；`runAgentRound` 增加 reason 参数（driver 队列按 hint 合并取宽松侧 reason——含 reminder 即按 reminder 处理），`reason==="reminder"` 时"只有自己的消息"与"最新是本人消息"两条跳过都不生效，agent 以自身提醒为语境决定行动（loop 测试 reminded 用例）。
@@ -397,11 +425,12 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **UI**：channel 头部 ⏰（目标 = channel，joined 才显示）+ 消息动作栏 ⏰（目标 = 该消息/thread 锚点，标题预填首行预览）；ReminderModal 内可创建（datetime-local + recurrence 预设 chips）、列出锚定提醒、snooze/cancel；到点系统消息经 3s 轮询落入消息流。**全局「我的提醒」入口**（侧栏底部 ⏰ 按钮，带待触发计数角标，15s 轮询）→ MyRemindersModal 列出**全部**提醒（ReminderView 附 channelId/channelName/anchorSeq，跨 target 可见），可 snooze/cancel/定位（深链 `#c/<channelId>[?m=<id>]` 跳转）。锚点消息行显示**线程回复角标**（`threadReplyCount` 批量查询，点击展开线程）——消息锚定提醒触发后可从角标发现 thread 内进展。
 
 ### 消息增强（ticket 09，§3.3–3.5 reactions/pinned/attachments）
+
 - **reaction = 先查后写 toggle**（`lib/domain/raft/reactions.ts`）：存在即删、不存在即加，UNIQUE(message_id, member_id, emoji) 单进程串行无竞争；**channel 成员才可点**（thread 消息经 `message.target_id` 锚点解析归属 channel，不可嵌套读侧同语义）；无通知/不进 inbox（§3.4）。聚合 = count 降序 + memberIds（UI 用 `includes(currentMemberId)` 判定"我点过"）。
 - **pinned 个性化**（`lib/domain/raft/pinned.ts`）：每成员每 channel 独立 pinned 区；`pinMessage` order = max+1（幂等返回既有行）、`unpinMessage` 幂等 false；**消息须属于该 channel**（thread 消息经锚点归一化，跨 channel 拒绝）；sort=manual（order 升序）/recent（pinned_at 降序，同毫秒按 order 兜底）/az（内容 localeCompare）。`setPinnedOrder` 只重排已 pin 行。
 - **附件随消息原子提交**（§3.5）：`sendMessage` 增加 `attachments[]`（≤50MB）——先 `stageAttachmentFiles`（校验 + **随机文件名**落盘 `attachments/`，原始名只存库），事务内 appendMessage + insertAttachment 同生共死，**held/抛错 → `discardAttachmentFiles` 清理**，不留孤儿。文件下载走 `/api/attachments/[id]`（图片 inline 预览，其余 attachment）。
 - **messageWithAuthor 统一附料**：reactions（聚合）+ attachments（行）直接内嵌进消息 payload，UI 免 N+1 请求；thread 读接口/agent-loop 双写流同享（纯增量字段，向后兼容）。
-- **POST /api/messages 双形态**：JSON（原样）或 multipart（字段 + `files[]`）；单文件 >50MB 由服务层 `stageAttachmentFiles` 校验拒绝（客户端预检兜底）。`formatBytes`/`MAX_ATTACHMENT_BYTES` 在 `lib/preview.ts`（client 可安全导入，**不**从 raft 服务层引——那会拖 better-sqlite3 进浏览器包）。
+- **POST /api/messages 双形态**：JSON（原样）或 multipart（字段 + `files[]`）；单文件 &gt;50MB 由服务层 `stageAttachmentFiles` 校验拒绝（客户端预检兜底）。`formatBytes`/`MAX_ATTACHMENT_BYTES` 在 `lib/preview.ts`（client 可安全导入，**不**从 raft 服务层引——那会拖 better-sqlite3 进浏览器包）。
 - **UI**：消息 hover 快捷 reaction（👍❤️🎉👀）+ ＋ 选择器（24 常用 emoji 网格）+ 内容下聚合条（已点高亮黄）；动作栏 `Pin`（pinned 态黄底）channel/thread 消息通吃；Composer `Paperclip` 多选 + 文件 chips（≤50MB 前端预检）；channel 头部 `Pin` 展开 pinned 区（sort 三选一 + Manual ↑/↓ 重排 + 点击定位消息/展开线程）。
 
 ## Pi Session File Format
@@ -435,23 +464,26 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 
 派活（`worker-start`/`dispatch`）时，task spec 必须按任务类型前置对应 skill（只读 skill 在 `~/.pi/agent/skills/`，把路径写进 spec 让 worker 自己读）。skill 更新不影响本策略——规则落在 repo 里。
 
-| 任务类型 | spec 必须写的前置 | 关键约束 |
-|---|---|---|
-| 实施票 | `implement`（内含 `tdd` + 收尾 `code-review`） | 红绿单切片；收尾 Standards+Spec 双轴自审后再 worker_done |
-| 多票并行 | `implement-spec`（frontier 语义） | 每票独立 worktree/分支；worker 间只用 context pointers 稀疏通信；合流后统一 code-review |
-| 修 bug | `diagnosing-bugs` | 先建 tight 反馈回路（必红命令），无回路不许猜；修完留回归测试，`[DEBUG-]` 打扫干净 |
-| 调研 | `research` | 只认 primary sources；结论落 Markdown 文件，不口头回报 |
-| 架构评审 | `improve-codebase-architecture` | 只做 Explore+HTML 报告（`$TMPDIR/architecture-review-<ts>.html`），零代码修改；grilling 是 HITL 环节，worker 到报告为止 |
-| 设计验证 | `prototype` | 先定分支（logic/UI）；throwaway，可一键运行；结论 fold 回票据 |
-| 合并冲突 | `resolving-merge-conflicts` | 按意图解（查 commit/PR/issue），不 `--abort`，不 invent 新行为，跑全检查 |
-| 外部 issue/PR | `triage` | 评论带 AI 免责声明；走状态机；ready-for-agent 才附 brief |
-| 术语/ADR 触及 | `domain-modeling` | 术语变更 inline 更新 CONTEXT.md；ADR 仅三条件全满足才建 |
-| 需人类/凭证/第三方 | 禁止 worker 代办 | 必须 `ask`/`escalation` 问回 coordinator，不许编造、不许代点 |
+
+| 任务类型        | spec 必须写的前置                              | 关键约束                                                                                              |
+| ----------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 实施票         | `implement`（内含 `tdd` + 收尾 `code-review`） | 红绿单切片；收尾 Standards+Spec 双轴自审后再 worker_done                                                        |
+| 多票并行        | `implement-spec`（frontier 语义）            | 每票独立 worktree/分支；worker 间只用 context pointers 稀疏通信；合流后统一 code-review                               |
+| 修 bug       | `diagnosing-bugs`                        | 先建 tight 反馈回路（必红命令），无回路不许猜；修完留回归测试，`[DEBUG-]` 打扫干净                                                |
+| 调研          | `research`                               | 只认 primary sources；结论落 Markdown 文件，不口头回报                                                          |
+| 架构评审        | `improve-codebase-architecture`          | 只做 Explore+HTML 报告（`$TMPDIR/architecture-review-<ts>.html`），零代码修改；grilling 是 HITL 环节，worker 到报告为止 |
+| 设计验证        | `prototype`                              | 先定分支（logic/UI）；throwaway，可一键运行；结论 fold 回票据                                                        |
+| 合并冲突        | `resolving-merge-conflicts`              | 按意图解（查 commit/PR/issue），不 `--abort`，不 invent 新行为，跑全检查                                             |
+| 外部 issue/PR | `triage`                                 | 评论带 AI 免责声明；走状态机；ready-for-agent 才附 brief                                                         |
+| 术语/ADR 触及   | `domain-modeling`                        | 术语变更 inline 更新 CONTEXT.md；ADR 仅三条件全满足才建                                                           |
+| 需人类/凭证/第三方  | 禁止 worker 代办                             | 必须 `ask`/`escalation` 问回 coordinator，不许编造、不许代点                                                    |
+
 
 全局约束：术语用 `codebase-design` 词汇（module/interface/depth/seam/adapter/leverage/locality，不许 component/service/API/boundary）；worker 不做 grilling（open 决策一律 ask 回来）；派活前读 `.scratch/orchestration-dispatch-checklist.md` 逐项打勾。
 
 main / worktree 职责切分（铁律）：
-- **main 只做两件事**：派活（建 Run/task、起 worker）与验收（读收件箱、跑测试验证、审 Answer）。main 上禁止任何写操作——不改代码、不改票据、不收敛 Status、不落 commit。
+
+- **main 只做两件事**：派活（建 Run/task、起 worker）与验收（读收件箱、跑测试验证、审 Answer以及todo list是否已经check）。main 上禁止任何写操作——不改代码、不改票据、不收敛 Status、不落 commit。
 - **其余一切落在任务 worktree**：worker 的代码、Answer、收敛 commit（含 Status 收敛）、票据协议修订。完成后推分支 + `gh pr create` + 合并进 main。
 - 唯一例外：全局治理文档（本段策略、`orchestration-dispatch-checklist.md`、`docs/agents/`）由 coordinator 直推 main——它们是规则本身，不属于任务交付。
 - 文档先行：新 effort 的 spec/tickets 先推远端，新 worktree 从 origin/main 切，自带票据。
