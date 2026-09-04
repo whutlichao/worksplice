@@ -40,8 +40,9 @@ function readInitialLocale(): Locale {
  * @returns 包含语言上下文的 React 节点
  */
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  // 首帧即用正确 locale：useState 初始化器在首 render 同步读取 localStorage/浏览器语言，
-  // 避免 mount 后 setState 触发 hydration 全树重渲染（曾导致切换频道时请求双发）。
+  // locale 状态保持同步预读（首 render 即取对，避免 mount 后改状态引发全树重渲染），
+  // 但展示（含 hydration 比对）经 hydrated 门控：hydration 完成前 t/locale 一律按
+  // defaultLocale 输出，保证与服务端 HTML 一致，完成后才切到真实 locale。
   const [locale, setLocaleState] = useState<Locale>(() => {
     if (typeof window === "undefined") return defaultLocale;
     return readInitialLocale();
@@ -73,11 +74,13 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = next;
   }, []);
 
-  const t = useCallback((key: string, params?: TranslationParams) => translateMessage(locale, key, messages, params), [locale, messages]);
+  // 首 render（含 hydration）统一用 defaultLocale 翻译，保证与服务端 HTML 一致；
+  // hydration 完成后（hydrated=true）才切换到真实 locale。注意 t 必须同样被门控——
+  // 只门控 value.locale 而放过 t，会让翻译文本在首帧就与服务端不一致（hydration mismatch）。
+  const displayLocale = hydrated ? locale : defaultLocale;
+  const t = useCallback((key: string, params?: TranslationParams) => translateMessage(displayLocale, key, messages, params), [displayLocale, messages]);
   // value 引用跟随 t 变化：locale 不变时 t 引用不变 → 下游 useI18n 组件不重渲染。
-  // 注意：hydrated 只影响首帧展示语言（defaultLocale → 真实 locale），为避免
-  // hydration 翻译闪烁仍保留在 value 中，但 hydration 完成后它不再变化。
-  const value = useMemo(() => ({ locale: hydrated ? locale : defaultLocale, setLocale, t, supportedLocales }), [hydrated, locale, setLocale, t, supportedLocales]);
+  const value = useMemo(() => ({ locale: displayLocale, setLocale, t, supportedLocales }), [displayLocale, setLocale, t, supportedLocales]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
