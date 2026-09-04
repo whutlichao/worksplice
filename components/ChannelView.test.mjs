@@ -201,12 +201,32 @@ test("mergeIncomingMessages dedupes by id and keeps messages sorted by seq (agen
   assert.deepEqual(mergeIncomingMessages(prev, []), prev);
 });
 
-test("ChannelView polls the latest page to pick up agent replies (INBOX_POLL_MS)", async () => {
+test("ChannelView 发送通道：发送与 held 由 useChannelData 持有（02 票）", async () => {
   const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
-  assert.match(source, /setInterval/);
-  assert.match(source, /INBOX_POLL_MS/);
-  assert.match(source, /mergeIncomingMessages/);
-  assert.match(source, /document\.hidden/);
+  const hookSource = await readFile(new URL("../hooks/useChannelData.ts", import.meta.url), "utf-8");
+  // 视图侧：经 hook 的 send 发送，不再内联 POST /api/messages / baseSeq 组装 / held 分支
+  // （任务动作 runTaskAction 的 baseSeq 携带是 04 票范围，本票不动）。
+  assert.match(source, /sendMessage\(targetId, content, quoteId, files\)/);
+  assert.doesNotMatch(source, /fetch\("\/api\/messages", \{/);
+  assert.doesNotMatch(source, /form\.append\("baseSeq"/);
+  // hook 侧：send + heldNotice + busyAction + 重拉收敛。
+  assert.match(hookSource, /postChannelMessage/);
+  assert.match(hookSource, /heldNotice/);
+  assert.match(hookSource, /busyAction/);
+  assert.match(hookSource, /maxSeqRef/);
+});
+
+test("ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（01 票）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  const hookSource = await readFile(new URL("../hooks/useChannelData.ts", import.meta.url), "utf-8");
+  assert.match(source, /useChannelData\(channel\?\.id/);
+  assert.match(source, /loadEarlierPage\(\)/);
+  // hook 侧：持有轮询纪律（setInterval + 3s + 后台 tab 暂停 + 卸载清理）与合并。
+  assert.match(hookSource, /setInterval/);
+  assert.match(hookSource, /CHANNEL_POLL_MS/);
+  assert.match(hookSource, /applyPollPage/);
+  assert.match(hookSource, /document\.hidden/);
+  assert.match(hookSource, /clearInterval/);
 });
 
 test("MessageRow renders quick reactions, picker, pin and attachments (§3.4/§3.5)", () => {
