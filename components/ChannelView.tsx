@@ -1873,6 +1873,9 @@ export function ChannelView({
 }) {
   const { t } = useI18n();
 
+  // 切换频道时的请求代际：旧频道的迟到响应直接丢弃，避免旧内容闪现。
+  const latestRequestRef = useRef(0);
+
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [maxSeq, setMaxSeq] = useState(0);
@@ -1990,36 +1993,45 @@ export function ChannelView({
   );
 
   const loadLatest = useCallback(() => {
-    if (!channel) return;
+    const id = channel?.id;
+    if (!id) return;
+    const requestId = ++latestRequestRef.current;
     setLoadError(null);
-    void loadPage(channel.id)
+    void loadPage(id)
       .then((page) => {
+        // 切换频道时旧频道的迟到响应直接丢弃，避免旧内容闪现覆盖新频道。
+        if (latestRequestRef.current !== requestId) return;
         setMessages(page.messages);
         setHasMore(page.hasMore);
         setMaxSeq(page.maxSeq);
       })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
-  }, [channel, loadPage]);
+      .catch((e) => {
+        if (latestRequestRef.current !== requestId) return;
+        setLoadError(e instanceof Error ? e.message : String(e));
+      });
+  }, [channel?.id, loadPage]);
 
   const loadTasks = useCallback(() => {
-    if (!channel) return;
+    const id = channel?.id;
+    if (!id) return;
     setTasksError(null);
-    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/tasks`)
+    void fetch(`/api/channels/${encodeURIComponent(id)}/tasks`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`GET tasks: ${res.status}`);
         const body = (await res.json()) as { tasks?: ChannelTask[] };
         setTasks(body.tasks ?? []);
       })
       .catch((e) => setTasksError(e instanceof Error ? e.message : String(e)));
-  }, [channel]);
+  }, [channel?.id]);
 
   /** §3.5 pinned 列表加载（当前成员的个性化 pinned，排序三选一）。 */
   const loadPinned = useCallback(() => {
-    if (!channel) {
+    const id = channel?.id;
+    if (!id) {
       setPinnedItems([]);
       return;
     }
-    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned?sort=${pinnedSort}`)
+    void fetch(`/api/channels/${encodeURIComponent(id)}/pinned?sort=${pinnedSort}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`GET pinned: ${res.status}`);
         const body = (await res.json()) as { pinned?: PinnedItem[] };
@@ -2027,18 +2039,19 @@ export function ChannelView({
         setPinnedError(null);
       })
       .catch((e) => setPinnedError(e instanceof Error ? e.message : String(e)));
-  }, [channel, pinnedSort]);
+  }, [channel?.id, pinnedSort]);
 
   // ticket 13：面板线程内 pin/unpin 后刷新本频道 pinned 列表（服务端事实，中央/面板双端自洽）
   useEffect(() => subscribePinnedChanged(() => loadPinned()), [loadPinned]);
 
   /** §3.2 mute 状态加载（channel 内全部 agent 成员的静音开关）。 */
   const loadMutes = useCallback(() => {
-    if (!channel) {
+    const id = channel?.id;
+    if (!id) {
       setMutes([]);
       return;
     }
-    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/mute`)
+    void fetch(`/api/channels/${encodeURIComponent(id)}/mute`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`GET mutes: ${res.status}`);
         const body = (await res.json()) as {
@@ -2047,15 +2060,16 @@ export function ChannelView({
         setMutes(body.mutes ?? []);
       })
       .catch(() => undefined);
-  }, [channel]);
+  }, [channel?.id]);
 
   /** 👥 频道成员加载（channel 内成员 id 集合）。 */
   const loadMembers = useCallback(() => {
-    if (!channel) {
+    const id = channel?.id;
+    if (!id) {
       setChannelMemberIds(new Set());
       return;
     }
-    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/members`)
+    void fetch(`/api/channels/${encodeURIComponent(id)}/members`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`GET members: ${res.status}`);
         const body = (await res.json()) as { members?: MemberRow[] };
@@ -2063,7 +2077,7 @@ export function ChannelView({
         setMembersError(null);
       })
       .catch((e) => setMembersError(e instanceof Error ? e.message : String(e)));
-  }, [channel]);
+  }, [channel?.id]);
 
   /** 👥 Owner 替 agent 加入频道（公开/私有均可；#all 已全员加入，按钮不出现）。 */
   const addChannelMember = async (member: MemberRow) => {
@@ -2117,30 +2131,45 @@ export function ChannelView({
     }
   };
 
+  // 切换频道：复用上一频道的旧内容占位（无闪白），新数据到达后按 seq 合并替换；
+  // 若用户在请求飞行途中又切走，迟到响应由 requestId 丢弃。
+  // 注意：loader 回调已按 channel?.id 记忆化，此处只依赖 channel?.id，
+  // 避免因为 channels 列表刷新产生新 channel 对象引用而重复触发整套请求。
+  // 非 messages tab 下切换不清空消息（后台预加载也走此 effect，全量请求只发一次）。
+  const activeChannelId = channel?.id;
   useEffect(() => {
-    setMessages([]);
-    setHasMore(false);
+    latestRequestRef.current += 1;
+    const requestId = latestRequestRef.current;
+    // 增量优先：先用轮询式合并把新频道内容画出来，避免 setMessages([]) 闪白；
+    // 新频道 messages 为空必然走 full 分支（合并空数组 = 直接采用 page）。
     setQuoting(null);
     setHeldNotice(null);
-    setTasks([]);
-    setTasksError(null);
     setTaskNotice(null);
     setPinnedOpen(false);
-    setPinnedItems([]);
     setMuteOpen(false);
-    setMutes([]);
     setMuteNotice(null);
     setMembersOpen(false);
-    setChannelMemberIds(new Set());
-    setMembersError(null);
     setMemberNotice(null);
-    loadLatest();
+    void loadPage(activeChannelId ?? "")
+      .then((page) => {
+        if (latestRequestRef.current !== requestId) return;
+        setMessages((prev) =>
+          prev.length === 0 ? page.messages : mergeIncomingMessages(prev, page.messages),
+        );
+        setHasMore(page.hasMore);
+        setMaxSeq((prev) => Math.max(prev, page.maxSeq));
+      })
+      .catch((e) => {
+        if (latestRequestRef.current !== requestId) return;
+        setLoadError(e instanceof Error ? e.message : String(e));
+      });
     // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
     loadTasks();
     loadPinned();
     loadMutes();
     loadMembers();
-  }, [channel?.id, loadLatest, loadTasks, loadPinned, loadMutes, loadMembers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChannelId]);
 
   useEffect(() => {
     if (tab === "tasks") loadTasks();

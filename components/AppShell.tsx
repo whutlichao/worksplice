@@ -34,6 +34,35 @@ function parseDeepLink(raw: string): { channelId: string; messageId?: string } |
  * 右 = 非长驻单槽面板（agent | human | thread | null）——中央与面板状态解耦，
  * 点 agent/人类/线程只在右栏展示，无选中时整栏消失、中央占满。
  */
+
+/** 列表合并用的浅比较：字段全等时复用旧对象引用，避免下游 useCallback/useEffect 连锁重建。 */
+function shallowEqualChannel(a: ChannelWithMeta, b: ChannelWithMeta): boolean {
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.type === b.type &&
+    a.description === b.description &&
+    a.archived === b.archived &&
+    a.created_at === b.created_at &&
+    a.joined === b.joined &&
+    a.memberCount === b.memberCount &&
+    a.unread === b.unread
+  );
+}
+
+function shallowEqualAgent(a: MemberRow, b: MemberRow): boolean {
+  return (
+    a.id === b.id &&
+    a.type === b.type &&
+    a.name === b.name &&
+    a.description === b.description &&
+    a.status === b.status &&
+    a.workspace_path === b.workspace_path &&
+    a.pi_session_file === b.pi_session_file &&
+    a.created_at === b.created_at
+  );
+}
+
 export function AppShell() {
   const { t } = useI18n();
   useViewportHeight();
@@ -73,13 +102,42 @@ export function AppShell() {
       fetch("/api/members").then(async (r) => {
         if (!r.ok) throw new Error(`GET /api/members: ${r.status}`);
         const body = (await r.json()) as { agents?: MemberRow[]; owner?: MemberRow | null };
-        setOwner(body.owner ?? null);
+        setOwner((prev) => {
+          const next = body.owner ?? null;
+          if (!prev && !next) return prev;
+          if (prev && next && shallowEqualAgent(prev, next)) return prev;
+          return next;
+        });
         return body.agents ?? [];
       }),
     ])
       .then(([channelRows, agentRows]) => {
-        setChannels(channelRows);
-        setAgents(agentRows);
+        // 合并而非整体替换：保持未变更行的对象引用，避免 ChannelView 因
+        // channel prop 引用变化而重建全部 loader（切换频道闪动两轮请求）。
+        setChannels((prev) => {
+          if (prev.length === 0) return channelRows;
+          const byId = new Map(prev.map((c) => [c.id, c]));
+          let changed = channelRows.length !== prev.length;
+          const next = channelRows.map((row) => {
+            const old = byId.get(row.id);
+            if (old && shallowEqualChannel(old, row)) return old;
+            changed = true;
+            return row;
+          });
+          return changed ? next : prev;
+        });
+        setAgents((prev) => {
+          if (prev.length === 0) return agentRows;
+          const byId = new Map(prev.map((a) => [a.id, a]));
+          let changed = agentRows.length !== prev.length;
+          const next = agentRows.map((row) => {
+            const old = byId.get(row.id);
+            if (old && shallowEqualAgent(old, row)) return old;
+            changed = true;
+            return row;
+          });
+          return changed ? next : prev;
+        });
         setLoadError(null);
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
@@ -112,6 +170,8 @@ export function AppShell() {
   }, []);
 
   // BAI-6 未读角标：15s 轮询频道列表刷新未读数（agent 回复/新消息入流后侧栏角标保持新鲜）。
+  // 注意：只在 unread 真的变化时替换行对象，保持 channel 引用稳定，
+  // 否则每次轮询都产生新 channel 对象 → ChannelView loader 重建 → 切换闪动两轮请求。
   useEffect(() => {
     const timer = setInterval(() => {
       void fetch("/api/channels")
@@ -121,7 +181,15 @@ export function AppShell() {
           if (!body.channels) return;
           setChannels((prev) => {
             const byId = new Map(body.channels!.map((c) => [c.id, c]));
-            return prev.map((c) => (byId.has(c.id) ? { ...c, unread: byId.get(c.id)!.unread } : c));
+            let changed = false;
+            const next = prev.map((c) => {
+              const fresh = byId.get(c.id);
+              if (!fresh) return c;
+              if (c.unread === fresh.unread && shallowEqualChannel(c, fresh)) return c;
+              changed = true;
+              return { ...c, unread: fresh.unread };
+            });
+            return changed ? next : prev;
           });
         })
         .catch(() => undefined);
@@ -205,12 +273,18 @@ export function AppShell() {
     if (fallback) setCenterSelection(fallback.id);
   }, [channels, centerSelection]);
 
-  const selectedChannel = centerSelection
-    ? channels.find((c) => c.id === centerSelection) ?? null
-    : null;
+  const selectedChannel = useMemo(
+    () =>
+      centerSelection
+        ? (channels.find((c) => c.id === centerSelection) ?? null)
+        : null,
+    [channels, centerSelection],
+  );
 
-  /** 选中频道：清空面板（切换频道不被上一频道残留详情误导），中央切到消息 tab。 */
-  const handleSelectChannel = (id: string) => {
+  /** 选中频道：清空面板（切换频道不被上一频道残留详情误导），中央切到消息 tab。
+   *  注意：不要在这里 setRefreshKey——那会触发 load() 重拉 channels/members，
+   *  产生全新 channel 对象 → ChannelView 全部 loader 重建 → 切换闪动两轮请求。 */
+  const handleSelectChannel = useCallback((id: string) => {
     setCenterSelection(id);
     setPanelContent((prev) => onChannelSwitched(prev));
     setFocusMessageId(null);
@@ -220,8 +294,7 @@ export function AppShell() {
     // BAI-6 未读角标：打开频道即推进已读游标（服务端幂等），本地立即清零。
     void fetch(`/api/channels/${encodeURIComponent(id)}/read`, { method: "POST" }).catch(() => undefined);
     setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
-    setRefreshKey((k) => k + 1);
-  };
+  }, []);
 
   /** 打开面板：单槽替换（任何内容互斥，id 透传）；紧凑端滑入覆盖。 */
   const handleOpenPanel = (content: PanelContent) => {
