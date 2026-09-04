@@ -136,7 +136,8 @@ export async function postChannelMessage(
  * - `send` 携带 baseSeq（调用时的 maxSeq）；held 后置 heldNotice + 重拉（loadLatest）+ 抛 held 文案。
  * - 发送成功后经 loadLatest 重拉收敛（append 入口是后续票的事，本票不做乐观追加）。
  * - `send` 只管发送与 held 收敛：quoting 清理与 As Task 转化留视图侧（handleSend 内），hook 不持有引用/As Task 状态。
- * - `busyAction` 是发送通道的并发锁（任务板动作另有自己的锁，本票只收发送）。
+ * - `busyAction` 沿旧语义由视图侧任务动作（runTaskAction）驱动（与旧内联 useState 同一共享锁）；
+ *   `send` 本体不加锁（与旧 handleSend 一致，Composer 的 busy 态只反映任务动作）。
  */
 export function useChannelData(channelId: string | undefined, t?: (key: string) => string) {
   const latestRequestRef = useRef(0);
