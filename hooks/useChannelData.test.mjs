@@ -18,6 +18,13 @@ const m = (id, seq, content) => ({
   author: null,
 });
 
+// pin 项构造器（03 票）：message 嵌套 + order + pinnedAt（与服务端 listPinned 同形）。
+const pin = (id, order, pinnedAt, content) => ({
+  message: m(id, order, content),
+  order,
+  pinnedAt,
+});
+
 // 红-绿切片 1：merge 去重（按 id）+ 按 seq 排序
 test("mergeIncomingMessages dedupes by id and keeps messages sorted by seq", () => {
   const prev = [m("m1", 1, "one"), m("m2", 3, "three")];
@@ -182,4 +189,148 @@ test("postChannelMessage posts multipart with baseSeq when files are attached", 
   assert.equal(form.get("baseSeq"), "9");
   assert.equal(form.get("quoteId"), "q1");
   assert.equal(form.get("files"), file);
+});
+
+// 03 票红-绿切片 1：pinned 三种排序（manual=order 升序 / recent=pinnedAt 降序 / az=内容字典序）
+test("sortPinnedItems orders pinned items by manual/recent/az", async () => {
+  const { sortPinnedItems } = await jiti.import("./useChannelData.ts");
+  const items = [
+    pin("b", 2, "2026-09-04T00:00:02.000Z", "banana"),
+    pin("a", 0, "2026-09-04T00:00:00.000Z", "cherry"),
+    pin("c", 1, "2026-09-04T00:00:01.000Z", "apple"),
+  ];
+
+  assert.deepEqual(
+    sortPinnedItems(items, "manual").map((x) => x.message.id),
+    ["a", "c", "b"],
+  );
+  assert.deepEqual(
+    sortPinnedItems(items, "recent").map((x) => x.message.id),
+    ["b", "c", "a"],
+  );
+  assert.deepEqual(
+    sortPinnedItems(items, "az").map((x) => x.message.id),
+    ["c", "b", "a"],
+  );
+});
+
+// 03 票红-绿切片 2：recent 同毫秒兜底（pinnedAt 相同时按 order 降序，与服务端同语义）
+test("sortPinnedItems breaks recent ties by order desc (same-millisecond fallback)", async () => {
+  const { sortPinnedItems } = await jiti.import("./useChannelData.ts");
+  const same = "2026-09-04T00:00:00.000Z";
+  const items = [pin("a", 0, same, "a"), pin("c", 2, same, "c"), pin("b", 1, same, "b")];
+
+  assert.deepEqual(
+    sortPinnedItems(items, "recent").map((x) => x.message.id),
+    ["c", "b", "a"],
+  );
+  // 非 recent 不受 pinnedAt 影响：manual 只看 order。
+  assert.deepEqual(
+    sortPinnedItems(items, "manual").map((x) => x.message.id),
+    ["a", "b", "c"],
+  );
+});
+
+// 03 票红-绿切片 3：loadPinnedPage 取列表（sort 参数 + 缺 pinned 字段兜底 + 错误映射）
+test("loadPinnedPage requests the pinned list with sort and defaults missing pinned to []", async () => {
+  const { loadPinnedPage } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const items = [pin("a", 0, "2026-09-04T00:00:00.000Z", "a")];
+  const stubFetch = async (url) => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ pinned: items }) };
+  };
+
+  const page = await loadPinnedPage("c1", "recent", stubFetch);
+  assert.deepEqual(page, items);
+  assert.match(calls[0], /\/api\/channels\/c1\/pinned\?sort=recent/);
+
+  const emptyFetch = async () => ({ ok: true, json: async () => ({}) });
+  assert.deepEqual(await loadPinnedPage("c1", "manual", emptyFetch), []);
+
+  const errFetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+  await assert.rejects(() => loadPinnedPage("c1", "manual", errFetch), /GET pinned: 500/);
+});
+
+// 03 票红-绿切片 4：togglePinnedMessage 切换（已 pin 走 DELETE / 未 pin 走 POST+messageId，返回新态）
+test("togglePinnedMessage unpins with DELETE and pins with POST", async () => {
+  const { togglePinnedMessage } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  assert.equal(await togglePinnedMessage("c1", "m1", true, stubFetch), false);
+  assert.equal(calls[0].url, "/api/channels/c1/pinned?messageId=m1");
+  assert.equal(calls[0].init.method, "DELETE");
+
+  assert.equal(await togglePinnedMessage("c1", "m2", false, stubFetch), true);
+  assert.equal(calls[1].url, "/api/channels/c1/pinned");
+  assert.equal(calls[1].init.method, "POST");
+  assert.deepEqual(JSON.parse(calls[1].init.body), { messageId: "m2" });
+
+  const errFetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
+  await assert.rejects(() => togglePinnedMessage("c1", "m1", true, errFetch), /pin: 400/);
+});
+
+// 03 票红-绿切片 5：postPinnedOrder 提交重排（order 数组一次提交 + 错误映射，重排顺序持久化语义）
+test("postPinnedOrder posts the reordered message ids in one request", async () => {
+  const { postPinnedOrder } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  };
+
+  await postPinnedOrder("c1", ["c", "a", "b"], stubFetch);
+  assert.equal(calls[0].url, "/api/channels/c1/pinned/reorder");
+  assert.equal(calls[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { order: ["c", "a", "b"] });
+
+  const errFetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
+  await assert.rejects(() => postPinnedOrder("c1", ["a"], errFetch), /reorder: 400/);
+});
+
+// 03 票红-绿切片 6：附属区 loadMutesPage/loadChannelMemberIds（取列表 + 缺字段兜底 + 错误映射）
+test("loadMutesPage and loadChannelMemberIds fetch affiliated state with empty defaults", async () => {
+  const { loadMutesPage, loadChannelMemberIds } = await jiti.import("./useChannelData.ts");
+  const rows = [{ memberId: "a1", name: "A", muted: true }];
+  const stubFetch = async (url) => {
+    if (url.includes("/mute")) return { ok: true, json: async () => ({ mutes: rows }) };
+    return { ok: true, json: async () => ({ members: [{ id: "a1" }, { id: "owner" }] }) };
+  };
+
+  assert.deepEqual(await loadMutesPage("c1", stubFetch), rows);
+  assert.deepEqual([...(await loadChannelMemberIds("c1", stubFetch))], ["a1", "owner"]);
+
+  const emptyFetch = async () => ({ ok: true, json: async () => ({}) });
+  assert.deepEqual(await loadMutesPage("c1", emptyFetch), []);
+  assert.deepEqual([...(await loadChannelMemberIds("c1", emptyFetch))], []);
+
+  const errFetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+  await assert.rejects(() => loadMutesPage("c1", errFetch), /GET mutes: 500/);
+  await assert.rejects(() => loadChannelMemberIds("c1", errFetch), /GET members: 500/);
+});
+
+// 03 票红-绿切片 7：toggleChannelMute 取反提交（返回新态 + 服务端 error 透出）
+test("toggleChannelMute posts the toggled mute state and returns it", async () => {
+  const { toggleChannelMute } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  assert.equal(await toggleChannelMute("c1", "a1", false, stubFetch), true);
+  assert.equal(calls[0].url, "/api/channels/c1/mute");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { memberId: "a1", muted: true });
+  assert.equal(await toggleChannelMute("c1", "a1", true, stubFetch), false);
+
+  const errFetch = async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ error: "not a member" }),
+  });
+  await assert.rejects(() => toggleChannelMute("c1", "a1", false, errFetch), /not a member/);
 });

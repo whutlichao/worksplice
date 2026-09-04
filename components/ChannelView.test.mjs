@@ -229,6 +229,35 @@ test("ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（0
   assert.match(hookSource, /clearInterval/);
 });
 
+test("ChannelView pinned 与附属区：pinned/mute/members 数据循环由 useChannelData 持有（03 票）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  const hookSource = await readFile(new URL("../hooks/useChannelData.ts", import.meta.url), "utf-8");
+  // 视图侧：经 hook 消费 pinnedItems/pinnedSort/mutes/channelMemberIds，不再内联三路 GET
+  // （/pinned?sort=、/mute、/members）与 useState 数据持有；pinned 区展开、BelleOff/成员面板排版不动。
+  assert.match(source, /pinnedItems,/);
+  assert.match(source, /pinnedSort,/);
+  assert.match(source, /setPinnedSort/);
+  assert.match(source, /channelMemberIds/);
+  assert.match(source, /togglePinInHook\(message\.id\)/);
+  assert.match(source, /reorderPinnedInHook\(index, direction\)/);
+  assert.match(source, /toggleMuteInHook\(m\.memberId\)/);
+  assert.doesNotMatch(source, /\/pinned\?sort=\$/);
+  assert.doesNotMatch(source, /GET pinned/);
+  assert.doesNotMatch(source, /GET mutes/);
+  assert.doesNotMatch(source, /GET members/);
+  assert.doesNotMatch(source, /\/pinned\/reorder/);
+  // hook 侧：返回新增 pinnedItems/pinnedSort/setPinnedSort/reorderPinned/mutes/channelMemberIds。
+  assert.match(hookSource, /sortPinnedItems/);
+  assert.match(hookSource, /loadPinnedPage/);
+  assert.match(hookSource, /postPinnedOrder/);
+  assert.match(hookSource, /togglePinnedMessage/);
+  assert.match(hookSource, /loadMutesPage/);
+  assert.match(hookSource, /toggleChannelMute/);
+  assert.match(hookSource, /loadChannelMemberIds/);
+  assert.match(hookSource, /reorderPinned/);
+  assert.match(hookSource, /channelMemberIds/);
+});
+
 test("MessageRow renders quick reactions, picker, pin and attachments (§3.4/§3.5)", () => {
   const html = renderI18n(
     React.createElement(MessageRow, {
