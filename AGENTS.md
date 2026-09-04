@@ -486,6 +486,7 @@ main / worktree 职责切分（铁律）：
 - **main 只做两件事**：派活（建 Run/task、起 worker）与验收（读收件箱、跑测试验证、审 Answer以及todo list是否已经check）。main 上禁止任何写操作——不改代码、不改票据、不收敛 Status、不落 commit。
 - **其余一切落在任务 worktree**：worker 的代码、Answer、收敛 commit（含 Status 收敛）、票据协议修订。完成后推分支 + `gh pr create` + 合并进 main。
 - 唯一例外：全局治理文档（本段策略、`orchestration-dispatch-checklist.md`、`docs/agents/`）由 coordinator 直推 main——它们是规则本身，不属于任务交付。
+- 票据事实来源唯一：任务 worktree 内的票据是唯一正本。worker 全权负责本票文件（含 Status 流转 in-progress→resolved + append Answer）；coordinator 在 main 只读验收，不碰任何票据文件。旧的"Status 收敛权归 coordinator"是双端编辑时代的残留，已作废。
 - 文档先行：新 effort 的 spec/tickets 先推远端，新 worktree 从 origin/main 切，自带票据。
 - 验收三件套（main 上只读执行）：测试用例执行（`npm test` 全绿，以任务 worktree 内跑的为准，coordinator 可独立重跑验证）、文件格式校验（tsc/lint 增量对照，只看改动文件相对改前基线的新增问题）、worker 工作流程校验（Answer 含 implement/tdd/code-review 证据链：红绿节奏 + Review 小节，无则打回）。
 
