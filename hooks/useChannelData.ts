@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MemberRow, TaskStatus } from "@/lib/data/types";
 import type { ChannelMessage } from "@/components/ChannelView";
 
 /** §3.5 pinned 项（与 GET /api/channels/[id]/pinned 返回形态同形；
@@ -13,6 +14,24 @@ export interface PinnedItem {
 
 /** §3.5 pinned 排序三选一（与服务端 PinSortMode 同形）。 */
 export type PinnedSort = "manual" | "recent" | "az";
+
+/** §3.7 任务视图（与 GET /api/channels/[id]/tasks 返回形态同形；
+ *  ChannelView 旧内联定义的上游，避免 ChannelView ↔ hook 循环 import）。 */
+export interface ChannelTask {
+  id: string;
+  message_id: string;
+  number: number;
+  status: TaskStatus;
+  owner_id: string | null;
+  /** §3.7 重开封锁标记：置 1 期间 agent 不可自动认领，仅 Owner 认领接管。 */
+  reopened: number;
+  updated_at: string;
+  channelId: string;
+  anchor: ChannelMessage;
+  owner: MemberRow | null;
+  /** §3.7/ADR-0002 看板拖拽：服务端按当前身份推导的合法转移落点（与状态机一致，客户端不镜像）。 */
+  reachable: TaskStatus[];
+}
 
 /** §3.2 mute 行（与 GET /api/channels/[id]/mute 返回形态同形）。 */
 export interface ChannelMuteRow {
@@ -213,6 +232,151 @@ export async function loadChannelMemberIds(
   return new Set((body.members ?? []).map((m) => m.id));
 }
 
+/** 取频道任务板（纯函数：fetch 可注入，便于测试）。
+ *
+ * 与 ChannelView 旧内联 loadTasks 同语义：GET /api/channels/[id]/tasks
+ * 返回按 number 升序的任务视图（含 reachable/reopened，服务端事实）。 */
+export async function loadTasksPage(
+  channelId: string,
+  fetchFn: FetchFn = fetch,
+): Promise<ChannelTask[]> {
+  const res = await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/tasks`);
+  if (!res.ok) throw new Error(`GET tasks: ${res.status}`);
+  const body = (await res.json()) as { tasks?: ChannelTask[] };
+  return body.tasks ?? [];
+}
+
+/** 任务转移结果：updated 携带服务端回写的任务视图；held 携带并发摘要（§6.3）；
+ * conflict/blocked 携带让路原因（§3.7：已认领冲突 / 重开封锁）。 */
+export type TaskTransitionResult =
+  | { kind: "updated"; task: ChannelTask }
+  | { kind: "held"; whatHappened: string }
+  | { kind: "conflict"; reason: string }
+  | { kind: "blocked"; reason: string };
+
+/** 解析 claim / update-status 响应的 409 三分支（纯函数：路由契约的客户端镜像）。
+ *
+ * 路由返回：held → { held: true, whatHappened }；conflict → { conflict: true, reason }；
+ * blocked → { blocked: true, reason }（§3.7 重开封锁）。未知形态抛错，不静默吞掉。 */
+export function parseTaskTransitionBody(body: {
+  task?: ChannelTask;
+  held?: boolean;
+  whatHappened?: string;
+  conflict?: boolean;
+  blocked?: boolean;
+  reason?: string;
+}): TaskTransitionResult {
+  if (body.task) return { kind: "updated", task: body.task };
+  if (body.held) return { kind: "held", whatHappened: body.whatHappened ?? "held" };
+  if (body.conflict) return { kind: "conflict", reason: body.reason ?? "conflict" };
+  if (body.blocked) return { kind: "blocked", reason: body.reason ?? "blocked" };
+  throw new Error("task transition: empty response");
+}
+
+/** 认领任务（纯函数：fetch 可注入，便于测试）。
+ *
+ * 与 ChannelView 旧内联 runTaskAction(claim) 同语义：POST /api/tasks/[id]/claim
+ * 携带 baseSeq（调用时的频道版本）；held/conflict/blocked 不抛错，由调用方提示并让路。 */
+export async function claimChannelTask(
+  taskId: string,
+  baseSeq: number,
+  fetchFn: FetchFn = fetch,
+): Promise<TaskTransitionResult> {
+  const res = await fetchFn(`/api/tasks/${encodeURIComponent(taskId)}/claim`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ baseSeq }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Parameters<typeof parseTaskTransitionBody>[0];
+  if (!res.ok) {
+    if (body.held || body.conflict || body.blocked) return parseTaskTransitionBody(body);
+    throw new Error(body.task ? "claim failed" : `claim: ${res.status}`);
+  }
+  return parseTaskTransitionBody(body);
+}
+
+/** 任务状态转移（纯函数：fetch 可注入，便于测试）。
+ *
+ * 与 ChannelView 旧内联 runTaskAction(updateStatus) 同语义：
+ * POST /api/tasks/[id]/update-status 携带 { status, baseSeq }；
+ * held/conflict/blocked 不抛错，由调用方提示并让路。 */
+export async function updateChannelTaskStatus(
+  taskId: string,
+  status: TaskStatus,
+  baseSeq: number,
+  fetchFn: FetchFn = fetch,
+): Promise<TaskTransitionResult> {
+  const res = await fetchFn(`/api/tasks/${encodeURIComponent(taskId)}/update-status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, baseSeq }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Parameters<typeof parseTaskTransitionBody>[0];
+  if (!res.ok) {
+    if (body.held || body.conflict || body.blocked) return parseTaskTransitionBody(body);
+    throw new Error(`update-status: ${res.status}`);
+  }
+  return parseTaskTransitionBody(body);
+}
+
+/** §3.7 complete 两步序列（纯函数：fetch 可注入，便于测试）。
+ *
+ * 与 agent-loop runTaskOperation 的 complete 同语义：回复先落任务线程
+ * （thread 自己的 seq 空间，baseSeq = 线程版本），再经 update-status 置 in_review
+ * （channel freshness，baseSeq = 频道版本）；任一步 held 即停，由调用方提示。
+ * 复用 hook 内已有发送通道 postChannelMessage（04 票前置：02 票 send 通道）。 */
+export async function completeTaskWithReply(
+  taskId: string,
+  anchorId: string,
+  replyContent: string,
+  threadBaseSeq: number,
+  channelBaseSeq: number,
+  fetchFn: FetchFn = fetch,
+): Promise<TaskTransitionResult> {
+  const reply = await postChannelMessage(anchorId, replyContent, undefined, threadBaseSeq, undefined, fetchFn);
+  if (reply.kind === "held") return { kind: "held", whatHappened: reply.whatHappened };
+  return updateChannelTaskStatus(taskId, "in_review", channelBaseSeq, fetchFn);
+}
+
+/** 把已有消息转为任务（纯函数：fetch 可注入，便于测试）。
+ *
+ * 与 ChannelView 旧内联 convertMessageToTask 同语义：POST /api/tasks { messageId }；
+ * 409（已是任务）与其他错误抛错，由调用方提示（任务板是 04 票范围）。 */
+export async function convertMessageToTaskRow(
+  messageId: string,
+  fetchFn: FetchFn = fetch,
+): Promise<ChannelTask> {
+  const res = await fetchFn("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messageId }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { task?: ChannelTask; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `convert to task: ${res.status}`);
+  if (!body.task) throw new Error("convert to task: empty response");
+  return body.task;
+}
+
+/** Tasks tab 建任务（纯函数：fetch 可注入，便于测试）。
+ *
+ * 与 ChannelView 旧内联 createTaskFromBoard 同语义：POST /api/tasks
+ * { channelId, content }（服务端先发消息再建任务）；失败抛错，由调用方提示。 */
+export async function createBoardTaskRow(
+  channelId: string,
+  content: string,
+  fetchFn: FetchFn = fetch,
+): Promise<ChannelTask> {
+  const res = await fetchFn("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channelId, content }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { task?: ChannelTask; error?: string };
+  if (!res.ok) throw new Error(body.error ?? `create task: ${res.status}`);
+  if (!body.task) throw new Error("create task: empty response");
+  return body.task;
+}
+
 /** 发送结果：sent 携带服务端回写的消息；held 携带并发摘要（§6.3 freshness-hold）。 */
 export type SendChannelMessageResult =
   | { kind: "sent"; message: ChannelMessage }
@@ -264,9 +428,9 @@ export async function postChannelMessage(
 
 /**
  * 频道消息数据循环（01 票：轮询 + merge + maxSeq/hasMore；02 票：发送 + held + busyAction；
- * 03 票：pinned 数据循环 + 附属区 mute/members）。
+ * 03 票：pinned 数据循环 + 附属区 mute/members；04 票：任务板数据循环 + 转移序列）。
  *
- * ChannelView 只做排版：消息状态、分页、轮询合并、发送通道、pinned/附属区全部经此 hook。
+ * ChannelView 只做排版：消息状态、分页、轮询合并、发送通道、pinned/附属区、任务板全部经此 hook。
  * 缓存按频道分桶（切回看过的频道直接命中快照），请求代际丢弃迟到响应。
  *
  * 02 票语义（与 ChannelView 旧内联实现一致）：
@@ -285,8 +449,24 @@ export async function postChannelMessage(
  *   成员增删（addChannelMember/removeChannelMember）留视图侧，hook 不持有 i18n/成员行状态。
  * - pinned 变更广播订阅（subscribePinnedChanged）留视图侧：面板↔中央双端收敛属排版编排，
  *   hook 只暴露 loadPinned 供订阅回调调用。
+ *
+ * 04 票语义（与 ChannelView 旧内联实现一致）：
+ * - `tasks / tasksError / taskNotice` 持有任务板数据循环：切换频道时重拉
+ *   （loadTasksPage 经服务端按 number 升序），旧频道任务先清空避免闪现。
+ * - `taskOps{claim,complete,unclaim,close,approve,reject,reopen}` 持有转移序列：
+ *   claim 经 claimChannelTask（held/conflict/blocked 让路：提示 + 重拉，不抛错）；
+ *   complete 经 completeTaskWithReply（先落线程回复再置 in_review，依赖 hook 内
+ *   已有 postChannelMessage 发送通道：线程回复用线程版本 baseSeq，状态更新用频道版本）；
+ *   其余转移（unclaim/close/approve/reject/reopen）经 updateChannelTaskStatus
+ *   映射到目标状态（todo/closed/done/in_progress）；成功后重拉收敛。
+ * - 创建两途径（convert/createBoard）与 reopen 封锁标记透出在纯函数层：
+ *   convert 走 convertMessageToTaskRow（409 抛错由调用方提示），board 创建走
+ *   createBoardTaskRow（服务端先发消息再建任务）；reopened=1 的行经 loadTasksPage
+ *   原样返回，视图只做徽标展示（TaskCard 已有），claim 让路由 blocked 返回。
+ * - toast 文案（tasks.held/tasks.denied/converted/created）与 invalid-drop 提示留视图侧，
+ *   hook 只暴露 taskNotice/tasksError 状态与 setter 供视图写文案。
  */
-export function useChannelData(channelId: string | undefined, t?: (key: string) => string) {
+export function useChannelData(channelId: string | undefined, t?: (key: string, params?: Record<string, string | number>) => string) {
   const latestRequestRef = useRef(0);
   const cacheRef = useRef(new Map<string, ChannelMessagesPage>());
 
@@ -304,6 +484,10 @@ export function useChannelData(channelId: string | undefined, t?: (key: string) 
   const [mutes, setMutes] = useState<ChannelMuteRow[]>([]);
   const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(new Set());
   const [membersError, setMembersError] = useState<string | null>(null);
+  // 04 票：任务板数据循环状态。
+  const [tasks, setTasks] = useState<ChannelTask[]>([]);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+  const [taskNotice, setTaskNotice] = useState<string | null>(null);
   // 03 票：迟到响应守卫——pinned/mutes/members 重拉与频道切换竞速时丢弃旧频道响应。
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
@@ -352,6 +536,25 @@ export function useChannelData(channelId: string | undefined, t?: (key: string) 
       .catch((e) => {
         if (channelIdRef.current !== id) return;
         setPinnedError(e instanceof Error ? e.message : String(e));
+      });
+  }, [channelId]);
+
+  // 04 票：任务板加载（服务端按 number 升序，含 reachable/reopened 视图附料）。
+  const loadTasks = useCallback(() => {
+    const id = channelId;
+    if (!id) {
+      setTasks([]);
+      return;
+    }
+    void loadTasksPage(id)
+      .then((rows) => {
+        if (channelIdRef.current !== id) return;
+        setTasks(rows);
+        setTasksError(null);
+      })
+      .catch((e) => {
+        if (channelIdRef.current !== id) return;
+        setTasksError(e instanceof Error ? e.message : String(e));
       });
   }, [channelId]);
 
@@ -422,11 +625,14 @@ export function useChannelData(channelId: string | undefined, t?: (key: string) 
         setLoadError(e instanceof Error ? e.message : String(e));
       });
     // 03 票：pinned/附属区随频道切换重拉（旧频道状态先清空，避免旧内容闪现）。
+    // 04 票：任务板随频道切换重拉（旧频道任务先清空，messages tab 右键 Convert 判定依赖）。
     setPinnedItems([]);
     setPinnedError(null);
     setMutes([]);
     setChannelMemberIds(new Set());
     setMembersError(null);
+    setTasks([]);
+    setTasksError(null);
     void loadPinnedPage(cid, pinnedSortRef.current)
       .then((items) => {
         if (latestRequestRef.current !== requestId) return;
@@ -442,6 +648,16 @@ export function useChannelData(channelId: string | undefined, t?: (key: string) 
         setMutes(rows);
       })
       .catch(() => undefined);
+    // 04 票：任务板随频道切换重拉（旧频道任务已清空，重拉收敛到服务端事实）。
+    void loadTasksPage(cid)
+      .then((rows) => {
+        if (latestRequestRef.current !== requestId) return;
+        setTasks(rows);
+      })
+      .catch((e) => {
+        if (latestRequestRef.current !== requestId) return;
+        setTasksError(e instanceof Error ? e.message : String(e));
+      });
     void loadChannelMemberIds(cid)
       .then((ids) => {
         if (latestRequestRef.current !== requestId) return;
@@ -580,5 +796,131 @@ export function useChannelData(channelId: string | undefined, t?: (key: string) 
     [channelId],
   );
 
-  return { messages, maxSeq, hasMore, loadError, loadPage, loadLatest, loadEarlier, send, heldNotice, busyAction, setBusyAction, setHeldNotice, pinnedItems, pinnedSort, setPinnedSort, pinnedError, loadPinned, togglePin, reorderPinned, mutes, loadMutes, toggleMute, channelMemberIds, membersError, loadMembers };
+  // 04 票：任务动作（claim / 转移序列）——与 ChannelView 旧内联 runTaskAction 同语义：
+  // busyAction 沿旧语义是共享锁（channel 加入/离开/归档同锁）；held 后置 heldNotice +
+  // taskNotice 摘要 + 重拉（loadTasks + loadLatest）；conflict/blocked 让路记 reason +
+  // taskNotice，重拉不抛错。busy 时直接返回（与旧 `if (!channel || busyAction) return` 一致）。
+  const runTaskTransition = useCallback(
+    async (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus): Promise<void> => {
+      if (!channelId || busyAction) return;
+      setBusyAction(true);
+      setTasksError(null);
+      setTaskNotice(null);
+      try {
+        const baseSeq = maxSeqRef.current;
+        const result =
+          action === "claim"
+            ? await claimChannelTask(task.id, baseSeq)
+            : await updateChannelTaskStatus(task.id, status ?? "todo", baseSeq);
+        if (result.kind === "held") {
+          setHeldNotice(t ? t("tasks.held") : "task held");
+          setTaskNotice(result.whatHappened);
+        } else if (result.kind === "conflict" || result.kind === "blocked") {
+          setTasksError(result.reason);
+        }
+        loadTasks();
+        loadLatest();
+      } catch (e) {
+        setTasksError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusyAction(false);
+      }
+    },
+    [channelId, busyAction, loadTasks, loadLatest, t],
+  );
+
+  // 04 票：complete 两步（先落线程回复再置 in_review）——与 agent-loop runTaskOperation
+  // 的 complete 同语义，依赖 hook 内已有 postChannelMessage 发送通道：
+  // 线程回复用线程版本 baseSeq（调用方传入任务线程最后一条 seq），状态更新用
+  // 频道版本（maxSeqRef 快照）；busy 沿旧 runTaskAction 同一共享锁；held 即停并提示 + 重拉。
+  const completeTask = useCallback(
+    async (task: ChannelTask, replyContent: string, threadBaseSeq: number): Promise<void> => {
+      if (!channelId || busyAction) return;
+      setBusyAction(true);
+      setTasksError(null);
+      setTaskNotice(null);
+      try {
+        const result = await completeTaskWithReply(
+          task.id,
+          task.message_id,
+          replyContent,
+          threadBaseSeq,
+          maxSeqRef.current,
+        );
+        if (result.kind === "held") {
+          setHeldNotice(t ? t("tasks.held") : "task held");
+          setTaskNotice(result.whatHappened);
+        } else if (result.kind === "conflict" || result.kind === "blocked") {
+          setTasksError(result.reason);
+        }
+        loadTasks();
+        loadLatest();
+      } catch (e) {
+        setTasksError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusyAction(false);
+      }
+    },
+    [channelId, busyAction, loadTasks, loadLatest, t],
+  );
+
+  // 04 票：创建两途径——convert 已有消息（409 抛错由调用方提示，与旧内联同语义：
+  // tasks.alreadyTask 文案在视图侧组装，hook 只透出 tasksError/taskNotice 状态更新）；
+  // board 创建走服务端先发消息再建任务；成功后重拉收敛（旧内联同语义：
+  // convert 本地 append + notice，board 创建 notice + 双重拉——此处统一重拉收敛到服务端事实）。
+  const convertToTask = useCallback(
+    async (message: ChannelMessage): Promise<ChannelTask | null> => {
+      if (!channelId) return null;
+      try {
+        const created = await convertMessageToTaskRow(message.id);
+        setTasks((prev) => [...prev, created]);
+        setTaskNotice(t ? t("tasks.converted", { number: String(created.number) }) : `task #${created.number}`);
+        return created;
+      } catch (e) {
+        const text = e instanceof Error ? e.message : String(e);
+        setTasksError(text);
+        setTaskNotice(text);
+        return null;
+      }
+    },
+    [channelId, t],
+  );
+
+  const createTaskFromBoard = useCallback(
+    async (contentInput: string): Promise<void> => {
+      if (!channelId) return;
+      const content = contentInput.trim();
+      if (!content) return;
+      setTasksError(null);
+      setTaskNotice(null);
+      try {
+        const created = await createBoardTaskRow(channelId, content);
+        setTaskNotice(t ? t("tasks.created", { number: String(created.number) }) : `task #${created.number}`);
+        loadTasks();
+        loadLatest();
+      } catch (e) {
+        setTasksError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [channelId, loadTasks, loadLatest, t],
+  );
+
+  // 04 票：任务转移入口按动作名收敛（票据 taskOps{claim,complete,unclaim,...} 的 interface 面）：
+  // claim → runTaskTransition(claim)；complete → completeTask（两步）；其余转移
+  // （unclaim/close/approve/reject/reopen）→ update-status 目标状态映射。
+  const taskOps = useMemo(
+    () => ({
+      claim: (task: ChannelTask) => runTaskTransition(task, "claim"),
+      complete: (task: ChannelTask, replyContent: string, threadBaseSeq: number) =>
+        completeTask(task, replyContent, threadBaseSeq),
+      unclaim: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "todo"),
+      close: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "closed"),
+      approve: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "done"),
+      reject: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "in_progress"),
+      reopen: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "todo"),
+    }),
+    [runTaskTransition, completeTask],
+  );
+
+  return { messages, maxSeq, hasMore, loadError, loadPage, loadLatest, loadEarlier, send, heldNotice, busyAction, setBusyAction, setHeldNotice, pinnedItems, pinnedSort, setPinnedSort, pinnedError, loadPinned, togglePin, reorderPinned, mutes, loadMutes, toggleMute, channelMemberIds, membersError, loadMembers, tasks, tasksError, taskNotice, setTasksError, setTaskNotice, loadTasks, runTaskTransition, completeTask, convertToTask, createTaskFromBoard, taskOps };
 }

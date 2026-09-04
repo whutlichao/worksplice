@@ -334,3 +334,141 @@ test("toggleChannelMute posts the toggled mute state and returns it", async () =
   });
   await assert.rejects(() => toggleChannelMute("c1", "a1", false, errFetch), /not a member/);
 });
+
+// 04 票红-绿切片 1：loadTasksPage 取任务板（GET + 缺 tasks 字段兜底 + 错误映射）
+test("loadTasksPage requests the channel task board and defaults missing tasks to []", async () => {
+  const { loadTasksPage } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const taskRow = { id: "t1", message_id: "m1", number: 1, status: "todo", reopened: 0 };
+  const stubFetch = async (url) => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ tasks: [taskRow] }) };
+  };
+
+  const tasks = await loadTasksPage("c1", stubFetch);
+  assert.deepEqual(tasks, [taskRow]);
+  assert.match(calls[0], /\/api\/channels\/c1\/tasks/);
+
+  const emptyFetch = async () => ({ ok: true, json: async () => ({}) });
+  assert.deepEqual(await loadTasksPage("c1", emptyFetch), []);
+
+  const errFetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+  await assert.rejects(() => loadTasksPage("c1", errFetch), /GET tasks: 500/);
+});
+
+// 04 票红-绿切片 2：claim 让路语义（updated/held/conflict/blocked 四分支 + 错误映射）
+test("claimChannelTask posts baseSeq and maps held/conflict/blocked to yield results", async () => {
+  const { claimChannelTask } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const taskRow = { id: "t1", message_id: "m1", number: 1, status: "in_progress", reopened: 0 };
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({ task: taskRow }) };
+  };
+
+  assert.deepEqual(await claimChannelTask("t1", 9, stubFetch), { kind: "updated", task: taskRow });
+  assert.equal(calls[0].url, "/api/tasks/t1/claim");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { baseSeq: 9 });
+
+  const heldFetch = async () => ({
+    ok: false, status: 409, json: async () => ({ held: true, whatHappened: "2 new" }),
+  });
+  assert.deepEqual(await claimChannelTask("t1", 9, heldFetch), { kind: "held", whatHappened: "2 new" });
+
+  const conflictFetch = async () => ({
+    ok: false, status: 409, json: async () => ({ conflict: true, reason: "already claimed" }),
+  });
+  assert.deepEqual(await claimChannelTask("t1", 9, conflictFetch), { kind: "conflict", reason: "already claimed" });
+
+  const blockedFetch = async () => ({
+    ok: false, status: 409, json: async () => ({ blocked: true, reason: "reopened" }),
+  });
+  assert.deepEqual(await claimChannelTask("t1", 9, blockedFetch), { kind: "blocked", reason: "reopened" });
+
+  const errFetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
+  await assert.rejects(() => claimChannelTask("t1", 9, errFetch), /claim: 400/);
+});
+
+// 04 票红-绿切片 3：update-status 转移序列（status+baseSeq 携带 + held 让路 + 错误映射）
+test("updateChannelTaskStatus posts status with baseSeq and maps held to yield results", async () => {
+  const { updateChannelTaskStatus } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const taskRow = { id: "t1", message_id: "m1", number: 1, status: "in_review", reopened: 0 };
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({ task: taskRow }) };
+  };
+
+  assert.deepEqual(await updateChannelTaskStatus("t1", "in_review", 9, stubFetch), { kind: "updated", task: taskRow });
+  assert.equal(calls[0].url, "/api/tasks/t1/update-status");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { status: "in_review", baseSeq: 9 });
+
+  const heldFetch = async () => ({
+    ok: false, status: 409, json: async () => ({ held: true, whatHappened: "1 new" }),
+  });
+  assert.deepEqual(await updateChannelTaskStatus("t1", "in_review", 9, heldFetch), { kind: "held", whatHappened: "1 new" });
+
+  const errFetch = async () => ({ ok: false, status: 400, json: async () => ({ error: "bad transition" }) });
+  await assert.rejects(() => updateChannelTaskStatus("t1", "in_review", 9, errFetch), /update-status: 400/);
+});
+
+// 04 票红-绿切片 4：reopen 封锁标记透出（reopened=1 的任务行经 loadTasksPage 原样返回）
+test("loadTasksPage preserves the reopened flag for blocked claim display", async () => {
+  const { loadTasksPage } = await jiti.import("./useChannelData.ts");
+  const rows = [
+    { id: "t1", message_id: "m1", number: 1, status: "todo", reopened: 1 },
+    { id: "t2", message_id: "m2", number: 2, status: "todo", reopened: 0 },
+  ];
+  const stubFetch = async () => ({ ok: true, json: async () => ({ tasks: rows }) });
+
+  const tasks = await loadTasksPage("c1", stubFetch);
+  assert.deepEqual(tasks.map((x) => x.reopened), [1, 0]);
+});
+
+// 04 票红-绿切片 5：complete 两步序列——先落线程回复（postChannelMessage 目标=锚点）再置 in_review
+test("completeTaskWithReply delivers the thread reply before the in_review transition", async () => {
+  const { completeTaskWithReply, postChannelMessage } = await jiti.import("./useChannelData.ts");
+  // 先确认第二步的发送通道语义：目标=任务锚点 id（thread 自己的 seq 空间），携带线程版本 baseSeq
+  const reply = { id: "r1", target_id: "anchor-m1", seq: 5, author_id: "owner", content: "done", created_at: "", author: null };
+  const sendCalls = [];
+  const sendFetch = async (url, init) => {
+    sendCalls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({ message: reply }) };
+  };
+  const sent = await postChannelMessage("anchor-m1", "done", undefined, 4, undefined, sendFetch);
+  assert.deepEqual(sent, { kind: "sent", message: reply });
+  assert.deepEqual(JSON.parse(sendCalls[0].init.body), { targetId: "anchor-m1", content: "done", baseSeq: 4 });
+
+  // 再确认完整两步序列：回复落线程 → update-status 置 in_review（顺序不可颠倒）
+  const order = [];
+  const taskRow = { id: "t1", message_id: "anchor-m1", number: 1, status: "in_review", reopened: 0 };
+  const combinedFetch = async (url) => {
+    order.push(url);
+    if (url === "/api/messages") return { ok: true, status: 200, json: async () => ({ message: reply }) };
+    return { ok: true, status: 200, json: async () => ({ task: taskRow }) };
+  };
+  const result = await completeTaskWithReply("t1", "anchor-m1", "done", 4, 9, combinedFetch);
+  assert.deepEqual(result, { kind: "updated", task: taskRow });
+  assert.deepEqual(order, ["/api/messages", "/api/tasks/t1/update-status"]);
+});
+
+// 04 票红-绿切片 6：创建两途径（convert 已有消息 / board 先发消息再建任务）
+test("convertMessageToTaskRow and createBoardTaskRow post the task creation payloads", async () => {
+  const { convertMessageToTaskRow, createBoardTaskRow } = await jiti.import("./useChannelData.ts");
+  const taskRow = { id: "t1", message_id: "m1", number: 1, status: "todo", reopened: 0 };
+  const calls = [];
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 201, json: async () => ({ task: taskRow }) };
+  };
+
+  assert.deepEqual(await convertMessageToTaskRow("m1", stubFetch), taskRow);
+  assert.equal(calls[0].url, "/api/tasks");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { messageId: "m1" });
+
+  assert.deepEqual(await createBoardTaskRow("c1", "do it", stubFetch), taskRow);
+  assert.deepEqual(JSON.parse(calls[1].init.body), { channelId: "c1", content: "do it" });
+
+  const dupFetch = async () => ({ ok: false, status: 409, json: async () => ({ error: "already a task" }) });
+  await assert.rejects(() => convertMessageToTaskRow("m1", dupFetch), /already a task/);
+});

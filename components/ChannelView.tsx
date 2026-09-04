@@ -56,22 +56,9 @@ export interface ChannelMessage {
   }>;
 }
 
-/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread。 */
-interface ChannelTask {
-  id: string;
-  message_id: string;
-  number: number;
-  status: TaskStatus;
-  owner_id: string | null;
-  /** §3.7 重开封锁标记：置 1 期间 agent 不可自动认领，仅 Owner 认领接管。 */
-  reopened: number;
-  updated_at: string;
-  channelId: string;
-  anchor: ChannelMessage;
-  owner: MemberRow | null;
-  /** §3.7/ADR-0002 看板拖拽：服务端按当前身份推导的合法转移落点（与状态机一致，客户端不镜像）。 */
-  reachable: TaskStatus[];
-}
+/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，此处 re-export 供 TaskViews 复用）。 */
+export type { ChannelTask } from "@/hooks/useChannelData";
+import type { ChannelTask } from "@/hooks/useChannelData";
 
 /** §3.5 pinned 项（03 票起收进 hooks/useChannelData，此处 re-export 供 ThreadPanel 复用）。 */
 export type { PinnedItem } from "@/hooks/useChannelData";
@@ -1863,7 +1850,6 @@ export function ChannelView({
   // 视图直接消费 hook 状态。
   const {
     messages,
-    maxSeq,
     hasMore,
     loadError,
     loadLatest,
@@ -1885,13 +1871,21 @@ export function ChannelView({
     channelMemberIds,
     membersError,
     loadMembers,
+    // 04 票：任务板数据循环收进 useChannelData（tasks/tasksError/taskNotice +
+    // loadTasks/转移序列 runTaskTransition/completeTask/创建 convertToTask/createTaskFromBoard）；
+    // 视图只做排版（TaskViews 视图与拖拽手势不动；taskOps 动作名入口在 hook interface 面，
+    // 视图经 runTaskAction 转发，见下）。
+    tasks,
+    tasksError,
+    taskNotice,
+    setTaskNotice,
+    loadTasks: loadTasksInHook,
+    runTaskTransition,
+    convertToTask: convertToTaskInHook,
+    createTaskFromBoard: createTaskFromBoardInHook,
   } = useChannelData(channel?.id, t);
 
-  const [tasks, setTasks] = useState<ChannelTask[]>([]);
-  const [tasksError, setTasksError] = useState<string | null>(null);
   const [asTask, setAsTask] = useState(false);
-  const [creatingTask, setCreatingTask] = useState(false);
-  const [taskNotice, setTaskNotice] = useState<string | null>(null);
 
   // 引用态（ticket 13 线程迁出后变为 channel 局部——线程引用在面板 ThreadPanel 内自持）
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
@@ -2010,18 +2004,8 @@ export function ChannelView({
     scrollRef.current?.scrollTo({ top: saved.top });
   }, [tab, channel?.id]);
 
-  const loadTasks = useCallback(() => {
-    const id = channel?.id;
-    if (!id) return;
-    setTasksError(null);
-    void fetch(`/api/channels/${encodeURIComponent(id)}/tasks`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`GET tasks: ${res.status}`);
-        const body = (await res.json()) as { tasks?: ChannelTask[] };
-        setTasks(body.tasks ?? []);
-      })
-      .catch((e) => setTasksError(e instanceof Error ? e.message : String(e)));
-  }, [channel?.id]);
+  // 04 票：任务板数据循环由 useChannelData 持有（loadTasksInHook）；旧内联 loadTasks 已删。
+  const loadTasks = loadTasksInHook;
 
   // ticket 13：面板线程内 pin/unpin 后刷新本频道 pinned 列表（服务端事实，中央/面板双端自洽；
   // loadPinned 由 useChannelData 持有，03 票）。
@@ -2227,33 +2211,20 @@ export function ChannelView({
   const convertMessageToTaskRef = useRef<
     (msg: ChannelMessage) => Promise<ChannelTask | null>
   >(() => Promise.resolve(null));
-  /** 把消息转为任务（§3.7 创建途径 1/2 共用）；返回 null 表示失败（错误已提示）。 */
+  /** 把消息转为任务（§3.7 创建途径 1/2 共用）；返回 null 表示失败（错误已提示）。
+   * 04 票：创建经 useChannelData.convertToTask（409 已是任务走 hook 的 tasksError/taskNotice），
+   * 视图只做 alreadyTask 文案组装（与旧内联同文案）。 */
   const convertMessageToTask = useCallback(
     async (msg: ChannelMessage): Promise<ChannelTask | null> => {
-      try {
-        const res = await fetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messageId: msg.id }),
-        });
-        const body = (await res.json().catch(() => ({}))) as { task?: ChannelTask; error?: string };
-        if (!res.ok) {
-          if (res.status === 409) throw new Error(t("tasks.alreadyTask"));
-          throw new Error(body.error ?? `convert to task: ${res.status}`);
-        }
-        if (body.task) {
-          setTasks((prev) => [...prev, body.task as ChannelTask]);
-          setTaskNotice(t("tasks.converted", { number: String((body.task as ChannelTask).number) }));
-        }
-        return body.task ?? null;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setTasksError(message);
-        setTaskNotice(message);
-        return null;
-      }
+      const created = await convertToTaskInHook(msg);
+      if (created) return created;
+      // 旧内联语义：409（已是任务）显示 tasks.alreadyTask 文案。
+      setTaskNotice(t("tasks.alreadyTask"));
+      return null;
     },
-    [t],
+    // setTaskNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义（02/03 票同豁免）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [convertToTaskInHook, t],
   );
   convertMessageToTaskRef.current = convertMessageToTask;
   const handleConvertToTask = useCallback(
@@ -2262,82 +2233,23 @@ export function ChannelView({
   );
 
   /** 任务动作（§3.7）：claim / updateStatus；受 freshness-hold 保护，409 时提示并刷新。
-   * 04 票范围：本票不动实现，只加 setter 依赖豁免（setHeldNotice/setBusyAction 是 hook 返回的稳定 setter）。 */
+   * 04 票：转移序列经 useChannelData.runTaskTransition（busy 共享锁 + baseSeq 携带 +
+   * held/conflict/blocked 让路语义在 hook 内），视图只做回调转发（TaskViews 视图与拖拽手势不动）。 */
   const runTaskAction = useCallback(
     async (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => {
-      if (!channel || busyAction) return;
-      setBusyAction(true);
-      setTasksError(null);
-      setTaskNotice(null);
-      try {
-        const url =
-          action === "claim"
-            ? `/api/tasks/${encodeURIComponent(task.id)}/claim`
-            : `/api/tasks/${encodeURIComponent(task.id)}/update-status`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(status ? { status, baseSeq: maxSeq } : { baseSeq: maxSeq }),
-        });
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          held?: boolean;
-          whatHappened?: string;
-          conflict?: boolean;
-          reason?: string;
-        };
-        if (!res.ok) {
-          if (body.held) {
-            setHeldNotice(t("tasks.held"));
-            setTaskNotice(body.whatHappened ?? t("tasks.held"));
-          } else {
-            setTasksError(body.error ?? body.reason ?? t("tasks.denied"));
-          }
-          loadTasks();
-          loadLatest();
-          return;
-        }
-        loadTasks();
-      } catch (e) {
-        setTasksError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusyAction(false);
-      }
+      await runTaskTransition(task, action, status);
     },
-    // setHeldNotice/setBusyAction 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [channel, busyAction, maxSeq, loadTasks, loadLatest, t],
+    [runTaskTransition],
   );
 
-  /** Tasks tab Create Task（§3.7 创建途径 3）：先发消息再建任务。 */
+  /** Tasks tab Create Task（§3.7 创建途径 3）：先发消息再建任务。
+   * 04 票：创建经 useChannelData.createTaskFromBoard（busy 锁在 hook 内，旧内联 creatingTask
+   * 同语义——Composer 的 busy 态只反映任务动作，TaskViews 的 busy prop 沿 busyAction）。 */
   const createTaskFromBoard = useCallback(
     async (contentInput: string) => {
-      if (!channel || creatingTask) return;
-      const content = contentInput.trim();
-      if (!content) return;
-      setCreatingTask(true);
-      setTasksError(null);
-      setTaskNotice(null);
-      try {
-        const res = await fetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channelId: channel.id, content }),
-        });
-        const body = (await res.json().catch(() => ({}))) as { task?: ChannelTask; error?: string };
-        if (!res.ok) {
-          throw new Error(body.error ?? `create task: ${res.status}`);
-        }
-        setTaskNotice(t("tasks.created", { number: String((body.task as ChannelTask).number) }));
-        loadTasks();
-        loadLatest();
-      } catch (e) {
-        setTasksError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setCreatingTask(false);
-      }
+      await createTaskFromBoardInHook(contentInput);
     },
-    [channel, creatingTask, loadTasks, loadLatest, t],
+    [createTaskFromBoardInHook],
   );
 
   // 深链：hash `#c/<channelId>?m=<messageId>` → 打开对应消息（thread 消息在右栏面板展开其线程）
