@@ -4,7 +4,7 @@
 
 **Blocked by:** 01（需 maxSeq/baseSeq 来源稳定）.（01 已 resolved@2ed55b7，可开工）
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] hook 返回新增 `send / heldNotice / busyAction`，held 语义与现有 UI 提示一致
 - [ ] hook 级测试：正常发送、held 后重拉、重试耗尽行为
