@@ -96,3 +96,90 @@ test("isSameMessagesPage detects identical snapshots", async () => {
   assert.equal(isSameMessagesPage(prev, { messages: [m("m1", 1, "one"), m("m2", 2, "two")], hasMore: false, maxSeq: 2 }), false);
   assert.equal(isSameMessagesPage(prev, { messages: [m("m9", 1, "other")], hasMore: false, maxSeq: 1 }), false);
 });
+
+// 02 票红-绿切片 1：正常发送走 JSON，携带 baseSeq，返回 sent + message
+test("postChannelMessage posts JSON with baseSeq and returns the sent message", async () => {
+  const { postChannelMessage } = await jiti.import("./useChannelData.ts");
+  const calls = [];
+  const sent = m("m9", 10, "hello");
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({ message: sent }) };
+  };
+
+  const result = await postChannelMessage("c1", "hello", undefined, 9, undefined, stubFetch);
+  assert.deepEqual(result, { kind: "sent", message: sent });
+  assert.equal(calls[0].url, "/api/messages");
+  assert.equal(calls[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    targetId: "c1",
+    content: "hello",
+    baseSeq: 9,
+  });
+});
+
+// 02 票红-绿切片 2：held 返回摘要（不抛错，由调用方重拉提示）
+test("postChannelMessage returns held with whatHappened on 409 held", async () => {
+  const { postChannelMessage } = await jiti.import("./useChannelData.ts");
+  const stubFetch = async () => ({
+    ok: false,
+    status: 409,
+    json: async () => ({ held: true, whatHappened: "2 new messages" }),
+  });
+
+  const result = await postChannelMessage("c1", "hello", undefined, 9, undefined, stubFetch);
+  assert.deepEqual(result, { kind: "held", whatHappened: "2 new messages" });
+});
+
+// 02 票红-绿切片 3：非 held 错误抛错（服务端 error 透出）
+test("postChannelMessage throws the server error for non-held failures", async () => {
+  const { postChannelMessage } = await jiti.import("./useChannelData.ts");
+  const stubFetch = async () => ({
+    ok: false,
+    status: 400,
+    json: async () => ({ error: "bad content" }),
+  });
+
+  await assert.rejects(
+    () => postChannelMessage("c1", "hello", undefined, 9, undefined, stubFetch),
+    /bad content/,
+  );
+});
+
+// 02 票红-绿切片 5：空响应是服务端契约违背，抛错而不是静默吞掉
+test("postChannelMessage throws on empty success responses", async () => {
+  const { postChannelMessage } = await jiti.import("./useChannelData.ts");
+  const stubFetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({}),
+  });
+
+  await assert.rejects(
+    () => postChannelMessage("c1", "hello", undefined, 9, undefined, stubFetch),
+    /empty response/,
+  );
+});
+
+// 02 票红-绿切片 4：附件走 multipart（含 baseSeq/quoteId/files，一次请求原子提交）
+test("postChannelMessage posts multipart with baseSeq when files are attached", async () => {
+  const { postChannelMessage } = await jiti.import("./useChannelData.ts");
+  const sent = m("m9", 10, "with file");
+  const calls = [];
+  const file = new File(["data"], "a.txt", { type: "text/plain" });
+  const stubFetch = async (url, init) => {
+    calls.push({ url, init });
+    return { ok: true, status: 200, json: async () => ({ message: sent }) };
+  };
+
+  const result = await postChannelMessage("c1", "with file", "q1", 9, [file], stubFetch);
+  assert.deepEqual(result, { kind: "sent", message: sent });
+  assert.equal(calls[0].url, "/api/messages");
+  const form = calls[0].init.body;
+  assert.ok(form instanceof FormData);
+  assert.equal(form.get("targetId"), "c1");
+  assert.equal(form.get("content"), "with file");
+  assert.equal(form.get("baseSeq"), "9");
+  assert.equal(form.get("quoteId"), "q1");
+  assert.equal(form.get("files"), file);
+});

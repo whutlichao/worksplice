@@ -1861,7 +1861,8 @@ export function ChannelView({
   const { t } = useI18n();
 
   // 01 票：频道消息数据循环收进 useChannelData（loadLatest/loadEarlier +
-  // 轮询合并 + maxSeq/hasMore）；视图直接消费 hook 状态。
+  // 轮询合并 + maxSeq/hasMore）；02 票：发送通道（send + heldNotice + busyAction）同收 hook。
+  // 视图直接消费 hook 状态。
   const {
     messages,
     maxSeq,
@@ -1869,9 +1870,12 @@ export function ChannelView({
     loadError,
     loadLatest,
     loadEarlier: loadEarlierPage,
-  } = useChannelData(channel?.id);
-  const [heldNotice, setHeldNotice] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState(false);
+    send: sendMessage,
+    heldNotice,
+    busyAction,
+    setHeldNotice,
+    setBusyAction,
+  } = useChannelData(channel?.id, t);
 
   const [tasks, setTasks] = useState<ChannelTask[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -2185,58 +2189,17 @@ export function ChannelView({
 
   const handleSend = useCallback(
     async (targetId: string, content: string, quoteId?: string, files?: File[]) => {
-      if (!channel) return;
-      const baseSeq = maxSeq;
-      let res: Response;
-      if (files && files.length > 0) {
-        // §3.5 附件随消息一起 multipart 提交：一次请求原子完成（held 时服务端不落盘）。
-        const form = new FormData();
-        form.append("targetId", targetId);
-        form.append("content", content);
-        form.append("baseSeq", String(baseSeq));
-        if (quoteId) form.append("quoteId", quoteId);
-        for (const file of files) form.append("files", file);
-        res = await fetch("/api/messages", { method: "POST", body: form });
-      } else {
-        res = await fetch("/api/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            targetId,
-            content,
-            quoteId,
-            baseSeq,
-          }),
-        });
-      }
-      const body = (await res.json().catch(() => ({}))) as {
-        message?: ChannelMessage;
-        held?: boolean;
-        whatHappened?: string;
-        error?: string;
-      };
-      if (!res.ok) {
-        if (body.held) {
-          setHeldNotice(body.whatHappened ?? "held");
-          loadLatest();
-          throw new Error(t("message.held"));
-        }
-        throw new Error(body.error ?? `POST messages: ${res.status}`);
-      }
-      if (body.message) {
-        // 01 过渡：hook 尚未暴露 append 入口，发送成功后经 loadLatest 重拉收敛
-        // （02 票并入 hook 后改为 hook 内追加，不再整页重拉）。
-        loadLatest();
-      }
+      // 02 票：发送通道由 useChannelData.send 持有（baseSeq 携带 + held 重拉提示）。
+      // 视图只做引用清理与 As Task 转化（§3.7 创建途径 2，任务板是 04 票范围）。
+      const message = await sendMessage(targetId, content, quoteId, files);
       setQuoting(null);
-      // §3.7 创建途径 2：发送时勾 As Task → 发送成功后转为任务
-      if (asTask && body.message) {
-        const converted = await convertMessageToTask(body.message);
+      if (asTask && message) {
+        const converted = await convertMessageToTask(message);
         if (converted) setAsTask(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [channel, maxSeq, loadLatest, t, asTask],
+    [sendMessage, asTask],
   );
 
   /** §3.4 reaction 切换：POST 后把返回的聚合写回消息状态（channel 局部；线程在面板内自持）。 */
@@ -2257,6 +2220,8 @@ export function ChannelView({
         setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
+    // setHeldNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [loadLatest],
   );
 
@@ -2281,6 +2246,8 @@ export function ChannelView({
         setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
+    // setHeldNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [channel, pinnedItems, loadPinned],
   );
 
@@ -2306,6 +2273,8 @@ export function ChannelView({
         setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
+    // setHeldNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [channel, pinnedItems, loadPinned],
   );
 
@@ -2368,7 +2337,8 @@ export function ChannelView({
     [],
   );
 
-  /** 任务动作（§3.7）：claim / updateStatus；受 freshness-hold 保护，409 时提示并刷新。 */
+  /** 任务动作（§3.7）：claim / updateStatus；受 freshness-hold 保护，409 时提示并刷新。
+   * 04 票范围：本票不动实现，只加 setter 依赖豁免（setHeldNotice/setBusyAction 是 hook 返回的稳定 setter）。 */
   const runTaskAction = useCallback(
     async (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => {
       if (!channel || busyAction) return;
@@ -2410,6 +2380,8 @@ export function ChannelView({
         setBusyAction(false);
       }
     },
+    // setHeldNotice/setBusyAction 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [channel, busyAction, maxSeq, loadTasks, loadLatest, t],
   );
 

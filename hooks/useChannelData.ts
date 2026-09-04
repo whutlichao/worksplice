@@ -77,13 +77,68 @@ export function isSameMessagesPage(
   );
 }
 
-/**
- * 频道消息数据循环（01 票：轮询 + merge + maxSeq/hasMore）。
+/** 发送结果：sent 携带服务端回写的消息；held 携带并发摘要（§6.3 freshness-hold）。 */
+export type SendChannelMessageResult =
+  | { kind: "sent"; message: ChannelMessage }
+  | { kind: "held"; whatHappened: string };
+
+/** 发送一条频道消息（纯函数：fetch 可注入，便于测试）。
  *
- * ChannelView 只做排版：消息状态、分页、轮询合并全部经此 hook。
- * 缓存按频道分桶（切回看过的频道直接命中快照），请求代际丢弃迟到响应。
+ * 与 ChannelView 旧内联 handleSend 同语义：baseSeq = 发送时的房间版本；
+ * JSON（无附件）或 multipart（有附件）一次请求原子提交；held 时服务端不落盘。
  */
-export function useChannelData(channelId: string | undefined) {
+export async function postChannelMessage(
+  targetId: string,
+  content: string,
+  quoteId: string | undefined,
+  baseSeq: number,
+  files?: File[],
+  fetchFn: FetchFn = fetch,
+): Promise<SendChannelMessageResult> {
+  let res: Response;
+  if (files && files.length > 0) {
+    // §3.5 附件随消息一起 multipart 提交：一次请求原子完成（held 时服务端不落盘）。
+    const form = new FormData();
+    form.append("targetId", targetId);
+    form.append("content", content);
+    form.append("baseSeq", String(baseSeq));
+    if (quoteId) form.append("quoteId", quoteId);
+    for (const file of files) form.append("files", file);
+    res = await fetchFn("/api/messages", { method: "POST", body: form });
+  } else {
+    res = await fetchFn("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetId, content, quoteId, baseSeq }),
+    });
+  }
+  const body = (await res.json().catch(() => ({}))) as {
+    message?: ChannelMessage;
+    held?: boolean;
+    whatHappened?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    if (body.held) return { kind: "held", whatHappened: body.whatHappened ?? "held" };
+    throw new Error(body.error ?? `POST messages: ${res.status}`);
+  }
+  if (body.message) return { kind: "sent", message: body.message };
+  throw new Error("POST messages: empty response");
+}
+
+/**
+ * 频道消息数据循环（01 票：轮询 + merge + maxSeq/hasMore；02 票：发送 + held + busyAction）。
+ *
+ * ChannelView 只做排版：消息状态、分页、轮询合并、发送通道全部经此 hook。
+ * 缓存按频道分桶（切回看过的频道直接命中快照），请求代际丢弃迟到响应。
+ *
+ * 02 票语义（与 ChannelView 旧内联实现一致）：
+ * - `send` 携带 baseSeq（调用时的 maxSeq）；held 后置 heldNotice + 重拉（loadLatest）+ 抛 held 文案。
+ * - 发送成功后经 loadLatest 重拉收敛（append 入口是后续票的事，本票不做乐观追加）。
+ * - `send` 只管发送与 held 收敛：quoting 清理与 As Task 转化留视图侧（handleSend 内），hook 不持有引用/As Task 状态。
+ * - `busyAction` 是发送通道的并发锁（任务板动作另有自己的锁，本票只收发送）。
+ */
+export function useChannelData(channelId: string | undefined, t?: (key: string) => string) {
   const latestRequestRef = useRef(0);
   const cacheRef = useRef(new Map<string, ChannelMessagesPage>());
 
@@ -91,6 +146,9 @@ export function useChannelData(channelId: string | undefined) {
   const [hasMore, setHasMore] = useState(false);
   const [maxSeq, setMaxSeq] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // 02 票：发送通道状态——held 提示与发送并发锁。
+  const [heldNotice, setHeldNotice] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState(false);
 
   const loadPage = useCallback(
     (targetId: string, before?: number) => loadMessagesPage(targetId, before),
@@ -191,5 +249,31 @@ export function useChannelData(channelId: string | undefined) {
       .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, [channelId, hasMore, messages, loadPage]);
 
-  return { messages, maxSeq, hasMore, loadError, loadPage, loadLatest, loadEarlier };
+  // 02 票：发送通道——baseSeq 携带、held 后重拉提示、成功后重拉收敛。
+  // maxSeq 读 ref 快照：并发发送取调用时版本，避免闭包拿到旧 maxSeq。
+  const maxSeqRef = useRef(maxSeq);
+  maxSeqRef.current = maxSeq;
+  const send = useCallback(
+    async (
+      targetId: string,
+      content: string,
+      quoteId?: string,
+      files?: File[],
+    ): Promise<ChannelMessage | null> => {
+      if (!channelId) return null;
+      const baseSeq = maxSeqRef.current;
+      const result = await postChannelMessage(targetId, content, quoteId, baseSeq, files);
+      if (result.kind === "held") {
+        // held 语义与旧内联实现一致：记摘要 + 重拉提示 + 抛 held 文案（Composer 显示）。
+        setHeldNotice(result.whatHappened);
+        loadLatest();
+        throw new Error(t ? t("message.held") : "message held");
+      }
+      loadLatest();
+      return result.message;
+    },
+    [channelId, loadLatest, t],
+  );
+
+  return { messages, maxSeq, hasMore, loadError, loadPage, loadLatest, loadEarlier, send, heldNotice, busyAction, setBusyAction, setHeldNotice };
 }
