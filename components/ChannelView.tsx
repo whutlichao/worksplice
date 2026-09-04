@@ -2176,10 +2176,9 @@ export function ChannelView({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages.length, activeIdForScroll]);
 
-  // 向上翻页：hook 取早页（before = 首条 seq 守卫在 hook 内），视图只负责翻页后滚动位置。
+  // 向上翻页：hook 取早页（before = 首条 seq 守卫在 hook 内），取回后滚到固定位置。
   const loadEarlier = useCallback(() => {
-    loadEarlierPage();
-    requestAnimationFrame(() => {
+    void loadEarlierPage().then(() => {
       scrollRef.current?.scrollTo({ top: 220 });
     });
   }, [loadEarlierPage]);

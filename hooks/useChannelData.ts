@@ -181,9 +181,9 @@ export function useChannelData(channelId: string | undefined) {
   }, [channelId, loadPage]);
 
   const loadEarlier = useCallback(() => {
-    if (!channelId || !hasMore || messages.length === 0) return;
+    if (!channelId || !hasMore || messages.length === 0) return Promise.resolve();
     const before = messages[0].seq;
-    void loadPage(channelId, before)
+    return loadPage(channelId, before)
       .then((page) => {
         setMessages((prev) => prependPageMessages(prev, page.messages));
         setHasMore(page.hasMore);
