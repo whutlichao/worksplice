@@ -73,12 +73,8 @@ interface ChannelTask {
   reachable: TaskStatus[];
 }
 
-/** §3.5 pinned 项（/api/channels/[id]/pinned 返回形态）。 */
-export interface PinnedItem {
-  message: ChannelMessage;
-  order: number;
-  pinnedAt: string;
-}
+/** §3.5 pinned 项（03 票起收进 hooks/useChannelData，此处 re-export 供 ThreadPanel 复用）。 */
+export type { PinnedItem } from "@/hooks/useChannelData";
 
 const INK = "#141111";
 /** @ 提及补全菜单最大展示条数。 */
@@ -1862,6 +1858,8 @@ export function ChannelView({
 
   // 01 票：频道消息数据循环收进 useChannelData（loadLatest/loadEarlier +
   // 轮询合并 + maxSeq/hasMore）；02 票：发送通道（send + heldNotice + busyAction）同收 hook。
+  // 03 票：pinned 数据循环（pinnedItems/pinnedSort/reorderPinned/togglePin）
+  // 与附属区（mutes/channelMemberIds）同收 hook；视图只做排版（pinned 区展开、BellOff/成员面板不动）。
   // 视图直接消费 hook 状态。
   const {
     messages,
@@ -1875,6 +1873,18 @@ export function ChannelView({
     busyAction,
     setHeldNotice,
     setBusyAction,
+    pinnedItems,
+    pinnedSort,
+    setPinnedSort,
+    pinnedError,
+    loadPinned,
+    togglePin: togglePinInHook,
+    reorderPinned: reorderPinnedInHook,
+    mutes,
+    toggleMute: toggleMuteInHook,
+    channelMemberIds,
+    membersError,
+    loadMembers,
   } = useChannelData(channel?.id, t);
 
   const [tasks, setTasks] = useState<ChannelTask[]>([]);
@@ -1886,21 +1896,15 @@ export function ChannelView({
   // 引用态（ticket 13 线程迁出后变为 channel 局部——线程引用在面板 ThreadPanel 内自持）
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
 
-  // §3.5 pinned 区：当前成员在该 channel 的个性化 pinned
+  // §3.5 pinned 区展开态留视图侧（排版态，非数据）。
   const [pinnedOpen, setPinnedOpen] = useState(false);
-  const [pinnedSort, setPinnedSort] = useState<"manual" | "recent" | "az">("manual");
-  const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
-  const [pinnedError, setPinnedError] = useState<string | null>(null);
 
-  // §3.2 mute 面板：channel 内 agent 成员的通知静音开关（静音后普通消息不进 inbox，@mention 穿透）
+  // §3.2 mute 面板展开态与操作提示留视图侧（排版态；mute 数据经 hook）。
   const [muteOpen, setMuteOpen] = useState(false);
-  const [mutes, setMutes] = useState<Array<{ memberId: string; name: string; muted: boolean }>>([]);
   const [muteNotice, setMuteNotice] = useState<string | null>(null);
 
-  // 👥 频道成员面板：channel 内 agent 列表（状态点）+ Owner 替 agent 加入/移除
+  // 👥 频道成员面板展开态留视图侧（排版态；成员 id 集合经 hook，增删操作仍内联）。
   const [membersOpen, setMembersOpen] = useState(false);
-  const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(new Set());
-  const [membersError, setMembersError] = useState<string | null>(null);
   const [memberBusy, setMemberBusy] = useState(false);
   const [memberNotice, setMemberNotice] = useState<string | null>(null);
 
@@ -2019,62 +2023,13 @@ export function ChannelView({
       .catch((e) => setTasksError(e instanceof Error ? e.message : String(e)));
   }, [channel?.id]);
 
-  /** §3.5 pinned 列表加载（当前成员的个性化 pinned，排序三选一）。 */
-  const loadPinned = useCallback(() => {
-    const id = channel?.id;
-    if (!id) {
-      setPinnedItems([]);
-      return;
-    }
-    void fetch(`/api/channels/${encodeURIComponent(id)}/pinned?sort=${pinnedSort}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`GET pinned: ${res.status}`);
-        const body = (await res.json()) as { pinned?: PinnedItem[] };
-        setPinnedItems(body.pinned ?? []);
-        setPinnedError(null);
-      })
-      .catch((e) => setPinnedError(e instanceof Error ? e.message : String(e)));
-  }, [channel?.id, pinnedSort]);
-
-  // ticket 13：面板线程内 pin/unpin 后刷新本频道 pinned 列表（服务端事实，中央/面板双端自洽）
+  // ticket 13：面板线程内 pin/unpin 后刷新本频道 pinned 列表（服务端事实，中央/面板双端自洽；
+  // loadPinned 由 useChannelData 持有，03 票）。
   useEffect(() => subscribePinnedChanged(() => loadPinned()), [loadPinned]);
 
-  /** §3.2 mute 状态加载（channel 内全部 agent 成员的静音开关）。 */
-  const loadMutes = useCallback(() => {
-    const id = channel?.id;
-    if (!id) {
-      setMutes([]);
-      return;
-    }
-    void fetch(`/api/channels/${encodeURIComponent(id)}/mute`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`GET mutes: ${res.status}`);
-        const body = (await res.json()) as {
-          mutes?: Array<{ memberId: string; name: string; muted: boolean }>;
-        };
-        setMutes(body.mutes ?? []);
-      })
-      .catch(() => undefined);
-  }, [channel?.id]);
-
-  /** 👥 频道成员加载（channel 内成员 id 集合）。 */
-  const loadMembers = useCallback(() => {
-    const id = channel?.id;
-    if (!id) {
-      setChannelMemberIds(new Set());
-      return;
-    }
-    void fetch(`/api/channels/${encodeURIComponent(id)}/members`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`GET members: ${res.status}`);
-        const body = (await res.json()) as { members?: MemberRow[] };
-        setChannelMemberIds(new Set((body.members ?? []).map((m) => m.id)));
-        setMembersError(null);
-      })
-      .catch((e) => setMembersError(e instanceof Error ? e.message : String(e)));
-  }, [channel?.id]);
-
-  /** 👥 Owner 替 agent 加入频道（公开/私有均可；#all 已全员加入，按钮不出现）。 */
+  /** 👥 Owner 替 agent 加入频道（公开/私有均可；#all 已全员加入，按钮不出现）。
+   * 03 票：成员 id 集合由 useChannelData 持有，增删成功后经 loadMembers 重拉收敛
+   * （与旧内联 setChannelMemberIds 本地更新同可见结果，收敛到服务端事实）。 */
   const addChannelMember = async (member: MemberRow) => {
     if (!channel) return;
     setMemberBusy(true);
@@ -2089,8 +2044,8 @@ export function ChannelView({
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? "join failed");
       }
-      setChannelMemberIds((prev) => new Set(prev).add(member.id));
       setMemberNotice(t("mention.added", { name: member.name }));
+      loadMembers();
     } catch (e) {
       setMemberNotice(e instanceof Error ? e.message : String(e));
     } finally {
@@ -2113,12 +2068,8 @@ export function ChannelView({
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? "leave failed");
       }
-      setChannelMemberIds((prev) => {
-        const next = new Set(prev);
-        next.delete(member.id);
-        return next;
-      });
       setMemberNotice(t("mention.removed", { name: member.name }));
+      loadMembers();
     } catch (e) {
       setMemberNotice(e instanceof Error ? e.message : String(e));
     } finally {
@@ -2126,7 +2077,7 @@ export function ChannelView({
     }
   };
 
-  // 切换频道：面板局部态（引用/通知/展开区）重置；消息数据由 useChannelData
+  // 切换频道：面板局部态（引用/通知/展开区）重置；消息/pinned/附属区数据由 useChannelData
   // 按 channelId 接管（缓存快照 + 后台重拉 + 迟到丢弃）；任务板常驻加载。
   const activeChannelId = channel?.id;
   useEffect(() => {
@@ -2140,9 +2091,6 @@ export function ChannelView({
     setMemberNotice(null);
     // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
     loadTasks();
-    loadPinned();
-    loadMutes();
-    loadMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannelId]);
 
@@ -2225,57 +2173,33 @@ export function ChannelView({
     [loadLatest],
   );
 
-  /** §3.5 pin / unpin：切换后重拉 pinned 列表（按钮态 = pinnedItems 含该消息）。 */
+  /** §3.5 pin / unpin（03 票）：切换经 useChannelData.togglePin（重拉收敛），
+   * 视图只做错误提示（heldNotice 复用旧内联语义）。 */
   const togglePin = useCallback(
     async (message: ChannelMessage) => {
-      if (!channel) return;
-      const alreadyPinned = pinnedItems.some((item) => item.message.id === message.id);
       try {
-        const res = alreadyPinned
-          ? await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned?messageId=${message.id}`, {
-              method: "DELETE",
-            })
-          : await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ messageId: message.id }),
-            });
-        if (!res.ok) throw new Error(`pin: ${res.status}`);
-        loadPinned();
+        await togglePinInHook(message.id);
       } catch (e) {
         setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
     // setHeldNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [channel, pinnedItems, loadPinned],
+    [togglePinInHook],
   );
 
-  /** §3.5 Manual 排序：↑/↓ 交换相邻位置后提交重排。 */
+  /** §3.5 Manual 排序（03 票）：↑/↓ 经 useChannelData.reorderPinned 提交重排，视图只做错误提示。 */
   const movePinned = useCallback(
     async (index: number, direction: -1 | 1) => {
-      if (!channel) return;
-      const target = index + direction;
-      if (target < 0 || target >= pinnedItems.length) return;
-      const reordered = [...pinnedItems];
-      const [moved] = reordered.splice(index, 1);
-      reordered.splice(target, 0, moved);
-      const order = reordered.map((item) => item.message.id);
       try {
-        const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned/reorder`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order }),
-        });
-        if (!res.ok) throw new Error(`reorder: ${res.status}`);
-        loadPinned();
+        await reorderPinnedInHook(index, direction);
       } catch (e) {
         setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
     // setHeldNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [channel, pinnedItems, loadPinned],
+    [reorderPinnedInHook],
   );
 
   /** 打开 pinned 消息：channel 消息滚动定位；thread 消息在右栏面板打开其线程（ticket 13）。 */
@@ -2470,21 +2394,12 @@ export function ChannelView({
     }
   };
 
-  /** §3.2 mute 开关：静音后该 agent 的 inbox 收不到普通消息，个人 @mention 仍穿透。 */
+  /** §3.2 mute 开关（03 票）：取反提交经 useChannelData.toggleMute（列表写回在 hook 内），
+   * 视图只做 toast 提示（与旧内联同文案）。 */
   const toggleMute = async (m: { memberId: string; name: string; muted: boolean }) => {
-    if (!channel) return;
-    const next = !m.muted;
     try {
-      const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/mute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: m.memberId, muted: next }),
-      });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error ?? "mute failed");
-      }
-      setMutes((prev) => prev.map((x) => (x.memberId === m.memberId ? { ...x, muted: next } : x)));
+      const next = await toggleMuteInHook(m.memberId);
+      if (next === null) return;
       setMuteNotice(t(next ? "mute.toastMuted" : "mute.toastUnmuted", { name: m.name }));
     } catch (e) {
       setMuteNotice(e instanceof Error ? e.message : String(e));
