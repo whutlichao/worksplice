@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlarmClock, Bell, BellOff, Check, CircleSlash, CornerDownRight, FileText, Kanban, Link, List, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { TranslationParams } from "@/lib/i18n/types";
@@ -658,8 +658,9 @@ function ContextMenu({
   );
 }
 
-/** 顶层消息渲染行：头像 + 作者 + seq + 时间戳 + 内容 + reaction/附件 + hover 动作栏；右键 = 菜单（Open Thread / Convert to Task）。 */
-export function MessageRow({
+/** 顶层消息渲染行：头像 + 作者 + seq + 时间戳 + 内容 + reaction/附件 + hover 动作栏；右键 = 菜单（Open Thread / Convert to Task）。
+ *  memo 化：切换频道/轮询合并时父级重渲染频繁，单行 props 不变则跳过（头像/Markdown 解析是主要开销）。 */
+export const MessageRow = memo(function MessageRow({
   message,
   isAnchor,
   canConvertToTask,
@@ -855,7 +856,7 @@ export function MessageRow({
       )}
     </div>
   );
-}
+});
 
 /** §3.7 任务状态徽标样式（List 分组标题 / Board 列头共用）。 */
 const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => {
@@ -1876,6 +1877,12 @@ export function ChannelView({
   // 切换频道时的请求代际：旧频道的迟到响应直接丢弃，避免旧内容闪现。
   const latestRequestRef = useRef(0);
 
+  // 按频道分桶的消息缓存：切回看过的频道直接命中快照，无需等待网络；
+  // 同一频道内轮询/发送走正常合并写回，缓存引用随之更新。
+  const messageCacheRef = useRef(
+    new Map<string, { messages: ChannelMessage[]; hasMore: boolean; maxSeq: number }>(),
+  );
+
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [maxSeq, setMaxSeq] = useState(0);
@@ -1955,6 +1962,37 @@ export function ChannelView({
     [onOpenPanel],
   );
 
+  // 消息行回调稳定化：与 memo(MessageRow) 配合——切换频道/轮询时父级重渲染，
+  // 单行 props（回调引用）不变则跳过重渲染，避免百条 Markdown/头像逐行重排造成的闪动。
+  const openMemberPanel = useCallback(
+    (memberId: string) => onOpenPanel?.(memberPanel(memberId, false)),
+    [onOpenPanel],
+  );
+  const openThreadPanel = useCallback(
+    (target: ChannelMessage) => onOpenPanel?.({ kind: "thread", id: target.id }),
+    [onOpenPanel],
+  );
+  const handleQuote = useCallback((target: ChannelMessage) => setQuoting(target), []);
+  const handleCopyLink = useCallback(
+    async (message: ChannelMessage) => {
+      const url = `${window.location.origin}${window.location.pathname}#c/${encodeURIComponent(channel?.id ?? "")}?m=${message.id}`;
+      await copyText(url);
+    },
+    [channel?.id],
+  );
+  const handleCopyLinkCb = useCallback(
+    (target: ChannelMessage) => void handleCopyLink(target),
+    [handleCopyLink],
+  );
+  const pinnedSet = useMemo(
+    () => new Set(pinnedItems.map((item) => item.message.id)),
+    [pinnedItems],
+  );
+  const taskMessageIds = useMemo(
+    () => new Set(tasks.map((task) => task.message_id)),
+    [tasks],
+  );
+
   const scrollRef = useRef<HTMLDivElement>(null);
   /** 消息流滚动位置保存（tasks 与 messages 共用一个 main 滚动容器：切到任务板时内容变矮，
    *  浏览器会把 scrollTop 钳制到 0，切回来即丢位置——切走前按 channel 记下，切回时恢复）。 */
@@ -1985,11 +2023,11 @@ export function ChannelView({
     async (targetId: string, before?: number) => {
       const params = new URLSearchParams({ limit: String(PAGE_LIMIT) });
       if (before !== undefined) params.set("before", String(before));
-      const res = await fetch(`/api/channels/${encodeURIComponent(channel?.id ?? "")}/messages?${params}`);
+      const res = await fetch(`/api/channels/${encodeURIComponent(targetId)}/messages?${params}`);
       if (!res.ok) throw new Error(`GET messages: ${res.status}`);
       return (await res.json()) as MessagesPage;
     },
-    [channel?.id],
+    [],
   );
 
   const loadLatest = useCallback(() => {
@@ -2131,7 +2169,7 @@ export function ChannelView({
     }
   };
 
-  // 切换频道：复用上一频道的旧内容占位（无闪白），新数据到达后按 seq 合并替换；
+  // 切换频道：按频道分桶缓存消息，快照式替换（无合并闪动）；
   // 若用户在请求飞行途中又切走，迟到响应由 requestId 丢弃。
   // 注意：loader 回调已按 channel?.id 记忆化，此处只依赖 channel?.id，
   // 避免因为 channels 列表刷新产生新 channel 对象引用而重复触发整套请求。
@@ -2140,8 +2178,7 @@ export function ChannelView({
   useEffect(() => {
     latestRequestRef.current += 1;
     const requestId = latestRequestRef.current;
-    // 增量优先：先用轮询式合并把新频道内容画出来，避免 setMessages([]) 闪白；
-    // 新频道 messages 为空必然走 full 分支（合并空数组 = 直接采用 page）。
+    const cid = activeChannelId ?? "";
     setQuoting(null);
     setHeldNotice(null);
     setTaskNotice(null);
@@ -2150,14 +2187,42 @@ export function ChannelView({
     setMuteNotice(null);
     setMembersOpen(false);
     setMemberNotice(null);
-    void loadPage(activeChannelId ?? "")
+    // 缓存命中：同步快照替换 + 立即滚到底部，同 commit 内完成，无中间空态/滚动跳变。
+    const cached = messageCacheRef.current.get(cid);
+    if (cached) {
+      setMessages(cached.messages);
+      setHasMore(cached.hasMore);
+      setMaxSeq(cached.maxSeq);
+      setLoadError(null);
+      requestAnimationFrame(() => {
+        if (latestRequestRef.current !== requestId) return;
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+      });
+    } else {
+      setMessages([]);
+      setHasMore(false);
+      setMaxSeq(0);
+      setLoadError(null);
+    }
+    void loadPage(cid)
       .then((page) => {
         if (latestRequestRef.current !== requestId) return;
-        setMessages((prev) =>
-          prev.length === 0 ? page.messages : mergeIncomingMessages(prev, page.messages),
-        );
+        // 快照式替换 + 写缓存：同一页内一次 commit，避免旧内容与新内容合并混排闪动。
+        // 后台刷新与缓存一致时跳过 setState，避免重复 commit 造成的闪动。
+        const prev = messageCacheRef.current.get(cid);
+        messageCacheRef.current.set(cid, page);
+        if (
+          prev &&
+          prev.maxSeq === page.maxSeq &&
+          prev.hasMore === page.hasMore &&
+          prev.messages.length === page.messages.length &&
+          prev.messages.every((m, i) => m.id === page.messages[i]?.id)
+        ) {
+          return;
+        }
+        setMessages(page.messages);
         setHasMore(page.hasMore);
-        setMaxSeq((prev) => Math.max(prev, page.maxSeq));
+        setMaxSeq(page.maxSeq);
       })
       .catch((e) => {
         if (latestRequestRef.current !== requestId) return;
@@ -2178,14 +2243,23 @@ export function ChannelView({
   // agent-loop 回复轮询（§5.4）：增量合并新消息；后台 tab 暂停；Tasks tab 顺带刷新任务板
   useEffect(() => {
     if (!channel) return;
+    const cid = channel.id;
     let cancelled = false;
     const timer = setInterval(() => {
       if (cancelled || document.hidden) return;
-      void loadPage(channel.id)
+      void loadPage(cid)
         .then((page) => {
           if (cancelled) return;
-          setMaxSeq((prev) => Math.max(prev, page.maxSeq));
-          setMessages((prev) => mergeIncomingMessages(prev, page.messages));
+          // 轮询只追加新消息：maxSeq 未推进时跳过合并，避免全列表重排闪动。
+          setMaxSeq((prev) => {
+            if (page.maxSeq <= prev) return prev;
+            setMessages((prevMsgs) => {
+              const merged = mergeIncomingMessages(prevMsgs, page.messages);
+              if (merged !== prevMsgs) messageCacheRef.current.set(cid, { messages: merged, hasMore: page.hasMore, maxSeq: page.maxSeq });
+              return merged;
+            });
+            return page.maxSeq;
+          });
         })
         .catch(() => undefined);
       if (tab === "tasks") loadTasks();
@@ -2198,9 +2272,17 @@ export function ChannelView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel?.id, loadPage, tab, loadTasks]);
 
+  // 新消息到达滚到底部；切换频道时不抢滚（由下面的 channel 恢复 effect 接管），
+  // 否则缓存快照替换 + 底部滚动两帧叠加 = 可见跳动。
+  const activeIdForScroll = channel?.id;
+  const prevChannelForScroll = useRef<string | undefined>(undefined);
   useEffect(() => {
+    if (prevChannelForScroll.current !== activeIdForScroll) {
+      prevChannelForScroll.current = activeIdForScroll;
+      return;
+    }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages.length]);
+  }, [messages.length, activeIdForScroll]);
 
   const loadEarlier = useCallback(() => {
     if (!channel || !hasMore || messages.length === 0) return;
@@ -2255,8 +2337,15 @@ export function ChannelView({
         throw new Error(body.error ?? `POST messages: ${res.status}`);
       }
       if (body.message) {
-        setMessages((prev) => [...prev, body.message as ChannelMessage]);
-        setMaxSeq((prev) => Math.max(prev, (body.message as ChannelMessage).seq));
+        const msg = body.message as ChannelMessage;
+        const cid = channel.id;
+        setMessages((prev) => {
+          const next = [...prev, msg];
+          const cached = messageCacheRef.current.get(cid);
+          messageCacheRef.current.set(cid, { messages: next, hasMore: cached?.hasMore ?? false, maxSeq: Math.max(cached?.maxSeq ?? 0, msg.seq) });
+          return next;
+        });
+        setMaxSeq((prev) => Math.max(prev, msg.seq));
       }
       setQuoting(null);
       // §3.7 创建途径 2：发送时勾 As Task → 发送成功后转为任务
@@ -2365,6 +2454,10 @@ export function ChannelView({
     [channel, messages, loadPage, onOpenPanel],
   );
 
+  // 把消息转为任务（§3.7 创建途径 1/2 共用）：ref 化保证回调引用稳定（memo 行 props 不变）。
+  const convertMessageToTaskRef = useRef<
+    (msg: ChannelMessage) => Promise<ChannelTask | null>
+  >(() => Promise.resolve(null));
   /** 把消息转为任务（§3.7 创建途径 1/2 共用）；返回 null 表示失败（错误已提示）。 */
   const convertMessageToTask = useCallback(
     async (msg: ChannelMessage): Promise<ChannelTask | null> => {
@@ -2392,6 +2485,11 @@ export function ChannelView({
       }
     },
     [t],
+  );
+  convertMessageToTaskRef.current = convertMessageToTask;
+  const handleConvertToTask = useCallback(
+    (target: ChannelMessage) => void convertMessageToTaskRef.current(target),
+    [],
   );
 
   /** 任务动作（§3.7）：claim / updateStatus；受 freshness-hold 保护，409 时提示并刷新。 */
@@ -2526,11 +2624,6 @@ export function ChannelView({
     } finally {
       setBusyAction(false);
     }
-  };
-
-  const handleCopyLink = async (message: ChannelMessage) => {
-    const url = `${window.location.origin}${window.location.pathname}#c/${encodeURIComponent(channel?.id ?? "")}?m=${message.id}`;
-    await copyText(url);
   };
 
   /** §3.2 mute 开关：静音后该 agent 的 inbox 收不到普通消息，个人 @mention 仍穿透。 */
@@ -3054,19 +3147,19 @@ export function ChannelView({
                   <MessageRow
                     message={m}
                     currentMemberId={currentMemberId}
-                    pinned={pinnedItems.some((item) => item.message.id === m.id)}
-                    canConvertToTask={!tasks.some((task) => task.message_id === m.id)}
+                    pinned={pinnedSet.has(m.id)}
+                    canConvertToTask={!taskMessageIds.has(m.id)}
                     mentionMembers={mentionMembers}
                     onOpenMention={openMention}
-                    onOpenMember={(memberId) => onOpenPanel?.(memberPanel(memberId, false))}
-                    onReply={(target) => onOpenPanel?.({ kind: "thread", id: target.id })}
-                    onQuote={setQuoting}
-                    onCopyLink={(target) => void handleCopyLink(target)}
-                    onConvertToTask={(target) => void convertMessageToTask(target)}
+                    onOpenMember={openMemberPanel}
+                    onReply={openThreadPanel}
+                    onQuote={handleQuote}
+                    onCopyLink={handleCopyLinkCb}
+                    onConvertToTask={handleConvertToTask}
                     onSetReminder={joined ? openMessageReminder : undefined}
                     onToggleReaction={joined ? toggleReaction : undefined}
                     onTogglePin={joined ? togglePin : undefined}
-                    onOpenThread={(target) => onOpenPanel?.({ kind: "thread", id: target.id })}
+                    onOpenThread={openThreadPanel}
                   />
                 </div>
               ))}
