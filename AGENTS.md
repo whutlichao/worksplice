@@ -450,4 +450,6 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 
 全局约束：术语用 `codebase-design` 词汇（module/interface/depth/seam/adapter/leverage/locality，不许 component/service/API/boundary）；worker 不做 grilling（open 决策一律 ask 回来）；派活前读 `.scratch/orchestration-dispatch-checklist.md` 逐项打勾。
 
+单分支单 worktree 铁律：main 只收 PR 合并。coordinator 禁止在 main 上直接改任何文件（含票据 Status 收敛——改完必须经 PR 进 main）。worker 的代码与 Answer 全落在任务 worktree；验收/收敛 commit 也落在该 worktree；完成后推分支 + `gh pr create` + 合并。文档先行（spec/tickets 先推远端）保证新 worktree 自带票据。
+
 不进 worker spec 的 skill：`ask-matt`（路由）、`grill-me`/`grill-with-docs`/`grilling`/`wayfinder`/`to-spec`/`to-tickets`/`to-questionnaire`（coordinator 规划侧）、`handoff`/`claude-handoff`（会话间移交）、`setup-matt-pocock-skills`（一次性）、`wizard`（人类步骤生成器——worker 侧只保留 ask 回来）、`teach`/`wait-what`/写作类/video 类/脚手架类/`computer-use`（与代码派活无关）。
