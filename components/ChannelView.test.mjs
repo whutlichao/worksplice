@@ -9,7 +9,8 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { MessageRow, Composer, ChannelView, mergeIncomingMessages } = await jiti.import("./ChannelView.tsx");
+const { MessageRow, Composer, ChannelView } = await jiti.import("./ChannelView.tsx");
+const { mergeIncomingMessages } = await jiti.import("../hooks/useChannelData.ts");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 function renderI18n(children) {
@@ -238,8 +239,8 @@ test("ChannelView pinned 与附属区：pinned/mute/members 数据循环由 useC
   assert.match(source, /pinnedSort,/);
   assert.match(source, /setPinnedSort/);
   assert.match(source, /channelMemberIds/);
-  assert.match(source, /togglePinInHook\(message\.id\)/);
-  assert.match(source, /reorderPinnedInHook\(index, direction\)/);
+  assert.match(source, /togglePin\(message\.id\)/);
+  assert.match(source, /reorderPinned\(index, direction\)/);
   assert.match(source, /toggleMuteInHook\(m\.memberId\)/);
   assert.doesNotMatch(source, /\/pinned\?sort=\$/);
   assert.doesNotMatch(source, /GET pinned/);
@@ -422,14 +423,77 @@ test("ChannelView header exposes the pinned toggle for joined members (§3.5)", 
   assert.match(html, /Toggle pinned messages/);
 });
 
+test("TaskViews renders the task board layout without mounting the channel data loop (05 票排版回归)", async () => {
+  const mod = await jiti.import("./ChannelView.tsx");
+  assert.equal(typeof mod.TaskViews, "function");
+  const task = {
+    id: "task-1",
+    message_id: "msg-1",
+    number: 1,
+    status: "todo",
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-08-03T08:00:00.000Z",
+    channelId: "c1",
+    anchor: { ...MESSAGE, id: "msg-1", target_id: "c1" },
+    owner: null,
+    reachable: ["in_progress"],
+  };
+  const html = renderI18n(
+    React.createElement(mod.TaskViews, {
+      tasks: [task],
+      currentMemberId: "owner",
+      busy: false,
+      disabled: false,
+      error: null,
+      notice: null,
+      onCreateTask: () => undefined,
+      onAction: () => undefined,
+      onOpenThread: () => undefined,
+      onNotice: () => undefined,
+    }),
+  );
+  assert.match(html, /#1/);
+  assert.match(html, /todo|Claim|认领/);
+});
+
+test("05 票瘦身：视图直接解构 hook 原名（无过渡别名解构）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  assert.doesNotMatch(source, /loadEarlier: loadEarlierPage/);
+  assert.doesNotMatch(source, /loadTasks: loadTasksInHook/);
+  assert.doesNotMatch(source, /togglePin: togglePinInHook/);
+  assert.doesNotMatch(source, /reorderPinned: reorderPinnedInHook/);
+  assert.doesNotMatch(source, /convertToTask: convertToTaskInHook/);
+  assert.doesNotMatch(source, /createTaskFromBoard: createTaskFromBoard,/);
+  // toggleMuteInHook / createTaskFromBoardInHook 别名保留：视图同名回调签名不同，须别名区分。
+  assert.match(source, /toggleMuteInHook/);
+  assert.match(source, /createTaskFromBoardInHook/);
+});
+
+test("05 票瘦身：视图无过渡残留注释（01 过渡已收敛进 hook 语义）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  assert.doesNotMatch(source, /01 过渡/);
+});
+
+test("05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelTask/PinnedItem 直引 hook）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  assert.doesNotMatch(source, /export type \{ ChannelTask \}/);
+  assert.doesNotMatch(source, /export type \{ PinnedItem \}/);
+});
+
+test("05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelMessagesPage 直引 hook）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  assert.doesNotMatch(source, /export type \{ ChannelMessagesPage \}/);
+});
+
 test("ChannelView 任务板数据循环由 useChannelData 持有（04 票）", async () => {
   const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
   const hookSource = await readFile(new URL("../hooks/useChannelData.ts", import.meta.url), "utf-8");
-  // 视图侧：任务板状态经 hook（tasks/tasksError/taskNotice + loadTasks/转移序列/taskOps），
+  // 视图侧：任务板状态经 hook（tasks/tasksError/taskNotice + loadTasks/转移序列，经 runTaskAction 转发），
   // 不再内联三路旧实现（loadTasks GET / claim-update-status fetch / 创建 POST /api/tasks）。
   assert.match(source, /tasks,\n    tasksError,\n    taskNotice,/);
   assert.match(source, /runTaskTransition/);
-  assert.match(source, /taskOps/);
+  assert.match(source, /runTaskAction/);
   assert.doesNotMatch(source, /fetch\(`\/api\/channels\/\$\{encodeURIComponent\(id\)\}\/tasks`\)/);
   assert.doesNotMatch(source, /fetch\(url, \{\n          method: "POST",/);
   assert.doesNotMatch(source, /fetch\("\/api\/tasks", \{/);
