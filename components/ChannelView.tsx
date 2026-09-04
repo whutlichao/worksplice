@@ -15,8 +15,7 @@ import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/dat
 import { extractAtQuery, buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
 import { composerMentionCandidates } from "@/lib/mention";
 import { memberPanel, subscribePinnedChanged, type PanelContent } from "@/lib/panel-state";
-export type { ChannelMessagesPage } from "@/hooks/useChannelData";
-import { mergeIncomingMessages, useChannelData } from "@/hooks/useChannelData";
+import { useChannelData } from "@/hooks/useChannelData";
 
 export type CenterTab = "messages" | "tasks";
 
@@ -56,12 +55,8 @@ export interface ChannelMessage {
   }>;
 }
 
-/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，此处 re-export 供 TaskViews 复用）。 */
-export type { ChannelTask } from "@/hooks/useChannelData";
+/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */
 import type { ChannelTask } from "@/hooks/useChannelData";
-
-/** §3.5 pinned 项（03 票起收进 hooks/useChannelData，此处 re-export 供 ThreadPanel 复用）。 */
-export type { PinnedItem } from "@/hooks/useChannelData";
 
 const INK = "#141111";
 /** @ 提及补全菜单最大展示条数。 */
@@ -103,8 +98,7 @@ const messageTime = (iso: string): string => {
   return isToday ? time : `${d.toLocaleDateString()} ${time}`;
 };
 
-/** 轮询合并：01 票起收进 hooks/useChannelData，此处 re-export 供 ThreadPanel 复用（后续票统一）。 */
-export { mergeIncomingMessages };
+/** 轮询合并由 hooks/useChannelData 持有（01 票起；ThreadPanel 改从 hook 直引，见其 import）。 */
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
@@ -1853,7 +1847,7 @@ export function ChannelView({
     hasMore,
     loadError,
     loadLatest,
-    loadEarlier: loadEarlierPage,
+    loadEarlier,
     send: sendMessage,
     heldNotice,
     busyAction,
@@ -1864,8 +1858,8 @@ export function ChannelView({
     setPinnedSort,
     pinnedError,
     loadPinned,
-    togglePin: togglePinInHook,
-    reorderPinned: reorderPinnedInHook,
+    togglePin,
+    reorderPinned,
     mutes,
     toggleMute: toggleMuteInHook,
     channelMemberIds,
@@ -1879,9 +1873,9 @@ export function ChannelView({
     tasksError,
     taskNotice,
     setTaskNotice,
-    loadTasks: loadTasksInHook,
+    loadTasks,
     runTaskTransition,
-    convertToTask: convertToTaskInHook,
+    convertToTask,
     createTaskFromBoard: createTaskFromBoardInHook,
   } = useChannelData(channel?.id, t);
 
@@ -2004,8 +1998,7 @@ export function ChannelView({
     scrollRef.current?.scrollTo({ top: saved.top });
   }, [tab, channel?.id]);
 
-  // 04 票：任务板数据循环由 useChannelData 持有（loadTasksInHook）；旧内联 loadTasks 已删。
-  const loadTasks = loadTasksInHook;
+  // 任务板数据循环由 useChannelData.loadTasks 持有（旧内联已删）。
 
   // ticket 13：面板线程内 pin/unpin 后刷新本频道 pinned 列表（服务端事实，中央/面板双端自洽；
   // loadPinned 由 useChannelData 持有，03 票）。
@@ -2113,11 +2106,11 @@ export function ChannelView({
   }, [messages.length, activeIdForScroll]);
 
   // 向上翻页：hook 取早页（before = 首条 seq 守卫在 hook 内），取回后滚到固定位置。
-  const loadEarlier = useCallback(() => {
-    void loadEarlierPage().then(() => {
+  const loadEarlierPage = useCallback(() => {
+    void loadEarlier().then(() => {
       scrollRef.current?.scrollTo({ top: 220 });
     });
-  }, [loadEarlierPage]);
+  }, [loadEarlier]);
 
   const handleSend = useCallback(
     async (targetId: string, content: string, quoteId?: string, files?: File[]) => {
@@ -2146,7 +2139,7 @@ export function ChannelView({
         if (!res.ok) throw new Error(`reaction: ${res.status}`);
         const body = (await res.json()) as { reactions?: ReactionSummary[] };
         if (!body.reactions) return;
-        // 01 过渡：hook 尚未暴露 reaction 写回入口，经重拉收敛（02–04 票前保持行为）。
+        // reaction 写回经重拉收敛（与 ThreadPanel 面板内自持写回不同，中央走服务端事实）。
         loadLatest();
       } catch (e) {
         setHeldNotice(e instanceof Error ? e.message : String(e));
@@ -2159,31 +2152,31 @@ export function ChannelView({
 
   /** §3.5 pin / unpin（03 票）：切换经 useChannelData.togglePin（重拉收敛），
    * 视图只做错误提示（heldNotice 复用旧内联语义）。 */
-  const togglePin = useCallback(
+  const togglePinAction = useCallback(
     async (message: ChannelMessage) => {
       try {
-        await togglePinInHook(message.id);
+        await togglePin(message.id);
       } catch (e) {
         setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
     // setHeldNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [togglePinInHook],
+    [togglePin],
   );
 
   /** §3.5 Manual 排序（03 票）：↑/↓ 经 useChannelData.reorderPinned 提交重排，视图只做错误提示。 */
   const movePinned = useCallback(
     async (index: number, direction: -1 | 1) => {
       try {
-        await reorderPinnedInHook(index, direction);
+        await reorderPinned(index, direction);
       } catch (e) {
         setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
     // setHeldNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reorderPinnedInHook],
+    [reorderPinned],
   );
 
   /** 打开 pinned 消息：channel 消息滚动定位；thread 消息在右栏面板打开其线程（ticket 13）。 */
@@ -2195,7 +2188,7 @@ export function ChannelView({
           document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
           return;
         }
-        // 01 过渡：hook 轮询/重拉已覆盖该页，新消息经下次轮询或 loadLatest 收敛。
+        // 新消息经 hook 轮询/重拉收敛（下次轮询或 loadLatest）。
         loadLatest();
         requestAnimationFrame(() => {
           document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
@@ -2216,7 +2209,7 @@ export function ChannelView({
    * 视图只做 alreadyTask 文案组装（与旧内联同文案）。 */
   const convertMessageToTask = useCallback(
     async (msg: ChannelMessage): Promise<ChannelTask | null> => {
-      const created = await convertToTaskInHook(msg);
+      const created = await convertToTask(msg);
       if (created) return created;
       // 旧内联语义：409（已是任务）显示 tasks.alreadyTask 文案。
       setTaskNotice(t("tasks.alreadyTask"));
@@ -2224,7 +2217,7 @@ export function ChannelView({
     },
     // setTaskNotice 是 hook 返回的稳定 setter（useState），与内联 useState 同语义（02/03 票同豁免）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [convertToTaskInHook, t],
+    [convertToTask, t],
   );
   convertMessageToTaskRef.current = convertMessageToTask;
   const handleConvertToTask = useCallback(
@@ -2262,7 +2255,7 @@ export function ChannelView({
         const target = body.message;
         if (!target) return;
         if (target.target_id === channel.id) {
-          // 01 过渡：目标页经 hook 重拉收敛（深链消息落在最新页内时直接定位）。
+          // 深链目标页经 hook 重拉收敛（落在最新页内时直接定位）。
           loadLatest();
           requestAnimationFrame(() => {
             document.getElementById(`msg-${target.id}`)?.scrollIntoView({ block: "center" });
@@ -2744,7 +2737,7 @@ export function ChannelView({
                       <button
                         type="button"
                         title={t("message.unpin")}
-                        onClick={() => void togglePin(item.message)}
+                        onClick={() => void togglePinAction(item.message)}
                         style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
                       >
                         <X size={10} style={{ display: "block", margin: "auto" }} />
@@ -2807,7 +2800,7 @@ export function ChannelView({
                   <button
                     type="button"
                     style={actionButton}
-                    onClick={() => void loadEarlier()}
+                    onClick={() => void loadEarlierPage()}
                   >
                     {t("message.loadEarlier")}
                   </button>
@@ -2829,7 +2822,7 @@ export function ChannelView({
                     onConvertToTask={handleConvertToTask}
                     onSetReminder={joined ? openMessageReminder : undefined}
                     onToggleReaction={joined ? toggleReaction : undefined}
-                    onTogglePin={joined ? togglePin : undefined}
+                    onTogglePin={joined ? togglePinAction : undefined}
                     onOpenThread={openThreadPanel}
                   />
                 </div>
