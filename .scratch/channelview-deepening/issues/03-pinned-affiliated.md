@@ -4,12 +4,12 @@
 
 **Blocked by:** 01（pinned 项引用消息）.（01 已 resolved@2ed55b7，可开工）
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] hook 返回新增 `pinnedItems / pinnedSort / setPinnedSort / reorderPinned / mutes / channelMemberIds`
-- [ ] hook 级测试：三种排序、同毫秒兜底、重排顺序持久化语义
-- [ ] ChannelView 切到 hook，删除旧内联实现
-- [ ] `npm test` 全绿，`tsc --noEmit` 通过
+- [x] hook 返回新增 `pinnedItems / pinnedSort / setPinnedSort / reorderPinned / mutes / channelMemberIds`
+- [x] hook 级测试：三种排序、同毫秒兜底、重排顺序持久化语义
+- [x] ChannelView 切到 hook，删除旧内联实现
+- [x] `npm test` 全绿，`tsc --noEmit` 通过
 
 ## 实施方式（强制）
 
