@@ -421,3 +421,28 @@ test("ChannelView header exposes the pinned toggle for joined members (§3.5)", 
   );
   assert.match(html, /Toggle pinned messages/);
 });
+
+test("ChannelView 任务板数据循环由 useChannelData 持有（04 票）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  const hookSource = await readFile(new URL("../hooks/useChannelData.ts", import.meta.url), "utf-8");
+  // 视图侧：任务板状态经 hook（tasks/tasksError/taskNotice + loadTasks/转移序列/taskOps），
+  // 不再内联三路旧实现（loadTasks GET / claim-update-status fetch / 创建 POST /api/tasks）。
+  assert.match(source, /tasks,\n    tasksError,\n    taskNotice,/);
+  assert.match(source, /runTaskTransition/);
+  assert.match(source, /taskOps/);
+  assert.doesNotMatch(source, /fetch\(`\/api\/channels\/\$\{encodeURIComponent\(id\)\}\/tasks`\)/);
+  assert.doesNotMatch(source, /fetch\(url, \{\n          method: "POST",/);
+  assert.doesNotMatch(source, /fetch\("\/api\/tasks", \{/);
+  // hook 侧：任务板数据循环（loadTasksPage + claim/update-status/complete 两步 + 创建两途径 + taskOps 入口）。
+  assert.match(hookSource, /loadTasksPage/);
+  assert.match(hookSource, /claimChannelTask/);
+  assert.match(hookSource, /updateChannelTaskStatus/);
+  assert.match(hookSource, /completeTaskWithReply/);
+  assert.match(hookSource, /convertMessageToTaskRow/);
+  assert.match(hookSource, /createBoardTaskRow/);
+  assert.match(hookSource, /taskOps/);
+  // TaskViews 视图与拖拽手势不动：TaskList/TaskBoard/拖拽落点校验仍在视图侧。
+  assert.match(source, /function TaskList/);
+  assert.match(source, /function TaskBoard/);
+  assert.match(source, /reachable\.includes\(status\)/);
+});
