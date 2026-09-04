@@ -201,12 +201,18 @@ test("mergeIncomingMessages dedupes by id and keeps messages sorted by seq (agen
   assert.deepEqual(mergeIncomingMessages(prev, []), prev);
 });
 
-test("ChannelView polls the latest page to pick up agent replies (INBOX_POLL_MS)", async () => {
+test("ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（01 票）", async () => {
   const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
-  assert.match(source, /setInterval/);
-  assert.match(source, /INBOX_POLL_MS/);
-  assert.match(source, /mergeIncomingMessages/);
-  assert.match(source, /document\.hidden/);
+  const hookSource = await readFile(new URL("../hooks/useChannelData.ts", import.meta.url), "utf-8");
+  // 视图侧：消费 hook，不再自持有轮询/合并实现。
+  assert.match(source, /useChannelData\(channel\?\.id\)/);
+  assert.match(source, /loadEarlierPage\(\)/);
+  // hook 侧：持有轮询纪律（setInterval + 3s + 后台 tab 暂停 + 卸载清理）与合并。
+  assert.match(hookSource, /setInterval/);
+  assert.match(hookSource, /CHANNEL_POLL_MS/);
+  assert.match(hookSource, /applyPollPage/);
+  assert.match(hookSource, /document\.hidden/);
+  assert.match(hookSource, /clearInterval/);
 });
 
 test("MessageRow renders quick reactions, picker, pin and attachments (§3.4/§3.5)", () => {

@@ -15,6 +15,8 @@ import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/dat
 import { extractAtQuery, buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
 import { composerMentionCandidates } from "@/lib/mention";
 import { memberPanel, subscribePinnedChanged, type PanelContent } from "@/lib/panel-state";
+export type { ChannelMessagesPage } from "@/hooks/useChannelData";
+import { mergeIncomingMessages, useChannelData } from "@/hooks/useChannelData";
 
 export type CenterTab = "messages" | "tasks";
 
@@ -71,12 +73,6 @@ interface ChannelTask {
   reachable: TaskStatus[];
 }
 
-interface MessagesPage {
-  messages: ChannelMessage[];
-  hasMore: boolean;
-  maxSeq: number;
-}
-
 /** §3.5 pinned 项（/api/channels/[id]/pinned 返回形态）。 */
 export interface PinnedItem {
   message: ChannelMessage;
@@ -85,9 +81,6 @@ export interface PinnedItem {
 }
 
 const INK = "#141111";
-const PAGE_LIMIT = 50;
-/** agent-loop 回复轮询间隔（§5.4 demo：agent 回复落入消息流）。 */
-const INBOX_POLL_MS = 3000;
 /** @ 提及补全菜单最大展示条数。 */
 const AT_MATCH_LIMIT = 20;
 /** 任务板状态分组顺序（§3.7）。 */
@@ -127,15 +120,8 @@ const messageTime = (iso: string): string => {
   return isToday ? time : `${d.toLocaleDateString()} ${time}`;
 };
 
-/** 轮询合并：按 id 去重 + 按 seq 排序（纯函数，便于测试）。 */
-export function mergeIncomingMessages(
-  prev: ChannelMessage[],
-  incoming: ChannelMessage[],
-): ChannelMessage[] {
-  if (incoming.length === 0) return prev;
-  const merged = [...prev, ...incoming.filter((m) => !prev.some((p) => p.id === m.id))];
-  return merged.sort((a, b) => a.seq - b.seq);
-}
+/** 轮询合并：01 票起收进 hooks/useChannelData，此处 re-export 供 ThreadPanel 复用（后续票统一）。 */
+export { mergeIncomingMessages };
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
@@ -1874,19 +1860,16 @@ export function ChannelView({
 }) {
   const { t } = useI18n();
 
-  // 切换频道时的请求代际：旧频道的迟到响应直接丢弃，避免旧内容闪现。
-  const latestRequestRef = useRef(0);
-
-  // 按频道分桶的消息缓存：切回看过的频道直接命中快照，无需等待网络；
-  // 同一频道内轮询/发送走正常合并写回，缓存引用随之更新。
-  const messageCacheRef = useRef(
-    new Map<string, { messages: ChannelMessage[]; hasMore: boolean; maxSeq: number }>(),
-  );
-
-  const [messages, setMessages] = useState<ChannelMessage[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [maxSeq, setMaxSeq] = useState(0);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // 01 票：频道消息数据循环收进 useChannelData（loadLatest/loadEarlier +
+  // 轮询合并 + maxSeq/hasMore）；视图直接消费 hook 状态。
+  const {
+    messages,
+    maxSeq,
+    hasMore,
+    loadError,
+    loadLatest,
+    loadEarlier: loadEarlierPage,
+  } = useChannelData(channel?.id);
   const [heldNotice, setHeldNotice] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
@@ -2019,36 +2002,6 @@ export function ChannelView({
     scrollRef.current?.scrollTo({ top: saved.top });
   }, [tab, channel?.id]);
 
-  const loadPage = useCallback(
-    async (targetId: string, before?: number) => {
-      const params = new URLSearchParams({ limit: String(PAGE_LIMIT) });
-      if (before !== undefined) params.set("before", String(before));
-      const res = await fetch(`/api/channels/${encodeURIComponent(targetId)}/messages?${params}`);
-      if (!res.ok) throw new Error(`GET messages: ${res.status}`);
-      return (await res.json()) as MessagesPage;
-    },
-    [],
-  );
-
-  const loadLatest = useCallback(() => {
-    const id = channel?.id;
-    if (!id) return;
-    const requestId = ++latestRequestRef.current;
-    setLoadError(null);
-    void loadPage(id)
-      .then((page) => {
-        // 切换频道时旧频道的迟到响应直接丢弃，避免旧内容闪现覆盖新频道。
-        if (latestRequestRef.current !== requestId) return;
-        setMessages(page.messages);
-        setHasMore(page.hasMore);
-        setMaxSeq(page.maxSeq);
-      })
-      .catch((e) => {
-        if (latestRequestRef.current !== requestId) return;
-        setLoadError(e instanceof Error ? e.message : String(e));
-      });
-  }, [channel?.id, loadPage]);
-
   const loadTasks = useCallback(() => {
     const id = channel?.id;
     if (!id) return;
@@ -2169,16 +2122,10 @@ export function ChannelView({
     }
   };
 
-  // 切换频道：按频道分桶缓存消息，快照式替换（无合并闪动）；
-  // 若用户在请求飞行途中又切走，迟到响应由 requestId 丢弃。
-  // 注意：loader 回调已按 channel?.id 记忆化，此处只依赖 channel?.id，
-  // 避免因为 channels 列表刷新产生新 channel 对象引用而重复触发整套请求。
-  // 非 messages tab 下切换不清空消息（后台预加载也走此 effect，全量请求只发一次）。
+  // 切换频道：面板局部态（引用/通知/展开区）重置；消息数据由 useChannelData
+  // 按 channelId 接管（缓存快照 + 后台重拉 + 迟到丢弃）；任务板常驻加载。
   const activeChannelId = channel?.id;
   useEffect(() => {
-    latestRequestRef.current += 1;
-    const requestId = latestRequestRef.current;
-    const cid = activeChannelId ?? "";
     setQuoting(null);
     setHeldNotice(null);
     setTaskNotice(null);
@@ -2187,47 +2134,6 @@ export function ChannelView({
     setMuteNotice(null);
     setMembersOpen(false);
     setMemberNotice(null);
-    // 缓存命中：同步快照替换 + 立即滚到底部，同 commit 内完成，无中间空态/滚动跳变。
-    const cached = messageCacheRef.current.get(cid);
-    if (cached) {
-      setMessages(cached.messages);
-      setHasMore(cached.hasMore);
-      setMaxSeq(cached.maxSeq);
-      setLoadError(null);
-      requestAnimationFrame(() => {
-        if (latestRequestRef.current !== requestId) return;
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-      });
-    } else {
-      setMessages([]);
-      setHasMore(false);
-      setMaxSeq(0);
-      setLoadError(null);
-    }
-    void loadPage(cid)
-      .then((page) => {
-        if (latestRequestRef.current !== requestId) return;
-        // 快照式替换 + 写缓存：同一页内一次 commit，避免旧内容与新内容合并混排闪动。
-        // 后台刷新与缓存一致时跳过 setState，避免重复 commit 造成的闪动。
-        const prev = messageCacheRef.current.get(cid);
-        messageCacheRef.current.set(cid, page);
-        if (
-          prev &&
-          prev.maxSeq === page.maxSeq &&
-          prev.hasMore === page.hasMore &&
-          prev.messages.length === page.messages.length &&
-          prev.messages.every((m, i) => m.id === page.messages[i]?.id)
-        ) {
-          return;
-        }
-        setMessages(page.messages);
-        setHasMore(page.hasMore);
-        setMaxSeq(page.maxSeq);
-      })
-      .catch((e) => {
-        if (latestRequestRef.current !== requestId) return;
-        setLoadError(e instanceof Error ? e.message : String(e));
-      });
     // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
     loadTasks();
     loadPinned();
@@ -2236,41 +2142,27 @@ export function ChannelView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannelId]);
 
+  // 切换频道滚到底部（缓存快照替换后，同 commit 内完成，无中间空态/滚动跳变）。
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ top: scrollRef.current?.scrollHeight ?? 0 });
+    });
+  }, [activeChannelId]);
+
   useEffect(() => {
     if (tab === "tasks") loadTasks();
   }, [tab, loadTasks]);
 
-  // agent-loop 回复轮询（§5.4）：增量合并新消息；后台 tab 暂停；Tasks tab 顺带刷新任务板
+  // Tasks tab 顺带刷新任务板（消息轮询由 useChannelData 持有）。
   useEffect(() => {
-    if (!channel) return;
-    const cid = channel.id;
-    let cancelled = false;
+    if (!channel || tab !== "tasks") return;
     const timer = setInterval(() => {
-      if (cancelled || document.hidden) return;
-      void loadPage(cid)
-        .then((page) => {
-          if (cancelled) return;
-          // 轮询只追加新消息：maxSeq 未推进时跳过合并，避免全列表重排闪动。
-          setMaxSeq((prev) => {
-            if (page.maxSeq <= prev) return prev;
-            setMessages((prevMsgs) => {
-              const merged = mergeIncomingMessages(prevMsgs, page.messages);
-              if (merged !== prevMsgs) messageCacheRef.current.set(cid, { messages: merged, hasMore: page.hasMore, maxSeq: page.maxSeq });
-              return merged;
-            });
-            return page.maxSeq;
-          });
-        })
-        .catch(() => undefined);
-      if (tab === "tasks") loadTasks();
-    }, INBOX_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-    // channel?.id 已蕴含 channel：仅在其变化时重建轮询
+      if (document.hidden) return;
+      loadTasks();
+    }, 3000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel?.id, loadPage, tab, loadTasks]);
+  }, [channel?.id, tab]);
 
   // 新消息到达滚到底部；切换频道时不抢滚（由下面的 channel 恢复 effect 接管），
   // 否则缓存快照替换 + 底部滚动两帧叠加 = 可见跳动。
@@ -2284,17 +2176,13 @@ export function ChannelView({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages.length, activeIdForScroll]);
 
+  // 向上翻页：hook 取早页（before = 首条 seq 守卫在 hook 内），视图只负责翻页后滚动位置。
   const loadEarlier = useCallback(() => {
-    if (!channel || !hasMore || messages.length === 0) return;
-    const before = messages[0].seq;
-    void loadPage(channel.id, before)
-      .then((page) => {
-        setMessages((prev) => [...page.messages, ...prev]);
-        setHasMore(page.hasMore);
-        scrollRef.current?.scrollTo({ top: 220 });
-      })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
-  }, [channel, hasMore, messages, loadPage]);
+    loadEarlierPage();
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ top: 220 });
+    });
+  }, [loadEarlierPage]);
 
   const handleSend = useCallback(
     async (targetId: string, content: string, quoteId?: string, files?: File[]) => {
@@ -2337,15 +2225,9 @@ export function ChannelView({
         throw new Error(body.error ?? `POST messages: ${res.status}`);
       }
       if (body.message) {
-        const msg = body.message as ChannelMessage;
-        const cid = channel.id;
-        setMessages((prev) => {
-          const next = [...prev, msg];
-          const cached = messageCacheRef.current.get(cid);
-          messageCacheRef.current.set(cid, { messages: next, hasMore: cached?.hasMore ?? false, maxSeq: Math.max(cached?.maxSeq ?? 0, msg.seq) });
-          return next;
-        });
-        setMaxSeq((prev) => Math.max(prev, msg.seq));
+        // 01 过渡：hook 尚未暴露 append 入口，发送成功后经 loadLatest 重拉收敛
+        // （02 票并入 hook 后改为 hook 内追加，不再整页重拉）。
+        loadLatest();
       }
       setQuoting(null);
       // §3.7 创建途径 2：发送时勾 As Task → 发送成功后转为任务
@@ -2370,14 +2252,13 @@ export function ChannelView({
         if (!res.ok) throw new Error(`reaction: ${res.status}`);
         const body = (await res.json()) as { reactions?: ReactionSummary[] };
         if (!body.reactions) return;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === message.id ? { ...m, reactions: body.reactions } : m)),
-        );
+        // 01 过渡：hook 尚未暴露 reaction 写回入口，经重拉收敛（02–04 票前保持行为）。
+        loadLatest();
       } catch (e) {
-        setLoadError(e instanceof Error ? e.message : String(e));
+        setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
-    [],
+    [loadLatest],
   );
 
   /** §3.5 pin / unpin：切换后重拉 pinned 列表（按钮态 = pinnedItems 含该消息）。 */
@@ -2398,7 +2279,7 @@ export function ChannelView({
         if (!res.ok) throw new Error(`pin: ${res.status}`);
         loadPinned();
       } catch (e) {
-        setLoadError(e instanceof Error ? e.message : String(e));
+        setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
     [channel, pinnedItems, loadPinned],
@@ -2423,7 +2304,7 @@ export function ChannelView({
         if (!res.ok) throw new Error(`reorder: ${res.status}`);
         loadPinned();
       } catch (e) {
-        setLoadError(e instanceof Error ? e.message : String(e));
+        setHeldNotice(e instanceof Error ? e.message : String(e));
       }
     },
     [channel, pinnedItems, loadPinned],
@@ -2438,20 +2319,16 @@ export function ChannelView({
           document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
           return;
         }
-        void loadPage(channel.id, message.seq + 1).then((page) => {
-          setMessages((prev) => {
-            const merged = [...prev, ...page.messages.filter((m) => !prev.some((p) => p.id === m.id))];
-            return merged.sort((a, b) => a.seq - b.seq);
-          });
-          requestAnimationFrame(() => {
-            document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
-          });
+        // 01 过渡：hook 轮询/重拉已覆盖该页，新消息经下次轮询或 loadLatest 收敛。
+        loadLatest();
+        requestAnimationFrame(() => {
+          document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
         });
       } else {
         onOpenPanel?.({ kind: "thread", id: message.target_id });
       }
     },
-    [channel, messages, loadPage, onOpenPanel],
+    [channel, messages, loadLatest, onOpenPanel],
   );
 
   // 把消息转为任务（§3.7 创建途径 1/2 共用）：ref 化保证回调引用稳定（memo 行 props 不变）。
@@ -2571,7 +2448,6 @@ export function ChannelView({
   // 深链：hash `#c/<channelId>?m=<messageId>` → 打开对应消息（thread 消息在右栏面板展开其线程）
   useEffect(() => {
     if (!channel || !focusMessageId) return;
-    setLoadError(null);
     void fetch(`/api/messages/${encodeURIComponent(focusMessageId)}`)
       .then(async (res) => {
         if (!res.ok) return;
@@ -2579,11 +2455,8 @@ export function ChannelView({
         const target = body.message;
         if (!target) return;
         if (target.target_id === channel.id) {
-          const page = await loadPage(channel.id, target.seq + 1);
-          setMessages((prev) => {
-            const merged = [...prev, ...page.messages.filter((m) => !prev.some((p) => p.id === m.id))];
-            return merged.sort((a, b) => a.seq - b.seq);
-          });
+          // 01 过渡：目标页经 hook 重拉收敛（深链消息落在最新页内时直接定位）。
+          loadLatest();
           requestAnimationFrame(() => {
             document.getElementById(`msg-${target.id}`)?.scrollIntoView({ block: "center" });
           });
@@ -2592,7 +2465,7 @@ export function ChannelView({
         }
       })
       .catch(() => undefined);
-  }, [channel, focusMessageId, loadPage, onOpenPanel]);
+  }, [channel, focusMessageId, loadLatest, onOpenPanel]);
 
   const joined = channel?.joined ?? false;
   const isArchived = channel?.archived === 1;
@@ -2620,7 +2493,7 @@ export function ChannelView({
       }
       onChannelChanged();
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : String(e));
+      setHeldNotice(e instanceof Error ? e.message : String(e));
     } finally {
       setBusyAction(false);
     }
