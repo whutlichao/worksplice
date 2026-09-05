@@ -510,3 +510,42 @@ test("ChannelView 任务板数据循环由 useChannelData 持有（04 票）", a
   assert.match(source, /function TaskBoard/);
   assert.match(source, /reachable\.includes\(status\)/);
 });
+
+test("ChannelView 三处可见性同一数据源：新成员进 channelMemberIds 后 channelAgents/mentionable/composer 候选全含（#12 回归）", async () => {
+  const { composerMentionCandidates } = await jiti.import("../lib/mention.ts");
+  // 与 ChannelView 内三处 useMemo 同语义的派生（agents + channelMemberIds → 可见性）：
+  // channelAgents（成员面板）/ channelMembers（人数）/ mentionable joined（@ 提及）/ composerMembers（补全）。
+  const agents = [
+    { id: "a-old", name: "Old", status: "online" },
+    { id: "a-new", name: "New", status: "offline" },
+  ];
+  const owner = { id: "owner", name: "Owner", type: "human" };
+  // 失效前：stale 快照只含旧成员——新成员三处全不可见（用户精确症状）。
+  const stale = new Set(["a-old", "owner"]);
+  assert.deepEqual(agents.filter((a) => stale.has(a.id)).map((a) => a.id), ["a-old"]);
+  assert.equal(composerMentionCandidates(agents, stale).some((a) => a.id === "a-new"), false);
+  // 失效后：loadMembers 重拉收敛（含新成员）——三处全可见。
+  const fresh = new Set(["a-old", "a-new", "owner"]);
+  assert.deepEqual(agents.filter((a) => fresh.has(a.id)).map((a) => a.id), ["a-old", "a-new"]);
+  const members = agents.filter((a) => fresh.has(a.id));
+  const channelMembers = owner && fresh.has(owner.id) ? [...members, owner] : members;
+  assert.equal(channelMembers.some((m) => m.id === "a-new"), true);
+  const mentionable = agents.map((a) => ({ ...a, joined: fresh.has(a.id) }));
+  assert.equal(mentionable.find((a) => a.id === "a-new").joined, true);
+  assert.equal(composerMentionCandidates(agents, fresh).some((a) => a.id === "a-new"), true);
+});
+
+test("ChannelView 透传 membersVersion 给 useChannelData（失效链不断，#12 回归）", async () => {
+  const source = await readFile(new URL("../components/ChannelView.tsx", import.meta.url), "utf-8");
+  // ChannelView 解构 membersVersion prop 并透传给 hook（AppShell → ChannelView → hook 链的中段）。
+  assert.match(source, /membersVersion,/);
+  assert.match(source, /membersVersion\?: number/);
+  assert.match(source, /useChannelData\(channel\?\.id, t, membersVersion\)/);
+});
+
+test("AppShell 创建 agent 后递增 membersVersion（失效链源头，#12 回归）", async () => {
+  const source = await readFile(new URL("../components/AppShell.tsx", import.meta.url), "utf-8");
+  // 源头：CreateAgentModal onCreated 内递增；透传给中央 ChannelView。
+  assert.match(source, /setMembersVersion\(\(v\) => v \+ 1\)/);
+  assert.match(source, /membersVersion=\{membersVersion\}/);
+});

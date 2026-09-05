@@ -472,3 +472,30 @@ test("convertMessageToTaskRow and createBoardTaskRow post the task creation payl
   const dupFetch = async () => ({ ok: false, status: 409, json: async () => ({ error: "already a task" }) });
   await assert.rejects(() => convertMessageToTaskRow("m1", dupFetch), /already a task/);
 });
+
+// fix-new-agent-invisible 回归（#12 打回补齐）：membersVersion 显式失效。
+// 根因：channelMemberIds 只在 channelId 变化时加载，不切频道时旧快照恒 stale，
+// 人数/成员面板/@ 候选三处派生全被过滤掉。失效链：AppShell 创建后递增 →
+// ChannelView 透传 → hook 经 loadMembers 重拉收敛。
+test("shouldInvalidateMembers only invalidates on an explicit positive version", async () => {
+  const { shouldInvalidateMembers } = await jiti.import("./useChannelData.ts");
+  // 未传/0 = 旧调用方行为不变（不额外触发重拉）。
+  assert.equal(shouldInvalidateMembers(undefined), false);
+  assert.equal(shouldInvalidateMembers(0), false);
+  // 创建后递增（1, 2, …）= 显式失效，触发 loadMembers 重拉。
+  assert.equal(shouldInvalidateMembers(1), true);
+  assert.equal(shouldInvalidateMembers(2), true);
+});
+
+// 失效→重拉→收敛：loadChannelMemberIds 返回含新成员时集合收敛含新 id
+// （hook 内 effect 调用的同一纯函数；effect 本体由 ChannelView 透传测试锁定）。
+test("loadChannelMemberIds converges to include the new member after invalidation", async () => {
+  const { loadChannelMemberIds } = await jiti.import("./useChannelData.ts");
+  const stubFetch = async (url) => {
+    assert.match(url, /\/api\/channels\/c1\/members/);
+    return { ok: true, json: async () => ({ members: [{ id: "owner" }, { id: "agent-new" }] }) };
+  };
+  const ids = await loadChannelMemberIds("c1", stubFetch);
+  assert.equal(ids.has("agent-new"), true);
+  assert.equal(ids.has("owner"), true);
+});
