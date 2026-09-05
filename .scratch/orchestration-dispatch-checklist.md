@@ -3,7 +3,7 @@
 每次 `worker-start` / `dispatch` 前逐项确认。不跳项。
 
 - [ ] 任务定级：需求对齐 / 实施 / 多票并行 / 修 bug / 调研 / 架构评审 / 设计验证 / 合并冲突 / 外部 triage / 需人类步骤？
-- [ ] 需求对齐票：`grilling` + `domain-modeling`（按需 `prototype`）三份 SKILL.md 路径写进 spec 了？提问通道标为 `orchestration ask`（禁 AskUserQuestion）了吗？
+- [ ] 需求对齐票：`grill-with-docs`（=grilling+domain-modeling，按需 `prototype`）SKILL.md 路径写进 spec 了？spec 按 repo effort 模板写（Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes）了吗？提问通道标为 `orchestration ask`（禁 AskUserQuestion）了吗？
 - [ ] spec 写了 skill 前置（含 `~/.pi/agent/skills/<name>/SKILL.md` 路径 + 本次关键约束），而非只写"好好做"？
 - [ ] 实施票：`implement` + `tdd` + `code-review` 三件套齐了？验收标准是行为级（非文件行级）？
 - [ ] 多票：frontier 顺序对吗？worktree 隔离了吗？合流与统一 review 安排了吗？

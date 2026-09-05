@@ -467,7 +467,7 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 
 | 任务类型        | spec 必须写的前置                              | 关键约束                                                                                              |
 | ----------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 需求对齐        | `grilling` + `domain-modeling`（按需加 `prototype`，先定分支） | worker 先读三份 SKILL.md 全文；grilling 的“向用户提问”一律映射为 `orchestration ask`（禁 AskUserQuestion）；design tree 多轮推进、每轮给推荐答案；术语决议 inline 更新任务 worktree 内 CONTEXT.md；open 决策 ask 回来、不编造 |
+| 需求对齐        | `grill-with-docs`（=grilling+domain-modeling 组合；按需加 `prototype`） | 有文档体系必用 grill-with-docs 边访谈边落文档；worker 先读 grill-with-docs/grilling/domain-modeling 三份 SKILL.md 全文；提问通道 `orchestration ask`（禁 AskUserQuestion）；spec 按 repo effort 模板写（Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes），禁自由发挥章节；术语决议 inline 落 CONTEXT.md（非草案代码块）；ADR 三条件全满足才建；open 决策 ask 回来、不编造 |
 | 实施票         | `implement`（内含 `tdd` + 收尾 `code-review`） | 红绿单切片；收尾 Standards+Spec 双轴自审后再 worker_done                                                        |
 | 多票并行        | `implement-spec`（frontier 语义）            | 每票独立 worktree/分支；worker 间只用 context pointers 稀疏通信；合流后统一 code-review                               |
 | 修 bug       | `diagnosing-bugs`                        | 先建 tight 反馈回路（必红命令），无回路不许猜；修完留回归测试，`[DEBUG-]` 打扫干净                                                |
@@ -480,7 +480,7 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 | 需人类/凭证/第三方  | 禁止 worker 代办                             | 必须 `ask`/`escalation` 问回 coordinator，不许编造、不许代点                                                    |
 
 
-全局约束：术语用 `codebase-design` 词汇（module/interface/depth/seam/adapter/leverage/locality，不许 component/service/API/boundary）；grilling 的提问通道一律是 `orchestration ask`（禁 AskUserQuestion，dispatch preamble BEHAVIOR RULE #1）；派活前读 `.scratch/orchestration-dispatch-checklist.md` 逐项打勾。
+全局约束：术语用 `codebase-design` 词汇（module/interface/depth/seam/adapter/leverage/locality，不许 component/service/API/boundary）；grill/grill-with-docs 的提问通道一律是 `orchestration ask`（禁 AskUserQuestion，dispatch preamble BEHAVIOR RULE #1）；派活前读 `.scratch/orchestration-dispatch-checklist.md` 逐项打勾。
 
 main / worktree 职责切分（铁律）：
 
@@ -491,4 +491,4 @@ main / worktree 职责切分（铁律）：
 - 文档先行：新 effort 的 spec/tickets 先推远端，新 worktree 从 origin/main 切，自带票据。
 - 验收三件套（main 上只读执行）：测试用例执行（`npm test` 全绿，以任务 worktree 内跑的为准，coordinator 可独立重跑验证）、文件格式校验（tsc/lint 增量对照，只看改动文件相对改前基线的新增问题）、worker 工作流程校验（Answer 含 implement/tdd/code-review 证据链：红绿节奏 + Review 小节，无则打回）。
 
-不进 worker spec 的 skill（coordinator 规划侧专用）：`ask-matt`（路由）、`grill-me`/`grill-with-docs`（coordinator 亲自主持的深访谈）、`to-spec`/`to-tickets`/`to-questionnaire`（coordinator 落盘动作）、`handoff`/`claude-handoff`（会话间移交）、`setup-matt-pocock-skills`（一次性）、`wizard`（人类步骤生成器——worker 侧只保留 ask 回来）、`teach`/`wait-what`/写作类/video 类/脚手架类/`computer-use`（与代码派活无关）。`grilling` + `domain-modeling` 是需求对齐 worker 的前置（见上表“需求对齐”行）；`wayfinder` 仅当需求装不进一个 session 或 fog 重时由该 worker 按 skill 建图——三者进 spec 时提问通道一律为 `orchestration ask`。
+不进 worker spec 的 skill（coordinator 规划侧专用）：`ask-matt`（路由）、`grill-me`（coordinator 亲自主持的深访谈）、`to-spec`/`to-tickets`/`to-questionnaire`（coordinator 落盘动作）、`handoff`/`claude-handoff`（会话间移交）、`setup-matt-pocock-skills`（一次性）、`wizard`（人类步骤生成器——worker 侧只保留 ask 回来）、`teach`/`wait-what`/写作类/video 类/脚手架类/`computer-use`（与代码派活无关）。`grill-with-docs`（=grilling+domain-modeling）是需求对齐 worker 的前置（见上表“需求对齐”行）；`wayfinder` 仅当需求装不进一个 session 或 fog 重时由该 worker 按 skill 建图——两者进 spec 时提问通道一律为 `orchestration ask`。
