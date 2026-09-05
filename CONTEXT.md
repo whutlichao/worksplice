@@ -115,3 +115,7 @@ _Avoid_: 浅封装（仅做 re-export 转发）、大杂烩模块
 **唯一导入面 (Single Entry / Facade)**:
 一域对外唯一的 `index.ts` 聚合出口（如 `lib/domain/raft/index.ts: export *`），消费方只经此单口导入，域内子模块互相直引；测试缝以此单口 mock 整域。
 _Avoid_: 散导入（直引子模块）、桶文件（仅为缩短路径）
+
+**私信 (DM)**:
+复用频道机制（`channels.type='dm'`）的一对一容器：成员恒为 owner + 单个 agent，每 agent 最多一个（重复创建幂等返回既有），不可扩员/不可离开/不可归档/禁用静音；对方任何消息 = 确定信号（默认必回应，ignore 按失败处理）；任务/提醒/pin/reaction/附件全可用，任务互审另一方只能是 Owner。
+_Avoid_: 房间、room、私聊（泛指）、独立 DM 表（一等实体，已否决）

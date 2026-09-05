@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DM（私信）状态模型原型 · throwaway</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 860px; margin: 0 auto; padding: 24px; color: #222; }
+  .proto-banner { background: #fff3cd; border: 1px dashed #b89b00; padding: 8px 12px; font-size: 13px; margin-bottom: 16px; }
+  .state { background: #f6f6f6; border: 1px solid #ddd; padding: 12px 16px; margin: 16px 0; }
+  .state dt { font-weight: bold; } .state dd { margin: 2px 0 8px 0; }
+  .ok { color: #0a7a2f; } .bad { color: #c00; }
+  button { margin: 4px 6px 4px 0; padding: 6px 12px; cursor: pointer; }
+  .tabs button.active { background: #222; color: #fff; }
+  .log { background: #111; color: #ddd; padding: 10px 14px; font-size: 13px; white-space: pre-wrap; min-height: 120px; max-height: 260px; overflow-y: auto; }
+  h2 { margin-top: 28px; }
+</style>
+</head>
+<body>
+<div class="proto-banner">⚠️ THROWAWAY 原型（logic 分支）：只验证 DM 状态模型，不连真实数据库，状态全在内存。双击即开，一键运行。</div>
+<h1>DM（私信）状态模型验证</h1>
+<p><b>问题：</b>复用 channel 机制（type='dm'）能否承载"固定两人、不可扩员、每 agent 仅一 DM、默认必回应、禁用 mute"六条已对齐语义？本页用纯内存模型推送各种用例，观察非法操作是否被拒绝。</p>
+
+<h2>当前状态（每次动作后重渲染）</h2>
+<dl class="state" id="state"></dl>
+
+<h2>自由操作（任意顺序点）</h2>
+<div id="freeplay">
+  <button data-act="createDM-alice">建 DM（owner↔alice）</button>
+  <button data-act="createDM-alice-dup">重复建 DM（owner↔alice，应幂等）</button>
+  <button data-act="createDM-bob">建 DM（owner↔bob）</button>
+  <button data-act="join-third">拉第三人进 DM（应拒绝）</button>
+  <button data-act="leave">agent 离开 DM（应拒绝）</button>
+  <button data-act="archive">归档 DM（应拒绝）</button>
+  <button data-act="mute">在 DM 内 mute（应拒绝）</button>
+  <button data-act="msg-owner">owner 发消息</button>
+  <button data-act="msg-alice">alice 回消息（必回应：wake+pending）</button>
+  <button data-act="ignore-alice">alice 轮次 ignore（应判失败：不ack+error）</button>
+  <button data-act="ack-alice">alice 正常回应+ack</button>
+  <button data-act="task">owner 在 DM 建任务</button>
+  <button data-act="react">reaction / pin / 附件（应全允许）</button>
+  <button data-act="reset">重置</button>
+</div>
+
+<h2>引导走查</h2>
+<div class="tabs" id="tabs">
+  <button data-tab="happy" class="active"> happy：建DM→互发→ack</button>
+  <button data-tab="dup">幂等：重复建DM</button>
+  <button data-tab="illegal">非法：扩员/离开/归档/mute</button>
+  <button data-tab="must">必回应：ignore判失败</button>
+</div>
+<p id="tabdesc"></p>
+<div id="walksteps"></div>
+
+<h2>动作日志</h2>
+<div class="log" id="log"></div>
+
+<script>
+/* ===== 纯逻辑模块（可整体搬入 lib/domain/raft/dm.ts，真实现时把内存换成 Store） ===== */
+function createDMModel() {
+  const s = { channels: [], members: [{id:'owner'},{id:'alice'},{id:'bob'}], seq: 0, log: [] };
+  function dmFor(agentId) { return s.channels.find(c => c.type === 'dm' && c.peer === agentId); }
+  function createDM(agentId) {
+    const ex = dmFor(agentId);
+    if (ex) return { ok: true, idempotent: true, channel: ex };
+    const ch = { id: 'dm-' + agentId, type: 'dm', members: ['owner', agentId], peer: agentId, messages: [], tasks: [], muted: [], archived: false };
+    s.channels.push(ch);
+    return { ok: true, idempotent: false, channel: ch };
+  }
+  function guardDM(ch) { return ch.type === 'dm' ? null : 'not-a-dm'; }
+  return {
+    state: s,
+    createDM,
+    join(chId, who) { const ch = s.channels.find(c=>c.id===chId); if (guardDM(ch)) return {ok:false,why:'not-a-dm'}; return { ok:false, why:'DM固定两人，不可扩员' }; },
+    leave(chId, who) { return { ok:false, why:'DM不可离开（固定两人）' }; },
+    archive(chId) { return { ok:false, why:'DM不可归档' }; },
+    mute(chId, who) { return { ok:false, why:'DM内禁用mute（1对1下静音=失联）' }; },
+    send(chId, author, text) {
+      const ch = s.channels.find(c=>c.id===chId);
+      if (!ch.members.includes(author)) return { ok:false, why:'非DM成员不可写' };
+      const msg = { seq: ++s.seq, author, text };
+      ch.messages.push(msg);
+      // DM默认必回应：对方agent立即wake+pending（mustRespond=true）
+      const peer = ch.members.find(m => m !== author);
+      return { ok:true, msg, wake: { agentId: peer, mustRespond: true } };
+    },
+    round(chId, agentId, action) {
+      // 1对1下对方任何消息→必须回应；ignore=失败（不ack+error状态点）
+      if (action === 'ignore') return { ok:false, outcome:'failed', ack:false, status:'error', why:'DM内ignore按失败处理' };
+      return { ok:true, outcome:'replied', ack:true, status:'online' };
+    },
+  };
+}
+/* ===== 页面壳（throwaway） ===== */
+const m = createDMModel();
+const $ = id => document.getElementById(id);
+function render(last) {
+  const dms = m.state.channels.map(c => c.id + ' [' + c.members.join('+') + '] 消息' + c.messages.length + ' 任务' + c.tasks.length).join('；') || '（无）';
+  const st = $('state');
+  while (st.firstChild) st.removeChild(st.firstChild);
+  const mk = (tag, text, cls) => { const el = document.createElement(tag); el.textContent = text; if (cls) el.className = cls; return el; };
+  st.appendChild(mk('dt', 'DM 列表'));
+  st.appendChild(mk('dd', dms));
+  st.appendChild(mk('dt', '最近结果'));
+  st.appendChild(mk('dd', last ? JSON.stringify(last) : '—', last && last.ok === false ? 'bad' : 'ok'));
+}
+function act(name) {
+  let r;
+  const dm = () => m.state.channels.find(c=>c.id==='dm-alice') || m.createDM('alice').channel;
+  switch (name) {
+    case 'createDM-alice': r = m.createDM('alice'); break;
+    case 'createDM-alice-dup': r = m.createDM('alice'); break;
+    case 'createDM-bob': r = m.createDM('bob'); break;
+    case 'join-third': r = m.join(dm().id, 'bob'); break;
+    case 'leave': r = m.leave(dm().id, 'alice'); break;
+    case 'archive': r = m.archive(dm().id); break;
+    case 'mute': r = m.mute(dm().id, 'alice'); break;
+    case 'msg-owner': r = m.send(dm().id, 'owner', 'hi alice'); break;
+    case 'msg-alice': r = m.send(dm().id, 'alice', '收到'); break;
+    case 'ignore-alice': r = m.round(dm().id, 'alice', 'ignore'); break;
+    case 'ack-alice': r = m.round(dm().id, 'alice', 'reply'); break;
+    case 'task': { const c = dm(); c.tasks.push({n:c.tasks.length+1}); r = {ok:true, tasks:c.tasks.length, note:'互审另一方只能是Owner'}; break; }
+    case 'react': r = { ok:true, reaction:true, pin:true, attachment:true, note:'DM内全可用' }; break;
+    case 'reset': location.reload(); return;
+  }
+  $('log').textContent += `> ${name}: ${JSON.stringify(r)}\n`;
+  $('log').scrollTop = 1e6;
+  render(r);
+}
+document.querySelectorAll('#freeplay button').forEach(b => b.onclick = () => act(b.dataset.act));
+const TABS = {
+  happy: { desc: '建DM→owner发→alice回→ack，全程 ok，wake 带 mustRespond=true。', steps: ['createDM-alice','msg-owner','msg-alice','ack-alice'] },
+  dup: { desc: '重复建DM返回既有（idempotent=true），不产生第二个DM。', steps: ['createDM-alice','createDM-alice-dup'] },
+  illegal: { desc: '拉第三人/离开/归档/mute 四连，全部 ok:false。', steps: ['createDM-alice','join-third','leave','archive','mute'] },
+  must: { desc: 'alice轮次ignore→failed（不ack+error）；正常reply→ack。', steps: ['createDM-alice','msg-owner','ignore-alice','ack-alice'] },
+};
+function showTab(name) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  $('tabdesc').textContent = TABS[name].desc;
+  $('walksteps').replaceChildren();
+  TABS[name].steps.forEach((s, i) => {
+    const b = document.createElement('button'); b.textContent = `${i+1}. ${s}`; b.onclick = () => act(s);
+    $('walksteps').appendChild(b);
+  });
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+showTab('happy'); render(null);
+</script>
+</body>
+</html>
