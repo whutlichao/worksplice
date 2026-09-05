@@ -3,6 +3,7 @@ import { isAbsolute, join, resolve } from "path";
 import { randomUUID } from "crypto";
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel } from "./event-messages.ts";
+import { createDirectChannel, getDMFor } from "./channels.ts";
 import type { MemberRow, MemberStatus } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID } from "../../data/schema.ts";
 import { agentHomeDir, buildMemoryTemplate, MEMORY_FILE_NAME } from "../../data/dirs.ts";
@@ -162,6 +163,8 @@ export function createAgent(input: {
   // #all 全员自动加入（§3.2）
   getDb().addChannelMember(BUILTIN_CHANNEL_ID, agent.id);
   notifyAgentJoinedChannel(BUILTIN_CHANNEL_ID, agent.id);
+  // §R6 新建 agent 同步建 DM（与自动加入 #all 同处）
+  createDirectChannel(agent.id);
   return agent;
 }
 
@@ -235,10 +238,14 @@ export function setAgentRuntimeConfig(
  */
 export function deleteAgent(agentId: string): void {
   const agent = getAgent(agentId);
+  // §R7 soft-delete 后 DM 保留可读、不可写：归档冻结写入（复用 sendMessage 的 archived 只读语义）。
+  // 在事务前取 DM（agent 尚存活），归档与 soft-delete 同事务原子提交。
+  const dm = getDMFor(agent.id);
   getDb().withTransaction(() => {
     getDb().setMemberDeleted(agent.id, 1);
     getDb().removeMemberFromAllChannels(agent.id);
     getDb().clearTaskOwners(agent.id);
     getDb().clearConsumedSeqsForAgent(agent.id);
+    if (dm) getDb().setChannelArchived(dm.id, 1);
   });
 }

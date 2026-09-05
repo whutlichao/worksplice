@@ -1,7 +1,7 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel, notifyChannelCreated, findSusanMember } from "./event-messages.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
-import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../../data/schema.ts";
+import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID, DM_ID_PREFIX } from "../../data/schema.ts";
 
 /** 当前人类用户恒为 Owner（§3.6：本地单机形态下 Owner 级操作由 human 在 UI 直接执行）。 */
 export const CURRENT_MEMBER_ID = OWNER_MEMBER_ID;
@@ -26,6 +26,44 @@ function assertMember(memberId: string): MemberRow {
   return member;
 }
 
+/** DM 频道确定性 id：`dm:owner↔<agent名>`（spec R7，天然幂等）。 */
+function directChannelId(agentName: string): string {
+  return `${DM_ID_PREFIX}${agentName}`;
+}
+
+/** 频道是否为 DM（私信，一对一 owner↔agent）。 */
+export function isDM(channelId: string): boolean {
+  return getDb().getChannel(channelId)?.type === "dm";
+}
+
+/** 某 agent 的 DM 频道（无则返回 undefined；非 agent/不存在同样 undefined）。 */
+export function getDMFor(agentId: string): ChannelRow | undefined {
+  const member = getDb().getMember(agentId);
+  if (!member || member.type !== "agent") return undefined;
+  return getDb().getChannel(directChannelId(member.name));
+}
+
+/**
+ * 创建（或取回）某 agent 的一对一 DM（§R1/R2）：确定性 id 天然幂等，重复调用返回既有 DM；
+ * 成员恒为 owner + 1 agent，创建时定死。agent 不存在/非 agent 抛错。
+ */
+export function createDirectChannel(agentId: string): ChannelRow {
+  const member = getDb().getMember(agentId);
+  if (!member || member.type !== "agent") throw new Error("Agent not found");
+  const id = directChannelId(member.name);
+  const existing = getDb().getChannel(id);
+  if (existing) return existing;
+  const channel = getDb().insertChannel({ id, name: id, type: "dm", description: "" });
+  getDb().addChannelMember(id, OWNER_MEMBER_ID);
+  getDb().addChannelMember(id, agentId);
+  return channel;
+}
+
+/** DM 禁改守卫（§R2/R5：不可加人/退订/归档/静音，对标 #all 先例）。 */
+function assertNotDM(channel: ChannelRow): void {
+  if (channel.type === "dm") throw new Error("Cannot modify a DM channel");
+}
+
 /**
  * 创建 channel 并自动加入创建者（Owner）+ 初始成员（§3.2 创建 channel 规则）。
  * 私有 channel 的初始成员也由创建者（Owner）直接指定，属合法路径。
@@ -39,6 +77,9 @@ export function createChannel(input: {
   const name = input.name.trim();
   if (!name) throw new Error("Channel name is required");
   if (name.length > 32) throw new Error("Channel name must be 32 characters or fewer");
+  if (input.type === "dm") {
+    throw new Error("DM channels are created via createDirectChannel");
+  }
   const channel = getDb().insertChannel({
     name,
     type: input.type ?? "public",
@@ -68,6 +109,7 @@ export function joinChannel(
   actorId: string = memberId,
 ): void {
   const channel = assertChannel(channelId);
+  assertNotDM(channel);
   assertMember(memberId);
   if (memberId !== actorId && actorId !== OWNER_MEMBER_ID) {
     throw new Error("Only the owner can add other members");
@@ -88,7 +130,8 @@ export function leaveChannel(
   memberId: string,
   actorId: string = memberId,
 ): void {
-  assertChannel(channelId);
+  const channel = assertChannel(channelId);
+  assertNotDM(channel);
   assertMember(memberId);
   if (channelId === BUILTIN_CHANNEL_ID) {
     throw new Error("Cannot leave the #all channel");
@@ -108,7 +151,8 @@ export function setChannelArchived(
   archived: boolean,
   actorId: string = OWNER_MEMBER_ID,
 ): ChannelRow {
-  assertChannel(channelId);
+  const channel = assertChannel(channelId);
+  assertNotDM(channel);
   if (channelId === BUILTIN_CHANNEL_ID) {
     throw new Error("Cannot archive the #all channel");
   }
@@ -142,7 +186,8 @@ export function muteChannel(
   memberId: string,
   actorId: string = memberId,
 ): ChannelMute {
-  assertChannel(channelId);
+  const channel = assertChannel(channelId);
+  assertNotDM(channel);
   assertMember(memberId);
   if (memberId !== actorId && actorId !== OWNER_MEMBER_ID) {
     throw new Error("Only the owner can mute for other members");
@@ -162,7 +207,8 @@ export function unmuteChannel(
   memberId: string,
   actorId: string = memberId,
 ): void {
-  assertChannel(channelId);
+  const channel = assertChannel(channelId);
+  assertNotDM(channel);
   assertMember(memberId);
   if (memberId !== actorId && actorId !== OWNER_MEMBER_ID) {
     throw new Error("Only the owner can unmute for other members");

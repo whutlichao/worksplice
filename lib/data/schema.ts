@@ -1,15 +1,18 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
+
+/** DM 频道 id 前缀（§R7 命名固定 `dm:owner↔<agent名>`，确定性 id 天然幂等）。 */
+export const DM_ID_PREFIX = "dm:owner↔";
 
 const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS channels (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    type TEXT NOT NULL DEFAULT 'public' CHECK (type IN ('public', 'private')),
+    type TEXT NOT NULL DEFAULT 'public' CHECK (type IN ('public', 'private', 'dm')),
     description TEXT NOT NULL DEFAULT '',
     archived INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
@@ -190,6 +193,9 @@ function migrateMessagesFtsTrigram(db: Database.Database): void {
 }
 
 export function runMigrations(db: Database.Database): void {
+  // v12 CHECK 改写必须先于 seed 的 DM 补齐执行（老库 CHECK 无 'dm'，INSERT type='dm' 会违反约束）；
+  // 且该重建需 PRAGMA foreign_keys 开关（事务内 no-op），故放在事务外。
+  migrateChannelsDmType(db);
   db.transaction(() => {
     migrateMessagesFtsTrigram(db);
     for (const statement of SCHEMA_STATEMENTS) {
@@ -243,6 +249,45 @@ function migrateTasksReopenedColumn(db: Database.Database): void {
   }
 }
 
+/**
+ * v12: channels.type CHECK 扩展 'dm'（私信，一对一 owner↔agent 频道）。
+ * SQLite 无法用 ALTER 改 CHECK，故用 expand-contract 重建表：
+ * foreign_keys 关闭（重建中目标表瞬时缺失）+ legacy_alter_table 开启（RENAME 时不改写
+ * channel_members/pinned_messages/channel_mutes/channel_reads 里指向 channels 的外键，
+ * 否则重命名后引用会随表名漂到 channels_old，DROP 后悬空）→ RENAME → 建新表 → 拷贝 → DROP。
+ * 幂等：检测 sqlite_master 建表 sql 已含 'dm' 即跳过（可重跑）。
+ */
+function migrateChannelsDmType(db: Database.Database): void {
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels'")
+    .get() as { sql: string } | undefined;
+  if (!row) return; // 全新库：channels 尚不存在，由 SCHEMA_STATEMENTS 以新 CHECK 创建
+  if (row.sql.includes("'dm'")) return;
+
+  db.pragma("foreign_keys = OFF");
+  db.pragma("legacy_alter_table = ON");
+  try {
+    db.transaction(() => {
+      db.exec("ALTER TABLE channels RENAME TO channels_old");
+      db.exec(`CREATE TABLE channels (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'public' CHECK (type IN ('public', 'private', 'dm')),
+        description TEXT NOT NULL DEFAULT '',
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )`);
+      db.exec(
+        "INSERT INTO channels (id, name, type, description, archived, created_at) SELECT id, name, type, description, archived, created_at FROM channels_old",
+      );
+      db.exec("DROP TABLE channels_old");
+    })();
+  } finally {
+    db.pragma("legacy_alter_table = OFF");
+    db.pragma("foreign_keys = ON");
+  }
+}
+
 function seed(db: Database.Database): void {
   const createdAt = new Date().toISOString();
   db.prepare(
@@ -263,4 +308,18 @@ function seed(db: Database.Database): void {
     `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
      SELECT ?, id, ? FROM members WHERE deleted = 0`,
   ).run(BUILTIN_CHANNEL_ID, createdAt);
+  // §R6 存量 agent 幂等补齐 DM（一对一 owner↔agent）：确定性 id `dm:owner↔<name>` +
+  // INSERT OR IGNORE 保证可重跑不重复建；软删 agent（deleted=1）不新建 DM（对标 #all 补齐写法）。
+  db.prepare(
+    `INSERT OR IGNORE INTO channels (id, name, type, description, archived, created_at)
+     SELECT ? || name, ? || name, 'dm', '', 0, ? FROM members WHERE type = 'agent' AND deleted = 0`,
+  ).run(DM_ID_PREFIX, DM_ID_PREFIX, createdAt);
+  db.prepare(
+    `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
+     SELECT ? || name, ?, ? FROM members WHERE type = 'agent' AND deleted = 0`,
+  ).run(DM_ID_PREFIX, OWNER_MEMBER_ID, createdAt);
+  db.prepare(
+    `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
+     SELECT ? || name, id, ? FROM members WHERE type = 'agent' AND deleted = 0`,
+  ).run(DM_ID_PREFIX, createdAt);
 }

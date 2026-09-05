@@ -90,8 +90,10 @@ export function initSecretaryFlow(options: InitSecretaryOptions = {}): MemberRow
   writeFileSync(join(homeDir, SECRETARY_GUIDE_FILE_NAME), guideContent, "utf8");
 
   // ③ 频道覆盖：全部现存频道（公开 + 私有）静默加入——joinChannel 对 Susan 的加入不投事件
-  //    （§7 不存在"欢迎自己"）；#all 已由 createAgent 加入，重复加入幂等
+  //    （§7 不存在"欢迎自己"）；#all 已由 createAgent 加入，重复加入幂等。
+  //    DM 频道跳过：成员创建时定死（owner + 1 agent），不可加入（§R2）。
   for (const channel of listChannels()) {
+    if (channel.type === "dm") continue;
     if (!isChannelMember(channel.id, susan.id)) {
       joinChannel(channel.id, susan.id, OWNER_MEMBER_ID);
     }
