@@ -80,14 +80,27 @@ function claimBlockReason(current: TaskRow, memberId: string): string | null {
 }
 
 /**
+ * 任务所在 channel 是否为 DM（票据 04 DM 特判：互审仅 Owner 可做）。
+ * 锚点消息/channel 缺失时按非 DM 处理（有效任务必经 resolveTaskChannel 校验，此处防御性兜底）。
+ */
+function isTaskInDM(task: TaskRow): boolean {
+  const anchor = getDb().getMessage(task.message_id);
+  if (!anchor) return false;
+  return getChannel(anchor.target_id)?.type === "dm";
+}
+
+/**
  * 状态机转移表（§3.7）：key = 当前状态，value = 可达状态 → 授权谓词。
  * clearOwner：转移后释放回池（unclaim/reopen）。
  * reopen：置 reopened 标记（重开封锁，§3.7）——agent-loop 不可自动认领，人类认领即清标。
  * 互审授权（§3.7）：approve/reject（in_review → done / in_progress）由非任务 owner 的审者执行——
  * "构建者不验证自己"。人类 Owner（CURRENT_MEMBER_ID）豁免：作为工作区唯一权威可批准/驳回
  * 自己的工作（其他角色仍需他人互审）——否则人类单独完成的 in_review 任务无人可审，卡死在该态。
+ * DM 特判（票据 04，R5）：DM 内 approve/reject 仅人类 Owner 可做——agent 永不当审核者；
+ * agent 建任务 complete→in_review 后由 Owner 审；Owner 建任务走人类豁免自审。
  */
 function reviewAuthorized(task: TaskRow, actorId: string): boolean {
+  if (isTaskInDM(task)) return actorId === CURRENT_MEMBER_ID;
   return task.owner_id !== actorId || actorId === CURRENT_MEMBER_ID;
 }
 
@@ -285,6 +298,9 @@ export function updateTaskStatus(input: {
     if (!transition) throw new InvalidTaskTransitionError(current.status, input.status);
     if (!transition.authorized(current, input.memberId)) {
       if (current.status === "in_review") {
+        if (isTaskInDM(current)) {
+          throw new TaskNotAuthorizedError("In a DM, only the owner can approve or reject tasks");
+        }
         throw new TaskNotAuthorizedError("The builder cannot verify their own work");
       }
       throw new TaskNotAuthorizedError("Only the task owner can do this");
