@@ -7,7 +7,7 @@
  * 不再涉及具体 adapter。
  */
 
-export type ChannelType = "public" | "private";
+export type ChannelType = "public" | "private" | "dm";
 export type MemberType = "human" | "agent";
 export type MemberRole = "owner" | "member";
 export type MemberStatus = "online" | "working" | "error" | "offline";
