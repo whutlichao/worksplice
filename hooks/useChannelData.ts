@@ -469,11 +469,20 @@ export async function postChannelMessage(
 export function useChannelData(channelId: string | undefined, t?: (key: string, params?: Record<string, string | number>) => string) {
   const latestRequestRef = useRef(0);
   const cacheRef = useRef(new Map<string, ChannelMessagesPage>());
+  /** 附属区分桶缓存：成员/mute/pinned/任务切回看过的频道直接命中快照，避免计数先空后闪。
+   * pinned 缓存键含 sort（`cid:sort`），与服务端排序语义对齐。 */
+  const membersCacheRef = useRef(new Map<string, Set<string>>());
+  const mutesCacheRef = useRef(new Map<string, ChannelMuteRow[]>());
+  const pinnedCacheRef = useRef(new Map<string, PinnedItem[]>());
+  const tasksCacheRef = useRef(new Map<string, ChannelTask[]>());
 
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [maxSeq, setMaxSeq] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** 消息加载态：区分“正在拉新频道首屏”与“该频道真没消息”，避免切换时闪一下空态。
+   * 缓存命中时为 false（直接画快照）；仅缓存未命中等待首包时为 true。 */
+  const [messagesLoading, setMessagesLoading] = useState(true);
   // 02 票：发送通道状态——held 提示与发送并发锁。
   const [heldNotice, setHeldNotice] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState(false);
@@ -484,6 +493,11 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   const [mutes, setMutes] = useState<ChannelMuteRow[]>([]);
   const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(new Set());
   const [membersError, setMembersError] = useState<string | null>(null);
+  /** 附属区加载态：首包回来前头部计数位显示占位符，不先画空再闪出数字。 */
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [mutesLoading, setMutesLoading] = useState(true);
+  const [pinnedLoading, setPinnedLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(true);
   // 04 票：任务板数据循环状态。
   const [tasks, setTasks] = useState<ChannelTask[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -520,74 +534,94 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   }, [channelId, loadPage]);
 
   // 03 票：pinned 列表加载（当前成员的个性化 pinned，排序三选一经服务端）。
+  // 写 pinnedCache（键含 sort），供切换/切回直接命中快照。
   const loadPinned = useCallback(() => {
     const id = channelId;
     if (!id) {
       setPinnedItems([]);
+      setPinnedLoading(false);
       return;
     }
     const sort = pinnedSortRef.current;
     void loadPinnedPage(id, sort)
       .then((items) => {
         if (channelIdRef.current !== id) return;
+        pinnedCacheRef.current.set(`${id}:${sort}`, items);
         setPinnedItems(items);
         setPinnedError(null);
+        setPinnedLoading(false);
       })
       .catch((e) => {
         if (channelIdRef.current !== id) return;
         setPinnedError(e instanceof Error ? e.message : String(e));
+        setPinnedLoading(false);
       });
   }, [channelId]);
 
   // 04 票：任务板加载（服务端按 number 升序，含 reachable/reopened 视图附料）。
+  // 写 tasksCache，供切换/切回直接命中快照。
   const loadTasks = useCallback(() => {
     const id = channelId;
     if (!id) {
       setTasks([]);
+      setTasksLoading(false);
       return;
     }
     void loadTasksPage(id)
       .then((rows) => {
         if (channelIdRef.current !== id) return;
+        tasksCacheRef.current.set(id, rows);
         setTasks(rows);
         setTasksError(null);
+        setTasksLoading(false);
       })
       .catch((e) => {
         if (channelIdRef.current !== id) return;
         setTasksError(e instanceof Error ? e.message : String(e));
+        setTasksLoading(false);
       });
   }, [channelId]);
 
-  // 03 票：附属区加载（mute 列表 + 频道成员 id 集合）。
+  // 03 票：附属区加载（mute 列表 + 频道成员 id 集合）。写对应缓存，供切换/切回命中快照。
   const loadMutes = useCallback(() => {
     const id = channelId;
     if (!id) {
       setMutes([]);
+      setMutesLoading(false);
       return;
     }
     void loadMutesPage(id)
       .then((rows) => {
         if (channelIdRef.current !== id) return;
+        mutesCacheRef.current.set(id, rows);
         setMutes(rows);
+        setMutesLoading(false);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (channelIdRef.current !== id) return;
+        setMutesLoading(false);
+      });
   }, [channelId]);
 
   const loadMembers = useCallback(() => {
     const id = channelId;
     if (!id) {
       setChannelMemberIds(new Set());
+      setMembersLoading(false);
       return;
     }
     void loadChannelMemberIds(id)
       .then((ids) => {
         if (channelIdRef.current !== id) return;
+        membersCacheRef.current.set(id, ids);
         setChannelMemberIds(ids);
         setMembersError(null);
+        setMembersLoading(false);
       })
       .catch((e) => {
         if (channelIdRef.current !== id) return;
         setMembersError(e instanceof Error ? e.message : String(e));
+        setMembersLoading(false);
       });
   }, [channelId]);
 
@@ -603,10 +637,14 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
       setHasMore(cached.hasMore);
       setMaxSeq(cached.maxSeq);
       setLoadError(null);
+      setMessagesLoading(false);
     } else {
+      // 缓存未命中：先清空旧频道内容（避免把 A 频道的消息顶着 B 频道的标题展示），
+      // 首包回来前只亮加载态，不画“该频道还没有消息”空态。
       setMessages([]);
       setHasMore(false);
       setMaxSeq(0);
+      setMessagesLoading(true);
       setLoadError(null);
     }
     void loadPage(cid)
@@ -614,6 +652,7 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
         if (latestRequestRef.current !== requestId) return;
         const prev = cacheRef.current.get(cid);
         cacheRef.current.set(cid, page);
+        setMessagesLoading(false);
         // 后台刷新与缓存一致时跳过 setState，避免重复 commit 造成的闪动。
         if (prev && isSameMessagesPage(prev, page)) return;
         setMessages(page.messages);
@@ -622,50 +661,97 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
       })
       .catch((e) => {
         if (latestRequestRef.current !== requestId) return;
+        setMessagesLoading(false);
         setLoadError(e instanceof Error ? e.message : String(e));
       });
-    // 03 票：pinned/附属区随频道切换重拉（旧频道状态先清空，避免旧内容闪现）。
-    // 04 票：任务板随频道切换重拉（旧频道任务先清空，messages tab 右键 Convert 判定依赖）。
-    setPinnedItems([]);
-    setPinnedError(null);
-    setMutes([]);
-    setChannelMemberIds(new Set());
-    setMembersError(null);
+    // 03 票：pinned/附属区随频道切换重拉。缓存命中直接画快照（不闪空）；
+    // 未命中才清空旧值 + 亮 loading + 后台重拉（旧频道状态先清空，避免旧内容闪现）。
+    // 04 票：任务板同策略（右键 Convert 判定依赖旧频道任务清空，仍先清空再快照覆盖）。
+    const sortAtSwitch = pinnedSortRef.current;
+    const cachedPinned = pinnedCacheRef.current.get(`${cid}:${sortAtSwitch}`);
+    const cachedMutes = mutesCacheRef.current.get(cid);
+    const cachedMembers = membersCacheRef.current.get(cid);
+    const cachedTasks = tasksCacheRef.current.get(cid);
+    if (cachedPinned) {
+      setPinnedItems(cachedPinned);
+      setPinnedError(null);
+      setPinnedLoading(false);
+    } else {
+      setPinnedItems([]);
+      setPinnedError(null);
+      setPinnedLoading(true);
+    }
+    if (cachedMutes) {
+      setMutes(cachedMutes);
+      setMutesLoading(false);
+    } else {
+      setMutes([]);
+      setMutesLoading(true);
+    }
+    if (cachedMembers) {
+      setChannelMemberIds(cachedMembers);
+      setMembersError(null);
+      setMembersLoading(false);
+    } else {
+      setChannelMemberIds(new Set());
+      setMembersError(null);
+      setMembersLoading(true);
+    }
+    // 任务板：旧频道任务先清空（messages tab 右键 Convert 判定依赖），命中再覆盖。
     setTasks([]);
     setTasksError(null);
+    setTasksLoading(true);
+    if (cachedTasks) {
+      setTasks(cachedTasks);
+      setTasksLoading(false);
+    }
     void loadPinnedPage(cid, pinnedSortRef.current)
       .then((items) => {
         if (latestRequestRef.current !== requestId) return;
+        pinnedCacheRef.current.set(`${cid}:${pinnedSortRef.current}`, items);
         setPinnedItems(items);
+        setPinnedLoading(false);
       })
       .catch((e) => {
         if (latestRequestRef.current !== requestId) return;
         setPinnedError(e instanceof Error ? e.message : String(e));
+        setPinnedLoading(false);
       });
     void loadMutesPage(cid)
       .then((rows) => {
         if (latestRequestRef.current !== requestId) return;
+        mutesCacheRef.current.set(cid, rows);
         setMutes(rows);
+        setMutesLoading(false);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (latestRequestRef.current !== requestId) return;
+        setMutesLoading(false);
+      });
     // 04 票：任务板随频道切换重拉（旧频道任务已清空，重拉收敛到服务端事实）。
     void loadTasksPage(cid)
       .then((rows) => {
         if (latestRequestRef.current !== requestId) return;
+        tasksCacheRef.current.set(cid, rows);
         setTasks(rows);
+        setTasksLoading(false);
       })
       .catch((e) => {
         if (latestRequestRef.current !== requestId) return;
         setTasksError(e instanceof Error ? e.message : String(e));
+        setTasksLoading(false);
       });
     void loadChannelMemberIds(cid)
       .then((ids) => {
         if (latestRequestRef.current !== requestId) return;
+        membersCacheRef.current.set(cid, ids);
         setChannelMemberIds(ids);
+        setMembersLoading(false);
       })
       .catch((e) => {
         if (latestRequestRef.current !== requestId) return;
         setMembersError(e instanceof Error ? e.message : String(e));
+        setMembersLoading(false);
       });
     // loadPage 稳定引用，仅 channelId 变化时重跑。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -790,7 +876,9 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
       const row = mutesRef.current.find((m) => m.memberId === memberId);
       if (!row) return null;
       const next = await toggleChannelMute(channelId, memberId, row.muted);
-      setMutes((prev) => prev.map((x) => (x.memberId === memberId ? { ...x, muted: next } : x)));
+      const updated = mutesRef.current.map((x) => (x.memberId === memberId ? { ...x, muted: next } : x));
+      mutesCacheRef.current.set(channelId, updated);
+      setMutes(updated);
       return next;
     },
     [channelId],
@@ -873,6 +961,10 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
       if (!channelId) return null;
       try {
         const created = await convertMessageToTaskRow(message.id);
+        if (channelId) {
+          const prev = tasksCacheRef.current.get(channelId) ?? [];
+          tasksCacheRef.current.set(channelId, [...prev, created]);
+        }
         setTasks((prev) => [...prev, created]);
         setTaskNotice(t ? t("tasks.converted", { number: String(created.number) }) : `task #${created.number}`);
         return created;
@@ -922,5 +1014,5 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
     [runTaskTransition, completeTask],
   );
 
-  return { messages, maxSeq, hasMore, loadError, loadPage, loadLatest, loadEarlier, send, heldNotice, busyAction, setBusyAction, setHeldNotice, pinnedItems, pinnedSort, setPinnedSort, pinnedError, loadPinned, togglePin, reorderPinned, mutes, loadMutes, toggleMute, channelMemberIds, membersError, loadMembers, tasks, tasksError, taskNotice, setTasksError, setTaskNotice, loadTasks, runTaskTransition, completeTask, convertToTask, createTaskFromBoard, taskOps };
+  return { messages, messagesLoading, maxSeq, hasMore, loadError, loadPage, loadLatest, loadEarlier, send, heldNotice, busyAction, setBusyAction, setHeldNotice, pinnedItems, pinnedSort, setPinnedSort, pinnedError, pinnedLoading, loadPinned, togglePin, reorderPinned, mutes, mutesLoading, loadMutes, toggleMute, channelMemberIds, membersLoading, membersError, loadMembers, tasks, tasksLoading, tasksError, taskNotice, setTasksError, setTaskNotice, loadTasks, runTaskTransition, completeTask, convertToTask, createTaskFromBoard, taskOps };
 }
