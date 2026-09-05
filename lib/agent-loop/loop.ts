@@ -15,6 +15,7 @@ import {
   getAgent,
   getSince,
   isChannelMember,
+  isDM,
   joinChannel,
   listAgents,
   listRelatedTasks,
@@ -28,6 +29,7 @@ import {
 import { publishAgentStatus, startAgentStatusSweeper } from "../agent-status.ts";
 import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
+import { OWNER_MEMBER_ID } from "../data/schema.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/types.ts";
 import {
   BUSY_CWD_RETRY_DELAY_MS,
@@ -248,6 +250,11 @@ export function buildReplyPrompt(input: {
   lines.push(
     "- MUST reply: you are personally @mentioned in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
   );
+  if (input.channel.type === "dm") {
+    lines.push(
+      "- DM rule: this channel is your direct message with the owner — a human message from the owner here is always a MUST reply; ignoring it is treated as a failure.",
+    );
+  }
   lines.push(
     "- MAY reply: the message concerns your role, your workspace, or your current work — answer when you can add value.",
   );
@@ -694,6 +701,16 @@ export function hasMustRespondSignal(
   if (incoming.some((message) => extractMentionedMemberIds(message.content).includes(agentId))) {
     return true;
   }
+  // DM 确定信号（R4）：DM target 下作者为 owner（人类）的消息必须回应。
+  // DM 内 agent 自己的消息/系统事件已由 drain 的 author 过滤与 reminder 轮次规则
+  // 挡在 incoming 之外，此处的 owner 消息即真实的人类私信。
+  if (
+    incoming.length > 0 &&
+    isDM(targetId) &&
+    incoming.some((message) => message.author_id === OWNER_MEMBER_ID)
+  ) {
+    return true;
+  }
   if (incoming.length > 0 && ownsInProgressTaskAt(agentId, targetId)) {
     return true;
   }
@@ -1131,6 +1148,9 @@ async function waitForSettle(agentId: string, targetId: string, reason: WakeReas
       return;
     }
     // 11-收敛：settle 等待由 cwd-mutex 的 waitForCwdSettle 提供（SETTLE_EVENTS 唯一来源 + 订阅后 isRunning 复核）。
+    // SAFETY: waitTarget 是 LoopSession，结构上满足 SettleableSession（isRunning + onEvent）；
+    // 仅接口名不同，且 LoopSession 的 onEvent 监听器参数更宽（{type:string}&Record<string,unknown>）——
+    // 逆变安全，cast 仅弥合类型命名差异，无运行时风险。
     const unsub = waitForCwdSettle(waitTarget as unknown as import("../cwd-mutex.ts").SettleableSession, retry);
     state.settleUnsubs.set(agentId, unsub);
   } catch {
