@@ -221,6 +221,14 @@ export async function toggleChannelMute(
   return next;
 }
 
+/** 成员集合显式失效判定（纯函数：hook 内失效 effect 的决策面，便于测试）。
+ *
+ * 新建 agent 自动加入 #all 后外部成员集已变——调用方经 membersVersion 递增
+ * 宣告失效（>0 即重拉）；未传/0 时不触发（旧调用方行为不变）。 */
+export function shouldInvalidateMembers(membersVersion?: number): boolean {
+  return membersVersion !== undefined && membersVersion !== 0;
+}
+
 /** 取频道成员 id 集合（纯函数：fetch 可注入，便于测试）。 */
 export async function loadChannelMemberIds(
   channelId: string,
@@ -631,7 +639,7 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   // loadMembers 重拉收敛（缓存键仍按 channelId，不污染切换频道的快照纪律）。
   // membersVersion 未传时不触发（旧调用方行为不变）。
   useEffect(() => {
-    if (membersVersion === undefined || membersVersion === 0) return;
+    if (!shouldInvalidateMembers(membersVersion)) return;
     loadMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [membersVersion]);
