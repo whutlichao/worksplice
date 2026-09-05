@@ -106,3 +106,37 @@ test("BAI-6: no badge when unread is 0", () => {
   const row = channelRow(html, "quiet");
   assert.doesNotMatch(row, /99\+|>[1-9]\d*<\/span>/);
 });
+
+test("DM channels render in a separate 私信 group, stripped of the dm:owner↔ prefix", () => {
+  const html = sidebarHtml([
+    { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0 },
+    { id: "c1", name: "general", type: "public", unread: 0 },
+    { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0 },
+    { id: "dm:owner↔Mike", name: "dm:owner↔Mike", type: "dm", unread: 0 },
+  ]);
+  // 独立分组标题（私信）与频道组并存
+  assert.match(html, /Direct messages/);
+  assert.match(html, /Channels/);
+  // 前缀剥离：不渲染原始 dm:owner↔ 前缀
+  assert.doesNotMatch(html, /dm:owner↔/);
+  // 只显示 agent 名
+  assert.match(html, /Alpha/);
+  assert.match(html, /Mike/);
+  assert.match(html, /Zeta/);
+});
+
+test("DM channels are sorted by agent name (id 形如 dm:owner↔<名>)", () => {
+  const html = sidebarHtml([
+    { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0 },
+    { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0 },
+    { id: "dm:owner↔Mike", name: "dm:owner↔Mike", type: "dm", unread: 0 },
+  ]);
+  assert.ok(html.indexOf(">Alpha<") < html.indexOf(">Mike<"), "Alpha before Mike");
+  assert.ok(html.indexOf(">Mike<") < html.indexOf(">Zeta<"), "Mike before Zeta");
+});
+
+test("DM channel unread badge renders (unread 口径与频道一致)", () => {
+  const html = sidebarHtml([{ id: "dm:owner↔Nova", name: "dm:owner↔Nova", type: "dm", unread: 7 }]);
+  const row = channelRow(html, "Nova");
+  assert.match(row, />7<\/span>/);
+});

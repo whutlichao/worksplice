@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { AlarmClock, Search, X } from "lucide-react";
+import { AlarmClock, MessageSquare, Search, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
 import type { ChannelWithMeta } from "./ChannelView";
 import type { MemberRow } from "@/lib/data/types";
+import { DM_ID_PREFIX } from "@/lib/data/schema";
 
 const INK = "#141111";
 const LABEL_STYLE: React.CSSProperties = {
@@ -28,6 +29,96 @@ const REST_STYLE = {
   boxShadow: "3px 3px 0 0 rgba(20, 17, 17, 0.55)",
   transform: "none",
 } as const;
+
+const rowStyle = (isSelected: boolean): React.CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  width: "100%",
+  padding: "6px 10px",
+  marginBottom: 4,
+  cursor: "pointer",
+  textAlign: "left",
+  fontFamily: "var(--font-space-grotesk)",
+  fontSize: 13,
+  fontWeight: isSelected ? 700 : 500,
+  color: "var(--text)",
+  background: isSelected ? "var(--yellow)" : "transparent",
+  border: `2px solid ${INK}`,
+  borderColor: isSelected ? INK : "transparent",
+  boxShadow: isSelected ? "2px 2px 0 0 rgba(20, 17, 17, 0.45)" : "none",
+  transition: "background 0.08s, box-shadow 0.08s, transform 0.08s",
+});
+
+/** DM 频道显示名 = 剥离 `dm:owner↔` 前缀后的 agent 名（DM id == name，见 schema DM_ID_PREFIX）。 */
+function dmAgentName(name: string): string {
+  return name.startsWith(DM_ID_PREFIX) ? name.slice(DM_ID_PREFIX.length) : name;
+}
+
+/** 频道行（§03 起普通频道 / 私信两组复用）：DM 显示 agent 名 + MessageSquare 图标，其余同普通频道。 */
+function ChannelRow({
+  channel,
+  isDM,
+  isSelected,
+  onSelect,
+}: {
+  channel: ChannelWithMeta;
+  isDM: boolean;
+  isSelected: boolean;
+  onSelect: (channelId: string) => void;
+}) {
+  const { t } = useI18n();
+  const glyphColor = isSelected ? INK : "var(--text-muted)";
+  return (
+    <button type="button" onClick={() => onSelect(channel.id)} style={rowStyle(isSelected)}>
+      {isDM ? (
+        <MessageSquare size={13} style={{ color: glyphColor, flexShrink: 0 }} />
+      ) : (
+        <span
+          style={{
+            fontFamily: "var(--font-space-mono)",
+            fontSize: 13,
+            fontWeight: 700,
+            color: glyphColor,
+            flexShrink: 0,
+          }}
+        >
+          #
+        </span>
+      )}
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {isDM ? dmAgentName(channel.name) : channel.name}
+      </span>
+      {channel.unread > 0 && !isSelected ? (
+        <span
+          title={t("shell.unread", { count: String(channel.unread) })}
+          style={{
+            marginLeft: "auto",
+            minWidth: 20,
+            padding: "1px 5px",
+            fontFamily: "var(--font-space-mono)",
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: 1.5,
+            textAlign: "center",
+            background: "var(--yellow)",
+            color: "var(--text)",
+            border: `2px solid ${INK}`,
+            borderRadius: 999,
+          }}
+        >
+          {channel.unread > 99 ? "99+" : channel.unread}
+        </span>
+      ) : (
+        channel.archived === 1 && (
+          <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-dim)" }}>
+            {t("channel.archived")}
+          </span>
+        )
+      )}
+    </button>
+  );
+}
 
 /**
  * 左栏（ticket 13）：只高亮频道行（中央 = 当前频道）；agent 行点击 = 打开右栏面板，无选中态。
@@ -68,25 +159,11 @@ export function WorkspaceSidebar({
   // §6.4 搜索入口：Enter 发起全文搜索（结果在中央 SearchView，打开动作深链定位）
   const [searchDraft, setSearchDraft] = useState("");
 
-  const rowStyle = (isSelected: boolean): React.CSSProperties => ({
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    width: "100%",
-    padding: "6px 10px",
-    marginBottom: 4,
-    cursor: "pointer",
-    textAlign: "left",
-    fontFamily: "var(--font-space-grotesk)",
-    fontSize: 13,
-    fontWeight: isSelected ? 700 : 500,
-    color: "var(--text)",
-    background: isSelected ? "var(--yellow)" : "transparent",
-    border: `2px solid ${INK}`,
-    borderColor: isSelected ? INK : "transparent",
-    boxShadow: isSelected ? "2px 2px 0 0 rgba(20, 17, 17, 0.45)" : "none",
-    transition: "background 0.08s, box-shadow 0.08s, transform 0.08s",
-  });
+  // §03 私信分组：type='dm' 过滤，按 agent 名排序（DM id 形如 dm:owner↔<名>）。
+  const dmChannels = channels
+    .filter((channel) => channel.type === "dm")
+    .sort((a, b) => dmAgentName(a.name).localeCompare(dmAgentName(b.name)));
+  const regularChannels = channels.filter((channel) => channel.type !== "dm");
 
   const actionButton = (pink: boolean): React.CSSProperties => ({
     flex: 1,
@@ -282,64 +359,36 @@ export function WorkspaceSidebar({
         )}
 
         <div style={LABEL_STYLE}>{t("shell.channels")}</div>
-        {channels.length === 0 && (
+        {regularChannels.length === 0 && (
           <div style={{ padding: "4px 12px 8px", fontSize: 12, color: "var(--text-dim)" }}>
             {t("shell.noChannels")}
           </div>
         )}
-        {channels.map((channel) => {
-          const isSelected = selectedChannelId === channel.id;
-          return (
-            <button
-              key={channel.id}
-              type="button"
-              onClick={() => onSelectChannel(channel.id)}
-              style={rowStyle(isSelected)}
-            >
-              <span
-                style={{
-                  fontFamily: "var(--font-space-mono)",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: isSelected ? INK : "var(--text-muted)",
-                  flexShrink: 0,
-                }}
-              >
-                #
-              </span>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {channel.name}
-              </span>
-              {channel.unread > 0 && !isSelected ? (
-                <span
-                  title={t("shell.unread", { count: String(channel.unread) })}
-                  style={{
-                    marginLeft: "auto",
-                    minWidth: 20,
-                    padding: "1px 5px",
-                    fontFamily: "var(--font-space-mono)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    lineHeight: 1.5,
-                    textAlign: "center",
-                    background: "var(--yellow)",
-                    color: "var(--text)",
-                    border: `2px solid ${INK}`,
-                    borderRadius: 999,
-                  }}
-                >
-                  {channel.unread > 99 ? "99+" : channel.unread}
-                </span>
-              ) : (
-                channel.archived === 1 && (
-                  <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-dim)" }}>
-                    {t("channel.archived")}
-                  </span>
-                )
-              )}
-            </button>
-          );
-        })}
+        {regularChannels.map((channel) => (
+          <ChannelRow
+            key={channel.id}
+            channel={channel}
+            isDM={false}
+            isSelected={selectedChannelId === channel.id}
+            onSelect={onSelectChannel}
+          />
+        ))}
+
+        <div style={{ ...LABEL_STYLE, paddingTop: 14 }}>{t("shell.dm")}</div>
+        {dmChannels.length === 0 && (
+          <div style={{ padding: "4px 12px 8px", fontSize: 12, color: "var(--text-dim)" }}>
+            {t("shell.noDm")}
+          </div>
+        )}
+        {dmChannels.map((channel) => (
+          <ChannelRow
+            key={channel.id}
+            channel={channel}
+            isDM
+            isSelected={selectedChannelId === channel.id}
+            onSelect={onSelectChannel}
+          />
+        ))}
 
         <div style={{ ...LABEL_STYLE, paddingTop: 14 }}>{t("shell.agents")}</div>
         {agents.length === 0 && (
