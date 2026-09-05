@@ -72,6 +72,9 @@ export function AppShell() {
   const [owner, setOwner] = useState<MemberRow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  /** 成员集合显式失效计数：创建 agent 后 load() 已刷新 agents，中央成员附属区
+   * （人数/成员面板/@ 候选）经 membersVersion 递增重拉收敛——不依赖切频道。 */
+  const [membersVersion, setMembersVersion] = useState(0);
 
   // ticket 13 状态解耦：中央（当前频道）与面板（agent | human | thread | null）两个独立状态。
   // 选中 agent/人类/线程只在右栏展示，中央频道消息流不再被清空；切换频道清空面板。
@@ -383,6 +386,7 @@ export function AppShell() {
             agents={agents}
             owner={owner}
             onOpenPanel={handleOpenPanel}
+            membersVersion={membersVersion}
           />
         )}
       </div>
@@ -433,6 +437,7 @@ export function AppShell() {
           onClose={() => setCreateAgentOpen(false)}
           onCreated={() => {
             setCreateAgentOpen(false);
+            setMembersVersion((v) => v + 1);
             setRefreshKey((k) => k + 1);
           }}
           onOpenModelsConfig={() => {
