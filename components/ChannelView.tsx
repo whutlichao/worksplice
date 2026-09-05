@@ -1844,6 +1844,7 @@ export function ChannelView({
   // 视图直接消费 hook 状态。
   const {
     messages,
+    messagesLoading,
     hasMore,
     loadError,
     loadLatest,
@@ -1857,12 +1858,15 @@ export function ChannelView({
     pinnedSort,
     setPinnedSort,
     pinnedError,
+    pinnedLoading,
     loadPinned,
     togglePin,
     reorderPinned,
     mutes,
+    mutesLoading,
     toggleMute: toggleMuteInHook,
     channelMemberIds,
+    membersLoading,
     membersError,
     loadMembers,
     // 04 票：任务板数据循环收进 useChannelData（tasks/tasksError/taskNotice +
@@ -2456,7 +2460,7 @@ export function ChannelView({
                 style={{ ...actionButton, background: pinnedOpen ? "var(--yellow)" : "#ffffff" }}
                 onClick={() => setPinnedOpen((open) => !open)}
               >
-                <Pin size={14} /> {pinnedItems.length > 0 ? pinnedItems.length : ""}
+                <Pin size={14} /> {pinnedLoading ? "…" : pinnedItems.length > 0 ? pinnedItems.length : ""}
               </button>
             )}
             {joined && (
@@ -2466,7 +2470,11 @@ export function ChannelView({
                 style={{ ...actionButton, background: muteOpen || mutes.some((m) => m.muted) ? "var(--yellow)" : "#ffffff" }}
                 onClick={() => setMuteOpen((open) => !open)}
               >
-                <BellOff size={14} /> {mutes.filter((m) => m.muted).length > 0 ? mutes.filter((m) => m.muted).length : ""}
+                <BellOff size={14} /> {(() => {
+                  if (mutesLoading) return "…";
+                  const count = mutes.filter((m) => m.muted).length;
+                  return count > 0 ? count : "";
+                })()}
               </button>
             )}
             {joined && (
@@ -2476,7 +2484,7 @@ export function ChannelView({
                 style={{ ...actionButton, background: membersOpen ? "var(--yellow)" : "#ffffff" }}
                 onClick={() => setMembersOpen((open) => !open)}
               >
-                <Users size={14} /> {channelMembers.length > 0 ? channelMembers.length : ""}
+                <Users size={14} /> {membersLoading ? "…" : channelMembers.length > 0 ? channelMembers.length : ""}
               </button>
             )}
           </div>
@@ -2791,6 +2799,8 @@ export function ChannelView({
             <EmptyState glyph="#" title={t("shell.selectChannel")} hint={t("messages.emptyHint")} />
           ) : loadError ? (
             <div style={{ padding: 24, color: "var(--coral)", fontSize: 13 }}>{loadError}</div>
+          ) : messagesLoading ? (
+            <EmptyState glyph="…" title={t("messages.loading")} hint={t("messages.loadingHint")} />
           ) : messages.length === 0 ? (
             <EmptyState glyph="#" title={t("messages.empty")} hint={t("messages.emptyHint")} />
           ) : (

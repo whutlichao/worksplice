@@ -516,6 +516,8 @@ export const zhCNLocale: LocalePlugin = {
     "center.messages": "消息",
     "center.tasks": "任务",
     "messages.empty": "该频道还没有消息",
+    "messages.loading": "正在加载消息…",
+    "messages.loadingHint": "稍等，正在拉取该频道的消息。",
     "reminders.set": "设置提醒",
     "reminders.for": "提醒位置",
     "reminders.forWhom": "唤醒谁",

@@ -516,6 +516,8 @@ export const enLocale: LocalePlugin = {
     "center.messages": "Messages",
     "center.tasks": "Tasks",
     "messages.empty": "No messages in this channel yet",
+    "messages.loading": "Loading messages…",
+    "messages.loadingHint": "Fetching this channel's messages.",
     "reminders.set": "Set reminder",
     "reminders.for": "Remind in",
     "reminders.forWhom": "Wake up",
