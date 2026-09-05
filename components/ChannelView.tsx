@@ -2277,6 +2277,7 @@ export function ChannelView({
 
   const joined = channel?.joined ?? false;
   const isArchived = channel?.archived === 1;
+  const isDM = channel?.type === "dm";
   const composerDisabled = !channel || !joined || isArchived;
   const composerDisabledHint = !channel
     ? ""
@@ -2286,7 +2287,7 @@ export function ChannelView({
         ? ""
         : t("message.joinHint");
 
-  const runChannelAction = async (action: "join" | "leave" | "archive", body: object) => {
+  const runChannelAction = async (action: "join" | "leave" | "archive", body: Record<string, unknown>) => {
     if (!channel || busyAction) return;
     setBusyAction(true);
     try {
@@ -2407,7 +2408,13 @@ export function ChannelView({
           </h1>
           {channel && (
             <>
-              <Badge>{channel.type === "private" ? t("channel.private") : t("channel.public")}</Badge>
+              <Badge>
+                {channel.type === "dm"
+                  ? t("channel.dm")
+                  : channel.type === "private"
+                    ? t("channel.private")
+                    : t("channel.public")}
+              </Badge>
               {isArchived && <Badge>{t("channel.archived")}</Badge>}
             </>
           )}
@@ -2419,7 +2426,7 @@ export function ChannelView({
         ) : null}
         {channel && (
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-            {channel.id !== BUILTIN_CHANNEL_ID && (
+            {channel.id !== BUILTIN_CHANNEL_ID && !isDM && (
               <>
                 {joined ? (
                   <button
@@ -2467,7 +2474,7 @@ export function ChannelView({
                 <Pin size={14} /> {pinnedLoading ? "…" : pinnedItems.length > 0 ? pinnedItems.length : ""}
               </button>
             )}
-            {joined && (
+            {joined && !isDM && (
               <button
                 type="button"
                 title={t("mute.toggle")}
@@ -2481,7 +2488,7 @@ export function ChannelView({
                 })()}
               </button>
             )}
-            {joined && (
+            {joined && !isDM && (
               <button
                 type="button"
                 title={t("channel.membersPanel")}

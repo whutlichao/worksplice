@@ -35,7 +35,7 @@
     "start:lan": "next start -H 0.0.0.0 -p 30142",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test lib/agent-loop/*.test.mjs lib/domain/raft/*.test.mjs components/ChannelView.test.mjs hooks/useChannelData.test.mjs",
+    "test": "node --test lib/agent-loop/*.test.mjs lib/domain/raft/*.test.mjs components/ChannelView.test.mjs components/WorkspaceSidebar.test.mjs hooks/useChannelData.test.mjs",
     "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public"
   },
   "dependencies": {

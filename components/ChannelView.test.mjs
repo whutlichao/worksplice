@@ -423,6 +423,39 @@ test("ChannelView header exposes the pinned toggle for joined members (§3.5)", 
   assert.match(html, /Toggle pinned messages/);
 });
 
+test("DM 头部不渲染成员管理/归档/静音入口，保留提醒与 pinned（§03）", () => {
+  const channel = {
+    id: "dm:owner↔Nova",
+    name: "dm:owner↔Nova",
+    type: "dm",
+    description: "",
+    archived: 0,
+    created_at: "2026-08-03T00:00:00.000Z",
+    joined: true,
+    memberCount: 2,
+  };
+  const html = renderI18n(
+    React.createElement(ChannelView, {
+      channel,
+      tab: "messages",
+      onTabChange: () => undefined,
+      currentMemberId: "owner",
+      onChannelChanged: () => undefined,
+      focusMessageId: null,
+    }),
+  );
+  // 不渲染：离开/加入、归档、静音、成员面板（服务层已拒，UI 隐藏双保险）
+  assert.doesNotMatch(html, /Leave|Join/);
+  assert.doesNotMatch(html, /Archive|Unarchive/);
+  assert.doesNotMatch(html, /Mute notifications/);
+  assert.doesNotMatch(html, /Channel members/);
+  // 复用频道消息体验：提醒 + pinned 入口仍在
+  assert.match(html, /Set a channel reminder/);
+  assert.match(html, /Toggle pinned messages/);
+  // DM 类型徽标（而非 public/private）
+  assert.match(html, />DM</);
+});
+
 test("TaskViews renders the task board layout without mounting the channel data loop (05 票排版回归)", async () => {
   const mod = await jiti.import("./ChannelView.tsx");
   assert.equal(typeof mod.TaskViews, "function");
