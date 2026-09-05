@@ -444,7 +444,9 @@ export async function postChannelMessage(
  * - `pinnedItems / pinnedSort / setPinnedSort / reorderPinned` 持有 pinned 数据循环：
  *   切换频道或排序变化时重拉（loadPinnedPage 经服务端 sort），Manual 排序下 ↑/↓ 重排
  *   经 postPinnedOrder 提交后重拉收敛；pin/unpin 经 togglePin 切换后重拉收敛。
- * - `mutes / channelMemberIds` 持有附属区：切换频道时重拉（loadMutesPage / loadChannelMemberIds）。
+ * - `mutes / channelMemberIds` 持有附属区：切换频道时重拉（loadMutesPage / loadChannelMemberIds）；
+ *   成员集合另由 `membersVersion` 显式失效（新建 agent 自动加入 #all 后外部成员集已变，
+ *   不切频道时也需重拉——旧语义只在 channelId 变化时加载，新成员恒 stale）。
  * - `togglePin / toggleMute` 只管切换与重拉收敛：toast 文案（mute.toastMuted 等）与
  *   成员增删（addChannelMember/removeChannelMember）留视图侧，hook 不持有 i18n/成员行状态。
  * - pinned 变更广播订阅（subscribePinnedChanged）留视图侧：面板↔中央双端收敛属排版编排，
@@ -466,7 +468,7 @@ export async function postChannelMessage(
  * - toast 文案（tasks.held/tasks.denied/converted/created）与 invalid-drop 提示留视图侧，
  *   hook 只暴露 taskNotice/tasksError 状态与 setter 供视图写文案。
  */
-export function useChannelData(channelId: string | undefined, t?: (key: string, params?: Record<string, string | number>) => string) {
+export function useChannelData(channelId: string | undefined, t?: (key: string, params?: Record<string, string | number>) => string, membersVersion?: number) {
   const latestRequestRef = useRef(0);
   const cacheRef = useRef(new Map<string, ChannelMessagesPage>());
   /** 附属区分桶缓存：成员/mute/pinned/任务切回看过的频道直接命中快照，避免计数先空后闪。
@@ -624,6 +626,15 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
         setMembersLoading(false);
       });
   }, [channelId]);
+
+  // 成员集合显式失效：新建 agent 自动加入 #all 后外部成员集已变——不切频道时
+  // loadMembers 重拉收敛（缓存键仍按 channelId，不污染切换频道的快照纪律）。
+  // membersVersion 未传时不触发（旧调用方行为不变）。
+  useEffect(() => {
+    if (membersVersion === undefined || membersVersion === 0) return;
+    loadMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [membersVersion]);
 
   // 切换频道：缓存快照式替换 + 后台重拉；迟到响应由 requestId 丢弃。
   // 03 票：pinned/附属区随频道切换重拉（旧频道状态先清空，避免旧内容闪现）。

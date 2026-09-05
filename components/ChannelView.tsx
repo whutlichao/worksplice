@@ -1823,6 +1823,7 @@ export function ChannelView({
   agents = [],
   owner = null,
   onOpenPanel,
+  membersVersion,
 }: {
   channel: ChannelWithMeta | null;
   tab: CenterTab;
@@ -1834,6 +1835,9 @@ export function ChannelView({
   owner?: MemberRow | null;
   /** 打开右栏面板（ticket 13）：agent / human / thread 单槽替换；中央频道消息流不动。 */
   onOpenPanel?: (content: PanelContent) => void;
+  /** 成员集合显式失效计数：新建 agent 自动加入 #all 后外部成员集已变——
+   * hook 侧经 loadMembers 重拉收敛（不切频道也刷新人数/成员面板/@ 候选）。 */
+  membersVersion?: number;
 }) {
   const { t } = useI18n();
 
@@ -1881,7 +1885,7 @@ export function ChannelView({
     runTaskTransition,
     convertToTask,
     createTaskFromBoard: createTaskFromBoardInHook,
-  } = useChannelData(channel?.id, t);
+  } = useChannelData(channel?.id, t, membersVersion);
 
   const [asTask, setAsTask] = useState(false);
 
