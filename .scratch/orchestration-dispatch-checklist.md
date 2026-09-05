@@ -16,5 +16,6 @@
 - [ ] 文档先行？新 effort 的 spec/tickets 是否已 commit + push（新 worktree 从 origin/main 切，自带票据）？
 - [ ] 票据协议写进 spec 了？worker 只 append Answer，Status/Blocked by 收敛权归 coordinator（验收时统一改）。
 - [ ] 单分支？所有改动（含票据收敛）只落在任务 worktree，main 保持干净，完工走 PR 合并？
+- [ ] worker_done 后 worktree 干净？pi-lens deferred format 会在 worker_done 后异步落地纯格式改动（worker 自查“干净”时它还没出现）——验收前再 `git status`，残留要么 commit 要么 restore（01/02 票均复现）
 - [ ] lint 在任务 worktree 内对改动文件做增量对照（改前改后），不去 main 上跑全仓？
 - [ ] Answer 有 review 小节？无 review 小节验收不通过，直接打回补审。
