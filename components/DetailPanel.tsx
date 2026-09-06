@@ -89,7 +89,14 @@ function HumanProfileCard({
 }) {
   const { t } = useI18n();
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+      }}
+    >
       <header
         style={{
           flexShrink: 0,
@@ -121,14 +128,17 @@ function HumanProfileCard({
                   fontSize: 10,
                   padding: "1px 6px",
                   border: `2px solid ${INK}`,
-                  background: member.role === "owner" ? "var(--yellow)" : "#ffffff",
+                  background:
+                    member.role === "owner" ? "var(--yellow)" : "#ffffff",
                   color: "var(--text)",
                 }}
               >
                 {member.role === "owner" ? t("role.owner") : t("role.member")}
               </span>
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            <div
+              style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}
+            >
               {t("status." + member.status)}
             </div>
           </div>
@@ -155,7 +165,14 @@ function HumanProfileCard({
         </div>
       </header>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 20px" }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: "0 12px 20px",
+        }}
+      >
         <div
           style={{
             fontFamily: "var(--font-space-mono)",
@@ -183,7 +200,9 @@ function HumanProfileCard({
           {member.description?.trim() ? (
             member.description.trim()
           ) : (
-            <span style={{ color: "var(--text-dim)" }}>{t("memberProfile.noDescription")}</span>
+            <span style={{ color: "var(--text-dim)" }}>
+              {t("memberProfile.noDescription")}
+            </span>
           )}
         </div>
       </div>

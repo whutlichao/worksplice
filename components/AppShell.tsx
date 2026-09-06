@@ -5,7 +5,11 @@ import { Menu } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useViewportHeight } from "@/hooks/useViewportHeight";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
-import { ChannelView, type CenterTab, type ChannelWithMeta } from "./ChannelView";
+import {
+  ChannelView,
+  type CenterTab,
+  type ChannelWithMeta,
+} from "./ChannelView";
 import { SearchView } from "./SearchView";
 import { DetailPanel } from "./DetailPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
@@ -16,14 +20,24 @@ import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/types";
 import { DM_ID_PREFIX, OWNER_MEMBER_ID } from "@/lib/data/schema";
 import { reconcileAgents, shallowEqualAgent } from "@/lib/agent-reconcile";
-import { closePanel, onChannelSwitched, openPanel, type PanelContent } from "@/lib/panel-state";
+import {
+  closePanel,
+  onChannelSwitched,
+  openPanel,
+  type PanelContent,
+} from "@/lib/panel-state";
 
 /** 深链格式（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` */
-function parseDeepLink(raw: string): { channelId: string; messageId?: string } | null {
+function parseDeepLink(
+  raw: string,
+): { channelId: string; messageId?: string } | null {
   try {
     const match = /^#c\/([^?]+)(?:\?m=(.+))?$/.exec(raw);
     if (!match) return null;
-    return { channelId: decodeURIComponent(match[1]), messageId: match[2] ? decodeURIComponent(match[2]) : undefined };
+    return {
+      channelId: decodeURIComponent(match[1]),
+      messageId: match[2] ? decodeURIComponent(match[2]) : undefined,
+    };
   } catch {
     return null;
   }
@@ -99,7 +113,10 @@ export function AppShell() {
       }),
       fetch("/api/members").then(async (r) => {
         if (!r.ok) throw new Error(`GET /api/members: ${r.status}`);
-        const body = (await r.json()) as { agents?: MemberRow[]; owner?: MemberRow | null };
+        const body = (await r.json()) as {
+          agents?: MemberRow[];
+          owner?: MemberRow | null;
+        };
         setOwner((prev) => {
           const next = body.owner ?? null;
           if (!prev && !next) return prev;
@@ -141,9 +158,14 @@ export function AppShell() {
       void fetch("/api/reminders")
         .then(async (res) => {
           if (!res.ok) return;
-          const body = (await res.json()) as { reminders?: Array<{ status: string }> };
+          const body = (await res.json()) as {
+            reminders?: Array<{ status: string }>;
+          };
           if (!cancelled) {
-            setScheduledReminderCount((body.reminders ?? []).filter((r) => r.status === "scheduled").length);
+            setScheduledReminderCount(
+              (body.reminders ?? []).filter((r) => r.status === "scheduled")
+                .length,
+            );
           }
         })
         .catch(() => undefined);
@@ -172,10 +194,15 @@ export function AppShell() {
             const next = prev.map((c) => {
               const fresh = byId.get(c.id);
               if (!fresh) return c;
-              if (c.unread === fresh.unread && shallowEqualChannel(c, fresh)) return c;
+              if (c.unread === fresh.unread && shallowEqualChannel(c, fresh))
+                return c;
               changed = true;
               // 同步 unread 与 messageCount（DM 懒创建「有消息」信号随新消息入流更新）。
-              return { ...c, unread: fresh.unread, messageCount: fresh.messageCount };
+              return {
+                ...c,
+                unread: fresh.unread,
+                messageCount: fresh.messageCount,
+              };
             });
             return changed ? next : prev;
           });
@@ -222,12 +249,16 @@ export function AppShell() {
       const source = new EventSource("/api/members/events");
       source.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data) as { statuses?: Record<string, MemberRow["status"]> };
+          const payload = JSON.parse(event.data) as {
+            statuses?: Record<string, MemberRow["status"]>;
+          };
           if (!payload.statuses) return;
           setAgents((prev) =>
             prev.map((agent) => {
               const status = payload.statuses![agent.id];
-              return status && status !== agent.status ? { ...agent, status } : agent;
+              return status && status !== agent.status
+                ? { ...agent, status }
+                : agent;
             }),
           );
         } catch {
@@ -308,8 +339,12 @@ export function AppShell() {
     setCenterTab("messages");
     setSidebarOpen(false);
     // BAI-6 未读角标：打开频道即推进已读游标（服务端幂等），本地立即清零。
-    void fetch(`/api/channels/${encodeURIComponent(id)}/read`, { method: "POST" }).catch(() => undefined);
-    setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
+    void fetch(`/api/channels/${encodeURIComponent(id)}/read`, {
+      method: "POST",
+    }).catch(() => undefined);
+    setChannels((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)),
+    );
   }, []);
 
   /** 打开面板：单槽替换（任何内容互斥，id 透传）；紧凑端滑入覆盖。 */
@@ -325,9 +360,12 @@ export function AppShell() {
   const handleOpenDM = useCallback(
     async (agentId: string) => {
       try {
-        const res = await fetch(`/api/members/${encodeURIComponent(agentId)}/dm`, {
-          method: "POST",
-        });
+        const res = await fetch(
+          `/api/members/${encodeURIComponent(agentId)}/dm`,
+          {
+            method: "POST",
+          },
+        );
         const body = (await res.json().catch(() => ({}))) as {
           channel?: ChannelWithMeta;
           error?: string;
