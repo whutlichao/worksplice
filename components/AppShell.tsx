@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { useViewportHeight } from "@/hooks/useViewportHeight";
@@ -15,6 +15,7 @@ import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/types";
 import { OWNER_MEMBER_ID } from "@/lib/data/schema";
+import { reconcileAgents, shallowEqualAgent } from "@/lib/agent-reconcile";
 import { closePanel, onChannelSwitched, openPanel, type PanelContent } from "@/lib/panel-state";
 
 /** 深链格式（复制链接 §3.2）：`#c/<channelId>?m=<messageId>` */
@@ -50,19 +51,6 @@ function shallowEqualChannel(a: ChannelWithMeta, b: ChannelWithMeta): boolean {
   );
 }
 
-function shallowEqualAgent(a: MemberRow, b: MemberRow): boolean {
-  return (
-    a.id === b.id &&
-    a.type === b.type &&
-    a.name === b.name &&
-    a.description === b.description &&
-    a.status === b.status &&
-    a.workspace_path === b.workspace_path &&
-    a.pi_session_file === b.pi_session_file &&
-    a.created_at === b.created_at
-  );
-}
-
 export function AppShell() {
   const { t } = useI18n();
   useViewportHeight();
@@ -75,6 +63,9 @@ export function AppShell() {
   /** 成员集合显式失效计数：创建 agent 后 load() 已刷新 agents，中央成员附属区
    * （人数/成员面板/@ 候选）经 membersVersion 递增重拉收敛——不依赖切频道。 */
   const [membersVersion, setMembersVersion] = useState(0);
+  /** agent 列表轮询读最新快照的 ref（interval 回调里避开闭包旧值，也不在 setState updater 里做副作用）。 */
+  const agentsRef = useRef(agents);
+  agentsRef.current = agents;
 
   // ticket 13 状态解耦：中央（当前频道）与面板（agent | human | thread | null）两个独立状态。
   // 选中 agent/人类/线程只在右栏展示，中央频道消息流不再被清空；切换频道清空面板。
@@ -129,18 +120,7 @@ export function AppShell() {
           });
           return changed ? next : prev;
         });
-        setAgents((prev) => {
-          if (prev.length === 0) return agentRows;
-          const byId = new Map(prev.map((a) => [a.id, a]));
-          let changed = agentRows.length !== prev.length;
-          const next = agentRows.map((row) => {
-            const old = byId.get(row.id);
-            if (old && shallowEqualAgent(old, row)) return old;
-            changed = true;
-            return row;
-          });
-          return changed ? next : prev;
-        });
+        setAgents((prev) => reconcileAgents(prev, agentRows).agents);
         setLoadError(null);
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
@@ -198,6 +178,34 @@ export function AppShell() {
         .catch(() => undefined);
     }, 15_000);
     return () => clearInterval(timer);
+  }, []);
+
+  // agent 列表 15s 轮询：Susan 走 HTTP API 代办创建 agent 后（不经 CreateAgentModal
+  // onCreated，独立进程路径），前端无刷新时也应在 15s 内看到新 agent；成员 id 集合变化
+  // 时递增 membersVersion → useChannelData 重拉成员集合 → 频道成员列表/成员面板/@ 候选收敛。
+  // 引用稳定：reconcileAgents 复用未变更行对象，避免 agent 行无谓重渲染。
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      void fetch("/api/members")
+        .then(async (res) => {
+          if (!res.ok) return;
+          const body = (await res.json()) as { agents?: MemberRow[] };
+          if (!body.agents || cancelled) return;
+          const { agents: next, membersChanged } = reconcileAgents(
+            agentsRef.current,
+            body.agents,
+          );
+          setAgents(next);
+          if (membersChanged) setMembersVersion((v) => v + 1);
+        })
+        .catch(() => undefined);
+    };
+    const timer = setInterval(poll, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
 
   // agent 状态点实时流（§3.6）：SSE 推送 { memberId: status } 快照，合并进列表
