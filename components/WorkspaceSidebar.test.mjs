@@ -164,3 +164,35 @@ test("DM channel unread badge renders (unread 口径与频道一致)", () => {
     const row = channelRow(html, "Nova");
     assert.match(row, />7<\/span>/);
 });
+
+/** 用固定 collator 替换 String.prototype.localeCompare，模拟不同宿主 locale 的字符串排序。 */
+function withLocaleCompare(collator, fn) {
+    const original = String.prototype.localeCompare;
+    String.prototype.localeCompare = function (that) {
+        return collator.compare(String(this), String(that));
+    };
+    try {
+        return fn();
+    } finally {
+        String.prototype.localeCompare = original;
+    }
+}
+
+test("DM 分组排序与宿主 locale 无关（服务端/客户端首帧渲染一致，防 hydration mismatch）", () => {
+    // 中英混排：en collation 把「张伟」排到 Zeta 之后，zh-CN collation 把它排到最前。
+    // 若排序依赖环境 localeCompare，服务端（Node en-US）与客户端（浏览器 zh-CN）会排出不同顺序。
+    const channels = [
+        { id: "dm:owner↔张伟", name: "dm:owner↔张伟", type: "dm", unread: 0 },
+        { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0 },
+        { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0 },
+    ];
+
+    const server = withLocaleCompare(new Intl.Collator("en"), () =>
+        sidebarHtml(channels),
+    );
+    const client = withLocaleCompare(new Intl.Collator("zh-CN"), () =>
+        sidebarHtml(channels),
+    );
+
+    assert.equal(client, server);
+});
