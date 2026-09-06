@@ -125,10 +125,10 @@ test("BAI-6: no badge when unread is 0", () => {
 
 test("DM channels render in a separate 私信 group, stripped of the dm:owner↔ prefix", () => {
     const html = sidebarHtml([
-        { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0 },
-        { id: "c1", name: "general", type: "public", unread: 0 },
-        { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0 },
-        { id: "dm:owner↔Mike", name: "dm:owner↔Mike", type: "dm", unread: 0 },
+        { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0, messageCount: 1 },
+        { id: "c1", name: "general", type: "public", unread: 0, messageCount: 1 },
+        { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0, messageCount: 1 },
+        { id: "dm:owner↔Mike", name: "dm:owner↔Mike", type: "dm", unread: 0, messageCount: 1 },
     ]);
     // 独立分组标题（私信）与频道组并存
     assert.match(html, /Direct messages/);
@@ -143,9 +143,9 @@ test("DM channels render in a separate 私信 group, stripped of the dm:owner↔
 
 test("DM channels are sorted by agent name (id 形如 dm:owner↔<名>)", () => {
     const html = sidebarHtml([
-        { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0 },
-        { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0 },
-        { id: "dm:owner↔Mike", name: "dm:owner↔Mike", type: "dm", unread: 0 },
+        { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0, messageCount: 1 },
+        { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0, messageCount: 1 },
+        { id: "dm:owner↔Mike", name: "dm:owner↔Mike", type: "dm", unread: 0, messageCount: 1 },
     ]);
     assert.ok(
         html.indexOf(">Alpha<") < html.indexOf(">Mike<"),
@@ -159,7 +159,7 @@ test("DM channels are sorted by agent name (id 形如 dm:owner↔<名>)", () => 
 
 test("DM channel unread badge renders (unread 口径与频道一致)", () => {
     const html = sidebarHtml([
-        { id: "dm:owner↔Nova", name: "dm:owner↔Nova", type: "dm", unread: 7 },
+        { id: "dm:owner↔Nova", name: "dm:owner↔Nova", type: "dm", unread: 7, messageCount: 1 },
     ]);
     const row = channelRow(html, "Nova");
     assert.match(row, />7<\/span>/);
@@ -182,9 +182,9 @@ test("DM 分组排序与宿主 locale 无关（服务端/客户端首帧渲染�
     // 中英混排：en collation 把「张伟」排到 Zeta 之后，zh-CN collation 把它排到最前。
     // 若排序依赖环境 localeCompare，服务端（Node en-US）与客户端（浏览器 zh-CN）会排出不同顺序。
     const channels = [
-        { id: "dm:owner↔张伟", name: "dm:owner↔张伟", type: "dm", unread: 0 },
-        { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0 },
-        { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0 },
+        { id: "dm:owner↔张伟", name: "dm:owner↔张伟", type: "dm", unread: 0, messageCount: 1 },
+        { id: "dm:owner↔Zeta", name: "dm:owner↔Zeta", type: "dm", unread: 0, messageCount: 1 },
+        { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0, messageCount: 1 },
     ];
 
     const server = withLocaleCompare(new Intl.Collator("en"), () =>
@@ -195,4 +195,33 @@ test("DM 分组排序与宿主 locale 无关（服务端/客户端首帧渲染�
     );
 
     assert.equal(client, server);
+});
+
+test("懒创建：空 DM（messageCount 0）不渲染，私信分组回退到空状态 shell.noDm", () => {
+    const html = sidebarHtml([
+        { id: "dm:owner↔Ghost", name: "dm:owner↔Ghost", type: "dm", unread: 0, messageCount: 0 },
+        { id: "c1", name: "general", type: "public", unread: 0, messageCount: 1 },
+    ]);
+    // 空 DM 不出现，也不泄露 dm:owner↔ 前缀
+    assert.doesNotMatch(html, /Ghost/);
+    assert.doesNotMatch(html, /dm:owner↔/);
+    // 空状态沿用 shell.noDm
+    assert.match(html, /No direct messages yet/);
+});
+
+test("懒创建：有消息的 DM（messageCount > 0）渲染在私信分组", () => {
+    const html = sidebarHtml([
+        { id: "dm:owner↔Nova", name: "dm:owner↔Nova", type: "dm", unread: 0, messageCount: 3 },
+        { id: "dm:owner↔Ghost", name: "dm:owner↔Ghost", type: "dm", unread: 0, messageCount: 0 },
+    ]);
+    assert.match(html, />Nova</);
+    assert.doesNotMatch(html, /Ghost/);
+});
+
+test("懒创建：软删 agent 的有消息 DM 仍显示为归档可读（archived 标记）", () => {
+    const html = sidebarHtml([
+        { id: "dm:owner↔Retired", name: "dm:owner↔Retired", type: "dm", unread: 0, messageCount: 2, archived: 1 },
+    ]);
+    const row = channelRow(html, "Retired");
+    assert.match(row, /Archived/);
 });

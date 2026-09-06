@@ -181,9 +181,10 @@ export function WorkspaceSidebar({
   // §6.4 搜索入口：Enter 发起全文搜索（结果在中央 SearchView，打开动作深链定位）
   const [searchDraft, setSearchDraft] = useState("");
 
-  // §03 私信分组：type='dm' 过滤，按 agent 名排序（DM id 形如 dm:owner↔<名>）。
+  // §03 私信分组：type='dm' 且「有消息」（懒创建：发送了消息才出现）过滤，按 agent 名排序。
   const dmChannels = channels
     .filter((channel) => channel.type === "dm")
+    .filter((channel) => channel.messageCount > 0)
     .sort((a, b) =>
       compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)),
     );
