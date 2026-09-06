@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { MessageSquare, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
@@ -84,6 +84,24 @@ const DANGER_BUTTON: React.CSSProperties = {
   background: "var(--coral)",
   color: "var(--ink)",
   boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
+};
+
+/** DM 懒创建入口主按钮（身份头正下方）：醒目黄色底 + MessageSquare 图标（与侧栏 DM 图标一致）。 */
+const DM_BUTTON: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  margin: "12px 12px 0",
+  padding: "10px 12px",
+  fontFamily: "var(--font-hanken)",
+  fontWeight: 700,
+  fontSize: 14,
+  background: "var(--yellow)",
+  color: "var(--ink)",
+  border: `2px solid ${INK}`,
+  boxShadow: "3px 3px 0 0 rgba(20, 17, 17, 0.45)",
+  cursor: "pointer",
 };
 
 type ConfirmKind = "sessionReset" | "fullReset" | "delete";
@@ -204,10 +222,16 @@ export function AgentDetailPanel({
   agent,
   onClose,
   onChanged,
+  onOpenDM,
+  hasMessages = false,
 }: {
   agent: MemberRow & { home_path?: string };
   onClose: () => void;
   onChanged: () => void;
+  /** DM 懒创建入口回调（上抛至 AppShell：幂等建/取 DM → 导航中央 + 聚焦 composer + 关面板）。 */
+  onOpenDM: (agentId: string) => void;
+  /** 该 agent 的 DM 是否已有消息：无消息 →「发送消息」，有消息 →「打开私信」。 */
+  hasMessages?: boolean;
 }) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
@@ -441,6 +465,17 @@ export function AgentDetailPanel({
           </button>
         </div>
       </header>
+
+      {/* DM 懒创建入口：身份头正下方醒目主按钮；文案动态（无消息 → 发送消息，有消息 → 打开私信） */}
+      <button
+        type="button"
+        aria-label={hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
+        onClick={() => onOpenDM(agent.id)}
+        style={DM_BUTTON}
+      >
+        <MessageSquare size={15} style={{ display: "block", flexShrink: 0 }} />
+        {hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
+      </button>
 
       {/* 主体：状态 / workspace / runtime / 可观测性 / 重置 */}
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 20px" }}>

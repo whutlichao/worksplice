@@ -534,6 +534,8 @@ export const enLocale: LocalePlugin = {
     "agent.sessionReset": "Session reset",
     "agent.fullReset": "Full reset",
     "agent.delete": "Delete identity",
+    "agent.sendMessage": "Send message",
+    "agent.openDM": "Open DM",
     "center.messages": "Messages",
     "center.tasks": "Tasks",
     "messages.empty": "No messages in this channel yet",

@@ -1735,6 +1735,7 @@ export function Composer({
   onClearQuote,
   onSend,
   members,
+  focusSignal,
 }: {
   targetId: string;
   disabled: boolean;
@@ -1755,6 +1756,8 @@ export function Composer({
     status: MemberRow["status"];
     joined: boolean;
   }>;
+  /** 一次性聚焦信号（DM 懒创建入口导航后聚焦输入框）：变化时 focus textarea。 */
+  focusSignal?: number;
 }) {
   const { t } = useI18n();
   const [value, setValue] = useState("");
@@ -1763,6 +1766,13 @@ export function Composer({
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // DM 懒创建入口：focusSignal 递增时聚焦输入框（普通频道行点击不触发——无信号）。
+  useEffect(() => {
+    if (focusSignal && focusSignal > 0) {
+      textareaRef.current?.focus();
+    }
+  }, [focusSignal]);
 
   // §3.2 @ 提及补全：镜像 ChatInput 的 @ token 模式（extractAtQuery / 键盘导航 / 引号形式插入）
   const [atQuery, setAtQuery] = useState<AtQueryMatch | null>(null);
@@ -2273,6 +2283,7 @@ export function ChannelView({
   currentMemberId,
   onChannelChanged,
   focusMessageId,
+  composerFocusSignal,
   agents = [],
   owner = null,
   onOpenPanel,
@@ -2284,6 +2295,8 @@ export function ChannelView({
   currentMemberId: string;
   onChannelChanged: () => void;
   focusMessageId?: string | null;
+  /** DM 懒创建入口导航后聚焦 composer 的一次性信号（透传给 Composer）。 */
+  composerFocusSignal?: number;
   agents?: MemberRow[];
   owner?: MemberRow | null;
   /** 打开右栏面板（ticket 13）：agent / human / thread 单槽替换；中央频道消息流不动。 */
@@ -3652,6 +3665,7 @@ export function ChannelView({
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
           members={composerMembers}
+          focusSignal={composerFocusSignal}
         />
       )}
 

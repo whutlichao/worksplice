@@ -26,6 +26,8 @@ export function DetailPanel({
   onClose,
   onChanged,
   onOpenPanel,
+  onOpenDM,
+  dmHasMessages,
 }: {
   content: NonNullable<PanelContent>;
   channel: ChannelWithMeta | null;
@@ -36,12 +38,24 @@ export function DetailPanel({
   onChanged: () => void;
   /** 面板内跳转（线程内 mention 点击）：单槽替换面板内容（AppShell.openPanel）。 */
   onOpenPanel: (content: PanelContent) => void;
+  /** DM 懒创建入口（上抛至 AppShell）：幂等建/取 DM → 导航中央 + 聚焦 composer + 关面板。 */
+  onOpenDM: (agentId: string) => void;
+  /** 当前 agent 面板的 DM 是否已有消息（文案动态：发送消息 / 打开私信）。 */
+  dmHasMessages?: boolean;
 }) {
   switch (content.kind) {
     case "agent": {
       const agent = agents.find((a) => a.id === content.id);
       if (!agent) return null;
-      return <AgentDetailPanel agent={agent} onClose={onClose} onChanged={onChanged} />;
+      return (
+        <AgentDetailPanel
+          agent={agent}
+          onClose={onClose}
+          onChanged={onChanged}
+          onOpenDM={onOpenDM}
+          hasMessages={dmHasMessages}
+        />
+      );
     }
     case "human": {
       // 人类 = Owner（恒为唯一 human 成员）；找不到（删除/未加载）时面板空渲染

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createJiti } from "jiti";
@@ -18,12 +19,14 @@ function renderWith(component) {
   );
 }
 
-function renderPanel(agent) {
+function renderPanel(agent, overrides = {}) {
   return renderWith(
     React.createElement(AgentDetailPanel, {
       agent,
       onClose: () => undefined,
       onChanged: () => undefined,
+      onOpenDM: () => undefined,
+      ...overrides,
     }),
   );
 }
@@ -128,4 +131,25 @@ test("ModelPicker with no model shows inherit-global placeholder", () => {
   );
   assert.match(html, /Inherit global default/);
   assert.match(html, /pi default/);
+});
+
+test("DM button shows Send message when the DM has no messages", () => {
+  const html = renderPanel(AGENT, { hasMessages: false });
+  assert.match(html, /Send message/);
+  assert.doesNotMatch(html, /Open DM/);
+});
+
+test("DM button shows Open DM when the DM has messages", () => {
+  const html = renderPanel(AGENT, { hasMessages: true });
+  assert.match(html, /Open DM/);
+  assert.doesNotMatch(html, /Send message/);
+});
+
+test("DM button click wires onOpenDM(agent.id)", async () => {
+  const source = await readFile(
+    new URL("../components/AgentDetailPanel.tsx", import.meta.url),
+    "utf-8",
+  );
+  assert.match(source, /onOpenDM\(agent\.id\)/);
+  assert.match(source, /MessageSquare/);
 });

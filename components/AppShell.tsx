@@ -14,7 +14,7 @@ import { MyRemindersModal } from "./MyRemindersModal";
 import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/types";
-import { OWNER_MEMBER_ID } from "@/lib/data/schema";
+import { DM_ID_PREFIX, OWNER_MEMBER_ID } from "@/lib/data/schema";
 import { reconcileAgents, shallowEqualAgent } from "@/lib/agent-reconcile";
 import { closePanel, onChannelSwitched, openPanel, type PanelContent } from "@/lib/panel-state";
 
@@ -36,7 +36,8 @@ function parseDeepLink(raw: string): { channelId: string; messageId?: string } |
  * 点 agent/人类/线程只在右栏展示，无选中时整栏消失、中央占满。
  */
 
-/** 列表合并用的浅比较：字段全等时复用旧对象引用，避免下游 useCallback/useEffect 连锁重建。 */
+/** 列表合并用的浅比较：字段全等时复用旧对象引用，避免下游 useCallback/useEffect 连锁重建。
+ *  messageCount（DM 懒创建「有消息」信号）纳入比较——新消息入流后侧栏 DM 分组与按钮文案需随它更新。 */
 function shallowEqualChannel(a: ChannelWithMeta, b: ChannelWithMeta): boolean {
   return (
     a.id === b.id &&
@@ -47,7 +48,8 @@ function shallowEqualChannel(a: ChannelWithMeta, b: ChannelWithMeta): boolean {
     a.created_at === b.created_at &&
     a.joined === b.joined &&
     a.memberCount === b.memberCount &&
-    a.unread === b.unread
+    a.unread === b.unread &&
+    a.messageCount === b.messageCount
   );
 }
 
@@ -74,6 +76,8 @@ export function AppShell() {
   const [centerTab, setCenterTab] = useState<CenterTab>("messages");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
+  /** DM 懒创建入口：导航后聚焦 composer 的一次性信号（每次点“发送消息/打开私信”递增）。 */
+  const [composerFocusSignal, setComposerFocusSignal] = useState(0);
 
   // §6.4 全文搜索：侧栏入口 → 中央 SearchView；"打开消息"经深链定位。
   const [searchOpen, setSearchOpen] = useState(false);
@@ -170,7 +174,8 @@ export function AppShell() {
               if (!fresh) return c;
               if (c.unread === fresh.unread && shallowEqualChannel(c, fresh)) return c;
               changed = true;
-              return { ...c, unread: fresh.unread };
+              // 同步 unread 与 messageCount（DM 懒创建「有消息」信号随新消息入流更新）。
+              return { ...c, unread: fresh.unread, messageCount: fresh.messageCount };
             });
             return changed ? next : prev;
           });
@@ -315,6 +320,41 @@ export function AppShell() {
     setSidebarOpen(false);
   };
 
+  /** DM 懒创建入口（03 票）：幂等建/取 DM → 合并进 channels → 导航中央 + 聚焦 composer + 关闭右栏面板。
+   *  不改 handleSelectChannel 本身（它被普通频道行点击共用）；关面板在本路径额外做。 */
+  const handleOpenDM = useCallback(
+    async (agentId: string) => {
+      try {
+        const res = await fetch(`/api/members/${encodeURIComponent(agentId)}/dm`, {
+          method: "POST",
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          channel?: ChannelWithMeta;
+          error?: string;
+        };
+        if (!res.ok || !body.channel) {
+          setLoadError(body.error ?? `HTTP ${res.status}`);
+          return;
+        }
+        // 合并而非整体替换：新 DM 行并入，保持既有行引用稳定（避免 ChannelView loader 重建）。
+        setChannels((prev) => {
+          const idx = prev.findIndex((c) => c.id === body.channel!.id);
+          if (idx === -1) return [...prev, body.channel!];
+          if (shallowEqualChannel(prev[idx], body.channel!)) return prev;
+          const next = prev.slice();
+          next[idx] = body.channel!;
+          return next;
+        });
+        handleSelectChannel(body.channel.id);
+        setPanelContent(null); // 发送消息路径上额外关闭右栏面板（handleSelectChannel 为普通行共用，不改它）
+        setComposerFocusSignal((n) => n + 1);
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [handleSelectChannel],
+  );
+
   const handleClosePanel = () => {
     setPanelContent((prev) => closePanel(prev));
   };
@@ -330,6 +370,17 @@ export function AppShell() {
     }
     return panelContent;
   }, [panelContent, agents, owner]);
+
+  /** 当前 agent 面板的 DM 是否已有消息（复用 02 的信号：channels 附 messageCount；
+   *  确定性 id `dm:owner↔<agent名>` 推导，无 DM 行或 0 消息 = 无消息）。 */
+  const dmHasMessages = useMemo(() => {
+    if (!resolvablePanel || resolvablePanel.kind !== "agent") return false;
+    const agent = agents.find((a) => a.id === resolvablePanel.id);
+    if (!agent) return false;
+    const dmId = `${DM_ID_PREFIX}${agent.name}`;
+    const dm = channels.find((c) => c.id === dmId);
+    return (dm?.messageCount ?? 0) > 0;
+  }, [resolvablePanel, agents, channels]);
 
   return (
     <div
@@ -391,6 +442,7 @@ export function AppShell() {
             currentMemberId={OWNER_MEMBER_ID}
             onChannelChanged={load}
             focusMessageId={focusMessageId}
+            composerFocusSignal={composerFocusSignal}
             agents={agents}
             owner={owner}
             onOpenPanel={handleOpenPanel}
@@ -411,6 +463,8 @@ export function AppShell() {
             onClose={handleClosePanel}
             onChanged={() => setRefreshKey((k) => k + 1)}
             onOpenPanel={handleOpenPanel}
+            onOpenDM={handleOpenDM}
+            dmHasMessages={dmHasMessages}
           />
         </aside>
       )}
