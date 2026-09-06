@@ -64,6 +64,8 @@ export interface ChannelWithMeta extends ChannelRow {
   memberCount: number;
   /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */
   unread: number;
+  /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */
+  messageCount: number;
 }
 
 /** §3.4 reaction 聚合（与 lib/domain/raft/reactions.ts 同形）。 */
