@@ -1,8 +1,23 @@
 import { getDb } from "../../data/db-singleton.ts";
-import { getChannel, isChannelMember, resolveChannelForTarget, CURRENT_MEMBER_ID } from "./channels.ts";
+import {
+  getChannel,
+  isChannelMember,
+  resolveChannelForTarget,
+  CURRENT_MEMBER_ID,
+} from "./channels.ts";
 import { getMember } from "./members.ts";
-import { messageWithAuthor, summarizeChanges, type MessageWithAuthor } from "./messages.ts";
-import type { ChannelRow, MemberRow, MessageRow, TaskRow, TaskStatus } from "../../data/types.ts";
+import {
+  messageWithAuthor,
+  summarizeChanges,
+  type MessageWithAuthor,
+} from "./messages.ts";
+import type {
+  ChannelRow,
+  MemberRow,
+  MessageRow,
+  TaskRow,
+  TaskStatus,
+} from "../../data/types.ts";
 
 /**
  * 任务服务层（§3.7）：task = 消息 + 元数据。
@@ -109,19 +124,32 @@ const TRANSITIONS: Record<
   Partial<
     Record<
       TaskStatus,
-      { authorized: (task: TaskRow, actorId: string) => boolean; clearOwner?: boolean; reopen?: boolean }
+      {
+        authorized: (task: TaskRow, actorId: string) => boolean;
+        clearOwner?: boolean;
+        reopen?: boolean;
+      }
     >
   >
 > = {
   todo: {},
   in_progress: {
     in_review: { authorized: (task, actorId) => task.owner_id === actorId },
-    todo: { authorized: (task, actorId) => task.owner_id === actorId, clearOwner: true },
+    todo: {
+      authorized: (task, actorId) => task.owner_id === actorId,
+      clearOwner: true,
+    },
     closed: { authorized: () => true },
   },
   in_review: {
-    done: { authorized: (task, actorId) => task.owner_id !== null && reviewAuthorized(task, actorId) },
-    in_progress: { authorized: (task, actorId) => task.owner_id !== null && reviewAuthorized(task, actorId) },
+    done: {
+      authorized: (task, actorId) =>
+        task.owner_id !== null && reviewAuthorized(task, actorId),
+    },
+    in_progress: {
+      authorized: (task, actorId) =>
+        task.owner_id !== null && reviewAuthorized(task, actorId),
+    },
     closed: { authorized: () => true },
   },
   done: {
@@ -137,7 +165,10 @@ const TRANSITIONS: Record<
  * 状态机转移表是唯一裁决者；todo 的 claim 是独立操作（claimTask），此处合成该边——
  * 重开封锁（reopened）下仅人类（CURRENT_MEMBER_ID）可认领，与 claimTask 的封锁一致。
  */
-export function reachableStatuses(task: TaskRow, actorId: string): TaskStatus[] {
+export function reachableStatuses(
+  task: TaskRow,
+  actorId: string,
+): TaskStatus[] {
   const transitions = TRANSITIONS[task.status];
   const viaTable = (Object.keys(transitions) as TaskStatus[]).filter((to) =>
     transitions[to]!.authorized(task, actorId),
@@ -147,7 +178,11 @@ export function reachableStatuses(task: TaskRow, actorId: string): TaskStatus[] 
   return claimable ? [...viaTable, "in_progress"] : viaTable;
 }
 
-function toTaskView(task: TaskRow, anchor: MessageRow, actorId: string = CURRENT_MEMBER_ID): TaskView {
+function toTaskView(
+  task: TaskRow,
+  anchor: MessageRow,
+  actorId: string = CURRENT_MEMBER_ID,
+): TaskView {
   return {
     ...task,
     channelId: anchor.target_id,
@@ -158,7 +193,10 @@ function toTaskView(task: TaskRow, anchor: MessageRow, actorId: string = CURRENT
 }
 
 /** 任务所在 channel + 锚点消息；任务必须锚定在顶层消息（thread 内不可转，§3.7）。 */
-function resolveTaskChannel(taskNumber: number, channelId: string): { channelId: string; task: TaskRow } {
+function resolveTaskChannel(
+  taskNumber: number,
+  channelId: string,
+): { channelId: string; task: TaskRow } {
   const channel = getChannel(channelId);
   if (!channel) throw new Error("Channel not found");
   const task = getDb().getTaskByChannelNumber(channelId, taskNumber);
@@ -176,7 +214,10 @@ function assertChannelMember(channelId: string, memberId: string): MemberRow {
 }
 
 /** 任务落库所在 channel（锚点消息的 target 必为 channel id，§6.1）。 */
-function channelOfTask(task: TaskRow): { channel: ChannelRow; anchor: MessageRow } {
+function channelOfTask(task: TaskRow): {
+  channel: ChannelRow;
+  anchor: MessageRow;
+} {
   const anchor = getDb().getMessage(task.message_id);
   if (!anchor) throw new Error("Task anchor message not found");
   const channel = getChannel(anchor.target_id);
@@ -224,16 +265,24 @@ export function claimTask(input: {
   memberId: string;
   baseSeq?: number;
 }): TaskClaimResult {
-  const { channelId, task } = resolveTaskChannel(input.taskNumber, input.channelId);
+  const { channelId, task } = resolveTaskChannel(
+    input.taskNumber,
+    input.channelId,
+  );
   assertChannelMember(channelId, input.memberId);
 
   return getDb().withTransaction(() => {
     const roomSeq = getDb().maxSeq(channelId);
     if (input.baseSeq !== undefined && input.baseSeq !== roomSeq) {
-      return { status: "held" as const, roomSeq, whatHappened: summarizeChanges(channelId, input.baseSeq) };
+      return {
+        status: "held" as const,
+        roomSeq,
+        whatHappened: summarizeChanges(channelId, input.baseSeq),
+      };
     }
     const current = getDb().getTaskById(task.id);
-    if (!current) return { status: "conflict" as const, reason: "Task is already claimed" };
+    if (!current)
+      return { status: "conflict" as const, reason: "Task is already claimed" };
     const blockReason = claimBlockReason(current, input.memberId);
     if (blockReason) {
       return current.owner_id !== null
@@ -245,8 +294,12 @@ export function claimTask(input: {
       ownerId: input.memberId,
       reopened: 0,
     });
-    if (!updated) return { status: "conflict" as const, reason: "Task is already claimed" };
-    return { status: "claimed" as const, task: toTaskView(updated, getDb().getMessage(updated.message_id)!) };
+    if (!updated)
+      return { status: "conflict" as const, reason: "Task is already claimed" };
+    return {
+      status: "claimed" as const,
+      task: toTaskView(updated, getDb().getMessage(updated.message_id)!),
+    };
   });
 }
 
@@ -262,13 +315,20 @@ export function updateTaskStatus(input: {
   memberId: string;
   baseSeq?: number;
 }): TaskUpdateResult {
-  const { channelId, task } = resolveTaskChannel(input.taskNumber, input.channelId);
+  const { channelId, task } = resolveTaskChannel(
+    input.taskNumber,
+    input.channelId,
+  );
   assertChannelMember(channelId, input.memberId);
 
   return getDb().withTransaction(() => {
     const roomSeq = getDb().maxSeq(channelId);
     if (input.baseSeq !== undefined && input.baseSeq !== roomSeq) {
-      return { status: "held" as const, roomSeq, whatHappened: summarizeChanges(channelId, input.baseSeq) };
+      return {
+        status: "held" as const,
+        roomSeq,
+        whatHappened: summarizeChanges(channelId, input.baseSeq),
+      };
     }
     const current = getDb().getTaskById(task.id);
     if (!current) throw new Error("Task not found in this channel");
@@ -291,17 +351,25 @@ export function updateTaskStatus(input: {
         reopened: 0,
       });
       if (!claimed) throw new Error("Task not found");
-      return { status: "updated" as const, task: toTaskView(claimed, getDb().getMessage(claimed.message_id)!) };
+      return {
+        status: "updated" as const,
+        task: toTaskView(claimed, getDb().getMessage(claimed.message_id)!),
+      };
     }
 
     const transition = TRANSITIONS[current.status]?.[input.status];
-    if (!transition) throw new InvalidTaskTransitionError(current.status, input.status);
+    if (!transition)
+      throw new InvalidTaskTransitionError(current.status, input.status);
     if (!transition.authorized(current, input.memberId)) {
       if (current.status === "in_review") {
         if (isTaskInDM(current)) {
-          throw new TaskNotAuthorizedError("In a DM, only the owner can approve or reject tasks");
+          throw new TaskNotAuthorizedError(
+            "In a DM, only the owner can approve or reject tasks",
+          );
         }
-        throw new TaskNotAuthorizedError("The builder cannot verify their own work");
+        throw new TaskNotAuthorizedError(
+          "The builder cannot verify their own work",
+        );
       }
       throw new TaskNotAuthorizedError("Only the task owner can do this");
     }
@@ -311,7 +379,10 @@ export function updateTaskStatus(input: {
       reopened: transition.reopen ? 1 : undefined,
     });
     if (!updated) throw new Error("Task not found");
-    return { status: "updated" as const, task: toTaskView(updated, getDb().getMessage(updated.message_id)!) };
+    return {
+      status: "updated" as const,
+      task: toTaskView(updated, getDb().getMessage(updated.message_id)!),
+    };
   });
 }
 

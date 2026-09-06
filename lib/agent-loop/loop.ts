@@ -26,11 +26,19 @@ import {
   subscribeWake,
   updateTaskStatus,
 } from "../domain/raft/index.ts";
-import { publishAgentStatus, startAgentStatusSweeper } from "../agent-status.ts";
+import {
+  publishAgentStatus,
+  startAgentStatusSweeper,
+} from "../agent-status.ts";
 import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
 import { OWNER_MEMBER_ID } from "../data/schema.ts";
-import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../data/types.ts";
+import type {
+  ChannelRow,
+  MemberRow,
+  MessageRow,
+  TaskRow,
+} from "../data/types.ts";
 import {
   BUSY_CWD_RETRY_DELAY_MS,
   PROMPT_DONE_EVENTS,
@@ -57,14 +65,22 @@ import {
  */
 
 export interface LoopSession {
-  send(command: { type: string; message?: string; [key: string]: unknown }): Promise<unknown>;
-  onEvent(listener: (event: { type: string; [key: string]: unknown }) => void): () => void;
+  send(command: {
+    type: string;
+    message?: string;
+    [key: string]: unknown;
+  }): Promise<unknown>;
+  onEvent(
+    listener: (event: { type: string; [key: string]: unknown }) => void,
+  ): () => void;
   isRunning(): boolean;
 }
 
 export interface LoopRuntime {
   findSession(member: MemberRow): LoopSession | undefined;
-  startSession(member: MemberRow): Promise<{ sessionId: string; sessionFile: string | null }>;
+  startSession(
+    member: MemberRow,
+  ): Promise<{ sessionId: string; sessionFile: string | null }>;
   /** 02-决策一：同 cwd 被他人会话占用时返回占用中的会话（busy-cwd 的等待对象）。 */
   findBusySessionForCwd?(cwd: string): LoopSession | undefined;
 }
@@ -88,7 +104,10 @@ declare global {
 }
 
 function mustRespondFailureCount(agentId: string, targetId: string): number {
-  return globalThis.__workspliceMustRespondFailures?.get(`${agentId}|${targetId}`) ?? 0;
+  return (
+    globalThis.__workspliceMustRespondFailures?.get(`${agentId}|${targetId}`) ??
+    0
+  );
 }
 
 function recordMustRespondFailure(agentId: string, targetId: string): number {
@@ -96,7 +115,10 @@ function recordMustRespondFailure(agentId: string, targetId: string): number {
     globalThis.__workspliceMustRespondFailures = new Map();
   }
   const next = mustRespondFailureCount(agentId, targetId) + 1;
-  globalThis.__workspliceMustRespondFailures.set(`${agentId}|${targetId}`, next);
+  globalThis.__workspliceMustRespondFailures.set(
+    `${agentId}|${targetId}`,
+    next,
+  );
   return next;
 }
 
@@ -113,7 +135,8 @@ export interface AgentAction {
 }
 
 /** 崩溃恢复补拉用的房间标记（§5.3）：随 prompt 落进 session jsonl 的 user 条目。 */
-export const ROOM_MARKER_PATTERN = /\[worksplice:target=([A-Za-z0-9#-]+) seq=(\d+)\]/;
+export const ROOM_MARKER_PATTERN =
+  /\[worksplice:target=([A-Za-z0-9#-]+) seq=(\d+)\]/;
 
 export function roomMarker(targetId: string, seq: number): string {
   return `[worksplice:target=${targetId} seq=${seq}]`;
@@ -156,7 +179,8 @@ export function parseAgentAction(text: string): AgentAction {
   let parsed: Record<string, unknown> | null = null;
   try {
     const direct = JSON.parse(cleaned);
-    if (direct && typeof direct === "object" && !Array.isArray(direct)) parsed = direct;
+    if (direct && typeof direct === "object" && !Array.isArray(direct))
+      parsed = direct;
   } catch {
     const candidate = extractJsonObject(cleaned);
     if (candidate) {
@@ -176,9 +200,13 @@ export function parseAgentAction(text: string): AgentAction {
     }
   }
   if (parsed) {
-    const action: AgentAction["action"] = parsed.action === "ignore" ? "ignore" : "reply";
-    const content = typeof parsed.content === "string" ? parsed.content.trim() : "";
-    const onConflict: ConflictChoice = CONFLICT_CHOICES.has(String(parsed.onConflict))
+    const action: AgentAction["action"] =
+      parsed.action === "ignore" ? "ignore" : "reply";
+    const content =
+      typeof parsed.content === "string" ? parsed.content.trim() : "";
+    const onConflict: ConflictChoice = CONFLICT_CHOICES.has(
+      String(parsed.onConflict),
+    )
       ? (parsed.onConflict as ConflictChoice)
       : "revise";
     let task: AgentAction["task"];
@@ -186,13 +214,23 @@ export function parseAgentAction(text: string): AgentAction {
     if (rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)) {
       const number = Number((rawTask as Record<string, unknown>).number);
       const op = String((rawTask as Record<string, unknown>).op);
-      if (Number.isInteger(number) && number > 0 && TASK_OPS.has(op as TaskOp)) {
+      if (
+        Number.isInteger(number) &&
+        number > 0 &&
+        TASK_OPS.has(op as TaskOp)
+      ) {
         task = { number, op: op as TaskOp };
       }
     }
-    return task ? { action, content, onConflict, task } : { action, content, onConflict };
+    return task
+      ? { action, content, onConflict, task }
+      : { action, content, onConflict };
   }
-  return { action: "reply", content: cleaned || text.trim(), onConflict: "revise" };
+  return {
+    action: "reply",
+    content: cleaned || text.trim(),
+    onConflict: "revise",
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -206,19 +244,28 @@ export function buildReplyPrompt(input: {
   agent: MemberRow;
   channel: ChannelRow;
   messages: MessageWithAuthor[];
-  tasks: Array<{ number: number; status: string; preview: string; ownerName: string; reopened?: boolean }>;
+  tasks: Array<{
+    number: number;
+    status: string;
+    preview: string;
+    ownerName: string;
+    reopened?: boolean;
+  }>;
   targetId: string;
   baseSeq: number;
   memoryFile?: string | null;
 }): string {
   const lines: string[] = [];
-  lines.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
+  lines.push(
+    `You are @${input.agent.name}, a member of the worksplice workspace.`,
+  );
   lines.push(`New activity arrived in channel ${input.channel.name}:`);
   // 11-整改（自激循环）：续工轮的 drain 全是 agent 自己的历史回复（线程游标留口），
   // 模型看到 `@自己` 会误以为被 @mention 而继续回复——标注这些是自己的消息，
   // 不是他人新活动，@mention 也不构成"必须回应"信号。
   const ownMessagesOnly =
-    input.messages.length > 0 && input.messages.every((m) => m.author_id === input.agent.id);
+    input.messages.length > 0 &&
+    input.messages.every((m) => m.author_id === input.agent.id);
   if (ownMessagesOnly) {
     lines.push(
       "(The messages below are YOUR OWN — your prior progress in this thread. They are not new activity from others; being @mentioned within them is a self-mention, not a demand. Decide: continue working, complete the task, or say nothing.)",
@@ -237,8 +284,12 @@ export function buildReplyPrompt(input: {
     lines.push("");
     lines.push("Related open tasks:");
     for (const task of input.tasks) {
-      const reopened = task.reopened ? " — REOPENED, awaiting the owner: do not claim" : "";
-      lines.push(`- task #${task.number} [${task.status}] "${task.preview}" (owner: ${task.ownerName})${reopened}`);
+      const reopened = task.reopened
+        ? " — REOPENED, awaiting the owner: do not claim"
+        : "";
+      lines.push(
+        `- task #${task.number} [${task.status}] "${task.preview}" (owner: ${task.ownerName})${reopened}`,
+      );
     }
   }
   lines.push("");
@@ -264,7 +315,9 @@ export function buildReplyPrompt(input: {
   lines.push(
     "- Never @mention yourself: writing @your-own-name in a reply mentions no one and only creates noise.",
   );
-  lines.push('- A "reply" must carry non-empty content text — a reply without content cannot be posted.');
+  lines.push(
+    '- A "reply" must carry non-empty content text — a reply without content cannot be posted.',
+  );
   lines.push(
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
   );
@@ -292,7 +345,9 @@ export function buildRevisionPrompt(input: {
   targetId: string;
 }): string {
   const lines: string[] = [];
-  lines.push(`Your reply to channel ${input.channel.name} was held because the room changed while you were writing.`);
+  lines.push(
+    `Your reply to channel ${input.channel.name} was held because the room changed while you were writing.`,
+  );
   lines.push(`What happened: ${input.held.whatHappened}`);
   lines.push(`The room is now at seq ${input.held.roomSeq}.`);
   if (input.newMessages.length > 0) {
@@ -346,7 +401,10 @@ export function waitForPromptCompletion(
       if (event.type === "prompt_error") {
         clearTimeout(timer);
         unsub();
-        resolve({ ok: false, error: String(event.errorMessage ?? "prompt failed") });
+        resolve({
+          ok: false,
+          error: String(event.errorMessage ?? "prompt failed"),
+        });
       } else if (PROMPT_DONE_EVENTS.has(event.type)) {
         clearTimeout(timer);
         unsub();
@@ -365,7 +423,11 @@ export async function promptSession(
   try {
     await session.send({ type: "prompt", message: prompt });
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error), text: "" };
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      text: "",
+    };
   }
   const result = await completion;
   if (!result.ok) return { ok: false, error: result.error, text: "" };
@@ -376,7 +438,12 @@ export async function promptSession(
   // SDK 对模型/API 报错（如 openrouter 402）不 reject prompt()：事件流照发 prompt_done，
   // 但最后一条 assistant 无文本。空文本只能来自失败轮（合法的 ignore 也返回 JSON 文本），
   // 必须按失败处理——否则游标被 ack、消息被静默消费、agent 永不回复。
-  if (!text) return { ok: false, error: "model returned no text (request failed?)", text: "" };
+  if (!text)
+    return {
+      ok: false,
+      error: "model returned no text (request failed?)",
+      text: "",
+    };
   return { ok: true, text };
 }
 
@@ -430,21 +497,39 @@ export async function deliverWithFreshness(input: {
       content: action.content,
       baseSeq,
     });
-    if (!result.held) return { status: "replied", message: result.message, ackSeq };
+    if (!result.held)
+      return { status: "replied", message: result.message, ackSeq };
 
     ackSeq = result.roomSeq;
     switch (action.onConflict) {
       case "anyway": {
         // --anyway 逃逸口：连续 hold 后的显式绕过（不带 baseSeq 重试）
-        const forced = send({ targetId: input.targetId, authorId: input.agent.id, content: action.content });
-        if (forced.held) return { status: "silent", reason: "anyway send was held again", ackSeq };
+        const forced = send({
+          targetId: input.targetId,
+          authorId: input.agent.id,
+          content: action.content,
+        });
+        if (forced.held)
+          return {
+            status: "silent",
+            reason: "anyway send was held again",
+            ackSeq,
+          };
         return { status: "anyway", message: forced.message, ackSeq };
       }
       case "silent":
-        return { status: "silent", reason: "agent chose to stay silent", ackSeq };
+        return {
+          status: "silent",
+          reason: "agent chose to stay silent",
+          ackSeq,
+        };
       case "resend": {
         if (resendRetries >= MAX_RESEND_RETRIES) {
-          return { status: "silent", reason: "resend retries exhausted", ackSeq };
+          return {
+            status: "silent",
+            reason: "resend retries exhausted",
+            ackSeq,
+          };
         }
         resendRetries += 1;
         baseSeq = result.roomSeq;
@@ -453,14 +538,21 @@ export async function deliverWithFreshness(input: {
       case "revise":
       default: {
         if (reviseRetries >= MAX_REVISE_RETRIES) {
-          return { status: "silent", reason: "revise retries exhausted", ackSeq };
+          return {
+            status: "silent",
+            reason: "revise retries exhausted",
+            ackSeq,
+          };
         }
         reviseRetries += 1;
         const revisedText = await input.promptFn(
           buildRevisionPrompt({
             channel: input.channel,
             originalContent: action.content,
-            held: { roomSeq: result.roomSeq, whatHappened: result.whatHappened },
+            held: {
+              roomSeq: result.roomSeq,
+              whatHappened: result.whatHappened,
+            },
             newMessages: getSince(input.targetId, baseSeq),
             targetId: input.targetId,
           }),
@@ -474,7 +566,11 @@ export async function deliverWithFreshness(input: {
           // 不推进游标（被 hold 的消息保持 pending 供下次 wake 重试）、error 状态点；
           // 不再是 silent：silent 会被 isAbandonedRound 标成「已放弃」badge，但实际会重试——badge 说谎。
           // 区别于 "revised to ignore"（ackSeq 已推进、真正终止，保持 silent）。
-          return { status: "error", reason: "revised reply had no content", ackSeq: input.baseSeq };
+          return {
+            status: "error",
+            reason: "revised reply had no content",
+            ackSeq: input.baseSeq,
+          };
         }
         action = revised;
         baseSeq = result.roomSeq;
@@ -514,7 +610,10 @@ export interface RoundOutcome {
 /** 任务状态更新的 freshness 重试上限（回复已落线程，状态更新是机械收口）。 */
 export const MAX_TASK_STATUS_RETRIES = 3;
 
-function taskInChannel(channelId: string, taskNumber: number): TaskRow | undefined {
+function taskInChannel(
+  channelId: string,
+  taskNumber: number,
+): TaskRow | undefined {
   return getDb().getTaskByChannelNumber(channelId, taskNumber);
 }
 
@@ -544,18 +643,31 @@ export async function runTaskOperation(input: {
   const task = taskInChannel(channel.id, taskNumber);
   if (!task) {
     ack(agent.id, input.targetId, baseSeq);
-    return { status: "yielded", reason: "task not found in this channel", baseSeq };
+    return {
+      status: "yielded",
+      reason: "task not found in this channel",
+      baseSeq,
+    };
   }
   // §6.3 写稿时版本：thread 回复用决策时刻的线程版本；状态更新用 agent 语境里的 channel 版本
   // （当前轮 drain 过 channel 则为其 maxSeq，否则取其已消费游标 = 上一轮读到的最新版本）
   const threadBaseSeq =
-    input.targetId === task.message_id ? input.baseSeq : getDb().maxSeq(task.message_id);
+    input.targetId === task.message_id
+      ? input.baseSeq
+      : getDb().maxSeq(task.message_id);
   const channelVersion =
-    input.targetId === channel.id ? input.baseSeq : getDb().getConsumedSeq(agent.id, channel.id);
+    input.targetId === channel.id
+      ? input.baseSeq
+      : getDb().getConsumedSeq(agent.id, channel.id);
 
   // ---- claim：先认领再开工；失败就让路 --------------------------------------
   if (taskOp.op === "claim") {
-    const claim = claimTask({ channelId: channel.id, taskNumber, memberId: agent.id, baseSeq });
+    const claim = claimTask({
+      channelId: channel.id,
+      taskNumber,
+      memberId: agent.id,
+      baseSeq,
+    });
     if (claim.status !== "claimed") {
       ack(agent.id, input.targetId, baseSeq);
       return {
@@ -586,7 +698,11 @@ export async function runTaskOperation(input: {
   // ---- complete / unclaim：须为本 agent 拥有的任务 ----------------------------
   if (task.owner_id !== agent.id) {
     ack(agent.id, input.targetId, baseSeq);
-    return { status: "yielded", reason: "task is not owned by this agent", baseSeq };
+    return {
+      status: "yielded",
+      reason: "task is not owned by this agent",
+      baseSeq,
+    };
   }
 
   const replyOutcome =
@@ -645,11 +761,18 @@ export async function runTaskOperation(input: {
     // （任务状态收口已完成，不阻塞；claim 路径的同类 error 也透传）
     return {
       status: "error",
-      reason: "reason" in replyOutcome ? replyOutcome.reason : "reply delivery failed",
+      reason:
+        "reason" in replyOutcome
+          ? replyOutcome.reason
+          : "reply delivery failed",
       baseSeq,
     };
   }
-  return { status: "silent", reason: `task ${taskOp.op} → ${targetStatus}`, baseSeq };
+  return {
+    status: "silent",
+    reason: `task ${taskOp.op} → ${targetStatus}`,
+    baseSeq,
+  };
 }
 
 /** 把回复投递到任务线程（thread 自己的 seq 空间与 freshness），返回线程版本；游标由调用方收口。 */
@@ -673,7 +796,9 @@ async function deliverToTaskThread(input: {
     send: input.send,
   });
   const delivered = "message" in outcome ? outcome.message : undefined;
-  const threadAckSeq = delivered ? delivered.seq : (outcome.ackSeq ?? input.threadBaseSeq);
+  const threadAckSeq = delivered
+    ? delivered.seq
+    : (outcome.ackSeq ?? input.threadBaseSeq);
   return {
     status: outcome.status,
     message: delivered,
@@ -686,9 +811,14 @@ async function deliverToTaskThread(input: {
 }
 
 /** §3.7 任务延续信号：agent 拥有锚定于此目标（线程）的 in_progress 任务。 */
-export function ownsInProgressTaskAt(agentId: string, targetId: string): boolean {
+export function ownsInProgressTaskAt(
+  agentId: string,
+  targetId: string,
+): boolean {
   const task = getDb().getTaskByMessageId(targetId);
-  return Boolean(task && task.status === "in_progress" && task.owner_id === agentId);
+  return Boolean(
+    task && task.status === "in_progress" && task.owner_id === agentId,
+  );
 }
 
 /** §05 确定信号：当轮 incoming 里个人 @mention 了本 agent，或本 agent 是进行中任务 owner
@@ -698,7 +828,11 @@ export function hasMustRespondSignal(
   targetId: string,
   incoming: Array<{ content: string; author_id: string }>,
 ): boolean {
-  if (incoming.some((message) => extractMentionedMemberIds(message.content).includes(agentId))) {
+  if (
+    incoming.some((message) =>
+      extractMentionedMemberIds(message.content).includes(agentId),
+    )
+  ) {
     return true;
   }
   // DM 确定信号（R4）：DM target 下作者为 owner（人类）的消息必须回应。
@@ -729,12 +863,17 @@ export const CHANNEL_NOISE_MAX_LENGTH = 80;
 
 export function isChannelNoise(
   agentId: string,
-  message: { content: string; author_id: string; author?: { type?: string } | null },
+  message: {
+    content: string;
+    author_id: string;
+    author?: { type?: string } | null;
+  },
 ): boolean {
   // 人类（Owner）消息永不过滤
   if (message.author?.type === "human") return false;
   // @了我 = 注意力信号，不是 noise
-  if (extractMentionedMemberIds(message.content).includes(agentId)) return false;
+  if (extractMentionedMemberIds(message.content).includes(agentId))
+    return false;
   // 问号 = 可能是问题
   if (/[?？]/.test(message.content)) return false;
   // 任务引用 = 实质内容
@@ -758,16 +897,21 @@ export async function runAgentRound(
 ): Promise<RoundOutcome> {
   const rt: LoopRuntime = runtime ?? (await getAgentRuntime());
   const agent = getAgent(agentId);
-  if (!agent.workspace_path) return { status: "skipped", reason: "no workspace bound" };
+  if (!agent.workspace_path)
+    return { status: "skipped", reason: "no workspace bound" };
   const channel = resolveTargetChannel(targetId);
   if (!channel) return { status: "skipped", reason: "unknown target" };
-  if (channel.archived === 1) return { status: "skipped", reason: "channel archived" };
+  if (channel.archived === 1)
+    return { status: "skipped", reason: "channel archived" };
 
   const drained = drain(agentId, targetId);
-  if (drained.messages.length === 0) return { status: "noop", baseSeq: drained.maxSeq };
+  if (drained.messages.length === 0)
+    return { status: "noop", baseSeq: drained.maxSeq };
   // 本轮房间版本（回复 freshness + error 轮 baseSeq 共用；= drain 时的 max(seq)）
   const baseSeq = drained.maxSeq;
-  const incoming = drained.messages.filter((message) => message.author_id !== agent.id);
+  const incoming = drained.messages.filter(
+    (message) => message.author_id !== agent.id,
+  );
   // greeting 乒乓收敛：channel 主流程里，其他 agent 的无信号短 greeting
   // （收到/在的式 ack，无 @我、无问号、无任务引用）不触发 prompt——
   // 直接从 incoming 剔除，后续走正常 noop/skip 路径 ack 越过（静默消费）。
@@ -806,7 +950,12 @@ export async function runAgentRound(
   }
   // 崩溃窗口（回复已写、游标未推）内的自愈：最新消息是自己的回复 → 只推进游标，不重复应答
   const latest = getDb().getLatestMessage(targetId);
-  if (latest && latest.author_id === agent.id && !continuing && !reminderDriven) {
+  if (
+    latest &&
+    latest.author_id === agent.id &&
+    !continuing &&
+    !reminderDriven
+  ) {
     ack(agentId, targetId, drained.maxSeq);
     return {
       status: "skipped",
@@ -843,7 +992,8 @@ export async function runAgentRound(
   const prompt = buildReplyPrompt({
     agent,
     channel,
-    messages: effectiveIncoming.length > 0 ? effectiveIncoming : drained.messages,
+    messages:
+      effectiveIncoming.length > 0 ? effectiveIncoming : drained.messages,
     tasks: listRelatedTasks(targetId),
     targetId,
     baseSeq,
@@ -862,7 +1012,11 @@ export async function runAgentRound(
       // 非成员无 channel 成员资格，不做任务操作（claim 服务层会拒绝）
       if (!isMember) {
         ack(agentId, targetId, baseSeq);
-        return { status: "yielded", reason: "not a member of the channel", baseSeq };
+        return {
+          status: "yielded",
+          reason: "not a member of the channel",
+          baseSeq,
+        };
       }
       const outcome = await runTaskOperation({
         agent,
@@ -906,7 +1060,11 @@ export async function runAgentRound(
             baseSeq,
           };
         }
-        return { status: "error", reason: "ignore on must-respond signal", baseSeq };
+        return {
+          status: "error",
+          reason: "ignore on must-respond signal",
+          baseSeq,
+        };
       }
       resetMustRespondFailures(agent.id, targetId);
       ack(agentId, targetId, baseSeq);
@@ -917,14 +1075,22 @@ export async function runAgentRound(
       // 却给不出文本 = 本轮失败，与空文本同语义——不推进游标、publish error，触发消息
       // 保持 pending 供下次 wake 重试；否则消息被静默消费、agent 永不回复。
       publishAgentStatus(agent.id, "error");
-      return { status: "error", reason: "reply action without content", baseSeq };
+      return {
+        status: "error",
+        reason: "reply action without content",
+        baseSeq,
+      };
     }
     // §3.2 mention 穿透的回复：agent 可自行加入公开 channel（加入 = 订阅全部消息）；
     // 私有 channel 不能自行加入——回复不可投递，收口游标后静默让路
     if (!isMember) {
       if (channel.type === "private") {
         ack(agentId, targetId, baseSeq);
-        return { status: "silent", reason: "not a member of the private channel", baseSeq };
+        return {
+          status: "silent",
+          reason: "not a member of the private channel",
+          baseSeq,
+        };
       }
       joinChannel(channel.id, agent.id);
     }
@@ -943,7 +1109,11 @@ export async function runAgentRound(
       // 11-整改：revised 空内容 = error 轮——不推进游标（触发消息保持 pending 供下次 wake
       // 重试）、error 状态点；与直接空 reply 路径（reply action without content）归类一致
       publishAgentStatus(agent.id, "error");
-      return { status: "error", reason: outcome.reason, baseSeq: outcome.ackSeq };
+      return {
+        status: "error",
+        reason: outcome.reason,
+        baseSeq: outcome.ackSeq,
+      };
     }
     // ack 到 agent 本轮实际读到/被告知的房间版本（held 后随 roomSeq 推进）
     // 11-整改（自激循环）：续工轮（任务 in_progress 线程、drain 全是自己消息）回复落库后，
@@ -963,13 +1133,25 @@ export async function runAgentRound(
     resetMustRespondFailures(agent.id, targetId);
     publishAgentStatus(agent.id, "online");
     if (outcome.status === "silent") {
-      return { status: "silent", reason: outcome.reason, baseSeq: outcome.ackSeq };
+      return {
+        status: "silent",
+        reason: outcome.reason,
+        baseSeq: outcome.ackSeq,
+      };
     }
-    return { status: outcome.status, message: outcome.message, baseSeq: outcome.ackSeq };
+    return {
+      status: outcome.status,
+      message: outcome.message,
+      baseSeq: outcome.ackSeq,
+    };
   } catch (error) {
     publishAgentStatus(agent.id, "error");
     // 11-整改：catch 的 error 轮携带本轮 drain 的房间版本
-    return { status: "error", reason: error instanceof Error ? error.message : String(error), baseSeq };
+    return {
+      status: "error",
+      reason: error instanceof Error ? error.message : String(error),
+      baseSeq,
+    };
   }
 }
 
@@ -1016,7 +1198,9 @@ function getDriverState(): DriverState {
   return globalThis.__workspliceAgentLoopDriver;
 }
 
-export function startAgentLoopDriver(deps: { runtime?: LoopRuntime } = {}): () => void {
+export function startAgentLoopDriver(
+  deps: { runtime?: LoopRuntime } = {},
+): () => void {
   const state = getDriverState();
   if (state.started) return stopAgentLoopDriver;
   state.started = true;
@@ -1046,7 +1230,10 @@ export function peekAgentLoopQueues(): Array<{
 }> {
   return Array.from(getDriverState().queues, ([agentId, targets]) => ({
     agentId,
-    entries: targets.map((entry) => ({ targetId: entry.targetId, reason: entry.reason })),
+    entries: targets.map((entry) => ({
+      targetId: entry.targetId,
+      reason: entry.reason,
+    })),
   }));
 }
 
@@ -1089,7 +1276,12 @@ async function processAgent(agentId: string): Promise<void> {
 
       let outcome;
       try {
-        outcome = await runAgentRound(agentId, queued.targetId, runtime, queued.reason);
+        outcome = await runAgentRound(
+          agentId,
+          queued.targetId,
+          runtime,
+          queued.reason,
+        );
       } catch (error) {
         // 成员已删除 / target 消失等：跳过该轮，继续队列
         console.error(
@@ -1109,13 +1301,20 @@ async function processAgent(agentId: string): Promise<void> {
   } finally {
     state.processing.delete(agentId);
   }
-  if (state.queues.get(agentId)?.length && !state.waitingForSettle.has(agentId)) {
+  if (
+    state.queues.get(agentId)?.length &&
+    !state.waitingForSettle.has(agentId)
+  ) {
     void processAgent(agentId);
   }
 }
 
 // 11-收敛：busy-cwd 重试改用 cwd-mutex 原语（waitForCwdSettle + scheduleBusyRetry），行为不变。
-async function waitForSettle(agentId: string, targetId: string, reason: WakeReason): Promise<void> {
+async function waitForSettle(
+  agentId: string,
+  targetId: string,
+  reason: WakeReason,
+): Promise<void> {
   const state = getDriverState();
   if (state.waitingForSettle.has(agentId)) return;
   state.waitingForSettle.add(agentId);
@@ -1139,7 +1338,9 @@ async function waitForSettle(agentId: string, targetId: string, reason: WakeReas
     // 自身有会话的 busy 等自己 settle。两者同一条等待路径。
     const waitTarget =
       runtime.findSession(agent) ??
-      (agent.workspace_path ? runtime.findBusySessionForCwd?.(agent.workspace_path) : undefined);
+      (agent.workspace_path
+        ? runtime.findBusySessionForCwd?.(agent.workspace_path)
+        : undefined);
     if (!waitTarget) {
       // starting 窗口（对方会话尚未入 registry）：退避后重试，避免热自旋。
       // 11-收敛：退避由 cwd-mutex 的 scheduleBusyRetry 提供（BUSY_CWD_RETRY_DELAY_MS 唯一来源）。
@@ -1151,7 +1352,10 @@ async function waitForSettle(agentId: string, targetId: string, reason: WakeReas
     // SAFETY: waitTarget 是 LoopSession，结构上满足 SettleableSession（isRunning + onEvent）；
     // 仅接口名不同，且 LoopSession 的 onEvent 监听器参数更宽（{type:string}&Record<string,unknown>）——
     // 逆变安全，cast 仅弥合类型命名差异，无运行时风险。
-    const unsub = waitForCwdSettle(waitTarget as unknown as import("../cwd-mutex.ts").SettleableSession, retry);
+    const unsub = waitForCwdSettle(
+      waitTarget as unknown as import("../cwd-mutex.ts").SettleableSession,
+      retry,
+    );
     state.settleUnsubs.set(agentId, unsub);
   } catch {
     retry();
@@ -1193,7 +1397,11 @@ export function readSessionHeaderCwd(filePath: string): string | null {
     if (!line.trim()) continue;
     try {
       const entry = JSON.parse(line) as { type?: string; cwd?: unknown };
-      if (entry?.type === "session" && typeof entry.cwd === "string" && entry.cwd) {
+      if (
+        entry?.type === "session" &&
+        typeof entry.cwd === "string" &&
+        entry.cwd
+      ) {
         return entry.cwd;
       }
     } catch {
@@ -1212,7 +1420,8 @@ function referencedSessionFilesExcluding(agentId: string): Set<string> {
   const referenced = new Set<string>();
   for (const member of getDb().listMembersIncludingDeleted()) {
     if (member.id === agentId) continue;
-    if (member.pi_session_file) referenced.add(normalize(member.pi_session_file));
+    if (member.pi_session_file)
+      referenced.add(normalize(member.pi_session_file));
   }
   return referenced;
 }
@@ -1232,8 +1441,10 @@ export function backfillOwnershipGate(
 ): { pass: boolean; reason: string | null } {
   const file = agent.pi_session_file;
   if (!file) return { pass: false, reason: "no session file bound" };
-  if (!existsSync(file)) return { pass: false, reason: "session file missing on disk" };
-  if (!agent.workspace_path) return { pass: false, reason: "member has no workspace" };
+  if (!existsSync(file))
+    return { pass: false, reason: "session file missing on disk" };
+  if (!agent.workspace_path)
+    return { pass: false, reason: "member has no workspace" };
   const headerCwd = readSessionHeaderCwd(file);
   if (headerCwd === null) {
     return { pass: false, reason: "session file header has no cwd" };
@@ -1245,7 +1456,10 @@ export function backfillOwnershipGate(
     };
   }
   if (referencedByOthers.has(normalize(file))) {
-    return { pass: false, reason: "session file also referenced by another member" };
+    return {
+      pass: false,
+      reason: "session file also referenced by another member",
+    };
   }
   const mtime = statSync(file).mtime.getTime();
   const createdAt = new Date(agent.created_at).getTime();
@@ -1263,7 +1477,12 @@ function textFromContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     return content
-      .filter((block) => block && typeof block === "object" && (block as { type?: string }).type === "text")
+      .filter(
+        (block) =>
+          block &&
+          typeof block === "object" &&
+          (block as { type?: string }).type === "text",
+      )
       .map((block) => (block as { text?: string }).text ?? "")
       .join("\n");
   }
@@ -1286,7 +1505,11 @@ export function scanSessionReplies(filePath: string): SessionReply[] {
     if (current && pendingText) {
       const parsed = parseAgentAction(pendingText);
       if (parsed.action === "reply" && parsed.content) {
-        replies.push({ targetId: current.targetId, markerSeq: current.seq, content: parsed.content });
+        replies.push({
+          targetId: current.targetId,
+          markerSeq: current.seq,
+          content: parsed.content,
+        });
       }
     }
     pendingText = null;
@@ -1340,9 +1563,14 @@ export function backfillAgentReplies(agent: MemberRow): BackfillResult {
   if (!file || !existsSync(file)) return { inserted: 0, targets: [] };
 
   // ticket 04 归属门禁：文件级校验不过 → 整文件跳过（不补写、不推进游标）。
-  const gate = backfillOwnershipGate(agent, referencedSessionFilesExcluding(agent.id));
+  const gate = backfillOwnershipGate(
+    agent,
+    referencedSessionFilesExcluding(agent.id),
+  );
   if (!gate.pass) {
-    console.warn(`[backfill] skipping session file ${file} for member ${agent.id}: ${gate.reason}`);
+    console.warn(
+      `[backfill] skipping session file ${file} for member ${agent.id}: ${gate.reason}`,
+    );
     return { inserted: 0, targets: [] };
   }
 
@@ -1361,7 +1589,9 @@ export function backfillAgentReplies(agent: MemberRow): BackfillResult {
       // 游标不推进（保持 pending，留给正常 wake 流程重读重做），避免把他人回复
       // 冒充为本 agent 的投递。真实崩溃恢复中同内容跨作者几乎不可能（各 agent
       // 回复独立），误杀率极低。
-      if (db.hasMessageByContentByOther(reply.targetId, agent.id, reply.content)) {
+      if (
+        db.hasMessageByContentByOther(reply.targetId, agent.id, reply.content)
+      ) {
         contentBlockedTargets.add(reply.targetId);
         continue;
       }
@@ -1371,7 +1601,12 @@ export function backfillAgentReplies(agent: MemberRow): BackfillResult {
       );
       if (db.hasMessage(reply.targetId, agent.id, reply.content)) continue;
       const seq = db.maxSeq(reply.targetId) + 1;
-      db.insertMessageAt({ targetId: reply.targetId, authorId: agent.id, content: reply.content, seq });
+      db.insertMessageAt({
+        targetId: reply.targetId,
+        authorId: agent.id,
+        content: reply.content,
+        seq,
+      });
       inserted += 1;
       targets.add(reply.targetId);
     }
@@ -1384,7 +1619,11 @@ export function backfillAgentReplies(agent: MemberRow): BackfillResult {
     );
   }
   for (const [targetId, seq] of cursorByTarget) {
-    db.setConsumedSeq(agent.id, targetId, Math.max(db.getConsumedSeq(agent.id, targetId), seq));
+    db.setConsumedSeq(
+      agent.id,
+      targetId,
+      Math.max(db.getConsumedSeq(agent.id, targetId), seq),
+    );
   }
   return { inserted, targets: [...targets] };
 }
@@ -1433,7 +1672,9 @@ function getCronState(): CronState {
   return globalThis.__workspliceReminderCron;
 }
 
-export function startReminderCron(deps: { pollMs?: number; now?: () => Date } = {}): () => void {
+export function startReminderCron(
+  deps: { pollMs?: number; now?: () => Date } = {},
+): () => void {
   const state = getCronState();
   if (state.started) return stopReminderCron;
   state.started = true;
