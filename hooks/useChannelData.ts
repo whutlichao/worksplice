@@ -40,6 +40,26 @@ export interface ChannelMuteRow {
   muted: boolean;
 }
 
+/** BAI-6 打开频道期间推进已读游标（纯函数：fetch 可注入，便于测试）。
+ *
+ * 调用方（3s 轮询 effect）在合并出新消息时 fire-and-forget 调用：
+ * `void markChannelRead(cid).catch(() => undefined)`。服务端幂等（游标只前进），
+ * 404（频道被删）/ 网络失败由调用方吞掉，不干扰消息合并。channelId 为空时由调用方跳过。 */
+export async function markChannelRead(
+  channelId: string,
+  fetchFn: FetchFn = fetch,
+): Promise<number> {
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(channelId)}/read`,
+    {
+      method: "POST",
+    },
+  );
+  if (!res.ok) throw new Error(`POST read: ${res.status}`);
+  const body = (await res.json().catch(() => ({}))) as { readSeq?: number };
+  return body.readSeq ?? 0;
+}
+
 /** 频道消息页（与 GET /api/channels/[id]/messages 返回形态同形）。 */
 export interface ChannelMessagesPage {
   messages: ChannelMessage[];
@@ -60,7 +80,10 @@ export function mergeIncomingMessages(
   incoming: ChannelMessage[],
 ): ChannelMessage[] {
   if (incoming.length === 0) return prev;
-  const merged = [...prev, ...incoming.filter((m) => !prev.some((p) => p.id === m.id))];
+  const merged = [
+    ...prev,
+    ...incoming.filter((m) => !prev.some((p) => p.id === m.id)),
+  ];
   return merged.sort((a, b) => a.seq - b.seq);
 }
 
@@ -72,7 +95,9 @@ export async function loadMessagesPage(
 ): Promise<ChannelMessagesPage> {
   const params = new URLSearchParams({ limit: String(CHANNEL_PAGE_LIMIT) });
   if (before !== undefined) params.set("before", String(before));
-  const res = await fetchFn(`/api/channels/${encodeURIComponent(targetId)}/messages?${params}`);
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(targetId)}/messages?${params}`,
+  );
   if (!res.ok) throw new Error(`GET messages: ${res.status}`);
   return (await res.json()) as ChannelMessagesPage;
 }
@@ -121,13 +146,17 @@ export function isSameMessagesPage(
  * az = 内容字典序。服务端已按 sort 排好序返回，本函数供视图在本地重排
  * （如重排乐观态）与 hook 级测试锁定排序语义用。
  */
-export function sortPinnedItems(items: PinnedItem[], sort: PinnedSort): PinnedItem[] {
+export function sortPinnedItems(
+  items: PinnedItem[],
+  sort: PinnedSort,
+): PinnedItem[] {
   const sorted = [...items];
   sorted.sort((a, b) => {
     if (sort === "recent") {
       return b.pinnedAt.localeCompare(a.pinnedAt) || b.order - a.order;
     }
-    if (sort === "az") return a.message.content.localeCompare(b.message.content);
+    if (sort === "az")
+      return a.message.content.localeCompare(b.message.content);
     return a.order - b.order;
   });
   return sorted;
@@ -139,7 +168,9 @@ export async function loadPinnedPage(
   sort: PinnedSort,
   fetchFn: FetchFn = fetch,
 ): Promise<PinnedItem[]> {
-  const res = await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/pinned?sort=${sort}`);
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(channelId)}/pinned?sort=${sort}`,
+  );
   if (!res.ok) throw new Error(`GET pinned: ${res.status}`);
   const body = (await res.json()) as { pinned?: PinnedItem[] };
   return body.pinned ?? [];
@@ -155,11 +186,14 @@ export async function postPinnedOrder(
   order: string[],
   fetchFn: FetchFn = fetch,
 ): Promise<void> {
-  const res = await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/pinned/reorder`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ order }),
-  });
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(channelId)}/pinned/reorder`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order }),
+    },
+  );
   if (!res.ok) throw new Error(`reorder: ${res.status}`);
 }
 
@@ -175,9 +209,12 @@ export async function togglePinnedMessage(
   fetchFn: FetchFn = fetch,
 ): Promise<boolean> {
   const res = alreadyPinned
-    ? await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/pinned?messageId=${messageId}`, {
-        method: "DELETE",
-      })
+    ? await fetchFn(
+        `/api/channels/${encodeURIComponent(channelId)}/pinned?messageId=${messageId}`,
+        {
+          method: "DELETE",
+        },
+      )
     : await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/pinned`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -192,7 +229,9 @@ export async function loadMutesPage(
   channelId: string,
   fetchFn: FetchFn = fetch,
 ): Promise<ChannelMuteRow[]> {
-  const res = await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/mute`);
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(channelId)}/mute`,
+  );
   if (!res.ok) throw new Error(`GET mutes: ${res.status}`);
   const body = (await res.json()) as { mutes?: ChannelMuteRow[] };
   return body.mutes ?? [];
@@ -209,11 +248,14 @@ export async function toggleChannelMute(
   fetchFn: FetchFn = fetch,
 ): Promise<boolean> {
   const next = !muted;
-  const res = await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/mute`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ memberId, muted: next }),
-  });
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(channelId)}/mute`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, muted: next }),
+    },
+  );
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(err.error ?? "mute failed");
@@ -234,7 +276,9 @@ export async function loadChannelMemberIds(
   channelId: string,
   fetchFn: FetchFn = fetch,
 ): Promise<Set<string>> {
-  const res = await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/members`);
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(channelId)}/members`,
+  );
   if (!res.ok) throw new Error(`GET members: ${res.status}`);
   const body = (await res.json()) as { members?: Array<{ id: string }> };
   return new Set((body.members ?? []).map((m) => m.id));
@@ -248,7 +292,9 @@ export async function loadTasksPage(
   channelId: string,
   fetchFn: FetchFn = fetch,
 ): Promise<ChannelTask[]> {
-  const res = await fetchFn(`/api/channels/${encodeURIComponent(channelId)}/tasks`);
+  const res = await fetchFn(
+    `/api/channels/${encodeURIComponent(channelId)}/tasks`,
+  );
   if (!res.ok) throw new Error(`GET tasks: ${res.status}`);
   const body = (await res.json()) as { tasks?: ChannelTask[] };
   return body.tasks ?? [];
@@ -275,9 +321,12 @@ export function parseTaskTransitionBody(body: {
   reason?: string;
 }): TaskTransitionResult {
   if (body.task) return { kind: "updated", task: body.task };
-  if (body.held) return { kind: "held", whatHappened: body.whatHappened ?? "held" };
-  if (body.conflict) return { kind: "conflict", reason: body.reason ?? "conflict" };
-  if (body.blocked) return { kind: "blocked", reason: body.reason ?? "blocked" };
+  if (body.held)
+    return { kind: "held", whatHappened: body.whatHappened ?? "held" };
+  if (body.conflict)
+    return { kind: "conflict", reason: body.reason ?? "conflict" };
+  if (body.blocked)
+    return { kind: "blocked", reason: body.reason ?? "blocked" };
   throw new Error("task transition: empty response");
 }
 
@@ -295,9 +344,12 @@ export async function claimChannelTask(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ baseSeq }),
   });
-  const body = (await res.json().catch(() => ({}))) as Parameters<typeof parseTaskTransitionBody>[0];
+  const body = (await res.json().catch(() => ({}))) as Parameters<
+    typeof parseTaskTransitionBody
+  >[0];
   if (!res.ok) {
-    if (body.held || body.conflict || body.blocked) return parseTaskTransitionBody(body);
+    if (body.held || body.conflict || body.blocked)
+      return parseTaskTransitionBody(body);
     throw new Error(body.task ? "claim failed" : `claim: ${res.status}`);
   }
   return parseTaskTransitionBody(body);
@@ -314,14 +366,20 @@ export async function updateChannelTaskStatus(
   baseSeq: number,
   fetchFn: FetchFn = fetch,
 ): Promise<TaskTransitionResult> {
-  const res = await fetchFn(`/api/tasks/${encodeURIComponent(taskId)}/update-status`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, baseSeq }),
-  });
-  const body = (await res.json().catch(() => ({}))) as Parameters<typeof parseTaskTransitionBody>[0];
+  const res = await fetchFn(
+    `/api/tasks/${encodeURIComponent(taskId)}/update-status`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, baseSeq }),
+    },
+  );
+  const body = (await res.json().catch(() => ({}))) as Parameters<
+    typeof parseTaskTransitionBody
+  >[0];
   if (!res.ok) {
-    if (body.held || body.conflict || body.blocked) return parseTaskTransitionBody(body);
+    if (body.held || body.conflict || body.blocked)
+      return parseTaskTransitionBody(body);
     throw new Error(`update-status: ${res.status}`);
   }
   return parseTaskTransitionBody(body);
@@ -341,8 +399,16 @@ export async function completeTaskWithReply(
   channelBaseSeq: number,
   fetchFn: FetchFn = fetch,
 ): Promise<TaskTransitionResult> {
-  const reply = await postChannelMessage(anchorId, replyContent, undefined, threadBaseSeq, undefined, fetchFn);
-  if (reply.kind === "held") return { kind: "held", whatHappened: reply.whatHappened };
+  const reply = await postChannelMessage(
+    anchorId,
+    replyContent,
+    undefined,
+    threadBaseSeq,
+    undefined,
+    fetchFn,
+  );
+  if (reply.kind === "held")
+    return { kind: "held", whatHappened: reply.whatHappened };
   return updateChannelTaskStatus(taskId, "in_review", channelBaseSeq, fetchFn);
 }
 
@@ -359,7 +425,10 @@ export async function convertMessageToTaskRow(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messageId }),
   });
-  const body = (await res.json().catch(() => ({}))) as { task?: ChannelTask; error?: string };
+  const body = (await res.json().catch(() => ({}))) as {
+    task?: ChannelTask;
+    error?: string;
+  };
   if (!res.ok) throw new Error(body.error ?? `convert to task: ${res.status}`);
   if (!body.task) throw new Error("convert to task: empty response");
   return body.task;
@@ -379,7 +448,10 @@ export async function createBoardTaskRow(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ channelId, content }),
   });
-  const body = (await res.json().catch(() => ({}))) as { task?: ChannelTask; error?: string };
+  const body = (await res.json().catch(() => ({}))) as {
+    task?: ChannelTask;
+    error?: string;
+  };
   if (!res.ok) throw new Error(body.error ?? `create task: ${res.status}`);
   if (!body.task) throw new Error("create task: empty response");
   return body.task;
@@ -427,7 +499,8 @@ export async function postChannelMessage(
     error?: string;
   };
   if (!res.ok) {
-    if (body.held) return { kind: "held", whatHappened: body.whatHappened ?? "held" };
+    if (body.held)
+      return { kind: "held", whatHappened: body.whatHappened ?? "held" };
     throw new Error(body.error ?? `POST messages: ${res.status}`);
   }
   if (body.message) return { kind: "sent", message: body.message };
@@ -476,7 +549,11 @@ export async function postChannelMessage(
  * - toast 文案（tasks.held/tasks.denied/converted/created）与 invalid-drop 提示留视图侧，
  *   hook 只暴露 taskNotice/tasksError 状态与 setter 供视图写文案。
  */
-export function useChannelData(channelId: string | undefined, t?: (key: string, params?: Record<string, string | number>) => string, membersVersion?: number) {
+export function useChannelData(
+  channelId: string | undefined,
+  t?: (key: string, params?: Record<string, string | number>) => string,
+  membersVersion?: number,
+) {
   const latestRequestRef = useRef(0);
   const cacheRef = useRef(new Map<string, ChannelMessagesPage>());
   /** 附属区分桶缓存：成员/mute/pinned/任务切回看过的频道直接命中快照，避免计数先空后闪。
@@ -501,7 +578,9 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
   const [pinnedError, setPinnedError] = useState<string | null>(null);
   const [mutes, setMutes] = useState<ChannelMuteRow[]>([]);
-  const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(new Set());
+  const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [membersError, setMembersError] = useState<string | null>(null);
   /** 附属区加载态：首包回来前头部计数位显示占位符，不先画空再闪出数字。 */
   const [membersLoading, setMembersLoading] = useState(true);
@@ -783,17 +862,26 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
     const id = channelId;
     void loadPinnedPage(id, pinnedSortForEffect)
       .then((items) => {
-        if (channelIdRef.current !== id || pinnedSortRef.current !== pinnedSortForEffect) return;
+        if (
+          channelIdRef.current !== id ||
+          pinnedSortRef.current !== pinnedSortForEffect
+        )
+          return;
         setPinnedItems(items);
         setPinnedError(null);
       })
       .catch((e) => {
-        if (channelIdRef.current !== id || pinnedSortRef.current !== pinnedSortForEffect) return;
+        if (
+          channelIdRef.current !== id ||
+          pinnedSortRef.current !== pinnedSortForEffect
+        )
+          return;
         setPinnedError(e instanceof Error ? e.message : String(e));
       });
   }, [channelId, pinnedSortForEffect]);
 
-  // agent-loop 回复轮询（§5.4）：增量合并新消息；后台 tab 暂停；卸载清理。
+  // agent-loop 回复轮询（§5.4）：增量合并新消息；合并出新消息时推进已读游标
+  // （BAI-6：打开频道期间持续 /read，否则切走后残留陈旧角标）；后台 tab 暂停；卸载清理。
   useEffect(() => {
     if (!channelId) return;
     const cid = channelId;
@@ -804,13 +892,20 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
         .then((page) => {
           if (cancelled) return;
           const prev = cacheRef.current.get(cid);
-          const base: ChannelMessagesPage = prev ?? { messages: [], hasMore: false, maxSeq: 0 };
+          const base: ChannelMessagesPage = prev ?? {
+            messages: [],
+            hasMore: false,
+            maxSeq: 0,
+          };
           const next = applyPollPage(base, page);
           if (next === base) return;
           cacheRef.current.set(cid, next);
           setMessages(next.messages);
           setHasMore(next.hasMore);
           setMaxSeq(next.maxSeq);
+          // 打开中语义：本 hook 只为当前选中频道挂载，合并出新消息即 fire-and-forget
+          // 推进已读游标（服务端幂等只前进；失败吞掉，不干扰消息合并）。
+          void markChannelRead(cid).catch(() => undefined);
         })
         .catch(() => undefined);
     }, CHANNEL_POLL_MS);
@@ -821,7 +916,8 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   }, [channelId, loadPage]);
 
   const loadEarlier = useCallback(() => {
-    if (!channelId || !hasMore || messages.length === 0) return Promise.resolve();
+    if (!channelId || !hasMore || messages.length === 0)
+      return Promise.resolve();
     const before = messages[0].seq;
     return loadPage(channelId, before)
       .then((page) => {
@@ -849,7 +945,13 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
     ): Promise<ChannelMessage | null> => {
       if (!channelId) return null;
       const baseSeq = maxSeqRef.current;
-      const result = await postChannelMessage(targetId, content, quoteId, baseSeq, files);
+      const result = await postChannelMessage(
+        targetId,
+        content,
+        quoteId,
+        baseSeq,
+        files,
+      );
       if (result.kind === "held") {
         // held 语义与旧内联实现一致：记摘要 + 重拉提示 + 抛 held 文案（Composer 显示）。
         setHeldNotice(result.whatHappened);
@@ -867,7 +969,9 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   const togglePin = useCallback(
     async (messageId: string): Promise<void> => {
       if (!channelId) return;
-      const alreadyPinned = pinnedItemsRef.current.some((item) => item.message.id === messageId);
+      const alreadyPinned = pinnedItemsRef.current.some(
+        (item) => item.message.id === messageId,
+      );
       await togglePinnedMessage(channelId, messageId, alreadyPinned);
       loadPinned();
     },
@@ -883,7 +987,10 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
       const reordered = [...items];
       const [moved] = reordered.splice(index, 1);
       reordered.splice(target, 0, moved);
-      await postPinnedOrder(channelId, reordered.map((item) => item.message.id));
+      await postPinnedOrder(
+        channelId,
+        reordered.map((item) => item.message.id),
+      );
       loadPinned();
     },
     [channelId, loadPinned],
@@ -895,7 +1002,9 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
       const row = mutesRef.current.find((m) => m.memberId === memberId);
       if (!row) return null;
       const next = await toggleChannelMute(channelId, memberId, row.muted);
-      const updated = mutesRef.current.map((x) => (x.memberId === memberId ? { ...x, muted: next } : x));
+      const updated = mutesRef.current.map((x) =>
+        x.memberId === memberId ? { ...x, muted: next } : x,
+      );
       mutesCacheRef.current.set(channelId, updated);
       setMutes(updated);
       return next;
@@ -908,7 +1017,11 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   // taskNotice 摘要 + 重拉（loadTasks + loadLatest）；conflict/blocked 让路记 reason +
   // taskNotice，重拉不抛错。busy 时直接返回（与旧 `if (!channel || busyAction) return` 一致）。
   const runTaskTransition = useCallback(
-    async (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus): Promise<void> => {
+    async (
+      task: ChannelTask,
+      action: "claim" | "updateStatus",
+      status?: TaskStatus,
+    ): Promise<void> => {
       if (!channelId || busyAction) return;
       setBusyAction(true);
       setTasksError(null);
@@ -941,7 +1054,11 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   // 线程回复用线程版本 baseSeq（调用方传入任务线程最后一条 seq），状态更新用
   // 频道版本（maxSeqRef 快照）；busy 沿旧 runTaskAction 同一共享锁；held 即停并提示 + 重拉。
   const completeTask = useCallback(
-    async (task: ChannelTask, replyContent: string, threadBaseSeq: number): Promise<void> => {
+    async (
+      task: ChannelTask,
+      replyContent: string,
+      threadBaseSeq: number,
+    ): Promise<void> => {
       if (!channelId || busyAction) return;
       setBusyAction(true);
       setTasksError(null);
@@ -985,7 +1102,11 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
           tasksCacheRef.current.set(channelId, [...prev, created]);
         }
         setTasks((prev) => [...prev, created]);
-        setTaskNotice(t ? t("tasks.converted", { number: String(created.number) }) : `task #${created.number}`);
+        setTaskNotice(
+          t
+            ? t("tasks.converted", { number: String(created.number) })
+            : `task #${created.number}`,
+        );
         return created;
       } catch (e) {
         const text = e instanceof Error ? e.message : String(e);
@@ -1006,7 +1127,11 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
       setTaskNotice(null);
       try {
         const created = await createBoardTaskRow(channelId, content);
-        setTaskNotice(t ? t("tasks.created", { number: String(created.number) }) : `task #${created.number}`);
+        setTaskNotice(
+          t
+            ? t("tasks.created", { number: String(created.number) })
+            : `task #${created.number}`,
+        );
         loadTasks();
         loadLatest();
       } catch (e) {
@@ -1022,16 +1147,66 @@ export function useChannelData(channelId: string | undefined, t?: (key: string, 
   const taskOps = useMemo(
     () => ({
       claim: (task: ChannelTask) => runTaskTransition(task, "claim"),
-      complete: (task: ChannelTask, replyContent: string, threadBaseSeq: number) =>
-        completeTask(task, replyContent, threadBaseSeq),
-      unclaim: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "todo"),
-      close: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "closed"),
-      approve: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "done"),
-      reject: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "in_progress"),
-      reopen: (task: ChannelTask) => runTaskTransition(task, "updateStatus", "todo"),
+      complete: (
+        task: ChannelTask,
+        replyContent: string,
+        threadBaseSeq: number,
+      ) => completeTask(task, replyContent, threadBaseSeq),
+      unclaim: (task: ChannelTask) =>
+        runTaskTransition(task, "updateStatus", "todo"),
+      close: (task: ChannelTask) =>
+        runTaskTransition(task, "updateStatus", "closed"),
+      approve: (task: ChannelTask) =>
+        runTaskTransition(task, "updateStatus", "done"),
+      reject: (task: ChannelTask) =>
+        runTaskTransition(task, "updateStatus", "in_progress"),
+      reopen: (task: ChannelTask) =>
+        runTaskTransition(task, "updateStatus", "todo"),
     }),
     [runTaskTransition, completeTask],
   );
 
-  return { messages, messagesLoading, maxSeq, hasMore, loadError, loadPage, loadLatest, loadEarlier, send, heldNotice, busyAction, setBusyAction, setHeldNotice, pinnedItems, pinnedSort, setPinnedSort, pinnedError, pinnedLoading, loadPinned, togglePin, reorderPinned, mutes, mutesLoading, loadMutes, toggleMute, channelMemberIds, membersLoading, membersError, loadMembers, tasks, tasksLoading, tasksError, taskNotice, setTasksError, setTaskNotice, loadTasks, runTaskTransition, completeTask, convertToTask, createTaskFromBoard, taskOps };
+  return {
+    messages,
+    messagesLoading,
+    maxSeq,
+    hasMore,
+    loadError,
+    loadPage,
+    loadLatest,
+    loadEarlier,
+    send,
+    heldNotice,
+    busyAction,
+    setBusyAction,
+    setHeldNotice,
+    pinnedItems,
+    pinnedSort,
+    setPinnedSort,
+    pinnedError,
+    pinnedLoading,
+    loadPinned,
+    togglePin,
+    reorderPinned,
+    mutes,
+    mutesLoading,
+    loadMutes,
+    toggleMute,
+    channelMemberIds,
+    membersLoading,
+    membersError,
+    loadMembers,
+    tasks,
+    tasksLoading,
+    tasksError,
+    taskNotice,
+    setTasksError,
+    setTaskNotice,
+    loadTasks,
+    runTaskTransition,
+    completeTask,
+    convertToTask,
+    createTaskFromBoard,
+    taskOps,
+  };
 }
