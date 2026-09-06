@@ -2617,9 +2617,12 @@ export function ChannelView({
         const converted = await convertMessageToTask(message);
         if (converted) setAsTask(false);
       }
+      // DM 懒创建「有消息」信号：发送成功即上抛 AppShell 刷新频道列表——
+      // 侧栏私信分组随服务端 messageCount 事实即时出现（不依赖 15s 轮询 / agent 回复）。
+      onChannelChanged();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sendMessage, asTask],
+    [sendMessage, asTask, onChannelChanged],
   );
 
   /** §3.4 reaction 切换：POST 后把返回的聚合写回消息状态（channel 局部；线程在面板内自持）。 */
