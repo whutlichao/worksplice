@@ -1529,9 +1529,17 @@ export function TaskViews({
   onNotice: (message: string) => void;
 }) {
   const { t } = useI18n();
-  const [view, setView] = useState<"list" | "board">(readTaskViewPref);
+  // 首帧（含 hydration）固定用默认 "list"，与服务端 HTML 一致；挂载后 useEffect
+  // 再应用 localStorage 偏好（useI18n hydrated 门控同模式）。渲染期直接读
+  // localStorage 会让偏好为 board 时客户端首帧与服务端不一致 → hydration mismatch。
+  const [view, setView] = useState<"list" | "board">("list");
   const [formOpen, setFormOpen] = useState(false);
   const [content, setContent] = useState("");
+
+  useEffect(() => {
+    const stored = readTaskViewPref();
+    setView((prev) => (prev === stored ? prev : stored));
+  }, []);
 
   const switchView = (next: "list" | "board") => {
     setView(next);

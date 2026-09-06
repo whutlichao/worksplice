@@ -681,3 +681,49 @@ test("AppShell 创建 agent 后递增 membersVersion（失效链源头，#12 回
     assert.match(source, /setMembersVersion\(\(v\) => v \+ 1\)/);
     assert.match(source, /membersVersion=\{membersVersion\}/);
 });
+
+test("TaskViews 服务端与客户端首帧渲染一致（localStorage 偏好为 board 也不 mismatch）", async () => {
+    const mod = await jiti.import("./ChannelView.tsx");
+    const task = {
+        id: "task-1",
+        message_id: "msg-1",
+        number: 1,
+        status: "todo",
+        owner_id: null,
+        reopened: 0,
+        updated_at: "2026-08-03T08:00:00.000Z",
+        channelId: "c1",
+        anchor: { ...MESSAGE, id: "msg-1", target_id: "c1" },
+        owner: null,
+        reachable: ["in_progress"],
+    };
+    const props = {
+        tasks: [task],
+        currentMemberId: "owner",
+        busy: false,
+        disabled: false,
+        error: null,
+        notice: null,
+        onCreateTask: () => undefined,
+        onAction: () => undefined,
+        onOpenThread: () => undefined,
+        onNotice: () => undefined,
+    };
+    // 服务端：无 window（renderToStaticMarkup 环境默认无 window）→ 默认 list
+    const server = renderI18n(React.createElement(mod.TaskViews, props));
+    // 客户端首帧：localStorage 偏好 board —— 首帧仍须与服务端一致（挂载后 useEffect 才应用偏好）
+    const store = { "worksplice-task-view": "board" };
+    globalThis.window = {
+        localStorage: {
+            getItem: (k) => store[k] ?? null,
+            setItem: (k, v) => { store[k] = String(v); },
+        },
+        navigator: { languages: ["en"], language: "en" },
+    };
+    try {
+        const client = renderI18n(React.createElement(mod.TaskViews, props));
+        assert.equal(client, server);
+    } finally {
+        delete globalThis.window;
+    }
+});
