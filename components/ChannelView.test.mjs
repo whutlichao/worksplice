@@ -716,7 +716,9 @@ test("TaskViews 服务端与客户端首帧渲染一致（localStorage 偏好为
     globalThis.window = {
         localStorage: {
             getItem: (k) => store[k] ?? null,
-            setItem: (k, v) => { store[k] = String(v); },
+            setItem: (k, v) => {
+                store[k] = String(v);
+            },
         },
         navigator: { languages: ["en"], language: "en" },
     };
