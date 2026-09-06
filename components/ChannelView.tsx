@@ -3543,7 +3543,7 @@ export function ChannelView({
           ) : messages.length === 0 ? (
             <EmptyState
               glyph="#"
-              title={t("messages.empty")}
+              title={t(isDM ? "messages.emptyDM" : "messages.empty")}
               hint={t("messages.emptyHint")}
             />
           ) : (

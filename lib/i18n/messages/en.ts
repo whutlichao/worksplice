@@ -65,7 +65,8 @@ export const enLocale: LocalePlugin = {
     "files.noneOpen": "No file open",
     "layout.resizeSidebar": "Resize sidebar",
     "layout.resizeFilePanel": "Resize file panel",
-    "layout.resizeHint": "Drag to resize. Double-click or press Enter to reset.",
+    "layout.resizeHint":
+      "Drag to resize. Double-click or press Enter to reset.",
     "directoryPicker.selectDirectory": "Select directory",
     "directoryPicker.goToParent": "Go to parent directory",
     "directoryPicker.directoryPath": "Directory path",
@@ -96,7 +97,8 @@ export const enLocale: LocalePlugin = {
     "files.noFiles": "No files found",
     "files.explorer": "Explorer",
     "files.changedCount": "{count} files",
-    "files.changeStats": "{count} changed files, {additions} lines added, {deletions} lines deleted",
+    "files.changeStats":
+      "{count} changed files, {additions} lines added, {deletions} lines deleted",
     "files.conflictSummary": "{count} file{countSuffix} already exist: {files}",
     "files.cannotReplace": "Cannot replace: {files}",
     "files.replace": "Replace",
@@ -129,7 +131,8 @@ export const enLocale: LocalePlugin = {
     "chat.close": "Close",
     "chat.queued": "Queued · {count}",
     "chat.recall": "Recall to input",
-    "chat.recallTitle": "Remove all queued messages and put them back into the input box for editing",
+    "chat.recallTitle":
+      "Remove all queued messages and put them back into the input box for editing",
     "chat.retrying": "Retrying ({attempt}/{max})…",
     "chat.loadingCommands": "Loading commands...",
     "chat.slashCommands": "Slash commands · {label}",
@@ -243,10 +246,14 @@ export const enLocale: LocalePlugin = {
     "trust.trusting": "Trusting...",
     "trust.cancel": "Cancel",
     "trust.dialogTitle": "Trust this project?",
-    "trust.dialogBody": "Project resources can run local code. Trust only projects whose contents you know.",
-    "trust.skillsNotLoaded": "Project skills are not loaded because this project is not trusted.",
-    "trust.pluginsNotLoaded": "Project plugins are not loaded because this project is not trusted.",
-    "trust.projectScopeUnavailable": "Project installs are unavailable while project resources are not loaded.",
+    "trust.dialogBody":
+      "Project resources can run local code. Trust only projects whose contents you know.",
+    "trust.skillsNotLoaded":
+      "Project skills are not loaded because this project is not trusted.",
+    "trust.pluginsNotLoaded":
+      "Project plugins are not loaded because this project is not trusted.",
+    "trust.projectScopeUnavailable":
+      "Project installs are unavailable while project resources are not loaded.",
     "i18n.creatingSession": "Creating new session…",
     "i18n.creating": "Creating…",
     "i18n.subscription": "Subscription",
@@ -317,10 +324,13 @@ export const enLocale: LocalePlugin = {
     "models.id": "ID *",
     "models.name": "Name",
     "models.displayNamePlaceholder": "Display name",
-    "models.apiKeyStored": "API key is stored. Enter a new key below to replace it, or disconnect to remove it.",
-    "models.enterApiKey": "Enter your {name} API key to enable {count} model{countSuffix}.",
+    "models.apiKeyStored":
+      "API key is stored. Enter a new key below to replace it, or disconnect to remove it.",
+    "models.enterApiKey":
+      "Enter your {name} API key to enable {count} model{countSuffix}.",
     "models.apiKeyPlaceholder": "ENV_VAR_NAME, !shell-command, or literal key",
-    "models.apiKeyHint": "Prefix with ! to run a shell command, or use an env var name",
+    "models.apiKeyHint":
+      "Prefix with ! to run a shell command, or use an env var name",
     "models.oauth": "OAuth",
     "i18n.testingModel": "Testing model connection...",
     "i18n.connected": "Connected",
@@ -390,12 +400,14 @@ export const enLocale: LocalePlugin = {
     "i18n.editFromHere": "Edit from here",
     "i18n.editFromHereTitle": "Edit from here — branches within this session",
     "i18n.newSession": "New session",
-    "i18n.newSessionTitle": "New session — creates an independent copy from here",
+    "i18n.newSessionTitle":
+      "New session — creates an independent copy from here",
     "i18n.estimatedTokens": "Estimated token count while streaming",
     "i18n.noOutput": "(no output)",
     "i18n.noSummary": "(no summary)",
     "i18n.conversationCompacted": "Conversation compacted",
-    "i18n.compactionDescription": "The conversation history before this point was compacted into the following summary:",
+    "i18n.compactionDescription":
+      "The conversation history before this point was compacted into the following summary:",
     "i18n.fileContext": "File context: {details}",
     "i18n.readFiles": "Read files",
     "i18n.modifiedFiles": "Modified files",
@@ -424,7 +436,8 @@ export const enLocale: LocalePlugin = {
     "search.title": "Search",
     "search.close": "Close search",
     "search.results": "{count} results",
-    "search.emptyHint": "Type keywords to search message bodies (new messages are searchable instantly)",
+    "search.emptyHint":
+      "Type keywords to search message bodies (new messages are searchable instantly)",
     "search.noResults": "No matching messages",
     "search.thread": "thread",
     "search.open": "Open",
@@ -444,7 +457,8 @@ export const enLocale: LocalePlugin = {
     "channel.unarchive": "Unarchive",
     "channel.initialMembers": "Initial members",
     "message.send": "Send",
-    "message.composerPlaceholder": "Message… (Enter to send, Shift+Enter for newline)",
+    "message.composerPlaceholder":
+      "Message… (Enter to send, Shift+Enter for newline)",
     "message.loadEarlier": "Load earlier messages",
     "message.held": "Message held — the room changed while you were typing",
     "message.heldNotice": "Room changed:",
@@ -474,7 +488,8 @@ export const enLocale: LocalePlugin = {
     "pinned.moveUp": "Move up",
     "pinned.moveDown": "Move down",
     "mute.toggle": "Mute notifications",
-    "mute.hint": "Muted agents skip ordinary messages here; personal @mentions still reach them",
+    "mute.hint":
+      "Muted agents skip ordinary messages here; personal @mentions still reach them",
     "mute.for": "Mute @{name}",
     "mute.unmuteFor": "Unmute @{name}",
     "mute.muted": "Muted",
@@ -486,7 +501,8 @@ export const enLocale: LocalePlugin = {
     "channel.membersEmpty": "No members in this channel yet",
     "mention.toggle": "Mention an agent (type @ to pick)",
     "mention.title": "Mention members",
-    "mention.hint": "@name mentions an agent; use @\"name\" for names with spaces",
+    "mention.hint":
+      '@name mentions an agent; use @"name" for names with spaces',
     "mention.noMatch": "No matching members",
     "mention.notJoined": "Not joined",
     "mention.empty": "No agents to mention yet",
@@ -502,7 +518,8 @@ export const enLocale: LocalePlugin = {
     "attachments.tooBig": "{name} exceeds the 50 MB limit",
     "agent.create": "Create agent",
     "agent.bootstrap": "Create secretary",
-    "agent.bootstrapHint": "One-click create Susan, the secretary — joins every channel with the system manual ready",
+    "agent.bootstrapHint":
+      "One-click create Susan, the secretary — joins every channel with the system manual ready",
     "agent.name": "Name",
     "agent.description": "Description (optional)",
     "agent.workspace": "Workspace",
@@ -511,7 +528,8 @@ export const enLocale: LocalePlugin = {
     "agent.reset": "Reset",
     "agent.runtime": "Runtime",
     "agent.observability": "Observability",
-    "agent.pending": "Reset / runtime / observability arrive with the agent lifecycle",
+    "agent.pending":
+      "Reset / runtime / observability arrive with the agent lifecycle",
     "agent.restart": "Restart",
     "agent.sessionReset": "Session reset",
     "agent.fullReset": "Full reset",
@@ -519,6 +537,7 @@ export const enLocale: LocalePlugin = {
     "center.messages": "Messages",
     "center.tasks": "Tasks",
     "messages.empty": "No messages in this channel yet",
+    "messages.emptyDM": "No messages in this DM yet",
     "messages.loading": "Loading messages…",
     "messages.loadingHint": "Fetching this channel's messages.",
     "reminders.set": "Set reminder",
@@ -536,7 +555,8 @@ export const enLocale: LocalePlugin = {
     "reminders.cancel": "Cancel reminder",
     "reminders.snoozed": "Snoozed 15 minutes",
     "reminders.canceled": "Reminder canceled",
-    "reminders.created": "Reminder set — it will post a ⏰ message into the channel flow when due",
+    "reminders.created":
+      "Reminder set — it will post a ⏰ message into the channel flow when due",
     "reminders.fireAtRequired": "Pick a fire time",
     "reminders.messageAction": "Set a reminder on this message",
     "reminders.channelAction": "Set a channel reminder",
@@ -549,7 +569,8 @@ export const enLocale: LocalePlugin = {
     "reminders.targetIn": "in #{{channel}}",
     "reminders.targetInMsg": "in #{{channel}} · #{{seq}}",
     "reminders.scheduledCount": "Reminders {{count}}",
-    "reminders.allHint": "When due, a ⏰ message is posted directly into the channel's message flow; manage or locate it here anytime.",
+    "reminders.allHint":
+      "When due, a ⏰ message is posted directly into the channel's message flow; manage or locate it here anytime.",
     "tasks.empty": "No tasks in this channel yet",
     "status.online": "Online",
     "status.working": "Working",
@@ -559,7 +580,8 @@ export const enLocale: LocalePlugin = {
     "channel.archived": "Archived",
     "tasks.new": "New task",
     "tasks.convert": "Convert to task",
-    "tasks.convertHint": "Convert this message to a task (top-level messages only)",
+    "tasks.convertHint":
+      "Convert this message to a task (top-level messages only)",
     "tasks.asTask": "As task",
     "tasks.create": "Create task",
     "tasks.cancel": "Cancel",
@@ -572,7 +594,8 @@ export const enLocale: LocalePlugin = {
     "tasks.close": "Close",
     "tasks.reopen": "Reopen",
     "tasks.reopenedBadge": "REOPENED",
-    "tasks.reopenedHint": "Reopened: agents cannot auto-claim; claim to take over",
+    "tasks.reopenedHint":
+      "Reopened: agents cannot auto-claim; claim to take over",
     "tasks.unassigned": "unassigned",
     "tasks.threadHint": "Progress lives in the task thread",
     "tasks.held": "Task action held — the room changed, try again",
@@ -588,9 +611,11 @@ export const enLocale: LocalePlugin = {
     "tasks.view": "Task view",
     "tasks.viewList": "List",
     "tasks.viewBoard": "Board",
-    "tasks.dropInvalid": "Cannot move from {from} to {to} — not a legal transition",
+    "tasks.dropInvalid":
+      "Cannot move from {from} to {to} — not a legal transition",
     "messages.emptyHint": "Messages here are immutable — no edits, no deletes.",
-    "tasks.emptyHint": "Convert a message to a task, or create one from the board.",
+    "tasks.emptyHint":
+      "Convert a message to a task, or create one from the board.",
     "shell.menu": "Toggle channel list",
     "shell.selectChannel": "Select a channel",
     "role.owner": "Owner",
@@ -599,22 +624,31 @@ export const enLocale: LocalePlugin = {
     "role.member": "Member",
     "agent.workspaceNotBound": "Not bound yet",
     "agent.change": "Change",
-    "agent.workspaceHint": "Workspace = the agent's home directory; you can bind a shared project directory for collaboration (changing it changes the session)",
-    "agent.workspaceHomeHint": "Home directory — created automatically, unique to this agent, removed with the identity. Bind a shared project directory to collaborate.",
-    "agent.homeHint": "A private home directory is created automatically under the data directory, with a MEMORY.md outline the agent maintains.",
+    "agent.workspaceHint":
+      "Workspace = the agent's home directory; you can bind a shared project directory for collaboration (changing it changes the session)",
+    "agent.workspaceHomeHint":
+      "Home directory — created automatically, unique to this agent, removed with the identity. Bind a shared project directory to collaborate.",
+    "agent.homeHint":
+      "A private home directory is created automatically under the data directory, with a MEMORY.md outline the agent maintains.",
     "agent.modelAndThinking": "Model & reasoning level",
-    "agent.modelsEmpty": "Configure a model first (Models button at the bottom) before creating an agent",
-    "agent.fullResetSharedHint": "Bound to a shared project directory — Full reset is unavailable; use Session reset",
-    "agent.confirmSessionReset": "Reset the session context? The workspace directory is kept.",
-    "agent.confirmFullReset": "Clear the session and home directory contents? MEMORY.md is kept. This cannot be undone.",
-    "agent.confirmDelete": "Delete this agent identity? Message history is kept; the home directory will be removed (bound project directories are kept).",
+    "agent.modelsEmpty":
+      "Configure a model first (Models button at the bottom) before creating an agent",
+    "agent.fullResetSharedHint":
+      "Bound to a shared project directory — Full reset is unavailable; use Session reset",
+    "agent.confirmSessionReset":
+      "Reset the session context? The workspace directory is kept.",
+    "agent.confirmFullReset":
+      "Clear the session and home directory contents? MEMORY.md is kept. This cannot be undone.",
+    "agent.confirmDelete":
+      "Delete this agent identity? Message history is kept; the home directory will be removed (bound project directories are kept).",
     "agent.confirm": "Confirm",
     "agent.cancelOp": "Cancel",
     "agent.opError": "Operation failed: {message}",
     "agent.restarting": "Restarting…",
     "agent.resetting": "Resetting…",
     "agent.deleting": "Deleting…",
-    "agent.stoppedHint": "Offline = stopped responding, identity kept; use Restart to wake it",
+    "agent.stoppedHint":
+      "Offline = stopped responding, identity kept; use Restart to wake it",
     "agent.boundTo": "Bound to: {path}",
     "runtime.model": "Model",
     "runtime.provider": "Provider",
@@ -630,13 +664,16 @@ export const enLocale: LocalePlugin = {
     "runtime.override": "Override for this agent",
     "runtime.liveModel": "Running as",
     "runtime.loading": "Loading models…",
-    "runtime.noWorkspace": "Bind a workspace first — the runtime config is applied when the session starts.",
-    "runtime.onlyThinking": "Thinking override only — model inherits the global default.",
+    "runtime.noWorkspace":
+      "Bind a workspace first — the runtime config is applied when the session starts.",
+    "runtime.onlyThinking":
+      "Thinking override only — model inherits the global default.",
     "observability.tokensCost": "Tokens / cost",
     "observability.taskHistory": "Task history",
     "observability.export": "Session export",
     "observability.sessions": "Sessions",
-    "observability.noSessions": "No session data yet — the agent has not started a session.",
+    "observability.noSessions":
+      "No session data yet — the agent has not started a session.",
     "observability.totalTokens": "Total tokens",
     "observability.cachedTokens": "Cached (read)",
     "observability.uncachedTokens": "Uncached",
@@ -654,13 +691,16 @@ export const enLocale: LocalePlugin = {
     "observability.channelPost": "channel post",
     "observability.taskPoint": "Task #{number} — {status}",
     "observability.contextUsage": "Context usage",
-    "observability.contextNone": "Session not running — context usage appears when the agent is active.",
+    "observability.contextNone":
+      "Session not running — context usage appears when the agent is active.",
     "observability.sessionFile": "Session file",
     "observability.exportAction": "Export session…",
-    "observability.exportUnavailable": "Session file not resolved — start the agent once, then export works.",
+    "observability.exportUnavailable":
+      "Session file not resolved — start the agent once, then export works.",
     "observability.currentSession": "Current session",
     "observability.rounds": "Rounds",
-    "observability.roundsEmpty": "No rounds recorded yet — rounds the agent processed (or failed) will appear here.",
+    "observability.roundsEmpty":
+      "No rounds recorded yet — rounds the agent processed (or failed) will appear here.",
     "observability.roundStatus.replied": "Replied",
     "observability.roundStatus.ignored": "Ignored",
     "observability.roundStatus.silent": "Silent",
