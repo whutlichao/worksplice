@@ -70,7 +70,11 @@ function ChannelRow({
   const { t } = useI18n();
   const glyphColor = isSelected ? INK : "var(--text-muted)";
   return (
-    <button type="button" onClick={() => onSelect(channel.id)} style={rowStyle(isSelected)}>
+    <button
+      type="button"
+      onClick={() => onSelect(channel.id)}
+      style={rowStyle(isSelected)}
+    >
       {isDM ? (
         <MessageSquare size={13} style={{ color: glyphColor, flexShrink: 0 }} />
       ) : (
@@ -86,7 +90,13 @@ function ChannelRow({
           #
         </span>
       )}
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {isDM ? dmAgentName(channel.name) : channel.name}
       </span>
       {channel.unread > 0 && !isSelected ? (
@@ -111,7 +121,13 @@ function ChannelRow({
         </span>
       ) : (
         channel.archived === 1 && (
-          <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-dim)" }}>
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 10,
+              color: "var(--text-dim)",
+            }}
+          >
             {t("channel.archived")}
           </span>
         )
@@ -171,7 +187,9 @@ export function WorkspaceSidebar({
     background: pink ? "var(--pink)" : "#ffffff",
     color: INK,
     border: `2px solid ${INK}`,
-    boxShadow: pink ? "3px 3px 0 0 rgba(20, 17, 17, 0.55)" : "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
+    boxShadow: pink
+      ? "3px 3px 0 0 rgba(20, 17, 17, 0.55)"
+      : "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
     cursor: "pointer",
     fontFamily: "var(--font-hanken)",
     fontWeight: 700,
@@ -334,15 +352,18 @@ export function WorkspaceSidebar({
           onClick={onNewAgent}
           style={actionButton(false)}
           onMouseDown={(e) => {
-            e.currentTarget.style.boxShadow = "1px 1px 0 0 rgba(20, 17, 17, 0.35)";
+            e.currentTarget.style.boxShadow =
+              "1px 1px 0 0 rgba(20, 17, 17, 0.35)";
             e.currentTarget.style.transform = "translate(1px, 1px)";
           }}
           onMouseUp={(e) => {
-            e.currentTarget.style.boxShadow = "2px 2px 0 0 rgba(20, 17, 17, 0.35)";
+            e.currentTarget.style.boxShadow =
+              "2px 2px 0 0 rgba(20, 17, 17, 0.35)";
             e.currentTarget.style.transform = "none";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = "2px 2px 0 0 rgba(20, 17, 17, 0.35)";
+            e.currentTarget.style.boxShadow =
+              "2px 2px 0 0 rgba(20, 17, 17, 0.35)";
             e.currentTarget.style.transform = "none";
           }}
         >
@@ -353,14 +374,22 @@ export function WorkspaceSidebar({
       {/* 滚动区 */}
       <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px 12px" }}>
         {error && (
-          <div style={{ padding: "8px 12px", color: "var(--coral)", fontSize: 12 }}>
+          <div
+            style={{ padding: "8px 12px", color: "var(--coral)", fontSize: 12 }}
+          >
             {error}
           </div>
         )}
 
         <div style={LABEL_STYLE}>{t("shell.channels")}</div>
         {regularChannels.length === 0 && (
-          <div style={{ padding: "4px 12px 8px", fontSize: 12, color: "var(--text-dim)" }}>
+          <div
+            style={{
+              padding: "4px 12px 8px",
+              fontSize: 12,
+              color: "var(--text-dim)",
+            }}
+          >
             {t("shell.noChannels")}
           </div>
         )}
@@ -376,7 +405,13 @@ export function WorkspaceSidebar({
 
         <div style={{ ...LABEL_STYLE, paddingTop: 14 }}>{t("shell.dm")}</div>
         {dmChannels.length === 0 && (
-          <div style={{ padding: "4px 12px 8px", fontSize: 12, color: "var(--text-dim)" }}>
+          <div
+            style={{
+              padding: "4px 12px 8px",
+              fontSize: 12,
+              color: "var(--text-dim)",
+            }}
+          >
             {t("shell.noDm")}
           </div>
         )}
@@ -390,9 +425,17 @@ export function WorkspaceSidebar({
           />
         ))}
 
-        <div style={{ ...LABEL_STYLE, paddingTop: 14 }}>{t("shell.agents")}</div>
+        <div style={{ ...LABEL_STYLE, paddingTop: 14 }}>
+          {t("shell.agents")}
+        </div>
         {agents.length === 0 && (
-          <div style={{ padding: "4px 12px 8px", fontSize: 12, color: "var(--text-dim)" }}>
+          <div
+            style={{
+              padding: "4px 12px 8px",
+              fontSize: 12,
+              color: "var(--text-dim)",
+            }}
+          >
             {t("shell.noAgents")}
           </div>
         )}
@@ -407,7 +450,12 @@ export function WorkspaceSidebar({
             >
               <PixelAvatar seed={agent.id} name={agent.name} size={28} />
               <span
-                style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                style={{
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
               >
                 {agent.name}
               </span>
@@ -440,7 +488,8 @@ export function WorkspaceSidebar({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            background: scheduledReminderCount > 0 ? "var(--yellow)" : "#ffffff",
+            background:
+              scheduledReminderCount > 0 ? "var(--yellow)" : "#ffffff",
             color: INK,
             border: `2px solid ${INK}`,
             cursor: "pointer",
