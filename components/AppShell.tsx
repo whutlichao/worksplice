@@ -20,6 +20,7 @@ import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/types";
 import { DM_ID_PREFIX, OWNER_MEMBER_ID } from "@/lib/data/schema";
 import { reconcileAgents, shallowEqualAgent } from "@/lib/agent-reconcile";
+import { mergeChannelRows, shallowEqualChannel } from "@/lib/channel-list";
 import {
   closePanel,
   onChannelSwitched,
@@ -49,23 +50,6 @@ function parseDeepLink(
  * 右 = 非长驻单槽面板（agent | human | thread | null）——中央与面板状态解耦，
  * 点 agent/人类/线程只在右栏展示，无选中时整栏消失、中央占满。
  */
-
-/** 列表合并用的浅比较：字段全等时复用旧对象引用，避免下游 useCallback/useEffect 连锁重建。
- *  messageCount（DM 懒创建「有消息」信号）纳入比较——新消息入流后侧栏 DM 分组与按钮文案需随它更新。 */
-function shallowEqualChannel(a: ChannelWithMeta, b: ChannelWithMeta): boolean {
-  return (
-    a.id === b.id &&
-    a.name === b.name &&
-    a.type === b.type &&
-    a.description === b.description &&
-    a.archived === b.archived &&
-    a.created_at === b.created_at &&
-    a.joined === b.joined &&
-    a.memberCount === b.memberCount &&
-    a.unread === b.unread &&
-    a.messageCount === b.messageCount
-  );
-}
 
 export function AppShell() {
   const { t } = useI18n();
@@ -129,18 +113,7 @@ export function AppShell() {
       .then(([channelRows, agentRows]) => {
         // 合并而非整体替换：保持未变更行的对象引用，避免 ChannelView 因
         // channel prop 引用变化而重建全部 loader（切换频道闪动两轮请求）。
-        setChannels((prev) => {
-          if (prev.length === 0) return channelRows;
-          const byId = new Map(prev.map((c) => [c.id, c]));
-          let changed = channelRows.length !== prev.length;
-          const next = channelRows.map((row) => {
-            const old = byId.get(row.id);
-            if (old && shallowEqualChannel(old, row)) return old;
-            changed = true;
-            return row;
-          });
-          return changed ? next : prev;
-        });
+        setChannels((prev) => mergeChannelRows(prev, channelRows));
         setAgents((prev) => reconcileAgents(prev, agentRows).agents);
         setLoadError(null);
       })

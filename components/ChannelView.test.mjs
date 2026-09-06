@@ -729,3 +729,30 @@ test("TaskViews 服务端与客户端首帧渲染一致（localStorage 偏好为
         delete globalThis.window;
     }
 });
+
+test("DM bugfix：handleSend 发送成功后上抛 onChannelChanged（侧栏 messageCount 信号即时更新，不依赖 15s 轮询/agent 回复）", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    // 只锁定 handleSend 回调体（而非 runChannelAction 等其它 onChannelChanged 调用点）
+    const start = source.indexOf("const handleSend = useCallback(");
+    assert.ok(start !== -1, "handleSend useCallback should exist");
+    const end = source.indexOf(
+        "// eslint-disable-next-line react-hooks/exhaustive-deps",
+        start,
+    );
+    assert.ok(
+        end !== -1 && end > start,
+        "handleSend deps comment should exist",
+    );
+    const body = source.slice(start, end);
+    // 成功路径（sendMessage await 之后）必须通知 shell 刷新频道列表——
+    // 否则 DM 懒创建「有消息」信号冻结在 0，侧栏私信分组直到 15s 轮询/agent 回复才出现
+    assert.match(body, /await sendMessage\(/);
+    assert.match(body, /onChannelChanged\(\)/);
+    assert.ok(
+        body.indexOf("onChannelChanged()") > body.indexOf("await sendMessage("),
+        "onChannelChanged must be called after the send resolves",
+    );
+});
