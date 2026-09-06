@@ -6,7 +6,11 @@ import { notifyAgentJoinedChannel } from "./event-messages.ts";
 import { getDMFor } from "./channels.ts";
 import type { MemberRow, MemberStatus } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID } from "../../data/schema.ts";
-import { agentHomeDir, buildMemoryTemplate, MEMORY_FILE_NAME } from "../../data/dirs.ts";
+import {
+  agentHomeDir,
+  buildMemoryTemplate,
+  MEMORY_FILE_NAME,
+} from "../../data/dirs.ts";
 import { parseMentionTokens } from "../../mention.ts";
 
 /**
@@ -37,7 +41,10 @@ function assertWorkspaceDir(workspacePath: string): string {
  * 另一存活 agent 的家目录绑成项目目录——Full reset/删除语义按家目录判定，跨绑会误伤。
  * 软删除身份的家目录已随身份删除，不计。
  */
-export function homeDirOfAnotherAgent(workspacePath: string, excludeMemberId: string): boolean {
+export function homeDirOfAnotherAgent(
+  workspacePath: string,
+  excludeMemberId: string,
+): boolean {
   const normalized = normalizeWorkspacePath(workspacePath);
   return getDb()
     .listMembers()
@@ -97,7 +104,10 @@ export function extractMentionedMemberIds(content: string): string[] {
   const ids: string[] = [];
   for (const token of tokens) {
     for (const member of members) {
-      if (member.name.toLowerCase() === token.name.toLowerCase() && !ids.includes(member.id)) {
+      if (
+        member.name.toLowerCase() === token.name.toLowerCase() &&
+        !ids.includes(member.id)
+      ) {
         ids.push(member.id);
       }
     }
@@ -107,7 +117,9 @@ export function extractMentionedMemberIds(content: string): string[] {
 
 /** 人类成员（Owner，恒为单数）：mention 解析与简介弹窗的数据来源。 */
 export function getOwner(): MemberRow | undefined {
-  return getDb().listMembers().find((m) => m.type === "human");
+  return getDb()
+    .listMembers()
+    .find((m) => m.type === "human");
 }
 
 /**
@@ -126,13 +138,16 @@ export function createAgent(input: {
 }): MemberRow {
   const name = input.name.trim();
   if (!name) throw new Error("Agent name is required");
-  if (name.length > 32) throw new Error("Agent name must be 32 characters or fewer");
+  if (name.length > 32)
+    throw new Error("Agent name must be 32 characters or fewer");
 
   const modelProvider = input.provider ?? null;
   const modelId = input.modelId ?? null;
   const thinkingLevel = input.thinkingLevel ?? null;
   if ((modelProvider === null) !== (modelId === null)) {
-    throw new Error("Model provider and model id must be set or cleared together");
+    throw new Error(
+      "Model provider and model id must be set or cleared together",
+    );
   }
 
   const agentId = randomUUID();
@@ -144,7 +159,10 @@ export function createAgent(input: {
     mkdirSync(workspacePath, { recursive: true });
     const memoryFile = join(workspacePath, MEMORY_FILE_NAME);
     if (!existsSync(memoryFile)) {
-      writeFileSync(memoryFile, buildMemoryTemplate(name, input.description ?? ""));
+      writeFileSync(
+        memoryFile,
+        buildMemoryTemplate(name, input.description ?? ""),
+      );
     }
   }
 
@@ -172,11 +190,16 @@ export function createAgent(input: {
  * 必须在动 session/绑定之前校验，避免坏路径先杀掉存活会话。
  * ADR-0001：不再拒绝多 agent 绑定同一目录（协作项目目录），仅拒绝绑定他人家目录。
  */
-export function validateAgentWorkspace(agentId: string, workspacePath: string): string {
+export function validateAgentWorkspace(
+  agentId: string,
+  workspacePath: string,
+): string {
   getAgent(agentId);
   const normalized = assertWorkspaceDir(workspacePath);
   if (homeDirOfAnotherAgent(normalized, agentId)) {
-    throw new Error("This directory is another agent's home; bind a shared project directory instead");
+    throw new Error(
+      "This directory is another agent's home; bind a shared project directory instead",
+    );
   }
   return normalized;
 }
@@ -185,7 +208,10 @@ export function validateAgentWorkspace(agentId: string, workspacePath: string): 
  * 更换绑定目录（§3.6 workspace 区）：目录必须存在、不得与他 agent 绑定冲突；
  * 换目录即换会话，旧 pi_session_file 一并清空（下次激活按需重建）。
  */
-export function updateAgentWorkspace(agentId: string, workspacePath: string): MemberRow {
+export function updateAgentWorkspace(
+  agentId: string,
+  workspacePath: string,
+): MemberRow {
   const normalized = validateAgentWorkspace(agentId, workspacePath);
   const agent = getAgent(agentId);
   if (normalized === normalizeWorkspacePath(agent.workspace_path ?? "")) {
@@ -200,7 +226,10 @@ export function setAgentStatus(agentId: string, status: MemberStatus): void {
   getDb().updateMemberStatus(agent.id, status);
 }
 
-export function setAgentSessionFile(agentId: string, sessionFile: string | null): void {
+export function setAgentSessionFile(
+  agentId: string,
+  sessionFile: string | null,
+): void {
   getAgent(agentId);
   getDb().setMemberPiSessionFile(agentId, sessionFile);
 }
@@ -218,15 +247,22 @@ export function setAgentRuntimeConfig(
   },
 ): MemberRow {
   const agent = getAgent(agentId);
-  const modelProvider = input.modelProvider !== undefined ? input.modelProvider : agent.model_provider;
+  const modelProvider =
+    input.modelProvider !== undefined
+      ? input.modelProvider
+      : agent.model_provider;
   const modelId = input.modelId !== undefined ? input.modelId : agent.model_id;
   if ((modelProvider === null) !== (modelId === null)) {
-    throw new Error("Model provider and model id must be set or cleared together");
+    throw new Error(
+      "Model provider and model id must be set or cleared together",
+    );
   }
   getDb().setMemberModel(agent.id, {
-    modelProvider: input.modelProvider !== undefined ? input.modelProvider : undefined,
+    modelProvider:
+      input.modelProvider !== undefined ? input.modelProvider : undefined,
     modelId: input.modelId !== undefined ? input.modelId : undefined,
-    thinkingLevel: input.thinkingLevel !== undefined ? input.thinkingLevel : undefined,
+    thinkingLevel:
+      input.thinkingLevel !== undefined ? input.thinkingLevel : undefined,
   });
   return getAgent(agent.id);
 }

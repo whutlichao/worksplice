@@ -172,7 +172,9 @@ const SCHEMA_STATEMENTS: string[] = [
  */
 function migrateMessagesFtsTrigram(db: Database.Database): void {
   const row = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages_fts'")
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages_fts'",
+    )
     .get() as { sql: string } | undefined;
   if (!row) return;
   if (row.sql.includes("trigram")) return;
@@ -189,7 +191,9 @@ function migrateMessagesFtsTrigram(db: Database.Database): void {
       tokenize='trigram'
     )`,
   );
-  db.exec("INSERT INTO messages_fts (rowid, content) SELECT rowid, content FROM messages");
+  db.exec(
+    "INSERT INTO messages_fts (rowid, content) SELECT rowid, content FROM messages",
+  );
 }
 
 export function runMigrations(db: Database.Database): void {
@@ -216,9 +220,13 @@ export function runMigrations(db: Database.Database): void {
  * 老库无此列时 ALTER 补上；新库 CREATE TABLE 已带该列。
  */
 function migrateMembersDeletedColumn(db: Database.Database): void {
-  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
   if (!columns.some((c) => c.name === "deleted")) {
-    db.exec("ALTER TABLE members ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
+    db.exec(
+      "ALTER TABLE members ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
+    );
   }
 }
 
@@ -227,7 +235,9 @@ function migrateMembersDeletedColumn(db: Database.Database): void {
  * 老库无此列时 ALTER 补上；新库 CREATE TABLE 已带该列。
  */
 function migrateMembersModelColumns(db: Database.Database): void {
-  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
   if (!columns.some((c) => c.name === "model_provider")) {
     db.exec("ALTER TABLE members ADD COLUMN model_provider TEXT");
   }
@@ -245,7 +255,9 @@ function migrateMembersModelColumns(db: Database.Database): void {
  * 存量任务一律视为未重开（无历史可追溯，向前生效）。
  */
 function migrateTasksReopenedColumn(db: Database.Database): void {
-  const columns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>;
+  const columns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{
+    name: string;
+  }>;
   if (!columns.some((c) => c.name === "reopened")) {
     db.exec("ALTER TABLE tasks ADD COLUMN reopened INTEGER NOT NULL DEFAULT 0");
   }
@@ -261,7 +273,9 @@ function migrateTasksReopenedColumn(db: Database.Database): void {
  */
 function migrateChannelsDmType(db: Database.Database): void {
   const row = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels'")
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels'",
+    )
     .get() as { sql: string } | undefined;
   if (!row) return; // 全新库：channels 尚不存在，由 SCHEMA_STATEMENTS 以新 CHECK 创建
   if (row.sql.includes("'dm'")) return;
