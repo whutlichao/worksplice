@@ -742,7 +742,10 @@ test("DM bugfix：handleSend 发送成功后上抛 onChannelChanged（侧栏 mes
         "// eslint-disable-next-line react-hooks/exhaustive-deps",
         start,
     );
-    assert.ok(end !== -1 && end > start, "handleSend deps comment should exist");
+    assert.ok(
+        end !== -1 && end > start,
+        "handleSend deps comment should exist",
+    );
     const body = source.slice(start, end);
     // 成功路径（sendMessage await 之后）必须通知 shell 刷新频道列表——
     // 否则 DM 懒创建「有消息」信号冻结在 0，侧栏私信分组直到 15s 轮询/agent 回复才出现

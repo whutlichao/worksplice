@@ -20,10 +20,7 @@ import { SkillsConfig } from "./SkillsConfig";
 import type { MemberRow } from "@/lib/data/types";
 import { DM_ID_PREFIX, OWNER_MEMBER_ID } from "@/lib/data/schema";
 import { reconcileAgents, shallowEqualAgent } from "@/lib/agent-reconcile";
-import {
-  mergeChannelRows,
-  shallowEqualChannel,
-} from "@/lib/channel-list";
+import { mergeChannelRows, shallowEqualChannel } from "@/lib/channel-list";
 import {
   closePanel,
   onChannelSwitched,
