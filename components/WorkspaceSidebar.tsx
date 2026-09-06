@@ -55,6 +55,12 @@ function dmAgentName(name: string): string {
   return name.startsWith(DM_ID_PREFIX) ? name.slice(DM_ID_PREFIX.length) : name;
 }
 
+/** 环境无关的名字比较（UTF-16 码元序）：localeCompare 依赖宿主 ICU locale，服务端 Node 与
+ *  浏览器不同 locale（如 en-US vs zh-CN）会排出不同顺序 → DM 分组首帧渲染不一致（hydration mismatch）。 */
+function compareAgentNames(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /** 频道行（§03 起普通频道 / 私信两组复用）：DM 显示 agent 名 + MessageSquare 图标，其余同普通频道。 */
 function ChannelRow({
   channel,
@@ -178,7 +184,9 @@ export function WorkspaceSidebar({
   // §03 私信分组：type='dm' 过滤，按 agent 名排序（DM id 形如 dm:owner↔<名>）。
   const dmChannels = channels
     .filter((channel) => channel.type === "dm")
-    .sort((a, b) => dmAgentName(a.name).localeCompare(dmAgentName(b.name)));
+    .sort((a, b) =>
+      compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)),
+    );
   const regularChannels = channels.filter((channel) => channel.type !== "dm");
 
   const actionButton = (pink: boolean): React.CSSProperties => ({
