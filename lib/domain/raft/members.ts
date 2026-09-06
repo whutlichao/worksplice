@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from "path";
 import { randomUUID } from "crypto";
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel } from "./event-messages.ts";
-import { createDirectChannel, getDMFor } from "./channels.ts";
+import { getDMFor } from "./channels.ts";
 import type { MemberRow, MemberStatus } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID } from "../../data/schema.ts";
 import { agentHomeDir, buildMemoryTemplate, MEMORY_FILE_NAME } from "../../data/dirs.ts";
@@ -163,8 +163,7 @@ export function createAgent(input: {
   // #all 全员自动加入（§3.2）
   getDb().addChannelMember(BUILTIN_CHANNEL_ID, agent.id);
   notifyAgentJoinedChannel(BUILTIN_CHANNEL_ID, agent.id);
-  // §R6 新建 agent 同步建 DM（与自动加入 #all 同处）
-  createDirectChannel(agent.id);
+  // 懒创建（dm-lazy-create）：DM 不随 agent 创建，只在 owner 打开「发送消息」入口时幂等建
   return agent;
 }
 
