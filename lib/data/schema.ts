@@ -172,7 +172,9 @@ const SCHEMA_STATEMENTS: string[] = [
  */
 function migrateMessagesFtsTrigram(db: Database.Database): void {
   const row = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages_fts'")
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages_fts'",
+    )
     .get() as { sql: string } | undefined;
   if (!row) return;
   if (row.sql.includes("trigram")) return;
@@ -189,12 +191,15 @@ function migrateMessagesFtsTrigram(db: Database.Database): void {
       tokenize='trigram'
     )`,
   );
-  db.exec("INSERT INTO messages_fts (rowid, content) SELECT rowid, content FROM messages");
+  db.exec(
+    "INSERT INTO messages_fts (rowid, content) SELECT rowid, content FROM messages",
+  );
 }
 
 export function runMigrations(db: Database.Database): void {
-  // v12 CHECK 改写必须先于 seed 的 DM 补齐执行（老库 CHECK 无 'dm'，INSERT type='dm' 会违反约束）；
-  // 且该重建需 PRAGMA foreign_keys 开关（事务内 no-op），故放在事务外。
+  // v12 CHECK 改写必须先于任何 type='dm' 写入执行（老库 CHECK 无 'dm'，INSERT type='dm' 会违反约束）——
+  // 懒创建下 DM 由 createDirectChannel 在运行时写入，seed 不再补建；且该重建需 PRAGMA
+  // foreign_keys 开关（事务内 no-op），故放在事务外。
   migrateChannelsDmType(db);
   db.transaction(() => {
     migrateMessagesFtsTrigram(db);
@@ -205,6 +210,7 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersModelColumns(db);
     migrateTasksReopenedColumn(db);
     seed(db);
+    cleanupEmptyDms(db);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
 }
@@ -214,9 +220,13 @@ export function runMigrations(db: Database.Database): void {
  * 老库无此列时 ALTER 补上；新库 CREATE TABLE 已带该列。
  */
 function migrateMembersDeletedColumn(db: Database.Database): void {
-  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
   if (!columns.some((c) => c.name === "deleted")) {
-    db.exec("ALTER TABLE members ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
+    db.exec(
+      "ALTER TABLE members ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
+    );
   }
 }
 
@@ -225,7 +235,9 @@ function migrateMembersDeletedColumn(db: Database.Database): void {
  * 老库无此列时 ALTER 补上；新库 CREATE TABLE 已带该列。
  */
 function migrateMembersModelColumns(db: Database.Database): void {
-  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
   if (!columns.some((c) => c.name === "model_provider")) {
     db.exec("ALTER TABLE members ADD COLUMN model_provider TEXT");
   }
@@ -243,7 +255,9 @@ function migrateMembersModelColumns(db: Database.Database): void {
  * 存量任务一律视为未重开（无历史可追溯，向前生效）。
  */
 function migrateTasksReopenedColumn(db: Database.Database): void {
-  const columns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>;
+  const columns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{
+    name: string;
+  }>;
   if (!columns.some((c) => c.name === "reopened")) {
     db.exec("ALTER TABLE tasks ADD COLUMN reopened INTEGER NOT NULL DEFAULT 0");
   }
@@ -259,7 +273,9 @@ function migrateTasksReopenedColumn(db: Database.Database): void {
  */
 function migrateChannelsDmType(db: Database.Database): void {
   const row = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels'")
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'channels'",
+    )
     .get() as { sql: string } | undefined;
   if (!row) return; // 全新库：channels 尚不存在，由 SCHEMA_STATEMENTS 以新 CHECK 创建
   if (row.sql.includes("'dm'")) return;
@@ -308,18 +324,44 @@ function seed(db: Database.Database): void {
     `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
      SELECT ?, id, ? FROM members WHERE deleted = 0`,
   ).run(BUILTIN_CHANNEL_ID, createdAt);
-  // §R6 存量 agent 幂等补齐 DM（一对一 owner↔agent）：确定性 id `dm:owner↔<name>` +
-  // INSERT OR IGNORE 保证可重跑不重复建；软删 agent（deleted=1）不新建 DM（对标 #all 补齐写法）。
-  db.prepare(
-    `INSERT OR IGNORE INTO channels (id, name, type, description, archived, created_at)
-     SELECT ? || name, ? || name, 'dm', '', 0, ? FROM members WHERE type = 'agent' AND deleted = 0`,
-  ).run(DM_ID_PREFIX, DM_ID_PREFIX, createdAt);
-  db.prepare(
-    `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
-     SELECT ? || name, ?, ? FROM members WHERE type = 'agent' AND deleted = 0`,
-  ).run(DM_ID_PREFIX, OWNER_MEMBER_ID, createdAt);
-  db.prepare(
-    `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at)
-     SELECT ? || name, id, ? FROM members WHERE type = 'agent' AND deleted = 0`,
-  ).run(DM_ID_PREFIX, createdAt);
+  // 懒创建（dm-lazy-create）：不再 seed 补齐 DM——DM 只在 owner 打开「发送消息」入口时
+  // 由 createDirectChannel 幂等创建；存量空 DM 由 cleanupEmptyDms 每开库回收。
+}
+
+/**
+ * 懒创建清理（dm-lazy-create）：每次开库幂等删除全部空 DM——type='dm' 且无任何顶层消息的频道，
+ * 连同引用该频道的关联行（channel_members / channel_mutes / channel_reads / pinned_messages）一并回收
+ * （顺带清掉「点开未发」的空 DM）。空判定 = 无 target_id = dm.id 的顶层消息（DM 首条消息必为顶层，
+ * 故「无顶层消息」⟺「无消息」）。有消息的 DM 保留；无 schema 形状变更，不 bump SCHEMA_VERSION。
+ * 先删引用行再删频道行（各引用表 → channels 的外键约束）。
+ */
+function cleanupEmptyDms(db: Database.Database): void {
+  // 四张引用表显式逐条写死（不拼表名），避免动态 SQL 注入风险；先删引用行再删频道行。
+  db.exec(
+    `DELETE FROM channel_members
+     WHERE channel_id IN (
+       SELECT id FROM channels WHERE type = 'dm' AND id NOT IN (SELECT DISTINCT target_id FROM messages)
+     )`,
+  );
+  db.exec(
+    `DELETE FROM channel_mutes
+     WHERE channel_id IN (
+       SELECT id FROM channels WHERE type = 'dm' AND id NOT IN (SELECT DISTINCT target_id FROM messages)
+     )`,
+  );
+  db.exec(
+    `DELETE FROM channel_reads
+     WHERE channel_id IN (
+       SELECT id FROM channels WHERE type = 'dm' AND id NOT IN (SELECT DISTINCT target_id FROM messages)
+     )`,
+  );
+  db.exec(
+    `DELETE FROM pinned_messages
+     WHERE channel_id IN (
+       SELECT id FROM channels WHERE type = 'dm' AND id NOT IN (SELECT DISTINCT target_id FROM messages)
+     )`,
+  );
+  db.exec(
+    `DELETE FROM channels WHERE type = 'dm' AND id NOT IN (SELECT DISTINCT target_id FROM messages)`,
+  );
 }
