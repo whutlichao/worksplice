@@ -1,7 +1,34 @@
 "use client";
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlarmClock, Bell, BellOff, Check, CircleSlash, CornerDownRight, FileText, Kanban, Link, List, Paperclip, Pin, Quote, Reply, SmilePlus, TriangleAlert, Users, X } from "lucide-react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  AlarmClock,
+  Bell,
+  BellOff,
+  Check,
+  CircleSlash,
+  CornerDownRight,
+  FileText,
+  Kanban,
+  Link,
+  List,
+  Paperclip,
+  Pin,
+  Quote,
+  Reply,
+  SmilePlus,
+  TriangleAlert,
+  Users,
+  X,
+} from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { TranslationParams } from "@/lib/i18n/types";
 import { MentionText } from "./MentionText";
@@ -11,10 +38,23 @@ import { ReminderModal } from "./ReminderModal";
 import { copyText } from "@/lib/clipboard";
 import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
 import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
-import type { AttachmentRow, ChannelRow, MemberRow, TaskStatus } from "@/lib/data/types";
-import { extractAtQuery, buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
+import type {
+  AttachmentRow,
+  ChannelRow,
+  MemberRow,
+  TaskStatus,
+} from "@/lib/data/types";
+import {
+  extractAtQuery,
+  buildAtInsertText,
+  type AtQueryMatch,
+} from "@/lib/file-fuzzy";
 import { composerMentionCandidates } from "@/lib/mention";
-import { memberPanel, subscribePinnedChanged, type PanelContent } from "@/lib/panel-state";
+import {
+  memberPanel,
+  subscribePinnedChanged,
+  type PanelContent,
+} from "@/lib/panel-state";
 import { useChannelData } from "@/hooks/useChannelData";
 
 export type CenterTab = "messages" | "tasks";
@@ -62,15 +102,41 @@ const INK = "#141111";
 /** @ 提及补全菜单最大展示条数。 */
 const AT_MATCH_LIMIT = 20;
 /** 任务板状态分组顺序（§3.7）。 */
-const TASK_STATUS_ORDER: TaskStatus[] = ["todo", "in_progress", "in_review", "done", "closed"];
+const TASK_STATUS_ORDER: TaskStatus[] = [
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+  "closed",
+];
 /** §3.4 hover 快捷 reaction（常用若干）。 */
 const QUICK_REACTIONS = ["👍", "❤️", "🎉", "👀"];
 /** §3.4 表情选择器候选（常用 + 任务场景）。 */
 const EMOJI_PICKER_OPTIONS = [
-  "👍", "👎", "❤️", "🎉", "👀", "🔥",
-  "✅", "❌", "🙏", "🚀", "💡", "🤔",
-  "😂", "😅", "😮", "😢", "😡", "🥳",
-  "👏", "🙌", "🤝", "📌", "⏰", "🔧",
+  "👍",
+  "👎",
+  "❤️",
+  "🎉",
+  "👀",
+  "🔥",
+  "✅",
+  "❌",
+  "🙏",
+  "🚀",
+  "💡",
+  "🤔",
+  "😂",
+  "😅",
+  "😮",
+  "😢",
+  "😡",
+  "🥳",
+  "👏",
+  "🙌",
+  "🤝",
+  "📌",
+  "⏰",
+  "🔧",
 ];
 
 /** 消息动作按钮统一外框（§3.3 动作栏 + reaction 聚合条共用；全 lucide 13px，消灭文本字形宽差）。 */
@@ -94,7 +160,10 @@ const messageTime = (iso: string): string => {
   const d = new Date(iso);
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return isToday ? time : `${d.toLocaleDateString()} ${time}`;
 };
 
@@ -172,7 +241,14 @@ function EmptyState({
       >
         {title}
       </div>
-      <div style={{ color: "var(--text-muted)", fontSize: 13, maxWidth: 340, lineHeight: 1.6 }}>
+      <div
+        style={{
+          color: "var(--text-muted)",
+          fontSize: 13,
+          maxWidth: 340,
+          lineHeight: 1.6,
+        }}
+      >
         {hint}
       </div>
       {children}
@@ -274,8 +350,14 @@ function ReactionChips({
               background: mine ? "var(--yellow)" : "#ffffff",
             }}
           >
-            <span style={{ fontSize: 14, lineHeight: 1 }}>{reaction.emoji}</span>
-            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11 }}>{reaction.count}</span>
+            <span style={{ fontSize: 14, lineHeight: 1 }}>
+              {reaction.emoji}
+            </span>
+            <span
+              style={{ fontFamily: "var(--font-space-mono)", fontSize: 11 }}
+            >
+              {reaction.count}
+            </span>
           </button>
         );
       })}
@@ -315,7 +397,11 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
       const res = await fetch(`/api/attachments/${attachment.id}`);
       if (!res.ok) throw new Error(`preview: ${res.status}`);
       const text = await res.text();
-      setPreviewText(text.length > TEXT_PREVIEW_MAX_CHARS ? `${text.slice(0, TEXT_PREVIEW_MAX_CHARS)}…` : text);
+      setPreviewText(
+        text.length > TEXT_PREVIEW_MAX_CHARS
+          ? `${text.slice(0, TEXT_PREVIEW_MAX_CHARS)}…`
+          : text,
+      );
     } catch {
       setPreviewFailed(true);
     }
@@ -341,11 +427,18 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
 
   if (attachments.length === 0) return null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}
+    >
       {attachments.map((attachment) =>
         attachment.mime.startsWith("image/") ? (
           <div key={attachment.id}>
-            <a href={`/api/attachments/${attachment.id}`} target="_blank" rel="noreferrer" title={attachment.file_name}>
+            <a
+              href={`/api/attachments/${attachment.id}`}
+              target="_blank"
+              rel="noreferrer"
+              title={attachment.file_name}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element -- 附件原图预览，不走 next/image 优化 */}
               <img
                 src={`/api/attachments/${attachment.id}`}
@@ -364,15 +457,37 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
           </div>
         ) : isTextLike(attachment.mime) ? (
           <div key={attachment.id}>
-            <button type="button" onClick={() => void togglePreview(attachment)} style={chipStyle}>
-              <span><FileText size={12} style={{ verticalAlign: "-2px" }} /></span>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <button
+              type="button"
+              onClick={() => void togglePreview(attachment)}
+              style={chipStyle}
+            >
+              <span>
+                <FileText size={12} style={{ verticalAlign: "-2px" }} />
+              </span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {attachment.file_name}
               </span>
-              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, color: "var(--text-muted)" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-space-mono)",
+                  fontSize: 10,
+                  color: "var(--text-muted)",
+                }}
+              >
                 {formatBytes(attachment.size_bytes)}
               </span>
-              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10 }}>{previewId === attachment.id ? "▲" : "▼"}</span>
+              <span
+                style={{ fontFamily: "var(--font-space-mono)", fontSize: 10 }}
+              >
+                {previewId === attachment.id ? "▲" : "▼"}
+              </span>
             </button>
             {previewId === attachment.id && (
               <pre
@@ -391,10 +506,14 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
               >
                 {previewFailed ? (
                   <>
-                    <TriangleAlert size={11} style={{ verticalAlign: "text-bottom" }} /> preview failed
+                    <TriangleAlert
+                      size={11}
+                      style={{ verticalAlign: "text-bottom" }}
+                    />{" "}
+                    preview failed
                   </>
                 ) : (
-                  previewText ?? "…"
+                  (previewText ?? "…")
                 )}
               </pre>
             )}
@@ -406,11 +525,25 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
             download={attachment.file_name}
             style={chipStyle}
           >
-            <span><Paperclip size={12} style={{ verticalAlign: "-2px" }} /></span>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span>
+              <Paperclip size={12} style={{ verticalAlign: "-2px" }} />
+            </span>
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {attachment.file_name}
             </span>
-            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, color: "var(--text-muted)" }}>
+            <span
+              style={{
+                fontFamily: "var(--font-space-mono)",
+                fontSize: 10,
+                color: "var(--text-muted)",
+              }}
+            >
               {formatBytes(attachment.size_bytes)}
             </span>
           </a>
@@ -448,12 +581,23 @@ function MessageActions({
   const [copied, setCopied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", position: "relative" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: 6,
+        alignItems: "center",
+        flexWrap: "wrap",
+        position: "relative",
+      }}
+    >
       {onToggleReaction && onToggleReactOpen && (
         <button
           type="button"
           title={t("message.addReaction")}
-          style={{ ...actionButtonStyle, background: reactOpen ? "var(--yellow)" : "#ffffff" }}
+          style={{
+            ...actionButtonStyle,
+            background: reactOpen ? "var(--yellow)" : "#ffffff",
+          }}
           onClick={onToggleReactOpen}
         >
           <SmilePlus size={13} />
@@ -467,7 +611,12 @@ function MessageActions({
       >
         <Reply size={13} />
       </button>
-      <button type="button" title={t("message.quote")} style={actionButtonStyle} onClick={() => onQuote(message)}>
+      <button
+        type="button"
+        title={t("message.quote")}
+        style={actionButtonStyle}
+        onClick={() => onQuote(message)}
+      >
         <Quote size={13} />
       </button>
       <button
@@ -496,14 +645,24 @@ function MessageActions({
         <button
           type="button"
           title={pinned ? t("message.unpin") : t("message.pin")}
-          style={{ ...actionButtonStyle, background: pinned ? "var(--yellow)" : "#ffffff" }}
+          style={{
+            ...actionButtonStyle,
+            background: pinned ? "var(--yellow)" : "#ffffff",
+          }}
           onClick={() => onTogglePin(message)}
         >
           <Pin size={13} />
         </button>
       )}
       {reactOpen && (
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexBasis: "100%" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            flexBasis: "100%",
+          }}
+        >
           {QUICK_REACTIONS.map((emoji) => (
             <button
               key={emoji}
@@ -672,7 +831,8 @@ export const MessageRow = memo(function MessageRow({
   useEffect(() => {
     if (!reactOpen) return;
     const close = (e: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) setReactOpen(false);
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node))
+        setReactOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setReactOpen(false);
@@ -692,7 +852,9 @@ export const MessageRow = memo(function MessageRow({
   ];
   return (
     <div
-      className={isAnchor ? "ws-message-row ws-message-row-anchor" : "ws-message-row"}
+      className={
+        isAnchor ? "ws-message-row ws-message-row-anchor" : "ws-message-row"
+      }
       onContextMenu={(e) => {
         e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY });
@@ -703,7 +865,11 @@ export const MessageRow = memo(function MessageRow({
         padding: "10px 16px",
       }}
     >
-      <PixelAvatar seed={message.author_id} name={message.author?.name ?? "?"} size={40} />
+      <PixelAvatar
+        seed={message.author_id}
+        name={message.author?.name ?? "?"}
+        size={40}
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -717,10 +883,22 @@ export const MessageRow = memo(function MessageRow({
           <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
             {message.author?.name ?? t("message.unknownAuthor")}
           </span>
-          <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+          <span
+            style={{
+              fontFamily: "var(--font-space-mono)",
+              fontSize: 11,
+              color: "var(--text-muted)",
+            }}
+          >
             #{message.seq}
           </span>
-          <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-dim)" }}>
+          <span
+            style={{
+              fontFamily: "var(--font-space-mono)",
+              fontSize: 11,
+              color: "var(--text-dim)",
+            }}
+          >
             {messageTime(message.created_at)}
           </span>
           {onOpenThread && (message.threadReplyCount ?? 0) > 0 && (
@@ -752,7 +930,10 @@ export const MessageRow = memo(function MessageRow({
           {message.abandonedMarks && message.abandonedMarks.length > 0 && (
             <span
               title={message.abandonedMarks
-                .map((mark) => `${mark.agentName}：${mark.reason || t("message.notReplied")}`)
+                .map(
+                  (mark) =>
+                    `${mark.agentName}：${mark.reason || t("message.notReplied")}`,
+                )
                 .join("；")}
               style={{
                 display: "inline-flex",
@@ -775,12 +956,17 @@ export const MessageRow = memo(function MessageRow({
             >
               <CircleSlash size={10} />
               {message.abandonedMarks.length > 1
-                ? t("message.notRepliedMany", { count: String(message.abandonedMarks.length) })
+                ? t("message.notRepliedMany", {
+                    count: String(message.abandonedMarks.length),
+                  })
                 : t("message.notReplied")}
             </span>
           )}
         </div>
-        <div className="ws-message-content" style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)" }}>
+        <div
+          className="ws-message-content"
+          style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)" }}
+        >
           <MentionText
             content={message.content}
             members={mentionMembers}
@@ -797,7 +983,11 @@ export const MessageRow = memo(function MessageRow({
         )}
         <div
           ref={actionsRef}
-          className={reactOpen ? "ws-message-actions ws-message-actions-open" : "ws-message-actions"}
+          className={
+            reactOpen
+              ? "ws-message-actions ws-message-actions-open"
+              : "ws-message-actions"
+          }
           style={{ marginTop: 6 }}
         >
           <MessageActions
@@ -815,7 +1005,12 @@ export const MessageRow = memo(function MessageRow({
         </div>
       </div>
       {menu && items.length > 0 && (
-        <ContextMenu x={menu.x} y={menu.y} items={items} onClose={() => setMenu(null)} />
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={items}
+          onClose={() => setMenu(null)}
+        />
       )}
     </div>
   );
@@ -876,7 +1071,9 @@ const TASK_VIEW_KEY = "worksplice-task-view";
 /** 任务视图偏好（ADR-0002）：localStorage 全局记忆，默认列表。 */
 function readTaskViewPref(): "list" | "board" {
   try {
-    return window.localStorage.getItem(TASK_VIEW_KEY) === "board" ? "board" : "list";
+    return window.localStorage.getItem(TASK_VIEW_KEY) === "board"
+      ? "board"
+      : "list";
   } catch {
     return "list";
   }
@@ -886,31 +1083,62 @@ function readTaskViewPref(): "list" | "board" {
 function taskActionsFor(
   task: ChannelTask,
   currentMemberId: string,
-  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void,
+  onAction: (
+    task: ChannelTask,
+    action: "claim" | "updateStatus",
+    status?: TaskStatus,
+  ) => void,
   t: (key: string, params?: TranslationParams) => string,
 ): Array<{ label: string; onClick: () => void }> {
   const mine = task.owner_id === currentMemberId;
   switch (task.status) {
     case "todo":
-      return [{ label: t("tasks.claim"), onClick: () => onAction(task, "claim") }];
+      return [
+        { label: t("tasks.claim"), onClick: () => onAction(task, "claim") },
+      ];
     case "in_progress":
       return mine
         ? [
-            { label: t("tasks.complete"), onClick: () => onAction(task, "updateStatus", "in_review") },
-            { label: t("tasks.unclaim"), onClick: () => onAction(task, "updateStatus", "todo") },
-            { label: t("tasks.close"), onClick: () => onAction(task, "updateStatus", "closed") },
+            {
+              label: t("tasks.complete"),
+              onClick: () => onAction(task, "updateStatus", "in_review"),
+            },
+            {
+              label: t("tasks.unclaim"),
+              onClick: () => onAction(task, "updateStatus", "todo"),
+            },
+            {
+              label: t("tasks.close"),
+              onClick: () => onAction(task, "updateStatus", "closed"),
+            },
           ]
         : [];
     case "in_review":
       return mine
-        ? [{ label: t("tasks.close"), onClick: () => onAction(task, "updateStatus", "closed") }]
+        ? [
+            {
+              label: t("tasks.close"),
+              onClick: () => onAction(task, "updateStatus", "closed"),
+            },
+          ]
         : [
-            { label: t("tasks.approve"), onClick: () => onAction(task, "updateStatus", "done") },
-            { label: t("tasks.reject"), onClick: () => onAction(task, "updateStatus", "in_progress") },
+            {
+              label: t("tasks.approve"),
+              onClick: () => onAction(task, "updateStatus", "done"),
+            },
+            {
+              label: t("tasks.reject"),
+              onClick: () => onAction(task, "updateStatus", "in_progress"),
+            },
           ];
     case "done":
     case "closed":
-      return [{ label: t("tasks.reopen"), onClick: () => onAction(task, "updateStatus", "todo") }];
+      return [
+        {
+          label: t("tasks.reopen"),
+          onClick: () => onAction(task, "updateStatus", "todo"),
+        },
+      ];
   }
 }
 
@@ -928,7 +1156,11 @@ function TaskCard({
   task: ChannelTask;
   currentMemberId: string;
   busy: boolean;
-  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
+  onAction: (
+    task: ChannelTask,
+    action: "claim" | "updateStatus",
+    status?: TaskStatus,
+  ) => void;
   onOpenThread: (anchor: ChannelMessage) => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, task: ChannelTask) => void;
@@ -956,8 +1188,21 @@ function TaskCard({
         cursor: "pointer",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontFamily: "var(--font-space-mono)", fontWeight: 700, fontSize: 13 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--font-space-mono)",
+            fontWeight: 700,
+            fontSize: 13,
+          }}
+        >
           #{task.number}
         </span>
         {task.reopened === 1 && (
@@ -978,7 +1223,9 @@ function TaskCard({
             {t("tasks.reopenedBadge")}
           </span>
         )}
-        <span style={{ flex: 1, fontSize: 13, color: "var(--text)", minWidth: 120 }}>
+        <span
+          style={{ flex: 1, fontSize: 13, color: "var(--text)", minWidth: 120 }}
+        >
           {previewLine(task.anchor.content)}
         </span>
         <span
@@ -991,7 +1238,11 @@ function TaskCard({
             fontSize: 11,
           }}
         >
-          <PixelAvatar seed={task.owner_id ?? "none"} name={task.owner?.name ?? "?"} size={28} />
+          <PixelAvatar
+            seed={task.owner_id ?? "none"}
+            name={task.owner?.name ?? "?"}
+            size={28}
+          />
           {task.owner ? task.owner.name : t("tasks.unassigned")}
         </span>
       </div>
@@ -1007,7 +1258,11 @@ function TaskCard({
               type="button"
               disabled={busy}
               onClick={action.onClick}
-              style={{ ...taskCardButtonStyle, opacity: busy ? 0.55 : 1, cursor: busy ? "not-allowed" : "pointer" }}
+              style={{
+                ...taskCardButtonStyle,
+                opacity: busy ? 0.55 : 1,
+                cursor: busy ? "not-allowed" : "pointer",
+              }}
             >
               {action.label}
             </button>
@@ -1029,19 +1284,40 @@ function TaskList({
   tasks: ChannelTask[];
   currentMemberId: string;
   busy: boolean;
-  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
+  onAction: (
+    task: ChannelTask,
+    action: "claim" | "updateStatus",
+    status?: TaskStatus,
+  ) => void;
   onOpenThread: (anchor: ChannelMessage) => void;
 }) {
   const { t } = useI18n();
   return (
     <>
-      {TASK_STATUS_ORDER.filter((status) => tasks.some((task) => task.status === status)).map((status) => {
+      {TASK_STATUS_ORDER.filter((status) =>
+        tasks.some((task) => task.status === status),
+      ).map((status) => {
         const group = tasks.filter((task) => task.status === status);
         return (
           <section key={status} style={{ marginBottom: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <span style={taskBadgeStyle(status)}>{t(`task.status.${status}`)}</span>
-              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-dim)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
+              <span style={taskBadgeStyle(status)}>
+                {t(`task.status.${status}`)}
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-space-mono)",
+                  fontSize: 11,
+                  color: "var(--text-dim)",
+                }}
+              >
                 {group.length}
               </span>
               <span style={{ flex: 1, borderTop: `2px solid var(--border)` }} />
@@ -1077,16 +1353,25 @@ function TaskBoard({
   tasks: ChannelTask[];
   currentMemberId: string;
   busy: boolean;
-  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
+  onAction: (
+    task: ChannelTask,
+    action: "claim" | "updateStatus",
+    status?: TaskStatus,
+  ) => void;
   onOpenThread: (anchor: ChannelMessage) => void;
   onInvalidDrop: (task: ChannelTask, status: TaskStatus) => void;
 }) {
   const { t } = useI18n();
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
-  const dragTask = dragId ? tasks.find((task) => task.id === dragId) ?? null : null;
+  const dragTask = dragId
+    ? (tasks.find((task) => task.id === dragId) ?? null)
+    : null;
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: ChannelTask) => {
+  const handleDragStart = (
+    e: React.DragEvent<HTMLDivElement>,
+    task: ChannelTask,
+  ) => {
     if (busy) {
       e.preventDefault();
       return;
@@ -1113,10 +1398,16 @@ function TaskBoard({
     >
       {TASK_STATUS_ORDER.map((status) => {
         const group = tasks.filter((task) => task.status === status);
-        const validTarget = dragTask !== null && status !== dragTask.status && dragTask.reachable.includes(status);
+        const validTarget =
+          dragTask !== null &&
+          status !== dragTask.status &&
+          dragTask.reachable.includes(status);
         const active = validTarget && dragOver === status;
         const invalid =
-          dragTask !== null && status !== dragTask.status && dragOver === status && !dragTask.reachable.includes(status);
+          dragTask !== null &&
+          status !== dragTask.status &&
+          dragOver === status &&
+          !dragTask.reachable.includes(status);
         return (
           <div
             key={status}
@@ -1125,7 +1416,8 @@ function TaskBoard({
               setDragOver(status);
             }}
             onDragLeave={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
+              if (!e.currentTarget.contains(e.relatedTarget as Node))
+                setDragOver(null);
             }}
             onDrop={(e) => {
               e.preventDefault();
@@ -1144,7 +1436,11 @@ function TaskBoard({
               flex: "0 0 236px",
               display: "flex",
               flexDirection: "column",
-              background: invalid ? "var(--coral)" : active ? "var(--yellow)" : "var(--bg-panel)",
+              background: invalid
+                ? "var(--coral)"
+                : active
+                  ? "var(--yellow)"
+                  : "var(--bg-panel)",
               border: `2px solid ${active || invalid ? "var(--accent)" : INK}`,
             }}
           >
@@ -1157,12 +1453,29 @@ function TaskBoard({
                 borderBottom: `2px solid ${INK}`,
               }}
             >
-              <span style={taskBadgeStyle(status)}>{t(`task.status.${status}`)}</span>
-              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-dim)" }}>
+              <span style={taskBadgeStyle(status)}>
+                {t(`task.status.${status}`)}
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-space-mono)",
+                  fontSize: 11,
+                  color: "var(--text-dim)",
+                }}
+              >
                 {group.length}
               </span>
             </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, padding: 8, minHeight: 64 }}>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                padding: 8,
+                minHeight: 64,
+              }}
+            >
               {group.map((task) => (
                 <TaskCard
                   key={task.id}
@@ -1207,7 +1520,11 @@ export function TaskViews({
   error: string | null;
   notice: string | null;
   onCreateTask: (content: string) => void;
-  onAction: (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => void;
+  onAction: (
+    task: ChannelTask,
+    action: "claim" | "updateStatus",
+    status?: TaskStatus,
+  ) => void;
   onOpenThread: (anchor: ChannelMessage) => void;
   onNotice: (message: string) => void;
 }) {
@@ -1239,7 +1556,14 @@ export function TaskViews({
         // 看板模式：板面撑满 main 剩余高度并在面板内滚动，横向滚动条钉在可视区域底部
         // （否则滚动条随内容沉底，需要先滚到底才看得到）
         padding: "12px 16px 24px",
-        ...(view === "board" ? { height: "100%", display: "flex", flexDirection: "column", minHeight: 0 } : {}),
+        ...(view === "board"
+          ? {
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }
+          : {}),
       }}
     >
       {/* 创建途径 3：Tasks tab Create Task；右侧 List|Board 视图切换（ADR-0002） */}
@@ -1283,11 +1607,19 @@ export function TaskViews({
               type="button"
               disabled={disabled || !content.trim()}
               onClick={submitCreate}
-              style={{ ...taskCardButtonStyle, padding: "9px 14px", background: "var(--pink)" }}
+              style={{
+                ...taskCardButtonStyle,
+                padding: "9px 14px",
+                background: "var(--pink)",
+              }}
             >
               {t("tasks.create")}
             </button>
-            <button type="button" style={taskCardButtonStyle} onClick={() => setFormOpen(false)}>
+            <button
+              type="button"
+              style={taskCardButtonStyle}
+              onClick={() => setFormOpen(false)}
+            >
               {t("tasks.cancel")}
             </button>
           </>
@@ -1296,17 +1628,31 @@ export function TaskViews({
             type="button"
             disabled={disabled}
             onClick={() => setFormOpen(true)}
-            style={{ ...taskCardButtonStyle, padding: "8px 14px", background: "var(--pink)" }}
+            style={{
+              ...taskCardButtonStyle,
+              padding: "8px 14px",
+              background: "var(--pink)",
+            }}
           >
             + {t("tasks.new")}
           </button>
         )}
         {notice && (
-          <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+          <span
+            style={{
+              fontFamily: "var(--font-space-mono)",
+              fontSize: 12,
+              color: "var(--text-muted)",
+            }}
+          >
             {notice}
           </span>
         )}
-        <div role="tablist" aria-label={t("tasks.view")} style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+        <div
+          role="tablist"
+          aria-label={t("tasks.view")}
+          style={{ display: "flex", gap: 6, marginLeft: "auto" }}
+        >
           <button
             type="button"
             role="tab"
@@ -1327,10 +1673,16 @@ export function TaskViews({
           </button>
         </div>
       </div>
-      {error && <div style={{ marginBottom: 12, color: "var(--coral)", fontSize: 12 }}>{error}</div>}
+      {error && (
+        <div style={{ marginBottom: 12, color: "var(--coral)", fontSize: 12 }}>
+          {error}
+        </div>
+      )}
 
       {tasks.length === 0 ? (
-        <div style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6 }}>
+        <div
+          style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6 }}
+        >
           {t("tasks.emptyHint")}
         </div>
       ) : view === "list" ? (
@@ -1381,8 +1733,18 @@ export function Composer({
   asTask?: boolean;
   onAsTaskChange?: (checked: boolean) => void;
   onClearQuote: () => void;
-  onSend: (targetId: string, content: string, quoteId?: string, files?: File[]) => Promise<unknown>;
-  members?: Array<{ id: string; name: string; status: MemberRow["status"]; joined: boolean }>;
+  onSend: (
+    targetId: string,
+    content: string,
+    quoteId?: string,
+    files?: File[],
+  ) => Promise<unknown>;
+  members?: Array<{
+    id: string;
+    name: string;
+    status: MemberRow["status"];
+    joined: boolean;
+  }>;
 }) {
   const { t } = useI18n();
   const [value, setValue] = useState("");
@@ -1406,7 +1768,10 @@ export function Composer({
     setAtQuery(extractAtQuery(text.slice(0, cursor)));
   }, []);
 
-  const atTokenKey = atQuery === null ? null : `${atQuery.start}:${atQuery.quoted ? 1 : 0}:${atQuery.query}`;
+  const atTokenKey =
+    atQuery === null
+      ? null
+      : `${atQuery.start}:${atQuery.quoted ? 1 : 0}:${atQuery.query}`;
   useEffect(() => {
     if (atTokenKey === null) {
       setAtMenuOpen(false);
@@ -1428,7 +1793,8 @@ export function Composer({
         if (name === query) score = 100;
         else if (name.startsWith(query)) score = 80;
         else if (name.includes(query)) score = 50;
-        else if (name.split(/\s+/).some((part) => part.startsWith(query))) score = 40;
+        else if (name.split(/\s+/).some((part) => part.startsWith(query)))
+          score = 40;
         return { m, score };
       })
       .filter((x) => x.score > 0)
@@ -1442,7 +1808,12 @@ export function Composer({
   }, [atActiveIndex, atMenuOpen]);
 
   const applyAtCompletion = useCallback(
-    (member: { id: string; name: string; status: MemberRow["status"]; joined: boolean }) => {
+    (member: {
+      id: string;
+      name: string;
+      status: MemberRow["status"];
+      joined: boolean;
+    }) => {
       if (!atQuery) return;
       const ta = textareaRef.current;
       const cursor = ta?.selectionStart ?? value.length;
@@ -1469,7 +1840,9 @@ export function Composer({
 
   const addFiles = (picked: FileList | null) => {
     if (!picked || picked.length === 0) return;
-    const oversized = [...picked].filter((file) => file.size > MAX_ATTACHMENT_BYTES);
+    const oversized = [...picked].filter(
+      (file) => file.size > MAX_ATTACHMENT_BYTES,
+    );
     if (oversized.length > 0) {
       setError(t("attachments.tooBig", { name: oversized[0].name }));
       return;
@@ -1484,7 +1857,12 @@ export function Composer({
     setBusy(true);
     setError(null);
     try {
-      await onSend(targetId, content, quoting?.id, files.length > 0 ? files : undefined);
+      await onSend(
+        targetId,
+        content,
+        quoting?.id,
+        files.length > 0 ? files : undefined,
+      );
       setValue("");
       setFiles([]);
       setError(null);
@@ -1518,8 +1896,16 @@ export function Composer({
             fontSize: 12,
           }}
         >
-          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <Quote size={12} style={{ verticalAlign: "-2px" }} /> #{quoting.seq} {quoting.author?.name ?? t("message.unknownAuthor")}:{" "}
+          <span
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Quote size={12} style={{ verticalAlign: "-2px" }} /> #{quoting.seq}{" "}
+            {quoting.author?.name ?? t("message.unknownAuthor")}:{" "}
             {quoting.content.split("\n")[0]}
           </span>
           <button
@@ -1541,7 +1927,9 @@ export function Composer({
         </div>
       )}
       {files.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        <div
+          style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}
+        >
           {files.map((file, index) => (
             <div
               key={`${file.name}-${index}`}
@@ -1556,14 +1944,26 @@ export function Composer({
                 fontSize: 11,
               }}
             >
-              <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <Paperclip size={11} style={{ verticalAlign: "-2px" }} /> {file.name}
+              <span
+                style={{
+                  maxWidth: 180,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Paperclip size={11} style={{ verticalAlign: "-2px" }} />{" "}
+                {file.name}
               </span>
-              <span style={{ color: "var(--text-muted)" }}>{formatBytes(file.size)}</span>
+              <span style={{ color: "var(--text-muted)" }}>
+                {formatBytes(file.size)}
+              </span>
               <button
                 type="button"
                 aria-label={t("attachments.remove")}
-                onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
+                onClick={() =>
+                  setFiles((prev) => prev.filter((_, i) => i !== index))
+                }
                 style={{
                   width: 18,
                   height: 18,
@@ -1591,10 +1991,16 @@ export function Composer({
             }}
             onKeyDown={(e) => {
               // @ 提及补全键盘导航（IME 组合期不拦截，镜像 ChatInput）
-              if (atMenuOpen && atQuery !== null && !e.nativeEvent.isComposing) {
+              if (
+                atMenuOpen &&
+                atQuery !== null &&
+                !e.nativeEvent.isComposing
+              ) {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  setAtActiveIndex((i) => Math.min(Math.max(0, atMatches.length - 1), i + 1));
+                  setAtActiveIndex((i) =>
+                    Math.min(Math.max(0, atMatches.length - 1), i + 1),
+                  );
                   return;
                 }
                 if (e.key === "ArrowUp") {
@@ -1607,7 +2013,10 @@ export function Composer({
                   setAtMenuOpen(false);
                   return;
                 }
-                if ((e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) && atMatches[atActiveIndex]) {
+                if (
+                  (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) &&
+                  atMatches[atActiveIndex]
+                ) {
                   e.preventDefault();
                   applyAtCompletion(atMatches[atActiveIndex]);
                   return;
@@ -1618,7 +2027,9 @@ export function Composer({
                 void submit();
               }
             }}
-            placeholder={disabled ? disabledHint : t("message.composerPlaceholder")}
+            placeholder={
+              disabled ? disabledHint : t("message.composerPlaceholder")
+            }
             disabled={disabled}
             rows={2}
             style={{
@@ -1663,12 +2074,24 @@ export function Composer({
                 }}
               >
                 <span>{t("mention.title")}</span>
-                <span style={{ fontFamily: "var(--font-space-mono)", fontWeight: 400, color: "var(--text-muted)" }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-space-mono)",
+                    fontWeight: 400,
+                    color: "var(--text-muted)",
+                  }}
+                >
                   {t("chat.tabEnter")}
                 </span>
               </div>
               {atMatches.length === 0 ? (
-                <div style={{ padding: "8px 10px", fontSize: 12, color: "var(--text-muted)" }}>
+                <div
+                  style={{
+                    padding: "8px 10px",
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                  }}
+                >
                   {t("mention.noMatch")}
                 </div>
               ) : (
@@ -1693,7 +2116,10 @@ export function Composer({
                         gap: 6,
                         padding: "6px 10px",
                         border: "none",
-                        borderBottom: index < atMatches.length - 1 ? `1px solid ${INK}` : "none",
+                        borderBottom:
+                          index < atMatches.length - 1
+                            ? `1px solid ${INK}`
+                            : "none",
                         background: active ? "var(--cyan)" : "#ffffff",
                         color: "var(--text)",
                         cursor: "pointer",
@@ -1724,7 +2150,14 @@ export function Composer({
             </div>
           )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            alignItems: "stretch",
+          }}
+        >
           {onAsTaskChange && (
             <label
               title={t("tasks.convertHint")}
@@ -1799,15 +2232,25 @@ export function Composer({
               color: "var(--ink)",
               border: `2px solid ${INK}`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor: disabled || busy || (!value.trim() && files.length === 0) ? "not-allowed" : "pointer",
-              opacity: disabled || busy || (!value.trim() && files.length === 0) ? 0.55 : 1,
+              cursor:
+                disabled || busy || (!value.trim() && files.length === 0)
+                  ? "not-allowed"
+                  : "pointer",
+              opacity:
+                disabled || busy || (!value.trim() && files.length === 0)
+                  ? 0.55
+                  : 1,
             }}
           >
             {busy ? "…" : t("message.send")}
           </button>
         </div>
       </div>
-      {error && <div style={{ marginTop: 6, color: "var(--coral)", fontSize: 12 }}>{error}</div>}
+      {error && (
+        <div style={{ marginTop: 6, color: "var(--coral)", fontSize: 12 }}>
+          {error}
+        </div>
+      )}
     </div>
   );
 }
@@ -1912,7 +2355,9 @@ export function ChannelView({
   /** 频道内全部成员（agent + 人类）：数量与成员面板共用——agent 删除后随 agents prop 刷新即更新，人类始终可见。 */
   const channelMembers = useMemo(() => {
     const members = agents.filter((a) => channelMemberIds.has(a.id));
-    return owner && channelMemberIds.has(owner.id) ? [...members, owner] : members;
+    return owner && channelMemberIds.has(owner.id)
+      ? [...members, owner]
+      : members;
   }, [agents, owner, channelMemberIds]);
   const mentionable = useMemo(
     () =>
@@ -1956,10 +2401,14 @@ export function ChannelView({
     [onOpenPanel],
   );
   const openThreadPanel = useCallback(
-    (target: ChannelMessage) => onOpenPanel?.({ kind: "thread", id: target.id }),
+    (target: ChannelMessage) =>
+      onOpenPanel?.({ kind: "thread", id: target.id }),
     [onOpenPanel],
   );
-  const handleQuote = useCallback((target: ChannelMessage) => setQuoting(target), []);
+  const handleQuote = useCallback(
+    (target: ChannelMessage) => setQuoting(target),
+    [],
+  );
   const handleCopyLink = useCallback(
     async (message: ChannelMessage) => {
       const url = `${window.location.origin}${window.location.pathname}#c/${encodeURIComponent(channel?.id ?? "")}?m=${message.id}`;
@@ -1983,7 +2432,9 @@ export function ChannelView({
   const scrollRef = useRef<HTMLDivElement>(null);
   /** 消息流滚动位置保存（tasks 与 messages 共用一个 main 滚动容器：切到任务板时内容变矮，
    *  浏览器会把 scrollTop 钳制到 0，切回来即丢位置——切走前按 channel 记下，切回时恢复）。 */
-  const savedScrollRef = useRef<{ channelId: string; top: number } | null>(null);
+  const savedScrollRef = useRef<{ channelId: string; top: number } | null>(
+    null,
+  );
 
   const handleTabChange = useCallback(
     (next: CenterTab) => {
@@ -2020,11 +2471,14 @@ export function ChannelView({
     setMemberBusy(true);
     setMemberNotice(null);
     try {
-      const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: member.id }),
-      });
+      const res = await fetch(
+        `/api/channels/${encodeURIComponent(channel.id)}/join`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ memberId: member.id }),
+        },
+      );
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? "join failed");
@@ -2044,11 +2498,14 @@ export function ChannelView({
     setMemberBusy(true);
     setMemberNotice(null);
     try {
-      const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/leave`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: member.id }),
-      });
+      const res = await fetch(
+        `/api/channels/${encodeURIComponent(channel.id)}/leave`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ memberId: member.id }),
+        },
+      );
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? "leave failed");
@@ -2082,7 +2539,9 @@ export function ChannelView({
   // 切换频道滚到底部（缓存快照替换后，同 commit 内完成，无中间空态/滚动跳变）。
   useEffect(() => {
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ top: scrollRef.current?.scrollHeight ?? 0 });
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current?.scrollHeight ?? 0,
+      });
     });
   }, [activeChannelId]);
 
@@ -2121,7 +2580,12 @@ export function ChannelView({
   }, [loadEarlier]);
 
   const handleSend = useCallback(
-    async (targetId: string, content: string, quoteId?: string, files?: File[]) => {
+    async (
+      targetId: string,
+      content: string,
+      quoteId?: string,
+      files?: File[],
+    ) => {
       // 02 票：发送通道由 useChannelData.send 持有（baseSeq 携带 + held 重拉提示）。
       // 视图只做引用清理与 As Task 转化（§3.7 创建途径 2，任务板是 04 票范围）。
       const message = await sendMessage(targetId, content, quoteId, files);
@@ -2139,11 +2603,14 @@ export function ChannelView({
   const toggleReaction = useCallback(
     async (message: ChannelMessage, emoji: string) => {
       try {
-        const res = await fetch(`/api/messages/${encodeURIComponent(message.id)}/reactions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ emoji }),
-        });
+        const res = await fetch(
+          `/api/messages/${encodeURIComponent(message.id)}/reactions`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ emoji }),
+          },
+        );
         if (!res.ok) throw new Error(`reaction: ${res.status}`);
         const body = (await res.json()) as { reactions?: ReactionSummary[] };
         if (!body.reactions) return;
@@ -2193,13 +2660,17 @@ export function ChannelView({
       if (message.target_id === channel?.id) {
         const already = messages.some((m) => m.id === message.id);
         if (already) {
-          document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
+          document
+            .getElementById(`msg-${message.id}`)
+            ?.scrollIntoView({ block: "center" });
           return;
         }
         // 新消息经 hook 轮询/重拉收敛（下次轮询或 loadLatest）。
         loadLatest();
         requestAnimationFrame(() => {
-          document.getElementById(`msg-${message.id}`)?.scrollIntoView({ block: "center" });
+          document
+            .getElementById(`msg-${message.id}`)
+            ?.scrollIntoView({ block: "center" });
         });
       } else {
         onOpenPanel?.({ kind: "thread", id: message.target_id });
@@ -2237,7 +2708,11 @@ export function ChannelView({
    * 04 票：转移序列经 useChannelData.runTaskTransition（busy 共享锁 + baseSeq 携带 +
    * held/conflict/blocked 让路语义在 hook 内），视图只做回调转发（TaskViews 视图与拖拽手势不动）。 */
   const runTaskAction = useCallback(
-    async (task: ChannelTask, action: "claim" | "updateStatus", status?: TaskStatus) => {
+    async (
+      task: ChannelTask,
+      action: "claim" | "updateStatus",
+      status?: TaskStatus,
+    ) => {
       await runTaskTransition(task, action, status);
     },
     [runTaskTransition],
@@ -2266,7 +2741,9 @@ export function ChannelView({
           // 深链目标页经 hook 重拉收敛（落在最新页内时直接定位）。
           loadLatest();
           requestAnimationFrame(() => {
-            document.getElementById(`msg-${target.id}`)?.scrollIntoView({ block: "center" });
+            document
+              .getElementById(`msg-${target.id}`)
+              ?.scrollIntoView({ block: "center" });
           });
         } else {
           onOpenPanel?.({ kind: "thread", id: target.target_id });
@@ -2287,15 +2764,21 @@ export function ChannelView({
         ? ""
         : t("message.joinHint");
 
-  const runChannelAction = async (action: "join" | "leave" | "archive", body: Record<string, unknown>) => {
+  const runChannelAction = async (
+    action: "join" | "leave" | "archive",
+    body: Record<string, unknown>,
+  ) => {
     if (!channel || busyAction) return;
     setBusyAction(true);
     try {
-      const res = await fetch(`/api/channels/${encodeURIComponent(channel.id)}/${action}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const res = await fetch(
+        `/api/channels/${encodeURIComponent(channel.id)}/${action}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? `${action} failed`);
@@ -2310,11 +2793,17 @@ export function ChannelView({
 
   /** §3.2 mute 开关（03 票）：取反提交经 useChannelData.toggleMute（列表写回在 hook 内），
    * 视图只做 toast 提示（与旧内联同文案）。 */
-  const toggleMute = async (m: { memberId: string; name: string; muted: boolean }) => {
+  const toggleMute = async (m: {
+    memberId: string;
+    name: string;
+    muted: boolean;
+  }) => {
     try {
       const next = await toggleMuteInHook(m.memberId);
       if (next === null) return;
-      setMuteNotice(t(next ? "mute.toastMuted" : "mute.toastUnmuted", { name: m.name }));
+      setMuteNotice(
+        t(next ? "mute.toastMuted" : "mute.toastUnmuted", { name: m.name }),
+      );
     } catch (e) {
       setMuteNotice(e instanceof Error ? e.message : String(e));
     }
@@ -2328,7 +2817,10 @@ export function ChannelView({
   } | null>(null);
   const openChannelReminder = () => {
     if (!channel) return;
-    setReminderTarget({ targetId: channel.id, targetLabel: `#${channel.name}` });
+    setReminderTarget({
+      targetId: channel.id,
+      targetLabel: `#${channel.name}`,
+    });
   };
   const openMessageReminder = (message: ChannelMessage) => {
     setReminderTarget({
@@ -2388,7 +2880,14 @@ export function ChannelView({
           background: "var(--bg)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
           <h1
             style={{
               margin: 0,
@@ -2401,7 +2900,12 @@ export function ChannelView({
               gap: 6,
             }}
           >
-            <span style={{ fontFamily: "var(--font-space-mono)", color: "var(--text-muted)" }}>
+            <span
+              style={{
+                fontFamily: "var(--font-space-mono)",
+                color: "var(--text-muted)",
+              }}
+            >
               #
             </span>
             {channel?.name ?? t("shell.selectChannel")}
@@ -2420,7 +2924,13 @@ export function ChannelView({
           )}
         </div>
         {channel?.description ? (
-          <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: 13 }}>
+          <p
+            style={{
+              margin: "6px 0 0",
+              color: "var(--text-muted)",
+              fontSize: 13,
+            }}
+          >
             {channel.description}
           </p>
         ) : null}
@@ -2432,7 +2942,11 @@ export function ChannelView({
                   <button
                     type="button"
                     style={actionButton}
-                    onClick={() => void runChannelAction("leave", { memberId: currentMemberId })}
+                    onClick={() =>
+                      void runChannelAction("leave", {
+                        memberId: currentMemberId,
+                      })
+                    }
                   >
                     {t("channel.leave")}
                   </button>
@@ -2440,7 +2954,11 @@ export function ChannelView({
                   <button
                     type="button"
                     style={{ ...actionButton, background: "var(--pink)" }}
-                    onClick={() => void runChannelAction("join", { memberId: currentMemberId })}
+                    onClick={() =>
+                      void runChannelAction("join", {
+                        memberId: currentMemberId,
+                      })
+                    }
                   >
                     {t("channel.join")}
                   </button>
@@ -2448,7 +2966,9 @@ export function ChannelView({
                 <button
                   type="button"
                   style={actionButton}
-                  onClick={() => void runChannelAction("archive", { archived: !isArchived })}
+                  onClick={() =>
+                    void runChannelAction("archive", { archived: !isArchived })
+                  }
                 >
                   {isArchived ? t("channel.unarchive") : t("channel.archive")}
                 </button>
@@ -2468,17 +2988,31 @@ export function ChannelView({
               <button
                 type="button"
                 title={t("pinned.toggle")}
-                style={{ ...actionButton, background: pinnedOpen ? "var(--yellow)" : "#ffffff" }}
+                style={{
+                  ...actionButton,
+                  background: pinnedOpen ? "var(--yellow)" : "#ffffff",
+                }}
                 onClick={() => setPinnedOpen((open) => !open)}
               >
-                <Pin size={14} /> {pinnedLoading ? "…" : pinnedItems.length > 0 ? pinnedItems.length : ""}
+                <Pin size={14} />{" "}
+                {pinnedLoading
+                  ? "…"
+                  : pinnedItems.length > 0
+                    ? pinnedItems.length
+                    : ""}
               </button>
             )}
             {joined && !isDM && (
               <button
                 type="button"
                 title={t("mute.toggle")}
-                style={{ ...actionButton, background: muteOpen || mutes.some((m) => m.muted) ? "var(--yellow)" : "#ffffff" }}
+                style={{
+                  ...actionButton,
+                  background:
+                    muteOpen || mutes.some((m) => m.muted)
+                      ? "var(--yellow)"
+                      : "#ffffff",
+                }}
                 onClick={() => setMuteOpen((open) => !open)}
               >
                 <BellOff size={14} /> {(() => {
@@ -2492,10 +3026,18 @@ export function ChannelView({
               <button
                 type="button"
                 title={t("channel.membersPanel")}
-                style={{ ...actionButton, background: membersOpen ? "var(--yellow)" : "#ffffff" }}
+                style={{
+                  ...actionButton,
+                  background: membersOpen ? "var(--yellow)" : "#ffffff",
+                }}
                 onClick={() => setMembersOpen((open) => !open)}
               >
-                <Users size={14} /> {membersLoading ? "…" : channelMembers.length > 0 ? channelMembers.length : ""}
+                <Users size={14} />{" "}
+                {membersLoading
+                  ? "…"
+                  : channelMembers.length > 0
+                    ? channelMembers.length
+                    : ""}
               </button>
             )}
           </div>
@@ -2512,28 +3054,69 @@ export function ChannelView({
             background: "var(--bg)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 13 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--font-hanken)",
+                fontWeight: 700,
+                fontSize: 13,
+              }}
+            >
               {t("mute.toggle")}
             </span>
-            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+            <span
+              style={{
+                fontFamily: "var(--font-space-mono)",
+                fontSize: 11,
+                color: "var(--text-muted)",
+              }}
+            >
               {t("mute.hint")}
             </span>
           </div>
           {mutes.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("mute.none")}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {t("mute.none")}
+            </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                alignItems: "flex-start",
+              }}
+            >
               {mutes.map((m) => (
                 <button
                   key={m.memberId}
                   type="button"
-                  title={t(m.muted ? "mute.unmuteFor" : "mute.for", { name: m.name })}
-                  style={{ ...actionButton, background: m.muted ? "var(--yellow)" : "#ffffff" }}
+                  title={t(m.muted ? "mute.unmuteFor" : "mute.for", {
+                    name: m.name,
+                  })}
+                  style={{
+                    ...actionButton,
+                    background: m.muted ? "var(--yellow)" : "#ffffff",
+                  }}
                   onClick={() => void toggleMute(m)}
                 >
-                  {m.muted ? <BellOff size={12} /> : <Bell size={12} />} @{m.name}{" "}
-                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, opacity: 0.75 }}>
+                  {m.muted ? <BellOff size={12} /> : <Bell size={12} />} @
+                  {m.name}{" "}
+                  <span
+                    style={{
+                      fontFamily: "var(--font-space-mono)",
+                      fontSize: 10,
+                      opacity: 0.75,
+                    }}
+                  >
                     {m.muted ? t("mute.muted") : t("mute.unmuted")}
                   </span>
                 </button>
@@ -2541,7 +3124,11 @@ export function ChannelView({
             </div>
           )}
           {muteNotice && (
-            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{muteNotice}</div>
+            <div
+              style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}
+            >
+              {muteNotice}
+            </div>
           )}
         </div>
       )}
@@ -2556,23 +3143,59 @@ export function ChannelView({
             background: "var(--bg)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 13 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--font-hanken)",
+                fontWeight: 700,
+                fontSize: 13,
+              }}
+            >
               {t("channel.membersPanel")}
             </span>
-            <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+            <span
+              style={{
+                fontFamily: "var(--font-space-mono)",
+                fontSize: 11,
+                color: "var(--text-muted)",
+              }}
+            >
               {t("mention.hint")}
             </span>
           </div>
           {membersError && (
-            <div style={{ marginBottom: 8, fontSize: 12, color: "var(--coral)" }}>{membersError}</div>
+            <div
+              style={{ marginBottom: 8, fontSize: 12, color: "var(--coral)" }}
+            >
+              {membersError}
+            </div>
           )}
           {channelMembers.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("channel.membersEmpty")}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {t("channel.membersEmpty")}
+            </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                alignItems: "flex-start",
+              }}
+            >
               {channelMembers.map((member) => (
-                <div key={member.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div
+                  key={member.id}
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                >
                   <button
                     type="button"
                     title={member.description || member.name}
@@ -2582,22 +3205,36 @@ export function ChannelView({
                         id: member.id,
                       })
                     }
-                    style={{ ...actionButton, display: "flex", alignItems: "center", gap: 6 }}
+                    style={{
+                      ...actionButton,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
                   >
                     <StatusDot status={member.status} />
                     {member.name}
                   </button>
-                  {member.type === "agent" && channel.id !== BUILTIN_CHANNEL_ID && (
-                    <button
-                      type="button"
-                      title={t("mention.remove", { name: member.name })}
-                      disabled={memberBusy}
-                      onClick={() => void removeChannelMember(member)}
-                      style={{ ...actionButton, padding: "4px 7px", fontSize: 10, opacity: memberBusy ? 0.55 : 1 }}
-                    >
-                      <X size={11} style={{ display: "block", margin: "auto" }} />
-                    </button>
-                  )}
+                  {member.type === "agent" &&
+                    channel.id !== BUILTIN_CHANNEL_ID && (
+                      <button
+                        type="button"
+                        title={t("mention.remove", { name: member.name })}
+                        disabled={memberBusy}
+                        onClick={() => void removeChannelMember(member)}
+                        style={{
+                          ...actionButton,
+                          padding: "4px 7px",
+                          fontSize: 10,
+                          opacity: memberBusy ? 0.55 : 1,
+                        }}
+                      >
+                        <X
+                          size={11}
+                          style={{ display: "block", margin: "auto" }}
+                        />
+                      </button>
+                    )}
                 </div>
               ))}
             </div>
@@ -2614,11 +3251,23 @@ export function ChannelView({
                   borderTop: `1px dashed ${INK}`,
                 }}
               >
-                <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 12 }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-hanken)",
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}
+                >
                   {t("mention.addTitle")}
                 </span>
                 {mentionable.length === channelAgents.length ? (
-                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-space-mono)",
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                    }}
+                  >
                     {t("mention.allJoined")}
                   </span>
                 ) : (
@@ -2631,8 +3280,18 @@ export function ChannelView({
                           type="button"
                           title={t("mention.add", { name: m.name })}
                           disabled={memberBusy}
-                          onClick={() => void addChannelMember(agents.find((a) => a.id === m.id)!)}
-                          style={{ ...actionButton, display: "flex", alignItems: "center", gap: 6, opacity: memberBusy ? 0.55 : 1 }}
+                          onClick={() =>
+                            void addChannelMember(
+                              agents.find((a) => a.id === m.id)!,
+                            )
+                          }
+                          style={{
+                            ...actionButton,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            opacity: memberBusy ? 0.55 : 1,
+                          }}
                         >
                           <StatusDot status={m.status} />
                           {m.name}
@@ -2642,7 +3301,15 @@ export function ChannelView({
                 )}
               </div>
               {memberNotice && (
-                <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{memberNotice}</div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  {memberNotice}
+                </div>
               )}
             </>
           )}
@@ -2659,8 +3326,22 @@ export function ChannelView({
             background: "var(--bg)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 13 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--font-hanken)",
+                fontWeight: 700,
+                fontSize: 13,
+              }}
+            >
               {t("pinned.title")}
             </span>
             <label
@@ -2695,13 +3376,21 @@ export function ChannelView({
               </select>
             </label>
             {pinnedError && (
-              <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--coral)" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-space-mono)",
+                  fontSize: 11,
+                  color: "var(--coral)",
+                }}
+              >
                 {pinnedError}
               </span>
             )}
           </div>
           {pinnedItems.length === 0 ? (
-            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("pinned.empty")}</div>
+            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+              {t("pinned.empty")}
+            </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {pinnedItems.map((item, index) => (
@@ -2723,10 +3412,24 @@ export function ChannelView({
                     if (e.key === "Enter") openPinnedMessage(item.message);
                   }}
                 >
-                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-space-mono)",
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                    }}
+                  >
                     #{item.message.seq}
                   </span>
-                  <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: 12,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {previewLine(item.message.content, 60)}
                   </span>
                   {pinnedSort === "manual" && (
@@ -2740,7 +3443,11 @@ export function ChannelView({
                         title={t("pinned.moveUp")}
                         disabled={index === 0}
                         onClick={() => void movePinned(index, -1)}
-                        style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
+                        style={{
+                          ...actionButton,
+                          padding: "2px 7px",
+                          fontSize: 10,
+                        }}
                       >
                         ↑
                       </button>
@@ -2749,7 +3456,11 @@ export function ChannelView({
                         title={t("pinned.moveDown")}
                         disabled={index === pinnedItems.length - 1}
                         onClick={() => void movePinned(index, 1)}
-                        style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
+                        style={{
+                          ...actionButton,
+                          padding: "2px 7px",
+                          fontSize: 10,
+                        }}
                       >
                         ↓
                       </button>
@@ -2757,9 +3468,16 @@ export function ChannelView({
                         type="button"
                         title={t("message.unpin")}
                         onClick={() => void togglePinAction(item.message)}
-                        style={{ ...actionButton, padding: "2px 7px", fontSize: 10 }}
+                        style={{
+                          ...actionButton,
+                          padding: "2px 7px",
+                          fontSize: 10,
+                        }}
                       >
-                        <X size={10} style={{ display: "block", margin: "auto" }} />
+                        <X
+                          size={10}
+                          style={{ display: "block", margin: "auto" }}
+                        />
                       </button>
                     </span>
                   )}
@@ -2807,13 +3525,27 @@ export function ChannelView({
       >
         {tab === "messages" ? (
           !channel ? (
-            <EmptyState glyph="#" title={t("shell.selectChannel")} hint={t("messages.emptyHint")} />
+            <EmptyState
+              glyph="#"
+              title={t("shell.selectChannel")}
+              hint={t("messages.emptyHint")}
+            />
           ) : loadError ? (
-            <div style={{ padding: 24, color: "var(--coral)", fontSize: 13 }}>{loadError}</div>
+            <div style={{ padding: 24, color: "var(--coral)", fontSize: 13 }}>
+              {loadError}
+            </div>
           ) : messagesLoading ? (
-            <EmptyState glyph="…" title={t("messages.loading")} hint={t("messages.loadingHint")} />
+            <EmptyState
+              glyph="…"
+              title={t("messages.loading")}
+              hint={t("messages.loadingHint")}
+            />
           ) : messages.length === 0 ? (
-            <EmptyState glyph="#" title={t("messages.empty")} hint={t("messages.emptyHint")} />
+            <EmptyState
+              glyph="#"
+              title={t(isDM ? "messages.emptyDM" : "messages.empty")}
+              hint={t("messages.emptyHint")}
+            />
           ) : (
             <>
               {hasMore && (
@@ -2887,8 +3619,12 @@ export function ChannelView({
             error={tasksError}
             notice={taskNotice}
             onCreateTask={(content) => void createTaskFromBoard(content)}
-            onAction={(task, action, status) => void runTaskAction(task, action, status)}
-            onOpenThread={(anchor) => onOpenPanel?.({ kind: "thread", id: anchor.id })}
+            onAction={(task, action, status) =>
+              void runTaskAction(task, action, status)
+            }
+            onOpenThread={(anchor) =>
+              onOpenPanel?.({ kind: "thread", id: anchor.id })
+            }
             onNotice={setTaskNotice}
           />
         )}
