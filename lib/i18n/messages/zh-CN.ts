@@ -96,7 +96,8 @@ export const zhCNLocale: LocalePlugin = {
     "files.noFiles": "未找到文件",
     "files.explorer": "文件浏览器",
     "files.changedCount": "{count} 个文件",
-    "files.changeStats": "{count} 个变更文件，新增 {additions} 行，删除 {deletions} 行",
+    "files.changeStats":
+      "{count} 个变更文件，新增 {additions} 行，删除 {deletions} 行",
     "files.conflictSummary": "已有 {count} 个文件：{files}",
     "files.cannotReplace": "无法替换：{files}",
     "files.replace": "替换",
@@ -243,7 +244,8 @@ export const zhCNLocale: LocalePlugin = {
     "trust.trusting": "正在信任...",
     "trust.cancel": "取消",
     "trust.dialogTitle": "信任此项目？",
-    "trust.dialogBody": "项目资源可以运行本地代码。请仅信任你了解其内容的项目。",
+    "trust.dialogBody":
+      "项目资源可以运行本地代码。请仅信任你了解其内容的项目。",
     "trust.skillsNotLoaded": "此项目尚未受信任，项目技能未加载。",
     "trust.pluginsNotLoaded": "此项目尚未受信任，项目插件未加载。",
     "trust.projectScopeUnavailable": "项目资源未加载时，无法安装到项目范围。",
@@ -317,7 +319,8 @@ export const zhCNLocale: LocalePlugin = {
     "models.id": "ID *",
     "models.name": "名称",
     "models.displayNamePlaceholder": "显示名称",
-    "models.apiKeyStored": "已存储 API key。在下方输入新 key 可替换，或断开连接以移除。",
+    "models.apiKeyStored":
+      "已存储 API key。在下方输入新 key 可替换，或断开连接以移除。",
     "models.enterApiKey": "输入 {name} 的 API key 以启用 {count} 个模型。",
     "models.apiKeyPlaceholder": "ENV_VAR_NAME、!shell-command 或字面 key",
     "models.apiKeyHint": "以 ! 开头运行 shell 命令，或使用环境变量名",
@@ -486,7 +489,7 @@ export const zhCNLocale: LocalePlugin = {
     "channel.membersEmpty": "该频道还没有成员",
     "mention.toggle": "提及 agent（输入 @ 弹出成员列表）",
     "mention.title": "提及成员",
-    "mention.hint": "@名字 提及 agent；含空格的名字用 @\"名字\"",
+    "mention.hint": '@名字 提及 agent；含空格的名字用 @"名字"',
     "mention.noMatch": "无匹配成员",
     "mention.notJoined": "未加入",
     "mention.empty": "还没有可提及的 agent",
@@ -502,7 +505,8 @@ export const zhCNLocale: LocalePlugin = {
     "attachments.tooBig": "{name} 超过 50MB 上限",
     "agent.create": "创建 agent",
     "agent.bootstrap": "创建启动助手",
-    "agent.bootstrapHint": "一键创建秘书 Susan——自动加入全部频道并备好系统手册，马上就能 @ 它",
+    "agent.bootstrapHint":
+      "一键创建秘书 Susan——自动加入全部频道并备好系统手册，马上就能 @ 它",
     "agent.name": "名称",
     "agent.description": "描述（可选）",
     "agent.workspace": "工作区",
@@ -549,7 +553,8 @@ export const zhCNLocale: LocalePlugin = {
     "reminders.targetIn": "在 #{{channel}}",
     "reminders.targetInMsg": "在 #{{channel}} · #{{seq}}",
     "reminders.scheduledCount": "提醒 {{count}}",
-    "reminders.allHint": "到点后 ⏰ 系统消息会直接出现在对应频道的消息流中；此处可随时管理或定位。",
+    "reminders.allHint":
+      "到点后 ⏰ 系统消息会直接出现在对应频道的消息流中；此处可随时管理或定位。",
     "tasks.empty": "该频道还没有任务",
     "status.online": "在线",
     "status.working": "正在干活",
@@ -599,15 +604,21 @@ export const zhCNLocale: LocalePlugin = {
     "role.member": "Member",
     "agent.workspaceNotBound": "尚未绑定",
     "agent.change": "更换",
-    "agent.workspaceHint": "工作区 = 家目录；可绑定共享项目目录协作（换目录即换会话）",
-    "agent.workspaceHomeHint": "家目录——创建时自动生成、唯一私有、随身份删除；可绑定共享项目目录协作。",
-    "agent.homeHint": "创建时自动在数据目录下生成私有家目录，并预置由 agent 维护的 MEMORY.md 大纲。",
+    "agent.workspaceHint":
+      "工作区 = 家目录；可绑定共享项目目录协作（换目录即换会话）",
+    "agent.workspaceHomeHint":
+      "家目录——创建时自动生成、唯一私有、随身份删除；可绑定共享项目目录协作。",
+    "agent.homeHint":
+      "创建时自动在数据目录下生成私有家目录，并预置由 agent 维护的 MEMORY.md 大纲。",
     "agent.modelAndThinking": "模型与推理强度",
     "agent.modelsEmpty": "请先配置模型（底部“模型”按钮）再创建 agent",
-    "agent.fullResetSharedHint": "当前绑定共享项目目录，Full reset 不可用（请用 Session reset）",
+    "agent.fullResetSharedHint":
+      "当前绑定共享项目目录，Full reset 不可用（请用 Session reset）",
     "agent.confirmSessionReset": "清空会话上下文？workspace 目录会保留。",
-    "agent.confirmFullReset": "清空会话与家目录内容？MEMORY.md 保留。此操作不可撤销。",
-    "agent.confirmDelete": "删除该 agent 身份？历史消息保留，家目录将被清理（绑定的项目目录保留）。",
+    "agent.confirmFullReset":
+      "清空会话与家目录内容？MEMORY.md 保留。此操作不可撤销。",
+    "agent.confirmDelete":
+      "删除该 agent 身份？历史消息保留，家目录将被清理（绑定的项目目录保留）。",
     "agent.confirm": "确认",
     "agent.cancelOp": "取消",
     "agent.opError": "操作失败：{message}",
@@ -657,10 +668,12 @@ export const zhCNLocale: LocalePlugin = {
     "observability.contextNone": "会话未运行——agent 活跃时显示上下文占用。",
     "observability.sessionFile": "会话文件",
     "observability.exportAction": "导出会话…",
-    "observability.exportUnavailable": "无法解析会话文件——先让 agent 启动一次，之后即可导出。",
+    "observability.exportUnavailable":
+      "无法解析会话文件——先让 agent 启动一次，之后即可导出。",
     "observability.currentSession": "当前会话",
     "observability.rounds": "轮次记录",
-    "observability.roundsEmpty": "还没有轮次记录——agent 处理过（或失败于）的轮次会显示在这里。",
+    "observability.roundsEmpty":
+      "还没有轮次记录——agent 处理过（或失败于）的轮次会显示在这里。",
     "observability.roundStatus.replied": "已回复",
     "observability.roundStatus.ignored": "忽略",
     "observability.roundStatus.silent": "静默",
