@@ -184,7 +184,9 @@ export function WorkspaceSidebar({
   // §03 私信分组：type='dm' 过滤，按 agent 名排序（DM id 形如 dm:owner↔<名>）。
   const dmChannels = channels
     .filter((channel) => channel.type === "dm")
-    .sort((a, b) => compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)));
+    .sort((a, b) =>
+      compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)),
+    );
   const regularChannels = channels.filter((channel) => channel.type !== "dm");
 
   const actionButton = (pink: boolean): React.CSSProperties => ({
