@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { MessageSquare, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import { StatusDot } from "./StatusDot";
@@ -48,8 +48,17 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-      <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0 }}>{label}</span>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        gap: 10,
+      }}
+    >
+      <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0 }}>
+        {label}
+      </span>
       <span
         style={{
           fontFamily: "var(--font-space-mono)",
@@ -86,8 +95,32 @@ const DANGER_BUTTON: React.CSSProperties = {
   boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
 };
 
+/** DM 懒创建入口主按钮（身份头正下方）：醒目黄色底 + MessageSquare 图标（与侧栏 DM 图标一致）。 */
+const DM_BUTTON: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  margin: "12px 12px 0",
+  padding: "10px 12px",
+  fontFamily: "var(--font-hanken)",
+  fontWeight: 700,
+  fontSize: 14,
+  background: "var(--yellow)",
+  color: "var(--ink)",
+  border: `2px solid ${INK}`,
+  boxShadow: "3px 3px 0 0 rgba(20, 17, 17, 0.45)",
+  cursor: "pointer",
+};
+
 type ConfirmKind = "sessionReset" | "fullReset" | "delete";
-type BusyOp = "restart" | "sessionReset" | "fullReset" | "delete" | "workspace" | "runtime";
+type BusyOp =
+  | "restart"
+  | "sessionReset"
+  | "fullReset"
+  | "delete"
+  | "workspace"
+  | "runtime";
 
 const CONFIRM_TITLE: Record<ConfirmKind, string> = {
   sessionReset: "agent.confirmSessionReset",
@@ -178,7 +211,14 @@ interface ObservabilityData {
   rounds: Array<{
     id: string;
     targetId: string;
-    status: "replied" | "ignored" | "silent" | "anyway" | "yielded" | "error" | "busy-cwd";
+    status:
+      | "replied"
+      | "ignored"
+      | "silent"
+      | "anyway"
+      | "yielded"
+      | "error"
+      | "busy-cwd";
     reason: string;
     baseSeq: number;
     createdAt: string;
@@ -189,14 +229,25 @@ interface ObservabilityData {
     live: {
       model: { provider: string; modelId: string } | null;
       thinkingLevel: string | null;
-      contextUsage: { percent: number; contextWindow: number; tokens: number } | null;
+      contextUsage: {
+        percent: number;
+        contextWindow: number;
+        tokens: number;
+      } | null;
     } | null;
   };
 }
 
 interface RuntimeData {
-  configured: { provider: string | null; modelId: string | null; thinkingLevel: string | null };
-  live: { model: { provider: string; modelId: string } | null; thinkingLevel: string | null } | null;
+  configured: {
+    provider: string | null;
+    modelId: string | null;
+    thinkingLevel: string | null;
+  };
+  live: {
+    model: { provider: string; modelId: string } | null;
+    thinkingLevel: string | null;
+  } | null;
 }
 
 /** 右栏：agent 详情面板（§3.6/§3.10/§6.5）。重置 / workspace / runtime（per-agent 模型） / 可观测性。 */
@@ -204,10 +255,16 @@ export function AgentDetailPanel({
   agent,
   onClose,
   onChanged,
+  onOpenDM,
+  hasMessages = false,
 }: {
   agent: MemberRow & { home_path?: string };
   onClose: () => void;
   onChanged: () => void;
+  /** DM 懒创建入口回调（上抛至 AppShell：幂等建/取 DM → 导航中央 + 聚焦 composer + 关面板）。 */
+  onOpenDM: (agentId: string) => void;
+  /** 该 agent 的 DM 是否已有消息：无消息 →「发送消息」，有消息 →「打开私信」。 */
+  hasMessages?: boolean;
 }) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
@@ -223,7 +280,10 @@ export function AgentDetailPanel({
   const [runtime, setRuntime] = useState<RuntimeData | null>(null);
   const [models, setModels] = useState<ModelsData | null>(null);
   const [modelsLoading, setModelsLoading] = useState(true);
-  const [draftModel, setDraftModel] = useState<{ provider: string; modelId: string } | null>(null);
+  const [draftModel, setDraftModel] = useState<{
+    provider: string;
+    modelId: string;
+  } | null>(null);
   const [draftThinking, setDraftThinking] = useState<string | null>(null);
   const [runtimeMsg, setRuntimeMsg] = useState<string | null>(null);
 
@@ -232,16 +292,23 @@ export function AgentDetailPanel({
   // ADR-0001：工作区是否家目录（删除/Full reset 只作用于家目录；绑定共享项目目录时禁用）
   const homePath = agent.home_path ?? null;
   const isHomeWorkspace =
-    Boolean(homePath) && Boolean(agent.workspace_path) && agent.workspace_path === homePath;
+    Boolean(homePath) &&
+    Boolean(agent.workspace_path) &&
+    agent.workspace_path === homePath;
   const fullResetBlocked = Boolean(agent.workspace_path) && !isHomeWorkspace;
 
   // ── 数据加载 ────────────────────────────────────────────────────────────
   const loadObservability = useCallback(async (memberId: string) => {
     setObsLoading(true);
     try {
-      const res = await fetch(`/api/members/${encodeURIComponent(memberId)}/observability`);
-      const body = (await res.json().catch(() => ({}))) as ObservabilityData & { error?: string };
-      if (!res.ok || body.error) throw new Error(body.error ?? `HTTP ${res.status}`);
+      const res = await fetch(
+        `/api/members/${encodeURIComponent(memberId)}/observability`,
+      );
+      const body = (await res.json().catch(() => ({}))) as ObservabilityData & {
+        error?: string;
+      };
+      if (!res.ok || body.error)
+        throw new Error(body.error ?? `HTTP ${res.status}`);
       setObs(body);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -252,13 +319,21 @@ export function AgentDetailPanel({
 
   const loadRuntime = useCallback(async (memberId: string) => {
     try {
-      const res = await fetch(`/api/members/${encodeURIComponent(memberId)}/runtime`);
-      const body = (await res.json().catch(() => ({}))) as RuntimeData & { error?: string };
-      if (!res.ok || body.error) throw new Error(body.error ?? `HTTP ${res.status}`);
+      const res = await fetch(
+        `/api/members/${encodeURIComponent(memberId)}/runtime`,
+      );
+      const body = (await res.json().catch(() => ({}))) as RuntimeData & {
+        error?: string;
+      };
+      if (!res.ok || body.error)
+        throw new Error(body.error ?? `HTTP ${res.status}`);
       setRuntime(body);
       setDraftModel(
         body.configured.provider && body.configured.modelId
-          ? { provider: body.configured.provider, modelId: body.configured.modelId }
+          ? {
+              provider: body.configured.provider,
+              modelId: body.configured.modelId,
+            }
           : null,
       );
       setDraftThinking(body.configured.thinkingLevel ?? null);
@@ -270,7 +345,9 @@ export function AgentDetailPanel({
   // 模型列表：优先 workspace cwd（project trust 下的 provider 差异），403 回退全局默认 cwd
   useEffect(() => {
     let disposed = false;
-    const cwd = agent.workspace_path ? encodeURIComponent(agent.workspace_path) : null;
+    const cwd = agent.workspace_path
+      ? encodeURIComponent(agent.workspace_path)
+      : null;
     const load = async (url: string) => {
       const res = await fetch(url);
       return { res, body: (await res.json().catch(() => ({}))) as ModelsData };
@@ -304,7 +381,10 @@ export function AgentDetailPanel({
     void loadRuntime(agent.id);
   }, [agent.id, loadObservability, loadRuntime]);
 
-  const run = async (op: BusyOp, request: () => Promise<Response>): Promise<boolean> => {
+  const run = async (
+    op: BusyOp,
+    request: () => Promise<Response>,
+  ): Promise<boolean> => {
     if (isBusy) return false;
     setBusyOp(op);
     setError(null);
@@ -315,7 +395,8 @@ export function AgentDetailPanel({
         const message = body.error ?? `HTTP ${res.status}`;
         throw new Error(message);
       }
-      if (op === "sessionReset" || op === "fullReset" || op === "delete") setConfirming(null);
+      if (op === "sessionReset" || op === "fullReset" || op === "delete")
+        setConfirming(null);
       if (op === "runtime") {
         await loadRuntime(agent.id);
         await loadObservability(agent.id);
@@ -355,7 +436,8 @@ export function AgentDetailPanel({
           modelId: draftModel?.modelId ?? null,
           thinkingLevel: draftThinking ?? null,
         }),
-      }));
+      }),
+    );
     if (ok) {
       const cleared = draftModel === null && draftThinking === null;
       setRuntimeMsg(
@@ -373,7 +455,14 @@ export function AgentDetailPanel({
     : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+      }}
+    >
       {/* 身份头 */}
       <header
         style={{
@@ -406,7 +495,8 @@ export function AgentDetailPanel({
                   fontSize: 10,
                   padding: "1px 6px",
                   border: `2px solid ${INK}`,
-                  background: agent.role === "owner" ? "var(--yellow)" : "#ffffff",
+                  background:
+                    agent.role === "owner" ? "var(--yellow)" : "#ffffff",
                   color: "var(--text)",
                 }}
               >
@@ -414,7 +504,13 @@ export function AgentDetailPanel({
               </span>
             </div>
             {agent.description ? (
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                  marginTop: 4,
+                }}
+              >
                 {agent.description}
               </div>
             ) : null}
@@ -442,16 +538,40 @@ export function AgentDetailPanel({
         </div>
       </header>
 
+      {/* DM 懒创建入口：身份头正下方醒目主按钮；文案动态（无消息 → 发送消息，有消息 → 打开私信） */}
+      <button
+        type="button"
+        aria-label={hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
+        onClick={() => onOpenDM(agent.id)}
+        style={DM_BUTTON}
+      >
+        <MessageSquare size={15} style={{ display: "block", flexShrink: 0 }} />
+        {hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
+      </button>
+
       {/* 主体：状态 / workspace / runtime / 可观测性 / 重置 */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 20px" }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: "0 12px 20px",
+        }}
+      >
         <SectionLabel>{t("status." + agent.status)}</SectionLabel>
         <Card>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <StatusDot status={agent.status} />
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{t("status." + agent.status)}</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              {t("status." + agent.status)}
+            </span>
           </div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
-            {agent.status === "offline" ? t("agent.stoppedHint") : t("agent.workspaceHint")}
+          <div
+            style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}
+          >
+            {agent.status === "offline"
+              ? t("agent.stoppedHint")
+              : t("agent.workspaceHint")}
           </div>
         </Card>
 
@@ -462,11 +582,19 @@ export function AgentDetailPanel({
             value={agent.workspace_path ?? t("agent.workspaceNotBound")}
           />
           {isHomeWorkspace && (
-            <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+            <div
+              style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}
+            >
               {t("agent.workspaceHomeHint")}
             </div>
           )}
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+          <div
+            style={{
+              marginTop: 8,
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
             <button
               type="button"
               disabled={isBusy}
@@ -486,24 +614,32 @@ export function AgentDetailPanel({
             loading={modelsLoading}
             model={draftModel}
             thinkingLevel={draftThinking}
-            onModelChange={(provider, modelId) => setDraftModel({ provider, modelId })}
+            onModelChange={(provider, modelId) =>
+              setDraftModel({ provider, modelId })
+            }
             onClearModel={() => setDraftModel(null)}
             onThinkingChange={setDraftThinking}
             onClearThinking={() => setDraftThinking(null)}
             disabled={isBusy}
           />
           {!agent.workspace_path && (
-            <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>
+            <div
+              style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}
+            >
               {t("runtime.noWorkspace")}
             </div>
           )}
           {draftModel === null && draftThinking === null && (
-            <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>
+            <div
+              style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}
+            >
               {t("runtime.inheritGlobal")}
             </div>
           )}
           {draftModel === null && draftThinking !== null && (
-            <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>
+            <div
+              style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}
+            >
               {t("runtime.onlyThinking")}
             </div>
           )}
@@ -519,21 +655,42 @@ export function AgentDetailPanel({
                 fontFamily: "var(--font-space-mono)",
               }}
             >
-              {t("runtime.liveModel")}: {runtime.live.model?.provider}/{runtime.live.model?.modelId ?? "—"}{" "}
-              · {runtime.live.thinkingLevel ?? "—"}
+              {t("runtime.liveModel")}: {runtime.live.model?.provider}/
+              {runtime.live.model?.modelId ?? "—"} ·{" "}
+              {runtime.live.thinkingLevel ?? "—"}
             </div>
           )}
           {runtimeMsg && (
-            <div style={{ fontSize: 11, color: "var(--success, #2e8b57)", marginTop: 8 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--success, #2e8b57)",
+                marginTop: 8,
+              }}
+            >
               {runtimeMsg}
             </div>
           )}
-          <div style={{ marginTop: 10, display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <div
+            style={{
+              marginTop: 10,
+              display: "flex",
+              gap: 6,
+              justifyContent: "flex-end",
+            }}
+          >
             <button
               type="button"
-              disabled={isBusy || (draftModel === null && draftThinking === null)}
+              disabled={
+                isBusy || (draftModel === null && draftThinking === null)
+              }
               onClick={saveRuntime}
-              style={{ ...ACTION_BUTTON, flex: 0, padding: "6px 14px", background: "var(--yellow)" }}
+              style={{
+                ...ACTION_BUTTON,
+                flex: 0,
+                padding: "6px 14px",
+                background: "var(--yellow)",
+              }}
             >
               {busyOp === "runtime" ? t("runtime.saving") : t("runtime.save")}
             </button>
@@ -549,26 +706,49 @@ export function AgentDetailPanel({
             {t("observability.tokensCost")}
           </div>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{t("runtime.loading")}</div>
+            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+              {t("runtime.loading")}
+            </div>
           ) : obs.stats.sessions.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
               {t("observability.noSessions")}
             </div>
           ) : (
             <>
-              <Row label={t("observability.totalTokens")} value={formatNumber(obs.stats.totals.totalTokens)} />
+              <Row
+                label={t("observability.totalTokens")}
+                value={formatNumber(obs.stats.totals.totalTokens)}
+              />
               <div style={{ height: 6 }} />
-              <Row label={t("observability.cachedTokens")} value={formatNumber(obs.stats.totals.cachedTokens)} />
+              <Row
+                label={t("observability.cachedTokens")}
+                value={formatNumber(obs.stats.totals.cachedTokens)}
+              />
               <div style={{ height: 6 }} />
-              <Row label={t("observability.uncachedTokens")} value={formatNumber(obs.stats.totals.uncachedTokens)} />
+              <Row
+                label={t("observability.uncachedTokens")}
+                value={formatNumber(obs.stats.totals.uncachedTokens)}
+              />
               <div style={{ height: 6 }} />
-              <Row label={t("observability.cost")} value={formatCost(obs.stats.totals.costTotal)} />
+              <Row
+                label={t("observability.cost")}
+                value={formatCost(obs.stats.totals.costTotal)}
+              />
               <div style={{ height: 6 }} />
-              <Row label={t("observability.compactions")} value={String(obs.stats.totals.compactionCount)} />
+              <Row
+                label={t("observability.compactions")}
+                value={String(obs.stats.totals.compactionCount)}
+              />
               <div style={{ height: 6 }} />
-              <Row label={t("observability.compactionTokens")} value={formatNumber(obs.stats.totals.compactionTokens)} />
+              <Row
+                label={t("observability.compactionTokens")}
+                value={formatNumber(obs.stats.totals.compactionTokens)}
+              />
               <div style={{ height: 6 }} />
-              <Row label={t("observability.messages")} value={formatNumber(obs.stats.totals.messageCount)} />
+              <Row
+                label={t("observability.messages")}
+                value={formatNumber(obs.stats.totals.messageCount)}
+              />
               <details style={{ marginTop: 10 }}>
                 <summary
                   style={{
@@ -581,7 +761,14 @@ export function AgentDetailPanel({
                 >
                   {t("observability.sessions")} ({obs.stats.sessions.length})
                 </summary>
-                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                  }}
+                >
                   {obs.stats.sessions.map((s) => (
                     <div
                       key={s.path}
@@ -604,8 +791,9 @@ export function AgentDetailPanel({
                         {s.path.split("/").slice(-2).join("/")}
                       </div>
                       <div style={{ color: "var(--text-muted)", marginTop: 3 }}>
-                        {formatNumber(s.totalTokens)} tok · {formatCost(s.costTotal)} ·{" "}
-                        {s.compactionCount}× {t("observability.compactions").toLowerCase()}
+                        {formatNumber(s.totalTokens)} tok ·{" "}
+                        {formatCost(s.costTotal)} · {s.compactionCount}×{" "}
+                        {t("observability.compactions").toLowerCase()}
                         {s.modified ? ` · ${formatTime(s.modified)}` : ""}
                       </div>
                     </div>
@@ -622,7 +810,9 @@ export function AgentDetailPanel({
             {t("observability.taskHistory")}
           </div>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{t("runtime.loading")}</div>
+            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+              {t("runtime.loading")}
+            </div>
           ) : (
             <>
               {obs.tasks.length === 0 ? (
@@ -630,7 +820,9 @@ export function AgentDetailPanel({
                   {t("observability.tasksEmpty")}
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
+                >
                   {obs.tasks.map((task) => (
                     <div
                       key={task.number}
@@ -657,7 +849,15 @@ export function AgentDetailPanel({
                       >
                         #{task.number}
                       </span>
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {task.anchor.content}
                       </span>
                       <span
@@ -666,7 +866,10 @@ export function AgentDetailPanel({
                           fontSize: 10,
                           padding: "1px 5px",
                           border: `2px solid ${INK}`,
-                          background: task.status === "done" ? "var(--success, #a9d877)" : "#ffffff",
+                          background:
+                            task.status === "done"
+                              ? "var(--success, #a9d877)"
+                              : "#ffffff",
                           flexShrink: 0,
                         }}
                       >
@@ -680,7 +883,13 @@ export function AgentDetailPanel({
                 {t("observability.timeline")}
               </div>
               {obs.timeline.length === 0 ? (
-                <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-dim)",
+                    marginTop: 4,
+                  }}
+                >
                   {t("observability.timelineEmpty")}
                 </div>
               ) : (
@@ -707,8 +916,19 @@ export function AgentDetailPanel({
                     >
                       {entry.kind === "message" ? (
                         <>
-                          <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                            <span style={{ color: "var(--text-dim)", flexShrink: 0 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 6,
+                              alignItems: "baseline",
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: "var(--text-dim)",
+                                flexShrink: 0,
+                              }}
+                            >
                               {formatTime(entry.at)}
                             </span>
                             <span
@@ -716,13 +936,17 @@ export function AgentDetailPanel({
                                 flexShrink: 0,
                                 fontFamily: "var(--font-space-mono)",
                                 fontWeight: 700,
-                                color: entry.inTaskThread ? "var(--accent)" : "var(--text-muted)",
+                                color: entry.inTaskThread
+                                  ? "var(--accent)"
+                                  : "var(--text-muted)",
                               }}
                             >
                               {entry.inTaskThread
                                 ? t("observability.threadPost")
                                 : t("observability.channelPost")}
-                              {entry.taskNumber !== null ? ` #${entry.taskNumber}` : ""}
+                              {entry.taskNumber !== null
+                                ? ` #${entry.taskNumber}`
+                                : ""}
                             </span>
                           </div>
                           <div
@@ -740,8 +964,13 @@ export function AgentDetailPanel({
                         </>
                       ) : (
                         <div style={{ color: "var(--text-muted)" }}>
-                          <span style={{ color: "var(--text-dim)" }}>{formatTime(entry.at)}</span>{" "}
-                          {t("observability.taskPoint", { number: String(entry.number), status: t(TASK_STATUS_KEY[entry.status]) })}
+                          <span style={{ color: "var(--text-dim)" }}>
+                            {formatTime(entry.at)}
+                          </span>{" "}
+                          {t("observability.taskPoint", {
+                            number: String(entry.number),
+                            status: t(TASK_STATUS_KEY[entry.status]),
+                          })}
                           <div
                             style={{
                               overflow: "hidden",
@@ -768,7 +997,9 @@ export function AgentDetailPanel({
             {t("observability.rounds")}
           </div>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{t("runtime.loading")}</div>
+            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+              {t("runtime.loading")}
+            </div>
           ) : obs.rounds.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
               {t("observability.roundsEmpty")}
@@ -864,7 +1095,10 @@ export function AgentDetailPanel({
           </div>
           {obs?.session?.file ? (
             <>
-              <Row label={t("observability.sessionFile")} value={obs.session.file.split("/").slice(-2).join("/")} />
+              <Row
+                label={t("observability.sessionFile")}
+                value={obs.session.file.split("/").slice(-2).join("/")}
+              />
               <div style={{ height: 6 }} />
               {obs.session.live?.contextUsage ? (
                 <>
@@ -875,7 +1109,13 @@ export function AgentDetailPanel({
                   <div style={{ height: 6 }} />
                 </>
               ) : (
-                <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 6 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "var(--text-dim)",
+                    marginBottom: 6,
+                  }}
+                >
                   {t("observability.contextNone")}
                 </div>
               )}
@@ -885,7 +1125,12 @@ export function AgentDetailPanel({
                     href={exportUrl}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ ...ACTION_BUTTON, flex: 0, padding: "6px 14px", textDecoration: "none" }}
+                    style={{
+                      ...ACTION_BUTTON,
+                      flex: 0,
+                      padding: "6px 14px",
+                      textDecoration: "none",
+                    }}
                   >
                     {t("observability.exportAction")}
                   </a>
@@ -910,11 +1155,19 @@ export function AgentDetailPanel({
             <button
               type="button"
               disabled={isBusy}
-              onClick={() => void run("restart", () =>
-                fetch(`/api/members/${encodeURIComponent(agent.id)}/restart`, { method: "POST" }))}
+              onClick={() =>
+                void run("restart", () =>
+                  fetch(
+                    `/api/members/${encodeURIComponent(agent.id)}/restart`,
+                    { method: "POST" },
+                  ),
+                )
+              }
               style={ACTION_BUTTON}
             >
-              {busyOp === "restart" ? t("agent.restarting") : t("agent.restart")}
+              {busyOp === "restart"
+                ? t("agent.restarting")
+                : t("agent.restart")}
             </button>
             <button
               type="button"
@@ -934,7 +1187,9 @@ export function AgentDetailPanel({
             </button>
           </div>
           {fullResetBlocked && (
-            <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+            <div
+              style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}
+            >
               {t("agent.fullResetSharedHint")}
             </div>
           )}
@@ -959,12 +1214,24 @@ export function AgentDetailPanel({
 
       {/* 危险操作确认 */}
       {confirming && (
-        <BrutalModal title={confirmLabels[confirming]} onClose={() => setConfirming(null)}>
+        <BrutalModal
+          title={confirmLabels[confirming]}
+          onClose={() => setConfirming(null)}
+        >
           <div style={{ padding: "16px" }}>
-            <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text)" }}>
+            <div
+              style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text)" }}
+            >
               {t(CONFIRM_TITLE[confirming])}
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 18,
+              }}
+            >
               <button
                 type="button"
                 disabled={isBusy}
@@ -1016,7 +1283,8 @@ export function AgentDetailPanel({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ workspacePath: path }),
-              }));
+              }),
+            );
           }}
         />
       )}

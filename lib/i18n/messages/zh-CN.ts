@@ -520,6 +520,8 @@ export const zhCNLocale: LocalePlugin = {
     "agent.sessionReset": "Session reset",
     "agent.fullReset": "Full reset",
     "agent.delete": "删除身份",
+    "agent.sendMessage": "发送消息",
+    "agent.openDM": "打开私信",
     "center.messages": "消息",
     "center.tasks": "任务",
     "messages.empty": "该频道还没有消息",
