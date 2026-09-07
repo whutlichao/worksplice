@@ -80,6 +80,14 @@ export class AgentNotFoundError extends Error {
   }
 }
 
+/** 创建 agent 重名（名字是 mention 句柄，重名即歧义）：大小写不敏感、trim 后全等未删除成员。 */
+export class DuplicateAgentNameError extends Error {
+  constructor(name: string) {
+    super(`Agent name "${name}" already exists`);
+    this.name = "DuplicateAgentNameError";
+  }
+}
+
 export function getAgent(id: string): MemberRow {
   const member = getDb().getMember(id);
   if (!member || member.type !== "agent" || member.deleted === 1) {
@@ -100,7 +108,7 @@ export function extractMentionedMemberIds(content: string): string[] {
     content,
     members.map((m) => ({ id: m.id, name: m.name, type: m.type })),
   );
-  // 名字全等匹配即算（重名成员都算，与旧语义一致）；去重保序。
+  // 名字全等匹配即算（重名已被创建期禁止，按名字匹配至多命中一个成员）；去重保序。
   const ids: string[] = [];
   for (const token of tokens) {
     for (const member of members) {
@@ -140,6 +148,17 @@ export function createAgent(input: {
   if (!name) throw new Error("Agent name is required");
   if (name.length > 32)
     throw new Error("Agent name must be 32 characters or fewer");
+
+  // 名字唯一性（mention 句柄不可歧义）：trim 后大小写不敏感全等比对未删除成员（含 human；
+  // listMembers 天然排除 soft-delete，被删成员不占名）。
+  const nameLower = name.toLowerCase();
+  if (
+    getDb()
+      .listMembers()
+      .some((m) => m.name.toLowerCase() === nameLower)
+  ) {
+    throw new DuplicateAgentNameError(name);
+  }
 
   const modelProvider = input.provider ?? null;
   const modelId = input.modelId ?? null;
