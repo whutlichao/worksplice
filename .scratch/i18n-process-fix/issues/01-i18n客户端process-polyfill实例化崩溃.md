@@ -4,7 +4,7 @@
 
 **Blocked by:** 无。
 
-**Status:** pending
+**Status:** resolved
 
 ## 症状（用户报告原文）
 
@@ -58,11 +58,11 @@ To fix this, make sure your Cache-Control headers allow revalidation of chunks a
 
 ## 验收（coordinator 执行）
 
-- [ ] ego-browser 打开首页：正常渲染、无 process polyfill Runtime Error、语言切换可用
-- [ ] 缺失翻译的 dev 警告行为不回归（或明确记录行为变化）
-- [ ] tight 回路先红后绿，证据留档 Answer
-- [ ] 回归测试存在且 `npm test` 全绿；`tsc --noEmit` 干净；lint 增量无新增
-- [ ] 无 `[DEBUG-]` 残留；worktree 干净；Answer 含 Review 小节
+- [x] ego-browser 打开首页：正常渲染、无 process polyfill Runtime Error、语言切换可用（worker 在 worktree 30143 浏览器级实证；coordinator 合并后在 main 30142 复核）
+- [x] 缺失翻译的 dev 警告行为不回归（回归测试锁定 + typeof 兜底语义等同，行为变化已记录）
+- [x] tight 回路先红后绿，证据留档 Answer
+- [x] 回归测试存在且 `npm test` 全绿（coordinator 独立重跑 461/461）；`tsc --noEmit` 干净；lint 增量无新增（coordinator 独立对照）
+- [x] 无 `[DEBUG-]` 残留（grep 零命中）；worktree 收口净（pi-lens 空行残差随本 commit 收敛）；Answer 含 Review 小节（Standards+Spec 双轴）
 
 ## Answer
 
@@ -107,4 +107,3 @@ To fix this, make sure your Cache-Control headers allow revalidation of chunks a
 - **残余风险（如实）**：① next 内部 chunk 仍引用 polyfill（next 自有产物，未触碰）；next 版本翻转 × SW 投喂仍可致 dev 崩溃（落点在 next 内部）——但 dev SW 自清理使投喂源不可持续，崩溃类被根因层抑制；② 已中毒且当轮即崩的浏览器（React 未挂载则注销不执行）需一次性手动注销 SW（错误文案自身即此建议），此后 dev 自愈；③ 生产不受影响（webpack 构建、URL 含内容哈希、SW 注册路径不变）。
 - **移交观察**：main checkout（30142）dev server 当前对 `/` 返回 Next 404 页（`<title>404: This page could not be found.</title>`，HTTP 404），疑其 `.next` 状态异常，非本票范围，建议 coordinator 侧自查。
 - **用户一次性提示**：报错用户若当前浏览器已注册 SW，需手动注销一次（DevTools → Application → Service Workers → Unregister）或硬刷新；此后本修复的 dev 自清理接管。
-
