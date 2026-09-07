@@ -625,6 +625,7 @@ export const zhCNLocale: LocalePlugin = {
     "agent.confirm": "确认",
     "agent.cancelOp": "取消",
     "agent.opError": "操作失败：{message}",
+    "agent.deleteFailed": "删除身份失败：{message}（列表已恢复）",
     "agent.restarting": "重启中…",
     "agent.resetting": "重置中…",
     "agent.deleting": "删除中…",

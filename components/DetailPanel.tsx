@@ -25,6 +25,8 @@ export function DetailPanel({
   currentMemberId,
   onClose,
   onChanged,
+  onDeleteOptimistic,
+  onDeleteFailed,
   onOpenPanel,
   onOpenDM,
   dmHasMessages,
@@ -36,6 +38,10 @@ export function DetailPanel({
   currentMemberId: string;
   onClose: () => void;
   onChanged: () => void;
+  /** agent 删除乐观更新（上抛至 AppShell）：确认即从列表移除/关面板，不等 DELETE 返回。 */
+  onDeleteOptimistic?: (agentId: string) => void;
+  /** agent 删除失败回滚（上抛至 AppShell）：恢复列表 + 错误提示。 */
+  onDeleteFailed?: (agentId: string, message: string) => void;
   /** 面板内跳转（线程内 mention 点击）：单槽替换面板内容（AppShell.openPanel）。 */
   onOpenPanel: (content: PanelContent) => void;
   /** DM 懒创建入口（上抛至 AppShell）：幂等建/取 DM → 导航中央 + 聚焦 composer + 关面板。 */
@@ -52,6 +58,8 @@ export function DetailPanel({
           agent={agent}
           onClose={onClose}
           onChanged={onChanged}
+          onDeleteOptimistic={onDeleteOptimistic}
+          onDeleteFailed={onDeleteFailed}
           onOpenDM={onOpenDM}
           hasMessages={dmHasMessages}
         />

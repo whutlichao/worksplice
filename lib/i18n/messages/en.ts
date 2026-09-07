@@ -646,6 +646,8 @@ export const enLocale: LocalePlugin = {
     "agent.confirm": "Confirm",
     "agent.cancelOp": "Cancel",
     "agent.opError": "Operation failed: {message}",
+    "agent.deleteFailed":
+      "Failed to delete identity: {message} (list restored)",
     "agent.restarting": "Restarting…",
     "agent.resetting": "Resetting…",
     "agent.deleting": "Deleting…",

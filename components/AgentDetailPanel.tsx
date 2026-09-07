@@ -255,12 +255,18 @@ export function AgentDetailPanel({
   agent,
   onClose,
   onChanged,
+  onDeleteOptimistic,
+  onDeleteFailed,
   onOpenDM,
   hasMessages = false,
 }: {
   agent: MemberRow & { home_path?: string };
   onClose: () => void;
   onChanged: () => void;
+  /** agent 删除乐观更新（上抛至 AppShell）：确认即从列表移除/关面板，不等 DELETE 返回。 */
+  onDeleteOptimistic?: (agentId: string) => void;
+  /** agent 删除失败回滚（上抛至 AppShell）：恢复列表 + 错误提示（面板已卸载，本地 error 无处显示）。 */
+  onDeleteFailed?: (agentId: string, message: string) => void;
   /** DM 懒创建入口回调（上抛至 AppShell：幂等建/取 DM → 导航中央 + 聚焦 composer + 关面板）。 */
   onOpenDM: (agentId: string) => void;
   /** 该 agent 的 DM 是否已有消息：无消息 →「发送消息」，有消息 →「打开私信」。 */
@@ -388,6 +394,8 @@ export function AgentDetailPanel({
     if (isBusy) return false;
     setBusyOp(op);
     setError(null);
+    // 删除走乐观更新：确认即从侧栏移除/关面板（面板随之卸载），DELETE 后台继续。
+    if (op === "delete") onDeleteOptimistic?.(agent.id);
     try {
       const res = await request();
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -404,7 +412,10 @@ export function AgentDetailPanel({
       onChanged();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const message = e instanceof Error ? e.message : String(e);
+      // 面板已因乐观移除卸载时本地 setError 不生效——失败必须经 AppShell 回滚并提示。
+      if (op === "delete") onDeleteFailed?.(agent.id, message);
+      setError(message);
       return false;
     } finally {
       setBusyOp(null);

@@ -66,6 +66,13 @@ export function AppShell() {
   /** agent 列表轮询读最新快照的 ref（interval 回调里避开闭包旧值，也不在 setState updater 里做副作用）。 */
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
+  /** 删除在途的 agent id：DELETE 未返回前，15s 轮询/load 全量拉取不得把该成员重新插回列表。 */
+  const pendingDeletesRef = useRef<Set<string>>(new Set());
+  /** 删除失败回滚提示（独立于 loadError：回滚触发的 load() 成功会清 loadError，不能吞掉本提示）。 */
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // ticket 13 状态解耦：中央（当前频道）与面板（agent | human | thread | null）两个独立状态。
   // 选中 agent/人类/线程只在右栏展示，中央频道消息流不再被清空；切换频道清空面板。
@@ -107,7 +114,10 @@ export function AppShell() {
           if (prev && next && shallowEqualAgent(prev, next)) return prev;
           return next;
         });
-        return body.agents ?? [];
+        // 删除在途的成员不回插（DELETE 仍在服务端执行，避免条目闪回）。
+        return (body.agents ?? []).filter(
+          (a) => !pendingDeletesRef.current.has(a.id),
+        );
       }),
     ])
       .then(([channelRows, agentRows]) => {
@@ -199,7 +209,8 @@ export function AppShell() {
           if (!body.agents || cancelled) return;
           const { agents: next, membersChanged } = reconcileAgents(
             agentsRef.current,
-            body.agents,
+            // 删除在途的成员不回插（DELETE 仍在服务端执行，避免条目闪回）。
+            body.agents.filter((a) => !pendingDeletesRef.current.has(a.id)),
           );
           setAgents(next);
           if (membersChanged) setMembersVersion((v) => v + 1);
@@ -370,6 +381,40 @@ export function AppShell() {
     setPanelContent((prev) => closePanel(prev));
   };
 
+  /**
+   * agent 删除乐观更新（点击确认即生效，不等 DELETE 返回）：
+   * 立即从列表移除（侧栏条目消失）+ 关闭右栏面板 + bump membersVersion
+   * （中央成员附属区/成员面板/@ 候选收敛）。DELETE 在后台继续，
+   * 失败时经 handleAgentDeleteFailed 回滚。
+   */
+  const handleAgentDeleted = useCallback((agentId: string) => {
+    pendingDeletesRef.current.add(agentId);
+    // 自愈清理：DELETE 正常返回后服务端已 soft-delete，标记留着无副作用但也无用；
+    // 60s 兜底过期，防极端慢请求下的集合泄漏（失败路径由 handleAgentDeleteFailed 提前解除）。
+    setTimeout(() => pendingDeletesRef.current.delete(agentId), 60_000);
+    setAgents((prev) => prev.filter((a) => a.id !== agentId));
+    setPanelContent((prev) =>
+      prev?.kind === "agent" && prev.id === agentId ? closePanel(prev) : prev,
+    );
+    setMembersVersion((v) => v + 1);
+  }, []);
+
+  /** 删除失败回滚：解除在途标记 → 重拉列表恢复条目 → 侧栏错误提示（10s 自动消退）。 */
+  const handleAgentDeleteFailed = useCallback(
+    (agentId: string, message: string) => {
+      pendingDeletesRef.current.delete(agentId);
+      setDeleteError(t("agent.deleteFailed", { message }));
+      if (deleteErrorTimerRef.current)
+        clearTimeout(deleteErrorTimerRef.current);
+      deleteErrorTimerRef.current = setTimeout(
+        () => setDeleteError(null),
+        10_000,
+      );
+      setRefreshKey((k) => k + 1);
+    },
+    [t],
+  );
+
   /** 面板可解析性：agent/human 找不到（删除/未加载）时视为空面板——右栏整栏消失而非空占位。 */
   const resolvablePanel = useMemo<NonNullable<PanelContent> | null>(() => {
     if (!panelContent) return null;
@@ -409,7 +454,7 @@ export function AppShell() {
         <WorkspaceSidebar
           channels={channels}
           agents={agents}
-          error={loadError}
+          error={deleteError ?? loadError}
           selectedChannelId={centerSelection}
           onSelectChannel={handleSelectChannel}
           onOpenAgent={(id) => handleOpenPanel({ kind: "agent", id })}
@@ -473,6 +518,8 @@ export function AppShell() {
             currentMemberId={OWNER_MEMBER_ID}
             onClose={handleClosePanel}
             onChanged={() => setRefreshKey((k) => k + 1)}
+            onDeleteOptimistic={handleAgentDeleted}
+            onDeleteFailed={handleAgentDeleteFailed}
             onOpenPanel={handleOpenPanel}
             onOpenDM={handleOpenDM}
             dmHasMessages={dmHasMessages}
