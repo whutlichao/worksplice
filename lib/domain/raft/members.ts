@@ -152,7 +152,11 @@ export function createAgent(input: {
   // 名字唯一性（mention 句柄不可歧义）：trim 后大小写不敏感全等比对未删除成员（含 human；
   // listMembers 天然排除 soft-delete，被删成员不占名）。
   const nameLower = name.toLowerCase();
-  if (getDb().listMembers().some((m) => m.name.toLowerCase() === nameLower)) {
+  if (
+    getDb()
+      .listMembers()
+      .some((m) => m.name.toLowerCase() === nameLower)
+  ) {
     throw new DuplicateAgentNameError(name);
   }
 
