@@ -158,6 +158,29 @@ const actionButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+/** 头部可展开面板（置顶/静音/成员）手风琴过渡时长与缓动：ease-out 曲线，避免瞬间出现/消失。 */
+const PANEL_COLLAPSE_TRANSITION =
+  "grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1), visibility 220ms";
+
+/** 面板折叠外壳：常驻渲染，靠 grid 行高 0fr↔1fr 过渡展开/收起（互斥手风琴，见 toggle*Panel）。 */
+const panelShellStyle = (open: boolean): React.CSSProperties => ({
+  flexShrink: 0,
+  display: "grid",
+  gridTemplateRows: open ? "1fr" : "0fr",
+  transition: PANEL_COLLAPSE_TRANSITION,
+  // visibility 参与过渡：收起动画播完才真正隐藏（离散属性在过渡期间保持可见），展开时立即可见。
+  visibility: open ? "visible" : "hidden",
+});
+
+/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。 */
+const panelCollapseInnerStyle: React.CSSProperties = {
+  minHeight: 0,
+  overflow: "hidden",
+  padding: "8px 16px 12px",
+  borderBottom: `2px solid ${INK}`,
+  background: "var(--bg)",
+};
+
 const messageTime = (iso: string): string => {
   const d = new Date(iso);
   const now = new Date();
@@ -2370,6 +2393,38 @@ export function ChannelView({
   const [memberBusy, setMemberBusy] = useState(false);
   const [memberNotice, setMemberNotice] = useState<string | null>(null);
 
+  // 头部三个可展开面板互斥（手风琴）：同一时刻最多展开一个；再次点击当前按钮正常收起。
+  const togglePinnedPanel = () => {
+    const next = !pinnedOpen;
+    setPinnedOpen(next);
+    if (next) {
+      setMuteOpen(false);
+      setMembersOpen(false);
+    }
+  };
+  const toggleMutePanel = () => {
+    const next = !muteOpen;
+    setMuteOpen(next);
+    if (next) {
+      setPinnedOpen(false);
+      setMembersOpen(false);
+    }
+  };
+  const toggleMembersPanel = () => {
+    const next = !membersOpen;
+    setMembersOpen(next);
+    if (next) {
+      setPinnedOpen(false);
+      setMuteOpen(false);
+    }
+  };
+  /** 切换 pinned 排序时自动展开置顶面板——同样走互斥（展开置顶即收起另外两个）。 */
+  const openPinnedPanel = () => {
+    setPinnedOpen(true);
+    setMuteOpen(false);
+    setMembersOpen(false);
+  };
+
   /** 频道内 agent 成员（状态取自全量 agents，SSE 实时）；@ 补全候选 = 全部 agent + joined 标记。 */
   const channelAgents = useMemo(
     () => agents.filter((a) => channelMemberIds.has(a.id)),
@@ -3018,7 +3073,7 @@ export function ChannelView({
                   ...actionButton,
                   background: pinnedOpen ? "var(--yellow)" : "#ffffff",
                 }}
-                onClick={() => setPinnedOpen((open) => !open)}
+                onClick={togglePinnedPanel}
               >
                 <Pin size={14} />{" "}
                 {pinnedLoading
@@ -3039,7 +3094,7 @@ export function ChannelView({
                       ? "var(--yellow)"
                       : "#ffffff",
                 }}
-                onClick={() => setMuteOpen((open) => !open)}
+                onClick={toggleMutePanel}
               >
                 <BellOff size={14} /> {(() => {
                   if (mutesLoading) return "…";
@@ -3056,7 +3111,7 @@ export function ChannelView({
                   ...actionButton,
                   background: membersOpen ? "var(--yellow)" : "#ffffff",
                 }}
-                onClick={() => setMembersOpen((open) => !open)}
+                onClick={toggleMembersPanel}
               >
                 <Users size={14} />{" "}
                 {membersLoading
@@ -3070,447 +3125,436 @@ export function ChannelView({
         )}
       </header>
 
-      {/* §3.2 mute 面板（channel 头部可展开）：静音后普通消息不进 inbox，个人 @mention 仍穿透 */}
-      {muteOpen && joined && (
-        <div
-          style={{
-            flexShrink: 0,
-            padding: "8px 16px 12px",
-            borderBottom: `2px solid ${INK}`,
-            background: "var(--bg)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-hanken)",
-                fontWeight: 700,
-                fontSize: 13,
-              }}
-            >
-              {t("mute.toggle")}
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--font-space-mono)",
-                fontSize: 11,
-                color: "var(--text-muted)",
-              }}
-            >
-              {t("mute.hint")}
-            </span>
-          </div>
-          {mutes.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              {t("mute.none")}
-            </div>
-          ) : (
+      {/* §3.2 mute 面板（channel 头部可展开，手风琴折叠壳常驻渲染）：静音后普通消息不进 inbox，个人 @mention 仍穿透；DM 不渲染 */}
+      {joined && !isDM && (
+        <div style={panelShellStyle(muteOpen)} aria-hidden={!muteOpen}>
+          <div style={panelCollapseInnerStyle}>
             <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                alignItems: "flex-start",
-              }}
-            >
-              {mutes.map((m) => (
-                <button
-                  key={m.memberId}
-                  type="button"
-                  title={t(m.muted ? "mute.unmuteFor" : "mute.for", {
-                    name: m.name,
-                  })}
-                  style={{
-                    ...actionButton,
-                    background: m.muted ? "var(--yellow)" : "#ffffff",
-                  }}
-                  onClick={() => void toggleMute(m)}
-                >
-                  {m.muted ? <BellOff size={12} /> : <Bell size={12} />} @
-                  {m.name}{" "}
-                  <span
-                    style={{
-                      fontFamily: "var(--font-space-mono)",
-                      fontSize: 10,
-                      opacity: 0.75,
-                    }}
-                  >
-                    {m.muted ? t("mute.muted") : t("mute.unmuted")}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          {muteNotice && (
-            <div
-              style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}
-            >
-              {muteNotice}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 👥 频道成员面板（channel 头部可展开）：全部成员（agent 点击进详情 + 移除；人类点击看简介弹窗）+ 添加成员 */}
-      {channel && membersOpen && joined && (
-        <div
-          style={{
-            flexShrink: 0,
-            padding: "8px 16px 12px",
-            borderBottom: `2px solid ${INK}`,
-            background: "var(--bg)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-hanken)",
-                fontWeight: 700,
-                fontSize: 13,
-              }}
-            >
-              {t("channel.membersPanel")}
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--font-space-mono)",
-                fontSize: 11,
-                color: "var(--text-muted)",
-              }}
-            >
-              {t("mention.hint")}
-            </span>
-          </div>
-          {membersError && (
-            <div
-              style={{ marginBottom: 8, fontSize: 12, color: "var(--coral)" }}
-            >
-              {membersError}
-            </div>
-          )}
-          {channelMembers.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              {t("channel.membersEmpty")}
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                alignItems: "flex-start",
-              }}
-            >
-              {channelMembers.map((member) => (
-                <div
-                  key={member.id}
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
-                >
-                  <button
-                    type="button"
-                    title={member.description || member.name}
-                    onClick={() =>
-                      onOpenPanel?.({
-                        kind: member.type === "human" ? "human" : "agent",
-                        id: member.id,
-                      })
-                    }
-                    style={{
-                      ...actionButton,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <StatusDot status={member.status} />
-                    {member.name}
-                  </button>
-                  {member.type === "agent" &&
-                    channel.id !== BUILTIN_CHANNEL_ID && (
-                      <button
-                        type="button"
-                        title={t("mention.remove", { name: member.name })}
-                        disabled={memberBusy}
-                        onClick={() => void removeChannelMember(member)}
-                        style={{
-                          ...actionButton,
-                          padding: "4px 7px",
-                          fontSize: 10,
-                          opacity: memberBusy ? 0.55 : 1,
-                        }}
-                      >
-                        <X
-                          size={11}
-                          style={{ display: "block", margin: "auto" }}
-                        />
-                      </button>
-                    )}
-                </div>
-              ))}
-            </div>
-          )}
-          {channel.id !== BUILTIN_CHANNEL_ID && (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginTop: 10,
-                  paddingTop: 8,
-                  borderTop: `1px dashed ${INK}`,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "var(--font-hanken)",
-                    fontWeight: 700,
-                    fontSize: 12,
-                  }}
-                >
-                  {t("mention.addTitle")}
-                </span>
-                {mentionable.length === channelAgents.length ? (
-                  <span
-                    style={{
-                      fontFamily: "var(--font-space-mono)",
-                      fontSize: 11,
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {t("mention.allJoined")}
-                  </span>
-                ) : (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {mentionable
-                      .filter((m) => !m.joined)
-                      .map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          title={t("mention.add", { name: m.name })}
-                          disabled={memberBusy}
-                          onClick={() =>
-                            void addChannelMember(
-                              agents.find((a) => a.id === m.id)!,
-                            )
-                          }
-                          style={{
-                            ...actionButton,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            opacity: memberBusy ? 0.55 : 1,
-                          }}
-                        >
-                          <StatusDot status={m.status} />
-                          {m.name}
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-              {memberNotice && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 12,
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  {memberNotice}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* §3.5 pinned 区（channel 头部可展开）：当前成员个性化 pinned；Manual 可 ↑/↓ 重排 */}
-      {pinnedOpen && joined && (
-        <div
-          style={{
-            flexShrink: 0,
-            padding: "8px 16px 12px",
-            borderBottom: `2px solid ${INK}`,
-            background: "var(--bg)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-hanken)",
-                fontWeight: 700,
-                fontSize: 13,
-              }}
-            >
-              {t("pinned.title")}
-            </span>
-            <label
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 5,
-                fontFamily: "var(--font-hanken)",
-                fontWeight: 700,
-                fontSize: 11,
+                gap: 8,
+                marginBottom: 8,
+                flexWrap: "wrap",
               }}
             >
-              {t("pinned.sort")}
-              <select
-                value={pinnedSort}
-                onChange={(e) => {
-                  setPinnedSort(e.target.value as "manual" | "recent" | "az");
-                  setPinnedOpen(true);
-                }}
+              <span
                 style={{
-                  padding: "3px 6px",
-                  fontFamily: "var(--font-space-grotesk)",
-                  fontSize: 12,
-                  background: "#ffffff",
-                  border: `2px solid ${INK}`,
-                  outline: "none",
+                  fontFamily: "var(--font-hanken)",
+                  fontWeight: 700,
+                  fontSize: 13,
                 }}
               >
-                <option value="manual">{t("pinned.sortManual")}</option>
-                <option value="recent">{t("pinned.sortRecent")}</option>
-                <option value="az">{t("pinned.sortAz")}</option>
-              </select>
-            </label>
-            {pinnedError && (
+                {t("mute.toggle")}
+              </span>
               <span
                 style={{
                   fontFamily: "var(--font-space-mono)",
                   fontSize: 11,
-                  color: "var(--coral)",
+                  color: "var(--text-muted)",
                 }}
               >
-                {pinnedError}
+                {t("mute.hint")}
               </span>
+            </div>
+            {mutes.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {t("mute.none")}
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  alignItems: "flex-start",
+                }}
+              >
+                {mutes.map((m) => (
+                  <button
+                    key={m.memberId}
+                    type="button"
+                    title={t(m.muted ? "mute.unmuteFor" : "mute.for", {
+                      name: m.name,
+                    })}
+                    style={{
+                      ...actionButton,
+                      background: m.muted ? "var(--yellow)" : "#ffffff",
+                    }}
+                    onClick={() => void toggleMute(m)}
+                  >
+                    {m.muted ? <BellOff size={12} /> : <Bell size={12} />} @
+                    {m.name}{" "}
+                    <span
+                      style={{
+                        fontFamily: "var(--font-space-mono)",
+                        fontSize: 10,
+                        opacity: 0.75,
+                      }}
+                    >
+                      {m.muted ? t("mute.muted") : t("mute.unmuted")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {muteNotice && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                }}
+              >
+                {muteNotice}
+              </div>
             )}
           </div>
-          {pinnedItems.length === 0 ? (
-            <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
-              {t("pinned.empty")}
+        </div>
+      )}
+
+      {/* 👥 频道成员面板（channel 头部可展开）：全部成员（agent 点击进详情 + 移除；人类点击看简介弹窗）+ 添加成员 */}
+      {channel && joined && !isDM && (
+        <div style={panelShellStyle(membersOpen)} aria-hidden={!membersOpen}>
+          <div style={panelCollapseInnerStyle}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-hanken)",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {t("channel.membersPanel")}
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-space-mono)",
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                }}
+              >
+                {t("mention.hint")}
+              </span>
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {pinnedItems.map((item, index) => (
+            {membersError && (
+              <div
+                style={{ marginBottom: 8, fontSize: 12, color: "var(--coral)" }}
+              >
+                {membersError}
+              </div>
+            )}
+            {channelMembers.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {t("channel.membersEmpty")}
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  alignItems: "flex-start",
+                }}
+              >
+                {channelMembers.map((member) => (
+                  <div
+                    key={member.id}
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <button
+                      type="button"
+                      title={member.description || member.name}
+                      onClick={() =>
+                        onOpenPanel?.({
+                          kind: member.type === "human" ? "human" : "agent",
+                          id: member.id,
+                        })
+                      }
+                      style={{
+                        ...actionButton,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <StatusDot status={member.status} />
+                      {member.name}
+                    </button>
+                    {member.type === "agent" &&
+                      channel.id !== BUILTIN_CHANNEL_ID && (
+                        <button
+                          type="button"
+                          title={t("mention.remove", { name: member.name })}
+                          disabled={memberBusy}
+                          onClick={() => void removeChannelMember(member)}
+                          style={{
+                            ...actionButton,
+                            padding: "4px 7px",
+                            fontSize: 10,
+                            opacity: memberBusy ? 0.55 : 1,
+                          }}
+                        >
+                          <X
+                            size={11}
+                            style={{ display: "block", margin: "auto" }}
+                          />
+                        </button>
+                      )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {channel.id !== BUILTIN_CHANNEL_ID && (
+              <>
                 <div
-                  key={item.message.id}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
-                    padding: "6px 10px",
-                    background: "#ffffff",
-                    border: `2px solid ${INK}`,
-                    cursor: "pointer",
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openPinnedMessage(item.message)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") openPinnedMessage(item.message);
+                    marginTop: 10,
+                    paddingTop: 8,
+                    borderTop: `1px dashed ${INK}`,
                   }}
                 >
                   <span
                     style={{
-                      fontFamily: "var(--font-space-mono)",
-                      fontSize: 11,
+                      fontFamily: "var(--font-hanken)",
+                      fontWeight: 700,
+                      fontSize: 12,
+                    }}
+                  >
+                    {t("mention.addTitle")}
+                  </span>
+                  {mentionable.length === channelAgents.length ? (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-space-mono)",
+                        fontSize: 11,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {t("mention.allJoined")}
+                    </span>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {mentionable
+                        .filter((m) => !m.joined)
+                        .map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            title={t("mention.add", { name: m.name })}
+                            disabled={memberBusy}
+                            onClick={() =>
+                              void addChannelMember(
+                                agents.find((a) => a.id === m.id)!,
+                              )
+                            }
+                            style={{
+                              ...actionButton,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              opacity: memberBusy ? 0.55 : 1,
+                            }}
+                          >
+                            <StatusDot status={m.status} />
+                            {m.name}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+                {memberNotice && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12,
                       color: "var(--text-muted)",
                     }}
                   >
-                    #{item.message.seq}
-                  </span>
-                  <span
+                    {memberNotice}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* §3.5 pinned 区（channel 头部可展开）：当前成员个性化 pinned；Manual 可 ↑/↓ 重排 */}
+      {joined && (
+        <div style={panelShellStyle(pinnedOpen)} aria-hidden={!pinnedOpen}>
+          <div style={panelCollapseInnerStyle}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-hanken)",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {t("pinned.title")}
+              </span>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontFamily: "var(--font-hanken)",
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                {t("pinned.sort")}
+                <select
+                  value={pinnedSort}
+                  onChange={(e) => {
+                    setPinnedSort(e.target.value as "manual" | "recent" | "az");
+                    openPinnedPanel();
+                  }}
+                  style={{
+                    padding: "3px 6px",
+                    fontFamily: "var(--font-space-grotesk)",
+                    fontSize: 12,
+                    background: "#ffffff",
+                    border: `2px solid ${INK}`,
+                    outline: "none",
+                  }}
+                >
+                  <option value="manual">{t("pinned.sortManual")}</option>
+                  <option value="recent">{t("pinned.sortRecent")}</option>
+                  <option value="az">{t("pinned.sortAz")}</option>
+                </select>
+              </label>
+              {pinnedError && (
+                <span
+                  style={{
+                    fontFamily: "var(--font-space-mono)",
+                    fontSize: 11,
+                    color: "var(--coral)",
+                  }}
+                >
+                  {pinnedError}
+                </span>
+              )}
+            </div>
+            {pinnedItems.length === 0 ? (
+              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                {t("pinned.empty")}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pinnedItems.map((item, index) => (
+                  <div
+                    key={item.message.id}
                     style={{
-                      flex: 1,
-                      fontSize: 12,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 10px",
+                      background: "#ffffff",
+                      border: `2px solid ${INK}`,
+                      cursor: "pointer",
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openPinnedMessage(item.message)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") openPinnedMessage(item.message);
                     }}
                   >
-                    {previewLine(item.message.content, 60)}
-                  </span>
-                  {pinnedSort === "manual" && (
                     <span
-                      style={{ display: "flex", gap: 4 }}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
+                      style={{
+                        fontFamily: "var(--font-space-mono)",
+                        fontSize: 11,
+                        color: "var(--text-muted)",
+                      }}
                     >
-                      <button
-                        type="button"
-                        title={t("pinned.moveUp")}
-                        disabled={index === 0}
-                        onClick={() => void movePinned(index, -1)}
-                        style={{
-                          ...actionButton,
-                          padding: "2px 7px",
-                          fontSize: 10,
-                        }}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        title={t("pinned.moveDown")}
-                        disabled={index === pinnedItems.length - 1}
-                        onClick={() => void movePinned(index, 1)}
-                        style={{
-                          ...actionButton,
-                          padding: "2px 7px",
-                          fontSize: 10,
-                        }}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        title={t("message.unpin")}
-                        onClick={() => void togglePinAction(item.message)}
-                        style={{
-                          ...actionButton,
-                          padding: "2px 7px",
-                          fontSize: 10,
-                        }}
-                      >
-                        <X
-                          size={10}
-                          style={{ display: "block", margin: "auto" }}
-                        />
-                      </button>
+                      #{item.message.seq}
                     </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 12,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {previewLine(item.message.content, 60)}
+                    </span>
+                    {pinnedSort === "manual" && (
+                      <span
+                        style={{ display: "flex", gap: 4 }}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          title={t("pinned.moveUp")}
+                          disabled={index === 0}
+                          onClick={() => void movePinned(index, -1)}
+                          style={{
+                            ...actionButton,
+                            padding: "2px 7px",
+                            fontSize: 10,
+                          }}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          title={t("pinned.moveDown")}
+                          disabled={index === pinnedItems.length - 1}
+                          onClick={() => void movePinned(index, 1)}
+                          style={{
+                            ...actionButton,
+                            padding: "2px 7px",
+                            fontSize: 10,
+                          }}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          title={t("message.unpin")}
+                          onClick={() => void togglePinAction(item.message)}
+                          style={{
+                            ...actionButton,
+                            padding: "2px 7px",
+                            fontSize: 10,
+                          }}
+                        >
+                          <X
+                            size={10}
+                            style={{ display: "block", margin: "auto" }}
+                          />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
