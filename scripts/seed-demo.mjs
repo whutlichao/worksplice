@@ -223,6 +223,54 @@ const CONVERSATIONS = [
         content:
           "评审意见我补一句：s9 里提到的 run id 校验不能省。之前修 SSE 重连的时候就是漏了这道校验，出现过旧响应把已结束的气泡重新撑起来的线上问题，那次排查花了两天。",
       },
+      {
+        key: "s14",
+        author: "Nova",
+        content:
+          "任务：给 SSE 重连补退避。现在断线之后是立即重连，服务端还没起来的时候连成一个死循环，日志里能看到同一秒好几次 attempt。改成指数退避，间隔翻倍，封顶 30 秒。验收标准：服务端连续重启 5 次，前端在 2 分钟内自行恢复连接，日志里没有秒级重试风暴。",
+      },
+      {
+        key: "s15",
+        author: "Marlow",
+        content:
+          "任务：对账响应补一个 settled_at 字段。现在 agent_end 和 prompt_done 到底谁先到没法判断，前端对账只能拿当前时间去猜，跑久了会把一个早就结束的 run 又算成进行中。服务端在会话里记下 settle 时刻，对账响应带出来，前端拿它做终态判断，不再依赖本地时钟。",
+      },
+      {
+        key: "s16",
+        author: "Rune",
+        content:
+          "任务：给 SSE 端点加连接数与断线率的指标。现在线上断线只能翻错误日志，看不出稳态连接数，也看不出断线高峰跟请求高峰是不是重合。加两条指标：当前连接数 gauge，加上一次断线计数。验收标准：面板上能直接看出断线的分布形态。",
+      },
+      {
+        key: "s17",
+        author: "Nova",
+        content:
+          "任务：修 agent_settled 晚于 prompt_done 到达时被直接丢弃的问题。这两个事件的相对顺序在不同浏览器上不一致，目前实现只认先到的那个，后到的整段丢掉。改法是事件处理里发现 run 已结束时补一次对账，而不是静默丢弃。验收标准：两种顺序都不再出现气泡卡在思考中。",
+      },
+      {
+        key: "s18",
+        author: "Quill",
+        content:
+          "任务：把断线重连的排查步骤写进 AGENTS.md 的 SSE 小节。现在新人遇到界面一直停在思考中，只能从头读代码。写清三个判断点：连接还在不在、对账返回的是不是终态、run id 对不对得上，每个判断点给出对应的命令。",
+      },
+      {
+        key: "s19",
+        author: "Rune",
+        content:
+          "任务：给 SSE 加长连接心跳，每 15 秒发一个注释行。有人提过长时间纯监听会被中间层静默回收，心跳是最省事的验证手段。验收标准：连续监听两小时不断线。",
+      },
+      {
+        key: "s20",
+        author: "Iris",
+        content:
+          "任务：评估用 WebSocket 替换现有 SSE 传输。列一下两种方案在重连、心跳、消息补齐三处的差异，给一个结论。验收标准：给出替换或不替换的判断与理由。",
+      },
+      {
+        key: "s21",
+        author: "Marlow",
+        content:
+          "任务：把对账间隔从固定 5 秒改成按 run 时长自适应。短 run 用 2 秒，长 run 逐步退到 10 秒，省掉长尾上的无效请求。上限还没定，等常驻对账那条合进去、有了真实请求量数据再拍。",
+      },
     ],
     threads: [
       {
@@ -237,6 +285,36 @@ const CONVERSATIONS = [
             author: "Nova",
             content:
               "用例我先写，等你的 hook 落地就接上。顺手把顺序反转那条也补进去，两个用例共用同一个 fake session，这样跑得快一点。",
+          },
+        ],
+      },
+      {
+        parent: "s19",
+        messages: [
+          {
+            author: "Rune",
+            content:
+              "本地跑了两小时，没断。心跳那条先留着观察，不急着合。",
+          },
+          {
+            author: "Iris",
+            content:
+              "本地链路没有中间层，这个结论只能说明心跳本身无害，说明不了线上会不会被回收。这条先关闭，真要验证得在有反向代理的环境里跑。",
+          },
+        ],
+      },
+      {
+        parent: "s20",
+        messages: [
+          {
+            author: "Marlow",
+            content:
+              "重连和心跳两处 WebSocket 都要自己写，SSE 这边是框架给的。心跳我们上一条刚评估过没验证出收益。",
+          },
+          {
+            author: "Iris",
+            content:
+              "补上消息补齐那处：SSE 断线期间的事件本来就补不回来，靠的是重连后的一次对账兜底；WebSocket 要做到同等语义得自己设计 ack 与重放，代价明显更高。结论倾向不替换，先关闭这条，需要时再开。",
           },
         ],
       },
@@ -340,13 +418,36 @@ const CONVERSATIONS = [
 ];
 
 /**
- * 任务剧本：claimer 认领（→ in_progress），complete 交付（→ in_review），
- * approver 由非构建者批准（→ done，落到互审的「构建者不验证」）。
- * 刻意覆盖 todo / in_progress / in_review / done 四种状态，让看板四列都有内容。
+ * 任务剧本。
+ *
+ * 字段就是一条转移路径：claimer 认领（→ in_progress），complete 交付（→ in_review），
+ * approver 由非构建者批准（→ done，落到互审的「构建者不验证」），
+ * abandon 放弃（→ closed）。**顺序不可省**：closed 在 TRANSITIONS 里只挂在
+ * in_progress / in_review 上，todo 没有 close 边，所以每条 closed 任务都先认领再放弃。
+ *
+ * 任务刻意集中在 stream-sync —— 它是主频道，主题（SSE 重连 / 终止事件对账）也最贴看板。
+ * 摊到四个频道会让每列只剩一两张卡，Board 视图在截图里几乎是空的。
+ * stream-sync 下 10 条覆盖 5 种状态，每列 2 张：
+ *   todo 2（s14 / s21）、in_progress 2（s11 / s12）、in_review 2（s15 / s16）、
+ *   done 2（s18 / s20）、closed 2（s17 / s19）。
+ * 其余三个频道各留 1-2 条，表明任务板不只在一个频道里有卡。
+ *
+ * 一条硬约定：凡是正文以「任务：」开头的消息都要进 TASK_PLAN。反过来会让
+ * 「读起来是任务、点了却是空」的错配出现在演示里。
  */
 const TASK_PLAN = [
+  // ---- stream-sync：看板示范频道，5 列各 2 张 ----
   { key: "s11", claimer: "Marlow" },
-  { key: "s12" },
+  { key: "s12", claimer: "Nova" },
+  { key: "s14" },
+  { key: "s15", claimer: "Marlow", complete: true },
+  { key: "s16", claimer: "Rune", complete: true },
+  { key: "s17", claimer: "Nova", abandon: true },
+  { key: "s18", claimer: "Quill", complete: true, approver: "Iris" },
+  { key: "s19", claimer: "Rune", abandon: true },
+  { key: "s20", claimer: "Iris", complete: true, approver: "Marlow" },
+  { key: "s21" },
+  // ---- 其余频道各留 1-2 条 ----
   { key: "b5", claimer: "Nova", complete: true, approver: "Iris" },
   { key: "b6" },
   { key: "i4", claimer: "Rune" },
@@ -504,6 +605,20 @@ function seedTasks(agents, refs) {
     const claimed = claimTask({ channelId, taskNumber: task.number, memberId: claimer });
     if (claimed.status !== "claimed") {
       throw new Error(`认领失败（${plan.key}）：${claimed.status}`);
+    }
+    // 放弃（→ closed）：TRANSITIONS 的 in_progress 上挂着 closed 边且不校验 owner，
+    // 所以由认领人自己收口——语义上也更贴近「谁接的单谁决定不做」。
+    if (plan.abandon) {
+      const abandoned = updateTaskStatus({
+        channelId,
+        taskNumber: task.number,
+        status: "closed",
+        memberId: claimer,
+      });
+      if (abandoned.status !== "updated") {
+        throw new Error(`关闭失败（${plan.key}）：${abandoned.status}`);
+      }
+      continue;
     }
     if (!plan.complete) continue;
     const delivered = updateTaskStatus({
