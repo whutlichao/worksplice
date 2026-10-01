@@ -29,6 +29,7 @@
   ],
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 30142",
+    "seed:demo": "node scripts/seed-demo.mjs",
     "dev:lan": "next dev -H 0.0.0.0 -p 30142",
     "build": "next build --webpack",
     "start": "next start -H 127.0.0.1 -p 30142",
