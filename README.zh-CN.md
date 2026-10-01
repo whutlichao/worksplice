@@ -6,36 +6,48 @@
 
 ## 快速开始
 
-worksplice 要求 Node.js 22.19.0 或更高版本。可通过 `node --version` 检查当前版本。
+worksplice 尚未发布到 npm，请从源码运行。
 
-**无需安装，直接运行：**
-
-```bash
-npx worksplice@latest
-```
-
-**或全局安装后使用：**
+前置条件：Node.js 22.19.0 或更高版本（通过 `node --version` 检查），以及 git。
 
 ```bash
-npm install -g worksplice
-worksplice
+git clone https://github.com/whutlichao/worksplice.git
+cd worksplice
+npm install
 ```
 
-启动后打开 [http://127.0.0.1:30142](http://127.0.0.1:30142)。命令行版本会在服务就绪后尝试自动打开浏览器。worksplice 默认仅监听 `127.0.0.1`。
+开发模式，端口固定为 30142：
+
+```bash
+npm run dev
+```
+
+生产或预览模式：
+
+```bash
+npm run build
+npm start
+```
+
+启动后打开 [http://127.0.0.1:30142](http://127.0.0.1:30142)。worksplice 默认仅监听 `127.0.0.1`，其他机器无法访问；需要让可信网络里的其他机器访问时，用 `npm run dev:lan` 或 `npm run start:lan` 监听 `0.0.0.0`。
+
+`node bin/worksplice.js` 是另一个入口，用于已构建的源码目录：它启动同一个服务，并在服务就绪后尝试自动打开浏览器。
 
 **可选参数：**
 
-```bash
-worksplice --port 8080              # 自定义端口
-worksplice --hostname 0.0.0.0       # 在可信网络中开放访问
-worksplice -p 8080 -H 0.0.0.0       # 组合使用
-worksplice --no-open                # 不自动打开浏览器
+以下参数只属于 `node bin/worksplice.js`，且要先执行 `npm run build` 才可用；没有构建产物时它会打印 `Build artifacts not found.` 并退出。`dev`、`dev:lan`、`start`、`start:lan` 四个脚本不接受这些参数。
 
-PORT=8080 worksplice                # 也支持环境变量
-WORKSPLICE_HOSTNAME=0.0.0.0 worksplice  # 显式开放网络访问
-WORKSPLICE_ALLOWED_HOSTS=worksplice.internal worksplice  # 允许指定的代理或自定义主机名
-WORKSPLICE_PASSWORD='足够长的随机密码' worksplice  # 启用 Basic Auth（用户名固定为 pi）
-WORKSPLICE_NO_OPEN=1 worksplice     # 适用于后台服务或开机自启
+```bash
+node bin/worksplice.js --port 8080          # 自定义端口
+node bin/worksplice.js --hostname 0.0.0.0   # 在可信网络中开放访问
+node bin/worksplice.js -p 8080 -H 0.0.0.0   # 组合使用
+node bin/worksplice.js --no-open            # 不自动打开浏览器
+
+PORT=8080 node bin/worksplice.js            # 也支持环境变量
+WORKSPLICE_HOSTNAME=0.0.0.0 node bin/worksplice.js  # 显式开放网络访问
+WORKSPLICE_ALLOWED_HOSTS=worksplice.internal node bin/worksplice.js  # 允许指定的代理或自定义主机名
+WORKSPLICE_PASSWORD='足够长的随机密码' node bin/worksplice.js  # 启用 Basic Auth（用户名固定为 pi）
+WORKSPLICE_NO_OPEN=1 node bin/worksplice.js # 适用于后台服务或开机自启
 ```
 
 设置 `WORKSPLICE_PASSWORD` 后，网页和所有 API 端点都会启用 HTTP Basic Auth，用户名固定为 `pi`。未设置或设置为空值时不启用认证。
@@ -45,7 +57,7 @@ API 请求仅接受 loopback 名称、IP 字面量、当前监听主机名，以
 
 ## HTTP 代理
 
-worksplice 的服务端模型请求和 API 请求会读取标准的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量。
+worksplice 的服务端模型请求和 API 请求会读取标准的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量。下面两段示例启动的是构建后的服务，请先执行 `npm run build`。
 
 macOS 或 Linux：
 
@@ -53,7 +65,7 @@ macOS 或 Linux：
 HTTP_PROXY=http://127.0.0.1:7890 \
 HTTPS_PROXY=http://127.0.0.1:7890 \
 NO_PROXY=localhost,127.0.0.1 \
-npx worksplice@latest
+node bin/worksplice.js
 ```
 
 Windows PowerShell：
@@ -62,7 +74,7 @@ Windows PowerShell：
 $env:HTTP_PROXY = "http://127.0.0.1:7890"
 $env:HTTPS_PROXY = "http://127.0.0.1:7890"
 $env:NO_PROXY = "localhost,127.0.0.1"
-npx worksplice@latest
+node bin/worksplice.js
 ```
 
 ## 功能介绍
@@ -83,6 +95,16 @@ npx worksplice@latest
 - **Git worktree**：什么时候显示切换器、新建目录在哪里、删除会影响什么，见 [worksplice 里的 Worktree](./docs/worktrees.zh-CN.md)。
 - **Fork 与会话内分支不同**：Fork 会创建新的 `.jsonl` 文件；“Edit from here” 是同一会话文件里的分支。
 
+## 许可证
+
+MIT，完整文本见 [LICENSE](./LICENSE)。
+
+## 参与贡献
+
+- **报 bug**：在 https://github.com/whutlichao/worksplice/issues 提 issue
+- **提改动**：在本仓库发 pull request
+- **搭建与检查**：见下方的开发小节
+
 ## 开发
 
 ```bash
@@ -99,7 +121,7 @@ node_modules/.bin/tsc --noEmit
 npm run lint
 ```
 
-开发时不要运行 `next build` / `npm run build`，它会写入 `.next/`，容易影响正在运行的 dev server。发布流程再执行构建。
+dev server 运行时不要执行 `next build` / `npm run build`，它会写入 `.next/`，容易影响正在运行的 dev server；构建留给上方的生产模式或发布流程。
 
 ## 项目结构
 
@@ -118,16 +140,16 @@ app/
     sessions/       # 会话读取、重命名、删除、上下文、HTML 导出
     skills/         # skills 列表、搜索、安装、启停
 components/
-  AppShell.tsx        # 主布局、URL 状态、顶部面板、文件标签
-  SessionSidebar.tsx  # 项目选择、会话树、Explorer
-  DirectoryPicker.tsx # 支持浏览和路径输入的工作目录选择器
-  ChatWindow.tsx      # 消息区、SSE、拖拽图片、minimap
-  ChatInput.tsx       # 输入栏、模型/工具/thinking/compact/slash controls
-  MessageView.tsx     # 消息、thinking、tool call/result 渲染
-  ModelsConfig.tsx    # 模型和认证配置面板
-  SkillsConfig.tsx    # 技能管理面板
-  FileExplorer.tsx    # 文件树
-  FileViewer.tsx      # 源码、diff、图片、音频、PDF、DOCX 预览
+  AppShell.tsx         # 主布局、URL 状态、顶部面板、文件标签
+  WorkspaceSidebar.tsx # 频道列表、成员列表、状态点、Explorer
+  DirectoryPicker.tsx  # 支持浏览和路径输入的工作目录选择器
+  ChannelView.tsx      # 频道消息流、轮询、任务视图、输入栏
+  ChatInput.tsx        # 输入栏、模型/工具/thinking/compact/slash controls
+  MessageView.tsx      # 消息、thinking、tool call/result 渲染
+  ModelsConfig.tsx     # 模型和认证配置面板
+  SkillsConfig.tsx     # 技能管理面板
+  FileExplorer.tsx     # 文件树
+  FileViewer.tsx       # 源码、diff、图片、音频、PDF、DOCX 预览
 lib/
   directory-browser.ts # 目录规范化和安全枚举工具
   http-dispatcher.ts  # 服务端 fetch 的 HTTP(S) 代理配置
@@ -144,6 +166,6 @@ hooks/
   useDragDrop.ts      # 图片拖拽
   useTheme.ts         # 主题切换
 bin/
-  worksplice.js       # npm CLI 入口
+  worksplice.js       # CLI 入口
 instrumentation.ts    # 初始化服务端 HTTP dispatcher
 ```

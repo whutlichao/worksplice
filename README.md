@@ -6,36 +6,48 @@ Local workspace for collaborating with persistent [pi coding agent](https://gith
 
 ## Quick Start
 
-worksplice requires Node.js 22.19.0 or newer. Check your version with `node --version`.
+worksplice is not published to npm yet, so run it from a source checkout.
 
-**Run without installing:**
-
-```bash
-npx worksplice@latest
-```
-
-**Or install globally:**
+Requirements: Node.js 22.19.0 or newer, check with `node --version`, and git.
 
 ```bash
-npm install -g worksplice
-worksplice
+git clone https://github.com/whutlichao/worksplice.git
+cd worksplice
+npm install
 ```
 
-Then open [http://127.0.0.1:30142](http://127.0.0.1:30142). The CLI will try to open the browser automatically after the server is ready. worksplice listens on `127.0.0.1` by default.
+Development mode, always on port 30142:
+
+```bash
+npm run dev
+```
+
+Production or preview mode:
+
+```bash
+npm run build
+npm start
+```
+
+Then open [http://127.0.0.1:30142](http://127.0.0.1:30142). worksplice listens on `127.0.0.1` by default, so other machines cannot reach it. Use `npm run dev:lan` or `npm run start:lan` to listen on `0.0.0.0` on a trusted network.
+
+`node bin/worksplice.js` is a separate entry point for a built checkout. It starts the same server and tries to open the browser automatically after the server is ready.
 
 **Options:**
 
-```bash
-worksplice --port 8080              # custom port
-worksplice --hostname 0.0.0.0       # expose on a trusted network
-worksplice -p 8080 -H 0.0.0.0       # combine options
-worksplice --no-open                # do not open the browser automatically
+These options belong to `node bin/worksplice.js` and are only available after `npm run build`; without build artifacts it prints `Build artifacts not found.` and exits. The `dev`, `dev:lan`, `start`, and `start:lan` scripts take no options.
 
-PORT=8080 worksplice                # environment variable is also supported
-WORKSPLICE_HOSTNAME=0.0.0.0 worksplice  # explicit network exposure
-WORKSPLICE_ALLOWED_HOSTS=worksplice.internal worksplice  # allow an exact proxy/custom hostname
-WORKSPLICE_PASSWORD='a-long-random-password' worksplice  # require Basic Auth (username: pi)
-WORKSPLICE_NO_OPEN=1 worksplice     # useful when running as a background service
+```bash
+node bin/worksplice.js --port 8080          # custom port
+node bin/worksplice.js --hostname 0.0.0.0   # expose on a trusted network
+node bin/worksplice.js -p 8080 -H 0.0.0.0   # combine options
+node bin/worksplice.js --no-open            # do not open the browser automatically
+
+PORT=8080 node bin/worksplice.js            # environment variable is also supported
+WORKSPLICE_HOSTNAME=0.0.0.0 node bin/worksplice.js  # explicit network exposure
+WORKSPLICE_ALLOWED_HOSTS=worksplice.internal node bin/worksplice.js  # allow an exact proxy/custom hostname
+WORKSPLICE_PASSWORD='a-long-random-password' node bin/worksplice.js  # require Basic Auth (username: pi)
+WORKSPLICE_NO_OPEN=1 node bin/worksplice.js # useful when running as a background service
 ```
 
 Set `WORKSPLICE_PASSWORD` to protect the web interface and every API endpoint with HTTP Basic Auth. The username is always `pi`. Leaving the variable unset or empty disables authentication.
@@ -45,7 +57,7 @@ API requests accept loopback names, IP literals, the selected bind hostname, and
 
 ## HTTP Proxy
 
-worksplice reads the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables for server-side model and API requests.
+worksplice reads the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables for server-side model and API requests. Both examples below start the built server, so run `npm run build` first.
 
 On macOS or Linux:
 
@@ -53,7 +65,7 @@ On macOS or Linux:
 HTTP_PROXY=http://127.0.0.1:7890 \
 HTTPS_PROXY=http://127.0.0.1:7890 \
 NO_PROXY=localhost,127.0.0.1 \
-npx worksplice@latest
+node bin/worksplice.js
 ```
 
 On Windows PowerShell:
@@ -62,7 +74,7 @@ On Windows PowerShell:
 $env:HTTP_PROXY = "http://127.0.0.1:7890"
 $env:HTTPS_PROXY = "http://127.0.0.1:7890"
 $env:NO_PROXY = "localhost,127.0.0.1"
-npx worksplice@latest
+node bin/worksplice.js
 ```
 
 ## Features
@@ -85,6 +97,16 @@ npx worksplice@latest
 - **Forks vs in-session branches**: Fork creates a new `.jsonl` file. "Edit from here" creates another branch inside the same session file.
 - **Internationalization**: see [Internationalization](./docs/i18n.md) for using translations and adding languages or UI text.
 
+## License
+
+MIT. The full text is in [LICENSE](./LICENSE).
+
+## Contributing
+
+- **Report a bug**: open an issue at https://github.com/whutlichao/worksplice/issues
+- **Send a change**: open a pull request on this repository
+- **Set up and check your work**: see the Development section below
+
 ## Development
 
 ```bash
@@ -101,7 +123,7 @@ node_modules/.bin/tsc --noEmit
 npm run lint
 ```
 
-Avoid running `next build` / `npm run build` during local development. It writes to `.next/` and can interfere with the dev server; leave builds for release work.
+Avoid running `next build` / `npm run build` while the dev server is running. It writes to `.next/` and can interfere with the dev server; leave builds for the production mode above or for release work.
 
 ## Project Structure
 
@@ -120,16 +142,16 @@ app/
     sessions/       # session reads, rename, delete, context, HTML export
     skills/         # skill listing, search, install, enable/disable
 components/
-  AppShell.tsx        # main layout, URL state, top panels, file tabs
-  SessionSidebar.tsx  # project selector, session tree, Explorer
-  DirectoryPicker.tsx # browsable and editable working-directory picker
-  ChatWindow.tsx      # messages, SSE, image drag/drop, minimap
-  ChatInput.tsx       # input bar, model/tools/thinking/compact/slash controls
-  MessageView.tsx     # message, thinking, tool call/result rendering
-  ModelsConfig.tsx    # model and auth configuration panel
-  SkillsConfig.tsx    # skill management panel
-  FileExplorer.tsx    # file tree
-  FileViewer.tsx      # source, diff, image, audio, PDF, DOCX preview
+  AppShell.tsx         # main layout, URL state, top panels, file tabs
+  WorkspaceSidebar.tsx # channel list, agent list, status dots, Explorer
+  DirectoryPicker.tsx  # browsable and editable working-directory picker
+  ChannelView.tsx      # channel message flow, polling, task views, composer
+  ChatInput.tsx        # input bar, model/tools/thinking/compact/slash controls
+  MessageView.tsx      # message, thinking, tool call/result rendering
+  ModelsConfig.tsx     # model and auth configuration panel
+  SkillsConfig.tsx     # skill management panel
+  FileExplorer.tsx     # file tree
+  FileViewer.tsx       # source, diff, image, audio, PDF, DOCX preview
 lib/
   directory-browser.ts # directory normalization and safe listing helpers
   http-dispatcher.ts  # HTTP(S) proxy setup for server-side fetch
@@ -146,6 +168,6 @@ hooks/
   useDragDrop.ts      # image drag/drop
   useTheme.ts         # theme switching
 bin/
-  worksplice.js       # npm CLI entrypoint
+  worksplice.js       # CLI entrypoint
 instrumentation.ts    # initializes the server HTTP dispatcher
 ```
