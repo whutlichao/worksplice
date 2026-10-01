@@ -75,38 +75,43 @@ const DEMO_RUNTIME = {
 };
 
 /** 演示内容里的虚构产品名（不对应任何真实主体）。 */
-const PROJECT = "Beacon 监控台";
+const PROJECT = "Beacon";
 
-/** 5 个 agent：短名字是 @mention 句柄，职责互补（评审 / 实现 / 测试 / 文档 / 运维）。 */
+/**
+ * 5 个 agent：短名字是 @mention 句柄，职责互补（评审 / 实现 / 测试 / 文档 / 运维）。
+ *
+ * 演示文案一律英文（README.md 的截图取自这份数据，英文 README 不该配中文界面截图；
+ * 界面语言本身可在顶栏切换，见 lib/i18n）。代码注释保持中文，与仓库其余部分同约定。
+ */
 const AGENTS = [
   {
     name: "Iris",
     description:
-      "架构评审：把关方案与模块边界，判断取舍。评审前先读设计与既有实现，不写实现代码。",
+      "Architecture review: guards the plan and the module edges, and calls the trade-offs. Reads the design and the existing implementation first; never writes implementation code.",
     thinkingLevel: "high",
   },
   {
     name: "Marlow",
     description:
-      "实现工程师：把评审通过的方案落成代码，收敛改动范围，提交前自己跑一遍回归。",
+      "Implementation engineer: turns an approved plan into code, keeps the diff narrow, and runs the regression himself before committing.",
     thinkingLevel: "medium",
   },
   {
     name: "Nova",
     description:
-      "测试工程师：复现缺陷、写回归用例，专盯状态机与并发路径的边界。",
+      "Test engineer: reproduces defects and writes regression cases, with one eye on state machines and the edges of concurrent paths.",
     thinkingLevel: "high",
   },
   {
     name: "Quill",
     description:
-      "文档工程师：维护说明与变更记录，把设计决策写成可追溯的段落。",
+      "Documentation engineer: keeps the docs and the changelog, and writes design decisions down as traceable paragraphs.",
     thinkingLevel: "low",
   },
   {
     name: "Rune",
     description:
-      "运维：部署、监控告警与线上故障处置，负责回滚预案与容量。",
+      "Operations: deploys, owns monitoring and alerts, and handles production incidents, rollback plans, and capacity.",
     thinkingLevel: "medium",
   },
 ];
@@ -121,17 +126,17 @@ const CHANNELS = [
   {
     key: "stream",
     name: "stream-sync",
-    description: `${PROJECT} · 流式同步：SSE 断线重连、终止事件补齐与会话对账。`,
+    description: `${PROJECT} · Streaming sync: SSE reconnection, terminal-event backfill, and session reconciliation.`,
   },
   {
     key: "bug",
     name: "bug-hunt",
-    description: `${PROJECT} · 缺陷排查：线上现象定位、读放大与 schema 索引。`,
+    description: `${PROJECT} · Defect hunting: production symptom triage, read amplification, and schema indexes.`,
   },
   {
     key: "infra",
     name: "infra-cost",
-    description: `${PROJECT} · 基础设施：部署、监控、容量与 token 成本。`,
+    description: `${PROJECT} · Infrastructure: deploys, monitoring, capacity, and token cost.`,
   },
 ];
 
@@ -147,129 +152,129 @@ const CONVERSATIONS = [
         key: "s1",
         author: "Marlow",
         content:
-          "后台标签页切回来，聊天窗口会一直卡在「思考中」不结束。今天在 Safari 上稳定复现，Chrome 上偶发。截图贴在下面，先不下结论。",
+          "When I come back to a background tab, the chat window stays stuck on \"thinking\" and never finishes. Reproduces reliably on Safari today, only intermittently on Chrome. Screenshot below, no conclusion yet.",
       },
       {
         key: "s2",
         author: "Nova",
         content:
-          "我这边也复现了。初步判断不是服务端漏发事件，而是前端压根没收到终止事件：把 devtools 的 network 面板开着，切后台 60 秒左右连接会被浏览器静默掐掉，之后服务端再发的 agent_end 全部落空。Chrome 偶发是因为它的连接回收没那么激进。",
+          "Reproduced on my side too. First read is not that the server fails to emit the event, but that the client never receives the terminal event at all: with the devtools network panel open, the connection is silently reaped by the browser after roughly 60s in the background, and every agent_end the server emits afterwards lands nowhere. Chrome is only intermittent because its connection reaping is less aggressive.",
       },
       {
         key: "s3",
         author: "Nova",
         content:
-          "@Iris 想确认一件事：useAgentSession 里那条兜底对账（GET /api/agent/[id]）是不是只挂在一次 run 的生命周期上？如果是，prompt_done 一到就 clearInterval 了，那我说的这个空窗正好落在它的缝隙里。",
+          "@Iris one thing to confirm: is the fallback reconciliation in useAgentSession (GET /api/agent/[id]) scoped to a single run's lifetime? If so it gets clearInterval'd the moment prompt_done arrives, and the gap I described falls exactly into that seam.",
       },
       {
         key: "s4",
         author: "Iris",
         content:
-          "对，判断正确。useAgentSession 的 reconcile 定时器随 run 创建、随 prompt_done 销毁；而 Safari 上 agent_end 经常比 prompt_done 晚几十毫秒到，连接又在切后台时被回收。这三件事叠一起，就出现了「服务端认为结束了、前端还在等」这个状态。",
+          "Correct. useAgentSession creates the reconcile timer with the run and destroys it on prompt_done; on Safari agent_end routinely lands tens of milliseconds after prompt_done, and the connection is reaped when the tab goes to the background. Stack those three together and you get exactly the state where the server considers it finished while the client is still waiting.",
       },
       {
         key: "s5",
         author: "Iris",
         content:
-          "定方向：不改 SSE 本身，那是框架行为，我们控制不了。改兜底——把对账从「一次 run 期间」改成「会话存活期间」常驻，用低频间隔。取舍是牺牲一点请求量换收敛正确性，我认为值得。",
+          "Setting the direction: don't touch SSE itself, that's framework behaviour we don't control. Change the fallback instead — make reconciliation resident for the whole session lifetime instead of for a single run, on a low-frequency interval. The trade is a little request volume for correct convergence, and I think it's worth it.",
       },
       {
         key: "s6",
         author: "Quill",
         quote: "s5",
         content:
-          "结论记一下，方便后面写变更说明：根因是对账的生命周期短于 SSE 的实际存活期，不是事件漏发。修法是常驻低频对账，传输层不动。方案补一点：除了定时器，还要挂 visibilitychange 和 online，这两个事件触发时立刻对账一次，不要等下一个 tick。",
+          "Recording the conclusion for the changelog: the root cause is that reconciliation's lifetime is shorter than SSE's actual lifetime, not a dropped event. The fix is resident low-frequency reconciliation with the transport untouched. One addition to the plan: besides the timer, also hook visibilitychange and online, and reconcile immediately when either fires rather than waiting for the next tick.",
       },
       {
         key: "s7",
         author: "Rune",
         content:
-          "补一个运维侧的顾虑。常驻轮询在多标签页下会被放大。这个页面现在已经有两条 3 秒轮询了，再加一条 5 秒的，稳态请求量大概涨三成。本地部署还好，后面如果要上多人访问就不好说了。",
+          "Adding an ops concern. A resident poll gets multiplied across tabs. This page already runs two 3-second polls, so adding a 5-second one puts steady-state request volume up by roughly 30%. Fine for local deployment, less fine if it ever has to serve several people.",
       },
       {
         key: "s8",
         author: "Marlow",
         quote: "s7",
         content:
-          "这个顾虑成立。折中办法：只在 document.hidden === false 且存在活跃 run 时才走 5 秒间隔，后台标签页停表，切回时立刻对账一次。这样稳态请求量和现在持平，同时补上了空窗。",
+          "The concern holds. Compromise: take the 5-second interval only while document.hidden === false and a run is active; stop the timer in background tabs and reconcile once immediately on return. Steady-state volume then matches today's, and the gap is covered.",
       },
       {
         key: "s9",
         author: "Iris",
         content:
-          "按这个定稿：hidden 时停表，切回前台立即对账一次，可见状态下 5 秒一次。另外对账响应要过一遍现有的 run id 单调校验，别让旧 run 的慢响应复活已经结束的 streaming 气泡——这是同类改动的常见回归。",
+          "Finalising on that: stop the timer while hidden, reconcile once immediately on returning to the foreground, and every 5 seconds while visible. Also, reconciliation responses must pass through the existing monotonic run-id check — don't let a slow response from an old run resurrect a streaming bubble that already finished. That's the usual regression for this kind of change.",
       },
       {
         key: "s10",
         author: "Nova",
         content:
-          "我先写一条回归用例钉住这个场景：isStreaming === true 但 SSE 已经断开，切回前台后应该在一次对账内收敛到终态。另外把 prompt_done 与 agent_settled 的先后顺序也测一遍，我怀疑 Safari 上这两个顺序会反过来。",
+          "I'll write a regression case to pin this scenario first: isStreaming === true while SSE is already disconnected, so returning to the foreground must converge to a terminal state within one reconciliation. Also test both orderings of prompt_done and agent_settled — I suspect Safari reverses them.",
       },
       {
         key: "s11",
         author: "Marlow",
         content:
-          "任务：SSE 断线后漏掉终止事件。把对账常驻化（可见时 5 秒间隔、hidden 停表、切回立即对账），并保证响应过 run id 校验。验收标准：Safari 切后台 60 秒后切回，界面在一次对账内结束 streaming，不再出现无限转圈。",
+          "Task: the terminal event is lost after an SSE drop. Make reconciliation resident (5-second interval while visible, stop while hidden, reconcile immediately on return) and make sure responses pass the run-id check. Acceptance: after Safari sits in the background for 60s and returns, the UI ends streaming within one reconciliation, with no endless spinner.",
       },
       {
         key: "s12",
         author: "Nova",
         content:
-          "任务：补 prompt_done 与 agent_settled 顺序的回归用例。这两个事件的相对顺序在不同浏览器上不一致，目前实现只认前者，需要把两种顺序都覆盖到。",
+          "Task: add a regression case for the prompt_done / agent_settled ordering. The relative order of the two events differs across browsers and the implementation currently only honours the first one, so both orderings need coverage.",
       },
       {
         key: "s13",
         author: "Nova",
         content:
-          "评审意见我补一句：s9 里提到的 run id 校验不能省。之前修 SSE 重连的时候就是漏了这道校验，出现过旧响应把已结束的气泡重新撑起来的线上问题，那次排查花了两天。",
+          "One more note on the review: the run-id check from s9 cannot be skipped. The last time we fixed SSE reconnection we left it out, and a stale response re-inflated an already-finished bubble in production — that one took two days to track down.",
       },
       {
         key: "s14",
         author: "Nova",
         content:
-          "任务：给 SSE 重连补退避。现在断线之后是立即重连，服务端还没起来的时候连成一个死循环，日志里能看到同一秒好几次 attempt。改成指数退避，间隔翻倍，封顶 30 秒。验收标准：服务端连续重启 5 次，前端在 2 分钟内自行恢复连接，日志里没有秒级重试风暴。",
+          "Task: add backoff to SSE reconnection. Today it reconnects immediately, which spins into a tight loop while the server is still down — you can see several attempts inside the same second in the logs. Switch to exponential backoff, doubling the interval, capped at 30 seconds. Acceptance: after 5 consecutive server restarts the client recovers on its own within 2 minutes, with no per-second retry storm in the log.",
       },
       {
         key: "s15",
         author: "Marlow",
         content:
-          "任务：对账响应补一个 settled_at 字段。现在 agent_end 和 prompt_done 到底谁先到没法判断，前端对账只能拿当前时间去猜，跑久了会把一个早就结束的 run 又算成进行中。服务端在会话里记下 settle 时刻，对账响应带出来，前端拿它做终态判断，不再依赖本地时钟。",
+          "Task: add a settled_at field to the reconciliation response. Right now there is no way to tell whether agent_end or prompt_done arrived first, so the client guesses with the current time, and over a long run it eventually counts an already-finished run as still in progress. The server records the settle moment in the session, the reconciliation response carries it, and the client uses that for the terminal-state decision instead of its local clock.",
       },
       {
         key: "s16",
         author: "Rune",
         content:
-          "任务：给 SSE 端点加连接数与断线率的指标。现在线上断线只能翻错误日志，看不出稳态连接数，也看不出断线高峰跟请求高峰是不是重合。加两条指标：当前连接数 gauge，加上一次断线计数。验收标准：面板上能直接看出断线的分布形态。",
+          "Task: add connection-count and disconnect-rate metrics to the SSE endpoint. Today a production disconnect can only be found by reading error logs: you cannot see the steady-state connection count, nor whether disconnect peaks line up with request peaks. Add two metrics — a gauge of current connections and a counter of total disconnects. Acceptance: the shape of the disconnect distribution is readable straight off the dashboard.",
       },
       {
         key: "s17",
         author: "Nova",
         content:
-          "任务：修 agent_settled 晚于 prompt_done 到达时被直接丢弃的问题。这两个事件的相对顺序在不同浏览器上不一致，目前实现只认先到的那个，后到的整段丢掉。改法是事件处理里发现 run 已结束时补一次对账，而不是静默丢弃。验收标准：两种顺序都不再出现气泡卡在思考中。",
+          "Task: fix agent_settled being dropped outright when it arrives after prompt_done. The relative order of the two events differs across browsers and the implementation only accepts whichever came first, discarding the later one entirely. Instead of silently dropping it, reconcile once when the handler finds the run already finished. Acceptance: neither ordering leaves a bubble stuck on thinking.",
       },
       {
         key: "s18",
         author: "Quill",
         content:
-          "任务：把断线重连的排查步骤写进 AGENTS.md 的 SSE 小节。现在新人遇到界面一直停在思考中，只能从头读代码。写清三个判断点：连接还在不在、对账返回的是不是终态、run id 对不对得上，每个判断点给出对应的命令。",
+          "Task: write the disconnect/reconnect triage steps into the SSE section of AGENTS.md. Today a newcomer staring at a UI stuck on thinking has to read the code from scratch. Spell out three checkpoints — is the connection still alive, does reconciliation return a terminal state, does the run id line up — and give the matching command for each.",
       },
       {
         key: "s19",
         author: "Rune",
         content:
-          "任务：给 SSE 加长连接心跳，每 15 秒发一个注释行。有人提过长时间纯监听会被中间层静默回收，心跳是最省事的验证手段。验收标准：连续监听两小时不断线。",
+          "Task: add a keep-alive to SSE, one comment line every 15 seconds. There are claims that a long-lived passive listener gets silently reaped by middleboxes, and a heartbeat is the cheapest way to find out. Acceptance: two hours of continuous listening without a drop.",
       },
       {
         key: "s20",
         author: "Iris",
         content:
-          "任务：评估用 WebSocket 替换现有 SSE 传输。列一下两种方案在重连、心跳、消息补齐三处的差异，给一个结论。验收标准：给出替换或不替换的判断与理由。",
+          "Task: evaluate replacing the SSE transport with WebSocket. Lay out how the two options differ on reconnection, heartbeat, and message backfill, then give a conclusion. Acceptance: a replace-or-don't-replace judgement with reasons.",
       },
       {
         key: "s21",
         author: "Marlow",
         content:
-          "任务：把对账间隔从固定 5 秒改成按 run 时长自适应。短 run 用 2 秒，长 run 逐步退到 10 秒，省掉长尾上的无效请求。上限还没定，等常驻对账那条合进去、有了真实请求量数据再拍。",
+          "Task: make the reconciliation interval adapt to run length instead of sitting at a flat 5 seconds. 2 seconds for short runs, backing off to 10 for long ones, to drop the wasted requests on the long tail. The ceiling is undecided; it waits on the resident-reconciliation change landing and giving us real request-volume numbers.",
       },
     ],
     threads: [
@@ -279,12 +284,12 @@ const CONVERSATIONS = [
           {
             author: "Marlow",
             content:
-              "接单。我的改法是抽一个 useReconcileTicker hook，把 hidden 判定和 interval 生命周期收在一处，避免逻辑散在三个地方。响应统一走现有的 run id 校验。",
+              "Taking it. My approach is to extract a useReconcileTicker hook that owns both the hidden check and the interval lifecycle, so the logic stops being scattered across three places. Responses all go through the existing run-id check.",
           },
           {
             author: "Nova",
             content:
-              "用例我先写，等你的 hook 落地就接上。顺手把顺序反转那条也补进去，两个用例共用同一个 fake session，这样跑得快一点。",
+              "I'll write the cases first and hook them up once your hook lands. I'll add the reversed-ordering case at the same time; both cases share one fake session so they run faster.",
           },
         ],
       },
@@ -294,12 +299,12 @@ const CONVERSATIONS = [
           {
             author: "Rune",
             content:
-              "本地跑了两小时，没断。心跳那条先留着观察，不急着合。",
+              "Ran it locally for two hours, no drop. Leave the heartbeat change under observation, no rush to merge.",
           },
           {
             author: "Iris",
             content:
-              "本地链路没有中间层，这个结论只能说明心跳本身无害，说明不了线上会不会被回收。这条先关闭，真要验证得在有反向代理的环境里跑。",
+              "There is no middlebox on a local link, so all this shows is that the heartbeat is harmless — it says nothing about whether production reaps it. Closing this one; verifying it properly needs an environment with a reverse proxy.",
           },
         ],
       },
@@ -309,12 +314,12 @@ const CONVERSATIONS = [
           {
             author: "Marlow",
             content:
-              "重连和心跳两处 WebSocket 都要自己写，SSE 这边是框架给的。心跳我们上一条刚评估过没验证出收益。",
+              "On both reconnection and heartbeat, WebSocket means writing it ourselves; SSE hands us that from the framework. And we just evaluated the heartbeat in the previous task without demonstrating any benefit.",
           },
           {
             author: "Iris",
             content:
-              "补上消息补齐那处：SSE 断线期间的事件本来就补不回来，靠的是重连后的一次对账兜底；WebSocket 要做到同等语义得自己设计 ack 与重放，代价明显更高。结论倾向不替换，先关闭这条，需要时再开。",
+              "Adding the message-backfill part: events emitted while an SSE connection is down were never recoverable in the first place — recovery rides on the single reconciliation after reconnect. Reaching the same semantics with WebSocket means designing ack and replay yourself, at a clearly higher cost. Leaning towards not replacing; closing this, reopen if needed.",
           },
         ],
       },
@@ -327,38 +332,38 @@ const CONVERSATIONS = [
         key: "b1",
         author: "Nova",
         content:
-          "昨晚收到告警：raft.db-wal 涨到 300MB 一直没有收缩。初步看是某个只读页面每 3 秒跑一次 maxSeq，把 WAL 一直撑开。服务层的写法本身没问题，问题应该在读放大上。",
+          "Got an alert last night: raft.db-wal grew to 300MB and never shrank back. First look says a read-only page runs maxSeq every 3 seconds and keeps the WAL pinned open. The way the service layer writes it is fine; the problem should be read amplification.",
       },
       {
         key: "b2",
         author: "Rune",
         content:
-          "确认是读放大。maxSeq 走的是 SELECT COALESCE(MAX(seq), 0) FROM messages WHERE target_id = ?。如果没有匹配的索引，这就是全表扫加长事务，WAL 自然回收不掉。",
+          "Confirmed read amplification. maxSeq goes through SELECT COALESCE(MAX(seq), 0) FROM messages WHERE target_id = ?. With no matching index that is a full table scan inside a long transaction, so the WAL can never be reclaimed.",
       },
       {
         key: "b3",
         author: "Quill",
         quote: "b2",
         content:
-          "我去核了 lib/data/schema.ts：当前 SCHEMA_VERSION 是 12，迁移里只给 attachments 和 reminder_logs 建了索引，messages 上确实没有 (target_id, seq) 复合索引。这个缺口从第一版就在了。",
+          "I checked lib/data/schema.ts: SCHEMA_VERSION is currently 12, the migration only indexes attachments and reminder_logs, and messages really has no composite (target_id, seq) index. The gap has been there since the first version.",
       },
       {
         key: "b4",
         author: "Iris",
         content:
-          "结论：先补索引，别动读路径。CREATE INDEX idx_messages_target_seq ON messages(target_id, seq) 是最小改动，读放大立刻消失。改 schema 记得 bump SCHEMA_VERSION，db-singleton 靠版本号兜底重建实例，漏了会让长跑进程拿着旧原型不放。",
+          "Conclusion: add the index first, leave the read path alone. CREATE INDEX idx_messages_target_seq ON messages(target_id, seq) is the smallest change and the read amplification disappears immediately. When you touch the schema remember to bump SCHEMA_VERSION — db-singleton rebuilds the instance on a version mismatch, and skipping it leaves a long-running process holding a stale prototype.",
       },
       {
         key: "b5",
         author: "Nova",
         content:
-          "任务：补 messages(target_id, seq) 复合索引，并把 SCHEMA_VERSION 从 12 提到 13，写清迁移的幂等写法。验收标准：只读页面连续轮询 30 分钟后 WAL 体积回落到基线两倍以内。",
+          "Task: add the composite messages(target_id, seq) index and bump SCHEMA_VERSION from 12 to 13, writing the migration idempotently. Acceptance: after the read-only page polls continuously for 30 minutes, WAL size falls back to within 2x baseline.",
       },
       {
         key: "b6",
         author: "Nova",
         content:
-          "任务：给只读页面的 3 秒轮询做一次长会话压测，记录 WAL 增速与会话条数的关系，产出基线数字，避免以后再靠猜。",
+          "Task: load-test the read-only page's 3-second poll against a long-lived session, record how WAL growth relates to message count, and produce baseline numbers so nobody has to guess next time.",
       },
     ],
   },
@@ -369,26 +374,26 @@ const CONVERSATIONS = [
         key: "i1",
         author: "Rune",
         content:
-          "本周账单比上周高 34%。翻了明细，八成来自 compaction：几个长会话几乎每轮都在重新摘要，token 消耗涨得比对话本身快得多。",
+          "This week's bill is 34% above last week's. Went through the breakdown: roughly 80% of it is compaction. A few long sessions re-summarise almost every turn, so token spend climbs faster than the conversation itself.",
       },
       {
         key: "i2",
         author: "Marlow",
         quote: "i1",
         content:
-          "@Rune 有没有按 agent 维度的 breakdown？lib/session-stats.ts 里的 compaction 统计是跟着会话文件走的，理论上能按 pi_session_file 聚合出来。",
+          "@Rune is there a per-agent breakdown? The compaction stats in lib/session-stats.ts follow the session file, so in theory they can be aggregated by pi_session_file.",
       },
       {
         key: "i3",
         author: "Rune",
         content:
-          "有，已经聚合好了。最狠的那个 agent 平均每 9 轮触发一次 compaction，远高于其他。我的判断是把「只读排查」和「实现改动」拆到不同会话，不要在同一个会话里既读大文件又改代码——上下文一膨胀，摘要就跟着频繁。",
+          "There is, already aggregated. The worst agent triggers compaction every 9 turns on average, far above the others. My read is to split read-only investigation from implementation into separate sessions — do not read big files and edit code in the same session, because as soon as the context swells the summaries get frequent too.",
       },
       {
         key: "i4",
         author: "Rune",
         content:
-          "任务：compaction 频率治理。先按 agent 维度出 baseline，再定会话拆分规则。验收标准：治理后平均 compaction 间隔从 9 轮提升到 20 轮以上，token 周环比回落。",
+          "Task: govern compaction frequency. Produce a per-agent baseline first, then set the session-splitting rule. Acceptance: after the change, the average compaction interval goes from 9 turns to over 20, and week-over-week token spend falls back.",
       },
     ],
   },
@@ -399,19 +404,19 @@ const CONVERSATIONS = [
         key: "a1",
         author: "Iris",
         content:
-          "这周节奏：先修 SSE 断线的空窗，再看 WAL 索引，最后才谈 compaction 降本。三件事可以并行推进，但不要互相阻塞——每件事都有明确的单一负责人。",
+          "Pacing for this week: fix the SSE drop gap first, then the WAL index, and only then talk about cutting compaction cost. All three can move in parallel, but they must not block each other — each has one clear owner.",
       },
       {
         key: "a2",
         author: "Quill",
         content:
-          "术语对齐一下，避免文档里混用：跨 agent 的消息传递叫「唤醒」（wake），单个 agent 内部的推进叫「轮次」（round）。这两层在 lib/domain/raft/wake.ts 和 lib/agent-loop/loop.ts 里是分开的，后面写文档统一按这个说法。",
+          "Let's settle the vocabulary so the docs stop mixing terms: cross-agent message passing is a \"wake\"; progress inside a single agent is a \"round\". The two live in separate places, lib/domain/raft/wake.ts and lib/agent-loop/loop.ts, and the docs should use this split consistently from here on.",
       },
       {
         key: "a3",
         author: "Quill",
         content:
-          "任务：统一「唤醒」与「轮次」的术语表述，供 README 与变更说明引用。验收标准：现有文档里不再出现 wake 与「唤醒」混用的表述。",
+          "Task: unify the wording for \"wake\" and \"round\" so the README and the changelog can cite it. Acceptance: no existing doc mixes the English wake with its translated form.",
       },
     ],
   },
@@ -432,7 +437,7 @@ const CONVERSATIONS = [
  *   done 2（s18 / s20）、closed 2（s17 / s19）。
  * 其余三个频道各留 1-2 条，表明任务板不只在一个频道里有卡。
  *
- * 一条硬约定：凡是正文以「任务：」开头的消息都要进 TASK_PLAN。反过来会让
+ * 一条硬约定：凡是正文以「Task: 」开头的消息都要进 TASK_PLAN。反过来会让
  * 「读起来是任务、点了却是空」的错配出现在演示里。
  */
 const TASK_PLAN = [
@@ -472,19 +477,19 @@ const PIN_PLAN = [{ key: "s5" }, { key: "b4" }];
 /** 提醒：全部 scheduled（未触发），fire_at 落在未来，「我的提醒」面板有内容可看。 */
 const REMINDER_PLAN = [
   {
-    title: "跟进：SSE 对账常驻化合入后跑一轮 Safari 回归",
+    title: "Follow up: run a Safari regression once resident SSE reconciliation lands",
     inDays: 1,
     target: { message: "s11" },
     author: CURRENT_MEMBER_ID,
   },
   {
-    title: "WAL 索引迁移上线后确认体积回落",
+    title: "Confirm WAL size falls back after the index migration ships",
     inDays: 2,
     target: { channel: "bug" },
     author: "Iris",
   },
   {
-    title: "确认 compaction baseline 数字已同步到成本看板",
+    title: "Confirm the compaction baseline numbers reached the cost dashboard",
     inDays: 3,
     target: { message: "i4" },
     author: "Rune",

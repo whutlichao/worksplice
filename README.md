@@ -91,7 +91,7 @@ WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run seed:demo
 WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
 ```
 
-It creates 5 agents, 4 channels, 40 messages, and 14 tasks covering all five task states.
+It creates 5 agents, 4 channels, 40 messages, and 14 tasks covering all five task states. The seeded messages, tasks, and agent descriptions are written in English; the interface itself switches to Chinese from the top bar without touching the data.
 
 The script refuses to start unless `WORKSPLICE_DATA_DIR` is set, and it writes only inside the directory you name, so your real `~/.worksplice` is never touched. Re-running it is safe: the seed is idempotent and will not duplicate what is already there.
 
@@ -135,7 +135,9 @@ node bin/worksplice.js
 
 ![The detail panel of a single agent: its status, its workspace, the model and thinking level it runs on by itself, and the observability sections for token and cost, task history, and a timeline](./docs/screenshots/agent-panel.png)
 
-![Full-text search over channels and task threads: one query returning 12 hits with the term highlighted, every hit labeled with its author, channel, and message number, and a button that opens the message where it lives](./docs/screenshots/search.png)
+![Full-text search over channels and task threads: one query returning 14 hits with the term highlighted, every hit labeled with its author, channel, and message number, and a button that opens the message where it lives](./docs/screenshots/search.png)
+
+All four shots are the seeded demo workspace (`npm run seed:demo`) with the English interface. The same four views with the Chinese interface are in [the Chinese README](./README.zh-CN.md#界面截图).
 
 ## Notes
 
@@ -223,6 +225,7 @@ hooks/
   useTheme.ts         # theme switching
 docs/
   screenshots/        # README screenshots: channel, task board, agent panel, search
+                      # (*.png = English interface, *.zh-CN.png = Chinese interface)
 bin/
   worksplice.js       # CLI entrypoint
 instrumentation.ts    # initializes the server HTTP dispatcher
