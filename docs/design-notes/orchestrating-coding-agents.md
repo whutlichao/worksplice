@@ -28,8 +28,7 @@ small, unglamorous set of semantics:
 - who is allowed to declare someone else's work finished.
 
 This article walks through how [worksplice](https://github.com/whutlichao/worksplice)
-answers those four, pointing at the code, for engineers who want to know which
-parts are load-bearing and which are ceremony.
+answers those four, for engineers deciding which parts are load-bearing.
 
 ---
 
@@ -52,7 +51,7 @@ export interface WakeHint {
 
 `notifyMessageWakes` (same file) walks the target's channel members and emits
 one of these per agent. There is no body field, and the struct is deliberately
-this shape. Three things fall out of that:
+this shape. A few things fall out of that:
 
 **Cost of the wrong wake is not symmetric with its usefulness.** Every agent
 member of a channel gets woken by every ordinary message — that is the
@@ -68,10 +67,10 @@ doing the architectural work. `sendMessage` in `lib/domain/raft/messages.ts`
 emits wake hints *after* the transaction commits and *outside* it, precisely so
 a rolled-back write never wakes anybody.
 
-A further benefit: a hint is generated entirely from server-side facts — which
+One more benefit: a hint is generated entirely from server-side facts — which
 member is agent-typed, whether they are the author, whether they muted the
 channel, which member ids a mention token resolved to. No attacker-controlled
-free text reaches a code path that decides whether to start a run. If the hint
+free text reaches the code path that decides whether to start a run. If the hint
 carried the body, "here is text that just arrived" and "here is an instruction
 for you" would be the same object, and every future consumer of the bus would
 have to re-derive that distinction.
@@ -90,8 +89,8 @@ own rubric.
 highest `seq` that agent has finished processing in that target. It is the
 agent's entire memory of "what I have already dealt with".
 
-The three primitives in `lib/domain/raft/inbox.ts` separate reading from
-advancing:
+The read/advance primitives in `lib/domain/raft/inbox.ts` separate reading
+from advancing:
 
 ```ts
 export function drain(agentId: string, targetId: string): DrainResult
@@ -104,11 +103,11 @@ the cursor**. `ack` is a separate write. The agent loop (`runAgentRound` in
 `lib/agent-loop/loop.ts`) drains at the start of a round and acks at the end.
 
 That split is the whole point. It makes "what has this agent seen?" a property
-of the database rather than of the scheduler, and it gives you a specific
-property that is easy to underrate: **draining twice returns the same messages**.
-It neither duplicates nor drops. Which means a round that crashes half way
-through — after the model ran, before the reply landed — is safe to simply run
-again. The retry re-reads the same input and produces the same attempt.
+of the database rather than of the scheduler, and it buys a property that is
+easy to underrate: **draining twice returns the same messages**. It neither
+duplicates nor drops. Which means a round that crashes half way through — after
+the model ran, before the reply landed — is safe to simply run again: the retry
+re-reads the same input.
 
 If `drain` advanced the cursor, a crash between "read" and "write the reply"
 would permanently consume the message. The agent would never see it again, and
@@ -166,13 +165,10 @@ The held response also refuses to be content-free. `summarizeChanges`
 (`lib/domain/raft/messages.ts`) returns a human-readable description of what
 landed in the interval — the count and the `seq` range — not just a boolean. The
 writer now knows it was wrong *and* why, which is the difference between a
-protocol and a mutex.
-
-`summarizeChanges` is reused verbatim by task claims and status transitions in
-`lib/domain/raft/tasks.ts`. A task operation is a write to shared state under
-the same concurrency assumption, so it gets the same freshness check and the
-same held shape, with the same code path for the summary. One fact, one
-function.
+protocol and a mutex. It is reused verbatim by task claims and status
+transitions in `lib/domain/raft/tasks.ts`: a task operation writes shared state
+under the same assumption, so it gets the same freshness check and the same
+held shape from the same function. One fact, one code path.
 
 ### Four answers to being held
 
@@ -196,10 +192,9 @@ that says it does not, and say something else.
 
 `anyway` exists because every retry policy eventually deadlocks. If two agents
 keep waking each other, `revise` can starve forever. `anyway` is the explicit
-escape hatch: send it without `baseSeq`, knowingly. It is recorded as its own
-round outcome status rather than folded into `replied`, because "it went through
-because we bypassed the check" is exactly the kind of thing you want to be able
-to count later.
+escape hatch: send without `baseSeq`, knowingly. It is recorded as its own round
+status rather than folded into `replied`, because "it went through because we
+bypassed the check" is exactly the kind of thing you want to count later.
 
 Exhausting retries collapses to `silent` rather than looping. And one asymmetry is
 deliberate: a revise that comes back with *no* content is an `error`, not a
@@ -241,7 +236,7 @@ const TRANSITIONS: Record<TaskStatus, Partial<Record<TaskStatus, {
 };
 ```
 
-Two properties are worth noticing before the interesting one.
+Two properties first.
 
 The graph is **not** fully connected. `in_progress → done` does not exist. An
 agent that finishes work cannot declare it finished; it can only move it to
@@ -250,8 +245,11 @@ actor.
 
 And the authorization is per-edge, not global. It is a predicate evaluated
 against the task row, so "who may do this" travels with "what this is". A client
-cannot skip the table, because `updateTaskStatus` and `claimTask` both consult
-`TRANSITIONS` inside the transaction.
+cannot skip the table, because `updateTaskStatus` consults `TRANSITIONS` inside
+the transaction, and the one edge the table deliberately omits — `todo →
+in_progress`, which is a claim, not a transition — is handled by `claimTask`
+instead, sharing its owner-uniqueness and reopen rules with the table's own
+edges through `claimBlockReason`.
 
 Now the rule:
 
@@ -270,14 +268,13 @@ alone would sit in `in_review` forever with nobody eligible to move it. The
 exemption is scoped and commented, not a general bypass.
 
 Why is this worth building? Because an agent asked to verify its own output is
-being asked the wrong question in a setting where nobody else is watching. The
-same model that produced the claim will produce the confirmation; it has no
-independent information to bring. The second actor is not a quality gate you can
-leave to the model's judgement — it is a structural substitute for that missing
-independence. The corollary is that the second actor is not free either: which is
-why the DM special case above says that in a one-to-one channel between the owner
-and one agent, an agent is never the reviewer. In a two-party setting the
-constraint is unsatisfiable, so it degrades to "the human reviews" rather than
+being asked the wrong question when nobody else is watching. The same model that
+produced the claim will produce the confirmation; it has no independent
+information to bring. The second actor is a structural substitute for that
+missing independence, not a quality gate left to the model's judgement. It is
+not free either: which is why the DM special case above says that in a
+one-to-one channel an agent is never the reviewer. A two-party setting makes the
+constraint unsatisfiable, so it degrades to "the human reviews" rather than
 quietly becoming a no-op.
 
 The same reasoning shows up in the UI. `reachableStatuses` in the same file
@@ -315,19 +312,19 @@ system that produced that wrong verdict is the same system now being offered the
 chance to retry. The lock is the system's way of declining to grade its own
 make-up exam.
 
-Note that this is a *flag on state*, not a workflow rule in the prompt. It is
-enforced in the same transaction as the claim, and `claimTask` and
-`updateTaskStatus`'s claim edge share the same `claimBlockReason` function so
-that adding a condition to one path cannot leave the other behind.
+That is a *flag on state*, not a workflow rule in the prompt — enforced in the
+same transaction as the claim, so it cannot be talked past.
 
 ---
 
 ## 6. Deep modules: one entry, straight imports inside
 
-`lib/domain/raft/index.ts` is the only thing outside `lib/domain/raft` that
-imports from it. Every consumer — 77 route files, the agent loop, agent
-runtime, instrumentation — does `from "@/lib/domain/raft"`. The index is a
-barrel of `export *` over 18 submodules.
+`lib/domain/raft/index.ts` is the only door into the domain. Nothing outside
+`lib/domain/raft` imports a submodule directly; all 40 external consumers go
+through the index — 35 of them via the `@/lib/domain/raft` alias (33 route files
+under `app/api`, plus `components/SearchView.tsx` and `instrumentation.ts`) and
+5 under `lib/` via the relative path. The index itself is a barrel of
+`export *` over 18 submodules.
 
 Submodules import *each other* by relative path and never route back through the
 index. That direction is not cosmetic: an index that its own members import
@@ -337,15 +334,16 @@ The same pattern appears one level up. `lib/agent-loop/index.ts` re-exports
 exactly one thing, `createAgentLoop`; `runAgentRound`, `deliverWithFreshness`,
 `backfillAgentReplies` and the rest are internal, and the tests import them from
 `loop.ts` directly rather than through the public face. `lib/cwd-mutex.ts` is a
-third example — three exported functions (`withCwdMutex`, `isCwdBusy`,
-`findBusySession`) used by both the agent runtime and the loop driver, with the
-`realpathSync` normalization and the settle-event set living inside it.
+third example — a narrow interface centered on `withCwdMutex`, `isCwdBusy`, and
+`findBusySession`, consumed by both the agent runtime and the loop driver, with
+`realpathSync` normalization, the settle-event set, and legacy aliases all
+living inside it.
 
 **What this buys.** The domain becomes mockable at one seam: a test that needs
 `notifyMessageWakes` to be inert mocks the whole raft domain in one place
-instead of stubbing eight functions across eight files. Route handlers cannot
-reach past the domain boundary into the data layer, because the one thing
-deliberately *not* re-exported from the index is `getDb()` — that lives in
+instead of stubbing functions across many files. Route handlers cannot reach
+past the domain boundary into the data layer, because the one thing deliberately
+*not* re-exported from the index is `getDb()` — that lives in
 `lib/data/db-singleton.ts` and must be imported explicitly, which makes a layer
 violation visible at the import site instead of invisible at runtime. And when a
 submodule's internals change, there is exactly one file whose exports could
@@ -361,8 +359,8 @@ the test suite here has to be willing to reach past the public face into
 If you are building something small, one honest module with direct exports and
 no index is less total work and loses almost nothing.
 
-A single entry point is worth it when the domain has many consumers and a real
-need to be swapped in tests. It is overhead when it has two.
+A single entry point is worth it when the domain has many consumers and needs
+to be swapped in tests. It is overhead when it has two.
 
 ---
 
@@ -381,9 +379,8 @@ npm test
 
 That is a lot of machinery for what is conceptually a message log with extra
 rules. A cursor, a freshness check, and a transition table are a few hundred
-lines; the rest is the accumulated cost of making them survive contact with
-agents that run unattended, crash mid-write, and restart with no memory except
-what is in the database:
+lines; the rest is the cost of making them survive agents that run unattended,
+crash mid-write, and restart with no memory except the database:
 
 - **Crash recovery.** `backfillAgentReplies` in `lib/agent-loop/loop.ts` scans
   each agent's session file for marker-tagged prompt rounds and re-lands replies
@@ -398,19 +395,22 @@ what is in the database:
 - **Serialisation at the workspace.** Two sessions on one directory run one at a
   time, enforced by `lib/cwd-mutex.ts`. Real parallelism means a git worktree,
   which means a different cwd, which is naturally outside the lock.
-- **Observability.** Every round with an outcome lands in `round_logs`, with a
-  status vocabulary wide enough to distinguish "the agent chose not to respond"
-  from "the round failed and will be retried" — conflating those two is how you
-  end up with a monitoring view that is confidently wrong.
+- **Observability.** Every round that reached a conclusion lands in
+  `round_logs`, with a status vocabulary wide enough to distinguish "the agent
+  chose not to respond" from "the round failed and will be retried" —
+  conflating those two is how you end up with a monitoring view that is
+  confidently wrong. Only seven statuses are persisted; rounds that never got
+  anywhere — nothing new to read, the agent skipped, the session already busy —
+  are filtered out at write time.
 
 So: **who should build this?**
 
 Build something like it if you are running multiple unattended agents against
 shared state for long enough that agents will collide, crash, and disagree — and
 someone is accountable for the result. That is a multi-agent system with a human
-owner, not a batch script and not a single agent with good tooling. It is also
-worth it if the agents are *durable*: they keep state between rounds, so a bug
-in a cursor or a backfill path does not reset your world.
+owner, not a batch script and not a single agent with good tooling. It also
+earns its keep when the agents are *durable*: they keep state between rounds, so
+a bug in a cursor or a backfill path does not reset your world.
 
 **Do not build it** if:
 
