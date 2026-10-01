@@ -4,6 +4,33 @@
 
 Local workspace for collaborating with persistent [pi coding agent](https://github.com/earendil-works/pi) sessions. worksplice reads your local pi session files and gives you a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
 
+## What This Is
+
+pi gives you one session at a time: one agent, one conversation, one working directory. That is a good default, and it is also a hard ceiling the moment a second agent shows up. Two agents pointed at the same checkout do not fail loudly. Each one believes it is the only actor, each plan is valid against the version of the repo it read, and the human ends up merging two diffs that each look correct alone.
+
+worksplice does not replace pi. It puts several pi sessions into shared channels, and adds the handful of semantics that multi-agent work needs but that message passing alone cannot give you:
+
+- **Wake, not push**: a hint tells an agent that something moved without carrying the body, so a wake that turns out to be irrelevant stays cheap.
+- **A cursor, not a list**: each agent records how far it has read, so "what have I already seen" survives a restart instead of being re-derived from the log.
+- **Freshness on concurrent writes**: every write states which version of the room it was based on. If the room moved first, the write is held and the author chooses what to do instead of silently overwriting.
+- **Review before done**: a task is not finished because its author says so. It moves through a state machine, and approving it requires someone other than the author.
+
+worksplice is deeply dependent on pi. It reads pi's session files, drives pi's agent sessions, and takes pi's config, model, and skill model as given. It is not a general-purpose agent framework, it does not bring its own runtime for running agents, and pointing it at a different coding agent means replacing the substrate rather than swapping a plugin.
+
+### When to use it
+
+- You run more than one pi session against the same repository and they overwrite each other.
+- You want one agent to hand work to another without you relaying it by hand.
+- You want a review trail: who claimed a task, who approved it, what was decided and when.
+- You want a UI for a directory of existing pi sessions instead of reading `~/.pi/agent/sessions` by hand.
+
+### When not to use it
+
+- You work with a single agent in a single directory. The pi TUI is enough, and worksplice only adds a server to keep running.
+- You are not running pi. There is no adapter for another coding agent.
+- You need several people to reach it over the internet. It binds to loopback by default and is built for a machine you trust.
+- You want hosting, accounts, or a shared database. This is a local workspace over one SQLite file.
+
 ## Quick Start
 
 worksplice is not published to npm yet, so run it from a source checkout.
@@ -55,6 +82,19 @@ Set `WORKSPLICE_PASSWORD` to protect the web interface and every API endpoint wi
 worksplice can invoke a high-privilege agent. Basic Auth does not encrypt the password in transit, so do not expose plain HTTP to the internet. Use HTTPS through a trusted reverse proxy or a trusted VPN for remote access.
 API requests accept loopback names, IP literals, the selected bind hostname, and exact comma-separated names in `WORKSPLICE_ALLOWED_HOSTS`. Configure that variable when a trusted reverse proxy uses a different external hostname.
 
+## Try It with Demo Data
+
+A seed script builds a self-contained workspace, so you can see the whole thing before wiring up your own agents:
+
+```bash
+WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run seed:demo
+WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
+```
+
+It creates 5 agents, 4 channels, 40 messages, and 14 tasks covering all five task states.
+
+The script refuses to start unless `WORKSPLICE_DATA_DIR` is set, and it writes only inside the directory you name, so your real `~/.worksplice` is never touched. Re-running it is safe: the seed is idempotent and will not duplicate what is already there.
+
 ## HTTP Proxy
 
 worksplice reads the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables for server-side model and API requests. Both examples below start the built server, so run `npm run build` first.
@@ -87,6 +127,16 @@ node bin/worksplice.js
 - **Configure less from the terminal**: manage models, login/API keys, model tests, and skill switches from the web UI.
 - **Use the interface in your language**: switch between the supported UI languages from the top bar.
 
+## Screenshots
+
+![Several pi agents and the human owner inside one channel: quoted blocks carry the message being answered, @mentions point at the agent being addressed, reaction aggregates sit under the messages they belong to, and a hover bar exposes the per-message actions](./docs/screenshots/channel.png)
+
+![The task board of one channel, five columns that mirror the task state machine, each card showing its owner and only the transitions legal from its current state](./docs/screenshots/task-board.png)
+
+![The detail panel of a single agent: its status, its workspace, the model and thinking level it runs on by itself, and the observability sections for token and cost, task history, and a timeline](./docs/screenshots/agent-panel.png)
+
+![Full-text search over channels and task threads: one query returning 12 hits with the term highlighted, every hit labeled with its author, channel, and message number, and a button that opens the message where it lives](./docs/screenshots/search.png)
+
 ## Notes
 
 - **Data directory**: worksplice reads `~/.pi/agent/sessions` by default. Set `PI_CODING_AGENT_DIR` to point at another pi agent directory.
@@ -96,6 +146,10 @@ node bin/worksplice.js
 - **Git worktrees**: see [Worktrees in worksplice](./docs/worktrees.md) for when the switcher appears, how new worktrees are created, and what removal does.
 - **Forks vs in-session branches**: Fork creates a new `.jsonl` file. "Edit from here" creates another branch inside the same session file.
 - **Internationalization**: see [Internationalization](./docs/i18n.md) for using translations and adding languages or UI text.
+
+## Design Notes
+
+- **Orchestrating coding agents**: [What "Just Let Them Message Each Other" Misses](./docs/design-notes/orchestrating-coding-agents.md) argues that the hard part of multi-agent work is not the transport but having a shared notion of what is true right now, then walks through how worksplice's wake hints, read cursors, freshness holds, and task review answer it, pointing at the code.
 
 ## License
 
@@ -167,6 +221,8 @@ hooks/
   useAudio.ts         # completion sound
   useDragDrop.ts      # image drag/drop
   useTheme.ts         # theme switching
+docs/
+  screenshots/        # README screenshots: channel, task board, agent panel, search
 bin/
   worksplice.js       # CLI entrypoint
 instrumentation.ts    # initializes the server HTTP dispatcher

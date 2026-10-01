@@ -4,6 +4,33 @@
 
 与持久化的 [pi 编程智能体](https://github.com/earendil-works/pi) 协作的本地工作区。它会读取本机的 pi 会话文件，在浏览器里提供会话管理、实时对话、模型配置、技能管理和项目文件预览。
 
+## 这是什么
+
+pi 一次给你一个会话：一个智能体、一段对话、一个工作目录。作为默认选择这很好，但第二个智能体一出现，它就成了硬天花板。两个智能体指向同一个 checkout 时不会大声报错——它们都以为自己是唯一的行动者，各自的计划对它们读到的那份仓库状态都成立，最后由人来合并两份单独看都没问题的 diff。
+
+worksplice 不替代 pi。它把多个 pi 会话放进共享频道，并补上多智能体协作需要、而单靠消息传递给不了的那几件事：
+
+- **唤醒而不是推送**：提示只告诉智能体「有东西变了」，不携带正文，所以一次最终无关的唤醒代价很低。
+- **游标而不是列表**：每个智能体记录自己读到哪了，于是「我看到过什么」在重启后依然成立，不必再从日志里重新推一遍。
+- **并发写时的时效检查**：每次写入都声明它基于房间的哪个版本。如果房间先变了，这次写入会被拦下，由作者决定怎么办，而不是默默覆盖。
+- **完成之前要评审**：任务不因为作者说完成就完成。它走一个状态机，批准必须由作者以外的人来做。
+
+worksplice 深度依赖 pi：它读 pi 的会话文件、驱动 pi 的智能体会话，并把 pi 的配置、模型和技能模型当作既定前提。它不是通用智能体框架，不自带运行智能体的运行时，要换一个编程智能体意味着换掉底座，而不是换个插件。
+
+### 什么时候用
+
+- 你对同一个仓库跑多个 pi 会话，而且它们会互相覆盖。
+- 你想让一个智能体把活交给另一个智能体，而不是由你手工转述。
+- 你想要一条评审痕迹：谁认领的任务、谁批准的、什么时候决定了什么。
+- 你想给一整目录已有的 pi 会话配个界面，而不是手工翻 `~/.pi/agent/sessions`。
+
+### 什么时候别用
+
+- 你只在一个目录里跟一个智能体干活。pi 的 TUI 就够了，worksplice 只会多出一个要维护的服务。
+- 你并不在用 pi。这里没有给别的编程智能体准备的 adapter。
+- 你需要让多个人从公网访问它。它默认只监听 loopback，设计前提是你信任这台机器。
+- 你要的是托管、账号体系或共享数据库。这是一个跑在单个 SQLite 文件上的本地工作区。
+
 ## 快速开始
 
 worksplice 尚未发布到 npm，请从源码运行。
@@ -55,6 +82,19 @@ WORKSPLICE_NO_OPEN=1 node bin/worksplice.js # 适用于后台服务或开机自�
 worksplice 可以调用高权限智能体。Basic Auth 不会加密传输中的密码，因此不要把明文 HTTP 暴露到互联网。远程访问时应使用可信反向代理提供 HTTPS，或通过可信 VPN 访问。
 API 请求仅接受 loopback 名称、IP 字面量、当前监听主机名，以及 `WORKSPLICE_ALLOWED_HOSTS` 中以逗号分隔的精确主机名。可信反向代理使用不同的外部主机名时，请配置该变量。
 
+## 用演示数据试试
+
+有一个 seed 脚本会造出一套自带的演示工作区，让你先看清全貌，再去接自己的智能体：
+
+```bash
+WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run seed:demo
+WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
+```
+
+它会造出 5 个智能体、4 个频道、40 条消息和 14 个任务，覆盖全部五种任务状态。
+
+脚本在 `WORKSPLICE_DATA_DIR` 未设置时拒绝运行，并且只往你指定的那个目录里写，因此不会碰到你真实的 `~/.worksplice`。重复运行是安全的：seed 幂等，不会把已有的数据再造一份。
+
 ## HTTP 代理
 
 worksplice 的服务端模型请求和 API 请求会读取标准的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量。下面两段示例启动的是构建后的服务，请先执行 `npm run build`。
@@ -87,6 +127,16 @@ node bin/worksplice.js
 - **少离开当前界面**：模型、登录/API key、模型测试和技能开关都能在网页里处理，配置 agent 时不用在多个工具之间来回切换。
 - **用熟悉的语言操作界面**：在顶部栏就能切换受支持的界面语言。
 
+## 界面截图
+
+![同一个频道里的多个 pi 智能体与人类 owner：引用块带着被回复的那条消息，@提及指向被点名的智能体，表情聚合条落在各自消息下方，悬停时浮出该条消息的动作](./docs/screenshots/channel.png)
+
+![某个频道的任务看板：五列对应任务状态机，每张卡片标出认领人，以及在当前状态下合法的那些转移动作](./docs/screenshots/task-board.png)
+
+![单个智能体的详情面板：状态、工作区、它自己专属的模型与思考档，以及 Token/成本、任务历史和时间线所在的可观测性区](./docs/screenshots/agent-panel.png)
+
+![跨频道与任务线程的全文搜索：一次查询返回 12 条命中并高亮命中词，每条都标注作者、所属频道和消息序号，按钮可以直接跳到消息所在的位置](./docs/screenshots/search.png)
+
 ## 注意事项
 
 - **数据目录**：默认读取 `~/.pi/agent/sessions` 下的会话文件。可通过环境变量 `PI_CODING_AGENT_DIR` 指定其他 pi agent 目录。
@@ -96,6 +146,10 @@ node bin/worksplice.js
 - **Git worktree**：什么时候显示切换器、新建目录在哪里、删除会影响什么，见 [worksplice 里的 Worktree](./docs/worktrees.zh-CN.md)。
 - **Fork 与会话内分支不同**：Fork 会创建新的 `.jsonl` 文件；“Edit from here” 是同一会话文件里的分支。
 - **界面国际化**：如何使用已有翻译、如何新增语言或界面文案，见 [Internationalization](./docs/i18n.md)（该文档目前只有英文版）。
+
+## 设计笔记
+
+- **编排编程智能体**：[What "Just Let Them Message Each Other" Misses](./docs/design-notes/orchestrating-coding-agents.md) 论证多智能体协作真正难的地方不是传输，而是「当下什么是真的」需要共享共识；随后对着代码讲解 worksplice 的唤醒提示、读取游标、时效拦截和任务评审如何回答这四点（该文档目前只有英文版）。
 
 ## 许可证
 
@@ -167,6 +221,8 @@ hooks/
   useAudio.ts         # 完成提示音
   useDragDrop.ts      # 图片拖拽
   useTheme.ts         # 主题切换
+docs/
+  screenshots/        # README 截图：频道、任务看板、智能体面板、全文搜索
 bin/
   worksplice.js       # CLI 入口
 instrumentation.ts    # 初始化服务端 HTTP dispatcher
