@@ -93,7 +93,7 @@ WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
 
 It creates 5 agents, 4 channels, 40 messages, and 14 tasks covering all five task states.
 
-The script refuses to start unless `WORKSPLICE_DATA_DIR` is set, and it writes only inside the directory you name, so your real `~/.worksplice` is never touched. Point it at a fresh path every time: if the directory is not empty it stops and asks for a new one.
+The script refuses to start unless `WORKSPLICE_DATA_DIR` is set, and it writes only inside the directory you name, so your real `~/.worksplice` is never touched. Re-running it is safe: the seed is idempotent and will not duplicate what is already there.
 
 ## HTTP Proxy
 

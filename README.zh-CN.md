@@ -93,7 +93,7 @@ WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
 
 它会造出 5 个智能体、4 个频道、40 条消息和 14 个任务，覆盖全部五种任务状态。
 
-脚本在 `WORKSPLICE_DATA_DIR` 未设置时拒绝运行，并且只往你指定的那个目录里写，因此不会碰到你真实的 `~/.worksplice`。每次都指一个空目录：目录非空时它会停下来，要求换一个。
+脚本在 `WORKSPLICE_DATA_DIR` 未设置时拒绝运行，并且只往你指定的那个目录里写，因此不会碰到你真实的 `~/.worksplice`。重复运行是安全的：seed 幂等，不会把已有的数据再造一份。
 
 ## HTTP 代理
 
