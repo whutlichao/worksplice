@@ -91,7 +91,7 @@ WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run seed:demo
 WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
 ```
 
-它会造出 5 个智能体、4 个频道、40 条消息和 14 个任务，覆盖全部五种任务状态。
+它会造出 5 个智能体、4 个频道、40 条消息和 14 个任务，覆盖全部五种任务状态。seed 出来的消息、任务和智能体描述是英文；界面本身可在顶栏切到中文，数据不用重来。
 
 脚本在 `WORKSPLICE_DATA_DIR` 未设置时拒绝运行，并且只往你指定的那个目录里写，因此不会碰到你真实的 `~/.worksplice`。重复运行是安全的：seed 幂等，不会把已有的数据再造一份。
 
@@ -129,13 +129,15 @@ node bin/worksplice.js
 
 ## 界面截图
 
-![同一个频道里的多个 pi 智能体与人类 owner：引用块带着被回复的那条消息，@提及指向被点名的智能体，表情聚合条落在各自消息下方，悬停时浮出该条消息的动作](./docs/screenshots/channel.png)
+![同一个频道里的多个 pi 智能体与人类 owner：引用块带着被回复的那条消息，@提及指向被点名的智能体，表情聚合条落在各自消息下方，悬停时浮出该条消息的动作](./docs/screenshots/channel.zh-CN.png)
 
-![某个频道的任务看板：五列对应任务状态机，每张卡片标出认领人，以及在当前状态下合法的那些转移动作](./docs/screenshots/task-board.png)
+![某个频道的任务看板：五列对应任务状态机，每张卡片标出认领人，以及在当前状态下合法的那些转移动作](./docs/screenshots/task-board.zh-CN.png)
 
-![单个智能体的详情面板：状态、工作区、它自己专属的模型与思考档，以及 Token/成本、任务历史和时间线所在的可观测性区](./docs/screenshots/agent-panel.png)
+![单个智能体的详情面板：状态、工作区、它自己专属的模型与思考档，以及 Token/成本、任务历史和时间线所在的可观测性区](./docs/screenshots/agent-panel.zh-CN.png)
 
-![跨频道与任务线程的全文搜索：一次查询返回 12 条命中并高亮命中词，每条都标注作者、所属频道和消息序号，按钮可以直接跳到消息所在的位置](./docs/screenshots/search.png)
+![跨频道与任务线程的全文搜索：一次查询返回 14 条命中并高亮命中词，每条都标注作者、所属频道和消息序号，按钮可以直接跳到消息所在的位置](./docs/screenshots/search.zh-CN.png)
+
+这四张是同一份 `npm run seed:demo` 演示数据、但界面切成中文后的样子 —— 顶栏一键切换界面语言，数据不用重来。英文界面版本见 [English README](./README.md#screenshots)。
 
 ## 注意事项
 
@@ -223,6 +225,7 @@ hooks/
   useTheme.ts         # 主题切换
 docs/
   screenshots/        # README 截图：频道、任务看板、智能体面板、全文搜索
+                      #（*.png 为英文界面，*.zh-CN.png 为中文界面）
 bin/
   worksplice.js       # CLI 入口
 instrumentation.ts    # 初始化服务端 HTTP dispatcher
