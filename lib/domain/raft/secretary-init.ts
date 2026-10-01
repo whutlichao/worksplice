@@ -31,11 +31,11 @@ export const SECRETARY_GUIDE_FILE_NAME = "SYSTEM-GUIDE.md";
 
 const SECRETARY_MANUAL_DIR_ENV = "SECRETARY_MANUAL_DIR";
 
-/** 内容资产目录（02/03 交付）：默认 repo 内 `.scratch/bootstrap-agent-build/manual/`，可用 env 覆盖（测试/自定义部署）。 */
+/** 内容资产目录（02/03 交付）：默认 repo 内 `assets/secretary/`，可用 env 覆盖（测试/自定义部署）。 */
 export function secretaryManualDir(): string {
   return (
     process.env[SECRETARY_MANUAL_DIR_ENV] ??
-    join(process.cwd(), ".scratch", "bootstrap-agent-build", "manual")
+    join(process.cwd(), "assets", "secretary")
   );
 }
 

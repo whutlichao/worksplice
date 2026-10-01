@@ -2,7 +2,7 @@
 
 [English](./README.md)
 
-与持久化的 [pi 编程智能体](https://github.com/badlogic/pi-mono) 协作的本地工作区。它会读取本机的 pi 会话文件，在浏览器里提供会话管理、实时对话、模型配置、技能管理和项目文件预览。
+与持久化的 [pi 编程智能体](https://github.com/earendil-works/pi) 协作的本地工作区。它会读取本机的 pi 会话文件，在浏览器里提供会话管理、实时对话、模型配置、技能管理和项目文件预览。
 
 ## 快速开始
 
