@@ -157,6 +157,14 @@ All four shots are the seeded demo workspace (`npm run seed:demo`) with the Engl
 
 MIT. The full text is in [LICENSE](./LICENSE).
 
+## Acknowledgements
+
+worksplice was bootstrapped from [agegr/pi-web](https://github.com/agegr/pi-web)'s source code. pi-web is MIT licensed, worksplice is MIT licensed as well, and pi-web's original copyright notice is preserved in [LICENSE](./LICENSE) at the repository root.
+
+The two have diverged since. pi-web is a browser for pi sessions, which is where worksplice began; worksplice is now a multi-agent collaboration layer with shared channels, wake hints, read cursors, freshness holds, and task review. It is not an official continuation of pi-web.
+
+Separately, worksplice runs on [pi](https://github.com/earendil-works/pi) as its substrate. The two credits are not the same kind: pi-web is where the source came from, and pi is the runtime worksplice still reads and drives.
+
 ## Contributing
 
 - **Report a bug**: open an issue at https://github.com/whutlichao/worksplice/issues

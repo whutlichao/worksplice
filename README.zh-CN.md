@@ -157,6 +157,14 @@ node bin/worksplice.js
 
 MIT，完整文本见 [LICENSE](./LICENSE)。
 
+## 致谢
+
+worksplice 的代码起始于 [agegr/pi-web](https://github.com/agegr/pi-web) 的源码。pi-web 以 MIT 协议发布，worksplice 同样以 MIT 协议发布，pi-web 的原始版权声明保留在仓库根目录的 [LICENSE](./LICENSE) 里。
+
+此后两者已经明显分化。pi-web 是一个 pi 会话浏览器，worksplice 也从这样的形态起步；如今 worksplice 是一层多智能体协作能力，包含共享频道、唤醒提示、读取游标、时效拦截和任务评审。它不是 pi-web 的官方新版。
+
+另外，worksplice 以 [pi](https://github.com/earendil-works/pi) 作为运行时底座。这两处致谢性质不同：pi-web 是源码的来源处，pi 则是 worksplice 至今仍在读取并驱动的运行时。
+
 ## 参与贡献
 
 - **报 bug**：在 https://github.com/whutlichao/worksplice/issues 提 issue
