@@ -2,7 +2,7 @@
 
 [中文文档](./README.zh-CN.md)
 
-Local workspace for collaborating with persistent [pi coding agent](https://github.com/badlogic/pi-mono) sessions. worksplice reads your local pi session files and gives you a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
+Local workspace for collaborating with persistent [pi coding agent](https://github.com/earendil-works/pi) sessions. worksplice reads your local pi session files and gives you a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
 
 ## Quick Start
 

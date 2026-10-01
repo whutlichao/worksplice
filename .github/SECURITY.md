@@ -1,6 +1,6 @@
 # Security Policy
 
-worksplice is a local developer tool. It runs on your own machine, listens on `127.0.0.1` by default, and drives a local [pi coding agent](https://github.com/badlogic/pi-mono) that can read and write files and run commands. Anything that can reach the worksplice web interface inherits that authority, so treat access to the interface the way you treat shell access on your own account.
+worksplice is a local developer tool. It runs on your own machine, listens on `127.0.0.1` by default, and drives a local [pi coding agent](https://github.com/earendil-works/pi) that can read and write files and run commands. Anything that can reach the worksplice web interface inherits that authority, so treat access to the interface the way you treat shell access on your own account.
 
 ## What counts as a vulnerability
 
