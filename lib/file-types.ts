@@ -71,3 +71,28 @@ export function isAudioPath(filePath: string): boolean {
 export function isDocumentPreviewPath(filePath: string): boolean {
   return documentPreviewKind(filePath) !== null;
 }
+
+// `default-src 'none'` is the clause that stops script; `img-src data:` and
+// `style-src 'unsafe-inline'` are what legitimate SVGs need (inline styles and
+// data-URI images), so the policy is as loose as a script-free document allows.
+const SVG_DOCUMENT_CSP =
+  "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+
+/**
+ * Security headers a streamed file response must carry, chosen from its MIME.
+ * `nosniff` goes on every response so a browser never re-interprets the body we
+ * typed. SVG gets a CSP as well because it is the one preview MIME a browser
+ * parses as a document: an SVG navigated to directly would run its <script> in
+ * this origin and could call any /api route. CSP only governs document
+ * rendering, so `<img>` previews — which ignore it — are unchanged.
+ */
+export function streamSecurityHeaders(contentType: string): Record<string, string> {
+  if (contentType === "image/svg+xml") {
+    return {
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": SVG_DOCUMENT_CSP,
+      "Referrer-Policy": "no-referrer",
+    };
+  }
+  return { "X-Content-Type-Options": "nosniff" };
+}

@@ -17,6 +17,7 @@ import {
   getDocumentMime,
   getFileExt,
   getImageMime,
+  streamSecurityHeaders,
 } from "@/lib/file-types";
 import { resolveDirentIsDirectory } from "@/lib/file-dirent";
 import { isFilePathReferencedBySession } from "@/lib/session-file-references";
@@ -296,11 +297,12 @@ function getContentDisposition(filePath: string, asDownload = false): string {
 }
 
 function streamFile(filePath: string, stat: fs.Stats, contentType: string, rangeHeader: string | null, asDownload = false): Response {
-  const headers = {
+  const headers: Record<string, string> = {
     "Content-Type": contentType,
     "Cache-Control": "no-cache",
     "Accept-Ranges": "bytes",
     "Content-Disposition": getContentDisposition(filePath, asDownload),
+    ...streamSecurityHeaders(contentType),
   };
 
   if (!rangeHeader) {
