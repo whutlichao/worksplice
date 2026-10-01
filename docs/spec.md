@@ -451,7 +451,7 @@ erDiagram
 | # | 动作 | 现状 → 目标 | 决策状态 |
 |---|---|---|---|
 | 1 | git 历史 | 新仓库 `git init` 重开，不保留 pi-web 任何提交 | **[锁定]** 06 |
-| 2 | README | 重写为 worksplice 自己的，删 pi-web 链接/badge/截图 | **[锁定]** 06 |
+| 2 | README | 重写为 worksplice 自己的，删 pi-web 的 badge/截图/logo/品牌文案；保留一处出处声明（见 `docs/adr/0010-readme-source-attribution-exception.md`） | **[锁定]** 06（2026-10-01 收窄） |
 | 3 | LICENSE | 保留 MIT 原 `agegr/pi-web` 版权行 + 追加 worksplice 版权行（MIT 法律要求） | **[锁定]** 06 |
 | 4 | 品牌资源 | 删/换 pi-web logo、favicon、页面标题、"pi-web" 文案 | **[锁定]** 06 |
 | 5 | 启动器 | `bin/pi-web.js` → `bin/worksplice.js` | **[锁定]** 06 |
