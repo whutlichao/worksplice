@@ -35,13 +35,15 @@ worksplice 深度依赖 pi：它读 pi 的会话文件、驱动 pi 的智能体�
 
 worksplice 尚未发布到 npm，请从源码运行。
 
-前置条件：Node.js 22.19.0 或更高版本（通过 `node --version` 检查），以及 git。
+前置条件：Node.js 22.19.0 或更高版本（通过 `node --version` 检查）、Bun 1.3.14 或更高版本（通过 `bun --version` 检查），以及 git。
 
 ```bash
 git clone https://github.com/whutlichao/worksplice.git
 cd worksplice
-npm install
+bun install
 ```
+
+本仓库跟踪 `bun.lock`，因此 `bun install` 才是可复现的安装路径。`npm install` 也能跑，但它会忽略 `bun.lock`，不保证得到可复现的依赖树。
 
 开发模式，端口固定为 30142：
 
@@ -174,7 +176,7 @@ worksplice 的代码起始于 [agegr/pi-web](https://github.com/agegr/pi-web) �
 ## 开发
 
 ```bash
-npm install
+bun install
 npm run dev
 ```
 
