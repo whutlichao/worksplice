@@ -1,9 +1,10 @@
 # Release Checklist
 
-This repo publishes two artifacts for each release:
+This repo publishes one artifact for each release:
 
-- npm package: `worksplice/worksplice`
 - GitHub Release: `whutlichao/worksplice`
+
+There is no package-registry distribution; users install from source. See `README.md` for the install steps.
 
 Use this checklist from a clean `main` checkout.
 
@@ -13,7 +14,6 @@ Use this checklist from a clean `main` checkout.
 git status --short --branch
 git log --oneline --decorate -5
 gh auth status
-npm whoami
 node -e "const p=require('./package.json'); console.log(p.version)"
 ```
 
@@ -21,9 +21,8 @@ Expected:
 
 - `git status` is clean, or only contains changes you intentionally plan to release.
 - GitHub is authenticated as an account that can push and create releases.
-- npm is authenticated as an account that can publish `worksplice/worksplice`.
 
-## 2. Publish to npm
+## 2. Bump the Version and Verify the Build
 
 ```bash
 npm run release
@@ -32,27 +31,21 @@ npm run release
 The release script runs:
 
 ```bash
-npm version patch --no-git-tag-version && npm run build && npm publish --access public
+npm version patch --no-git-tag-version && npm run build
 ```
 
 Notes:
 
-- This bumps `package.json` and `package-lock.json`.
+- This bumps the version in `package.json`. It touches no lockfile, so there is nothing else to stage in step 3.
 - It intentionally runs a production build. Do not run `next build` during normal development; release work is the exception.
-- If `npm view worksplice/worksplice version` briefly shows the previous version, check the exact version instead:
-
-```bash
-npm view worksplice/worksplice@<version> version --registry https://registry.npmjs.org/
-npm view worksplice/worksplice versions --json --registry https://registry.npmjs.org/
-```
 
 ## 3. Commit the Version Bump
 
 Replace `<version>` with the new package version, for example `0.7.5`.
 
 ```bash
-git diff -- package.json package-lock.json
-git add package.json package-lock.json
+git diff -- package.json
+git add package.json
 git commit -m "Release v<version>"
 ```
 
@@ -103,7 +96,7 @@ Suggested structure:
 
 ### 内部调整
 
-- 发布 npm 包 `worksplice/worksplice@<version>`。
+- ...
 
 ## English
 
@@ -123,7 +116,7 @@ Prepared from commits in `v<previous>..v<version>`.
 
 ### Internal
 
-- Published npm package `worksplice/worksplice@<version>`.
+- ...
 ```
 
 ## 6. Create or Update the GitHub Release
@@ -164,7 +157,6 @@ EOF
 
 ```bash
 gh release view v<version> --repo whutlichao/worksplice
-npm view worksplice/worksplice@<version> version --registry https://registry.npmjs.org/
 git status --short --branch
 git log --oneline --decorate -3
 ```
@@ -172,6 +164,5 @@ git log --oneline --decorate -3
 Expected:
 
 - GitHub Release exists and is not a draft unless intentionally published as one.
-- npm exact version resolves.
 - `main` is aligned with `origin/main`.
 - `HEAD` points at the release commit and `v<version>` tag.
