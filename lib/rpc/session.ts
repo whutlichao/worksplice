@@ -19,6 +19,8 @@ import { getProjectTrustStatus } from "../project-trust";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "../custom-ui-terminal";
 import { notifyRunningChange } from "./broadcaster.ts";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "../pi-types";
+import type { ForcedEmptySystemPromptSwitch } from "./forced-empty-system-prompt";
+import { CODING_TOOL_NAMES } from "../tool-presets";
 import type { ExtensionUiRequest, ExtensionUiResponse, ExtensionWidgetItem } from "../types";
 
 // ============================================================================
@@ -93,16 +95,88 @@ export interface RpcSessionStartOptions {
   thinkingLevel?: ThinkingLevel;
 }
 
-const CODING_TOOL_NAMES = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+// Every colour token the SDK's own `theme-schema.json` marks required, minus the five it
+// marks optional (`scrollbarTrack` / `scrollbarThumb` / `thinkingMax` / `searchMatchText` /
+// `searchMatchBg`), split into the constructor's foreground and background records. Key names and
+// order are copied from `properties.colors.required`; `lib/rpc/session.test.mjs` re-reads the
+// installed package's schema and fails if the two ever drift apart.
+//
+// These records MUST stay complete. `Theme`'s constructor treats every absent token as a hole:
+// 0.99.2 synthesises `scrollbarTrack` / `scrollbarThumb` / `searchMatchText` from `muted` / `text`
+// and `searchMatchBg` from `selectedBg` (pi-coding-agent's `theme.js:127-132`), so a partial record
+// feeds `undefined` into pi-tui's `parseColor` and throws `Invalid color value: undefined` — at
+// module-import time, because `PLAIN_TEXT_THEME` below is a module top-level constant. Letting the
+// type system demand all 45 foreground keys turns that import-time crash into a compile error.
+//
+// Values are all `""` — the SDK's documented "terminal default" — because the web UI applies its
+// own styling. The values never reach a rendered string: every rendering method on PlainTextTheme
+// is the identity function, and the colour state exists only to satisfy the constructor and
+// `instanceof Theme`.
+const EMPTY_FOREGROUND_COLOR_TOKENS = {
+  accent: "",
+  border: "",
+  borderAccent: "",
+  borderMuted: "",
+  success: "",
+  error: "",
+  warning: "",
+  muted: "",
+  dim: "",
+  text: "",
+  thinkingText: "",
+  userMessageText: "",
+  customMessageText: "",
+  customMessageLabel: "",
+  toolTitle: "",
+  toolOutput: "",
+  mdHeading: "",
+  mdLink: "",
+  mdLinkUrl: "",
+  mdCode: "",
+  mdCodeBlock: "",
+  mdCodeBlockBorder: "",
+  mdQuote: "",
+  mdQuoteBorder: "",
+  mdHr: "",
+  mdListBullet: "",
+  toolDiffAdded: "",
+  toolDiffRemoved: "",
+  toolDiffContext: "",
+  syntaxComment: "",
+  syntaxKeyword: "",
+  syntaxFunction: "",
+  syntaxVariable: "",
+  syntaxString: "",
+  syntaxNumber: "",
+  syntaxType: "",
+  syntaxOperator: "",
+  syntaxPunctuation: "",
+  thinkingOff: "",
+  thinkingMinimal: "",
+  thinkingLow: "",
+  thinkingMedium: "",
+  thinkingHigh: "",
+  thinkingXhigh: "",
+  bashMode: "",
+} as const;
+
+const EMPTY_BACKGROUND_COLOR_TOKENS = {
+  selectedBg: "",
+  userMessageBg: "",
+  customMessageBg: "",
+  toolPendingBg: "",
+  toolSuccessBg: "",
+  toolErrorBg: "",
+} as const;
 
 // Extensions require a complete Theme, while the web UI applies its own styling.
+// `appearance` is passed explicitly because every token above is `""`: without it the constructor
+// would fall through to `detectAppearance([], [])` and guess from an empty colour set.
 class PlainTextTheme extends Theme {
   constructor() {
-    super(
-      { thinkingXhigh: "" } as ConstructorParameters<typeof Theme>[0],
-      {} as ConstructorParameters<typeof Theme>[1],
-      "truecolor",
-    );
+    super(EMPTY_FOREGROUND_COLOR_TOKENS, EMPTY_BACKGROUND_COLOR_TOKENS, "truecolor", {
+      appearance: "dark",
+    });
   }
 
   override fg(...[, text]: Parameters<Theme["fg"]>): string { return text; }
@@ -118,6 +192,19 @@ class PlainTextTheme extends Theme {
     return (text) => text;
   }
   override getBashModeBorderColor(): (text: string) => string { return (text) => text; }
+
+  // 0.99.2 added these three members and they are the reason a complete `super()` is not enough on
+  // its own. Left un-overridden, `style()` splices pre-computed escapes from the base's token table
+  // (`theme.js:187-200`) and `colors` fills every token with the terminal's guessed default
+  // (`theme.js:166-186`) — real ANSI reaching an object whose contract says the web UI owns styling.
+  override style(text: string): string { return text; }
+  override get appearance(): Theme["appearance"] { return "dark"; }
+  // The declared type claims every token is present, but the base only ever populates the table
+  // with *concrete* (non-`""`) tokens, so for an all-`""` record it is genuinely empty. Narrowing
+  // to the truthful shape is the one cast this class keeps, and it describes upstream, not us.
+  override get colors(): Theme["colors"] {
+    return {} as Theme["colors"];
+  }
 }
 
 const PLAIN_TEXT_THEME = new PlainTextTheme();
@@ -153,13 +240,24 @@ export class AgentSessionWrapper {
   private extensionBindingPromise: Promise<void> | null = null;
   private extensionBindingError: unknown = null;
   private forceEmptySystemPrompt = false;
+  /**
+   * The live switch the forced-empty-system-prompt extension reads on every
+   * `before_agent_start`. Created per wrapper so two sessions never share state;
+   * `caller.ts` seeds the matching extension through this field.
+   */
+  readonly forcedEmptySystemPromptSwitch: ForcedEmptySystemPromptSwitch;
   private unsubscribe: (() => void) | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private onDestroyCallback: (() => void) | null = null;
   private shutdownPromise: Promise<void> | null = null;
   private _alive = true;
 
-  constructor(public readonly inner: AgentSessionLike) {}
+  constructor(
+    public readonly inner: AgentSessionLike,
+    forcedEmptySystemPromptSwitch: ForcedEmptySystemPromptSwitch = { enabled: false },
+  ) {
+    this.forcedEmptySystemPromptSwitch = forcedEmptySystemPromptSwitch;
+  }
 
   get sessionId(): string {
     return this.inner.sessionId;
@@ -287,10 +385,20 @@ export class AgentSessionWrapper {
     }
   }
 
+  /**
+   * Keep the forced-empty-system-prompt extension's live switch in step with
+   * `forceEmptySystemPrompt`.
+   *
+   * This used to write `this.inner.agent.state.systemPrompt = ""` directly. That
+   * property is getter-only since 0.99.x, so the assignment threw
+   * `TypeError: Cannot set property systemPrompt of #<Object> which has only a getter`
+   * and took `POST /api/agent/new` with `toolNames: []` down with a 500. The empty
+   * prompt is now produced by the extension's `before_agent_start` handler reading
+   * `this.forcedEmptySystemPromptSwitch` (lib/rpc/forced-empty-system-prompt.ts);
+   * all that is left here is to flip the switch.
+   */
   private applyForcedEmptySystemPrompt(): void {
-    if (this.forceEmptySystemPrompt && this.inner.agent.state) {
-      this.inner.agent.state.systemPrompt = "";
-    }
+    this.forcedEmptySystemPromptSwitch.enabled = this.forceEmptySystemPrompt;
   }
 
   private emit(event: AgentEvent): void {

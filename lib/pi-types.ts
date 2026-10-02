@@ -28,6 +28,16 @@ export interface NavigateTreeResult {
   aborted?: boolean;
 }
 
+/**
+ * Mirrors `QueuedInputDisposition` from
+ * `@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts:162`, which is
+ * what `steer()` / `followUp()` resolve to since 0.99.x. Not re-exported from
+ * the package root, so it is declared here — this module is the repo's
+ * structural mirror of SDK shapes, and widening the return to `void` is what
+ * let `caller.ts:146` / `:149` reject a real `AgentSession`.
+ */
+export type QueuedInputDispositionLike = "handled" | "queued";
+
 export interface SessionStatsInfo {
   sessionFile?: string;
   sessionId: string;
@@ -128,7 +138,12 @@ export interface AgentSessionLike {
   };
   readonly sessionManager: SessionManager;
   readonly settingsManager: SettingsManager;
-  readonly agent: { state?: { systemPrompt?: string; thinkingLevel?: string } };
+  // `systemPrompt` is a getter-only property on 0.99.x's `AgentState`, so it must
+  // be `readonly` here. Without that, `lib/rpc/session.ts` kept compiling a write
+  // that throws `TypeError: Cannot set property systemPrompt of #<Object> which
+  // has only a getter` — the mirror had widened away the very break it should have
+  // surfaced.
+  readonly agent: { state?: { readonly systemPrompt?: string; thinkingLevel?: string } };
   readonly extensionRunner: ExtensionRunnerLike;
   readonly promptTemplates: readonly PromptTemplateLike[];
   readonly resourceLoader: ResourceLoaderLike;
@@ -155,8 +170,8 @@ export interface AgentSessionLike {
   getLastAssistantText(): string | undefined;
   setAutoCompactionEnabled(enabled: boolean): void;
   setAutoRetryEnabled(enabled: boolean): void;
-  steer(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void>;
-  followUp(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void>;
+  steer(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<QueuedInputDispositionLike>;
+  followUp(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<QueuedInputDispositionLike>;
   readonly pendingMessageCount: number;
   getSteeringMessages(): readonly string[];
   getFollowUpMessages(): readonly string[];

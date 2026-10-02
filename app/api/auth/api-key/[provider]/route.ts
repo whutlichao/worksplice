@@ -32,6 +32,9 @@ export async function POST(req: Request, { params }: Params) {
     }
     let keySubmitted = false;
     const credential = await apiKeyAuth.login({
+      // Propagates client disconnect into the login, matching the OAuth route's
+      // AbortController (app/api/auth/login/[provider]/route.ts:56-58).
+      signal: req.signal,
       notify: () => {},
       prompt: async (prompt) => {
         if (prompt.type === "select") {
