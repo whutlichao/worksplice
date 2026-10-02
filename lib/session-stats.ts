@@ -8,8 +8,9 @@ import { normalizeWorkspacePath } from "./domain/raft/index.ts";
  * 按 agent 聚合展示于详情面板；**不落库**（与"session 读写权交 SDK、app 只读"边界一致）。
  *
  * 解析算法与 SDK 的 getSessionStats 一致（assistant message 的 `message.usage`、
- * compaction / branch_summary 条目的 `usage`）；compaction 信息从 `compaction`
- * 条目的 `tokensBefore` 统计。文件以追加方式写入（jsonl），无锁读取安全。
+ * compaction / branch_summary 条目的 `usage`、独立 `usage` 条目的**费用**）；
+ * compaction 信息从 `compaction` 条目的 `tokensBefore` 统计。
+ * 文件以追加方式写入（jsonl），无锁读取安全。
  */
 
 export interface SessionUsageStats {
@@ -35,9 +36,18 @@ export interface AgentUsageSummary {
   totals: SessionUsageStats & { compactionCount: number; compactionTokens: number };
 }
 
-/** usage 字段校验 + 聚合（与 pi jsonl-storage.getSessionStats 同口径）。 */
-function addUsage(acc: SessionUsageStats, usage: unknown): void {
-  if (!usage || typeof usage !== "object") return;
+/**
+ * usage 字段校验：五项齐备才返回。两个累加器共用这一份守卫，避免
+ * addUsage 与 addCostOnly 各写一遍校验逻辑而漂移。
+ */
+function readUsage(usage: unknown): {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  costTotal: number;
+} | null {
+  if (!usage || typeof usage !== "object") return null;
   const u = usage as Record<string, unknown>;
   const cost = u.cost as Record<string, unknown> | undefined;
   if (
@@ -48,12 +58,36 @@ function addUsage(acc: SessionUsageStats, usage: unknown): void {
     !cost ||
     typeof cost.total !== "number"
   ) {
-    return;
+    return null;
   }
+  return {
+    input: u.input,
+    output: u.output,
+    cacheRead: u.cacheRead,
+    cacheWrite: u.cacheWrite,
+    costTotal: cost.total,
+  };
+}
+
+/** usage 字段校验 + 聚合（与 pi jsonl-storage.getSessionStats 同口径）。 */
+function addUsage(acc: SessionUsageStats, usage: unknown): void {
+  const u = readUsage(usage);
+  if (!u) return;
   acc.cachedTokens += u.cacheRead;
   acc.uncachedTokens += u.input + u.cacheWrite;
   acc.totalTokens += u.input + u.output + u.cacheRead + u.cacheWrite;
-  acc.costTotal += cost.total;
+  acc.costTotal += u.costTotal;
+}
+
+/**
+ * 只加费用的 usage 累加器：独立 `usage` 条目（0.99.x 的 `cache_warm`）记的是
+ * 开销，不是上下文 token——`cacheWrite` 会被 addUsage 折进 uncached/total，
+ * 所以这类条目一律不碰三个 token 桶，只累加 costTotal。
+ */
+function addCostOnly(acc: SessionUsageStats, usage: unknown): void {
+  const u = readUsage(usage);
+  if (!u) return;
+  acc.costTotal += u.costTotal;
 }
 
 interface JsonlEntry {
@@ -100,6 +134,8 @@ export function parseSessionFileStats(filePath: string): SessionFileStats | null
         compactionCount += 1;
         if (typeof entry.tokensBefore === "number") compactionTokens += entry.tokensBefore;
       }
+    } else if (entry.type === "usage") {
+      addCostOnly(acc, entry.usage);
     }
   }
 
