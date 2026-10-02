@@ -472,7 +472,7 @@ export interface ModelMutationOptions {
 - `lib/session-reader.ts:304-356` 是穷举 `switch`；**本报告写作时**末尾 `:347-348` 的 **`default: return null`** ⇒ 两条新条目类型**被静默丢弃**。**【已落地（PR #58）】** 今天 `:349 case "context_edit"` / `:352 case "usage"` 各带注释后 `return null`，`:354 default:` / `:355 return null` 兜底 ⇒ **不再是静默丢弃**。
 - `lib/session-reader.ts:212-218` 用双向 cast 把本地条目转成 SDK 条目传给
   `buildSessionContext`，**这层 cast 正是类型断裂被掩盖的地方**。
-- `lib/session-stats.ts:131-139` 的成本聚合（本报告写作时是 `:92-103`）只认 `entry.type === "message"` 与 `"compaction" | "branch_summary"`，**`"usage"` 条目完全不计入**。**【已落地（PR #57）】** `:137-139` 已补 `"usage"` → `addCostOnly`，只加费用、不碰三个 token 桶。
+- **本报告写作时**（`lib/session-stats.ts:92-103`）的成本聚合只认 `entry.type === "message"` 与 `"compaction" | "branch_summary"`，**`"usage"` 条目完全不计入**。**【已落地（PR #57）】** 今天 `:131-139` 已补 `"usage"` → `addCostOnly`，只加费用、不碰三个 token 桶。
 - `lib/agent-loop/loop.ts:1529` `if (entry?.type !== "message" || !entry.message) continue;`
   —— backfill 只认 message 条目，新条目不影响补拉正确性（这点是好的）。
 - `lib/agent-loop/loop.ts:1401` `entry?.type === "session"` —— 读 header 取 cwd，不受影响。
