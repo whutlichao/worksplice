@@ -35,13 +35,15 @@ worksplice is deeply dependent on pi. It reads pi's session files, drives pi's a
 
 worksplice is not published to npm yet, so run it from a source checkout.
 
-Requirements: Node.js 22.19.0 or newer, check with `node --version`, and git.
+Requirements: Node.js 22.19.0 or newer, check with `node --version`; Bun 1.3.14 or newer, check with `bun --version`; and git.
 
 ```bash
 git clone https://github.com/whutlichao/worksplice.git
 cd worksplice
-npm install
+bun install
 ```
+
+This repository tracks `bun.lock`, so `bun install` is the reproducible path. `npm install` also works, but it ignores `bun.lock` and does not guarantee a reproducible dependency tree.
 
 Development mode, always on port 30142:
 
@@ -174,7 +176,7 @@ Separately, worksplice runs on [pi](https://github.com/earendil-works/pi) as its
 ## Development
 
 ```bash
-npm install
+bun install
 npm run dev
 ```
 
