@@ -344,6 +344,13 @@ function entryToUiMessage(
         details: entry.details,
         timestamp: parseEntryTimestamp(entry.timestamp),
       };
+    // Bookkeeping for how pi trims/replaces model context, not something either party
+    // said. Deliberately not rendered: the transcript stays a record of the conversation.
+    case "context_edit":
+      return null;
+    // Pure billing accounting; the cost dashboard reads it from session-stats, not here.
+    case "usage":
+      return null;
     default:
       return null;
   }
