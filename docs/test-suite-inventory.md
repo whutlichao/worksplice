@@ -5,6 +5,24 @@
 > 运行环境：macOS（darwin）、Node **v25.0.0**、bun 1.3.14、commit `3bd7a03`、本票 worktree 独立 `bun install`。
 > **本票不含任何门禁改动，未修复任何失败测试，未改动任何既有文件。**
 
+> ### ⚠ 状态更新（PR #50 / #51 落地后）—— 数字是审计时点的历史实测，请勿按现状读
+>
+> 本文是 base `3619411`（PR #49）的**审计交付物**，测量发生在其工作副本 commit `3bd7a03`。
+> **§1 的 A 组 / B 组两行、§3.1–§3.3 的表格与实测输出、§7 证据索引里的数字，全部保持审计时点原样 —— 它们不是错误，是审计的发现与证据。**
+> 尤其是 B 组的 `849 pass / 3 fail`：**它正是「存在 3 条过期断言」这一结论的证据本身**，改成 852/852/0 就是销毁证据。
+>
+> 此后仓库状态的变化：
+>
+> - **PR #50**：门禁已接全量（118 个测试文件），4 处过期源码断言已修 → **当前 `npm test` = 852 tests / 852 pass / 0 fail / 0 cancelled**。
+> - **PR #51**：门禁脚本的 glob 从单引号换成双引号（`cmd.exe` 不做单引号展开，双引号才有移植性）—— 与本文 §2.1 记录的审计时点门禁形态不同。
+>
+> 本次口径对齐只做了两件事，**没有触碰任何测量数字**：
+>
+> 1. 正文里**逐字记录门禁调用**的位置（§3.1、§3.3、§6.1 建议命令、§7 证据 #10）已同步为**双引号**形式，与 `package.json` 现状一致。macOS/zsh 下单双引号对 glob 展开行为等价，故这些位置的实测输出不受影响。
+> 2. §6.1 中 `node --test 'lib/**/file-dirent.test.mjs'` / `'lib/{ansi,node-version,file-dirent}.test.mjs'` 的**单引号写法按原样保留** —— 那一节正是在演示「单引号 vs 不加引号」的差异，属于对照实验内容。
+>
+> §2.1 起的「现状」描述记录的是审计时点的门禁形态；**要了解今天的门禁，直接读 `package.json` 的 `scripts.test`**。
+
 ## 1. TL;DR
 
 | 数字 | 值 |
@@ -115,7 +133,7 @@ $ comm -13 gate-47.txt all-118.txt | cut -d/ -f1 | sort | uniq -c | sort -rn
 | 组 | 命令 | 文件 | tests | pass | fail | cancelled | skipped | todo | 墙钟 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **A（对照组 = 现有门禁）** | `npm test` | 47 | **471** | **471** | **0** | 0 | 0 | 0 | 5.9 s |
-| **B（全量）** | `node --test --test-timeout=60000 'lib/**/*.test.mjs' 'app/**/*.test.mjs' 'components/**/*.test.mjs' 'hooks/**/*.test.mjs'` | **118** | **852** | **849** | **3** | **0** | 0 | 0 | 10.2 s |
+| **B（全量）** | `node --test --test-timeout=60000 "lib/**/*.test.mjs" "app/**/*.test.mjs" "components/**/*.test.mjs" "hooks/**/*.test.mjs"` | **118** | **852** | **849** | **3** | **0** | 0 | 0 | 10.2 s |
 | **B − A** | — | **+71** | **+381** | +378 | **+3** | 0 | 0 | 0 | +4.3 s |
 
 **⇒ 此前完全不可见的测试数量 = 852 − 471 = 381 条**（占全量 44.7%），分布在 71 个从未被执行的文件里。
@@ -181,8 +199,8 @@ unseen: files=71 tests=381 pass=378 fail=3 cancelled=0
 - **零 flake**。同一命令连跑 3 次，tests/pass/fail 完全一致，且**失败的是同样的 3 条**：
 
 ```console
-$ for n in 1 2 3; do node --test --test-timeout=60000 'lib/**/*.test.mjs' 'app/**/*.test.mjs' \
-      'components/**/*.test.mjs' 'hooks/**/*.test.mjs' > rerun$n.log 2>&1; \
+$ for n in 1 2 3; do node --test --test-timeout=60000 "lib/**/*.test.mjs" "app/**/*.test.mjs" \
+      "components/**/*.test.mjs" "hooks/**/*.test.mjs" > rerun$n.log 2>&1; \
     grep -E '^. (tests|pass|fail|cancelled) ' rerun$n.log | tr -d '\n'; echo; done
 ℹ tests 852ℹ pass 849ℹ fail 3ℹ cancelled 0
 ℹ tests 852ℹ pass 849ℹ fail 3ℹ cancelled 0
@@ -432,7 +450,7 @@ real	0m5.934s
 ### 6.1 建议命令（已实测可用；关键在引号）
 
 ```bash
-node --test --test-timeout=60000 'lib/**/*.test.mjs' 'app/**/*.test.mjs' 'components/**/*.test.mjs' 'hooks/**/*.test.mjs'
+node --test --test-timeout=60000 "lib/**/*.test.mjs" "app/**/*.test.mjs" "components/**/*.test.mjs" "hooks/**/*.test.mjs"
 ```
 
 三种写法的实测差异 —— **这是最容易踩的坑，值得单列**：
@@ -487,7 +505,7 @@ Error: Cannot find module '/Users/apple/orca/workspaces/worksplice/test-gate-aud
 | 7 | 仓库无 CI（`.github/workflows/` 不存在） | `ls -la .github/workflows/` → `No such file or directory` | §2.4 |
 | 8 | 标准文档称门禁为「全量基线」，且用例数已漂移（343 / 347 / 471） | `grep -n 'npm test' docs/*.md docs/adr/*.md`；读 `docs/engineering-standards.md:25,28,48` | §2.4 |
 | 9 | **A 组 = 471 tests / 471 pass / 0 fail / 0 cancelled，5.9 s** | `npm test` | §3.1 |
-| 10 | **B 组 = 852 tests / 849 pass / 3 fail / 0 cancelled** | `node --test --test-timeout=60000 'lib/**/*.test.mjs' 'app/**/*.test.mjs' 'components/**/*.test.mjs' 'hooks/**/*.test.mjs'` | §3.1 |
+| 10 | **B 组 = 852 tests / 849 pass / 3 fail / 0 cancelled** | `node --test --test-timeout=60000 "lib/**/*.test.mjs" "app/**/*.test.mjs" "components/**/*.test.mjs" "hooks/**/*.test.mjs"` | §3.1 |
 | 11 | **此前不可见测试 = 381 条**（852−471），在 71 个文件里 | B 组汇总减 A 组汇总；并由逐文件 TSV 分组求和独立复核（`unseen: files=71 tests=381`） | §3.1、§3.2 |
 | 12 | 118 个文件全部执行、无加载失败；逐文件求和与聚合跑逐项吻合 | 118 次单文件 `node --test` → TSV → `awk` 求和 → `files=118 tests=852 pass=849 fail=3 cancelled=0` | §3.2 |
 | 13 | 门禁内 47 文件逐文件求和 = 471 tests，与 `npm test` 吻合（双路印证） | `join gate-47 perfile.tsv \| awk 求和` → `A: files=47 tests=471 pass=471 fail=0` | §3.2 |

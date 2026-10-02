@@ -22,12 +22,12 @@
 
 - **node:test + node:assert/strict**，零测试框架依赖。跑法：
   ```bash
-  npm test              # 全量基线（agent-loop + raft + 组件，343 用例 @ BAI-6）
+  npm test              # 全量基线（lib / app / components / hooks 四个目录全量，852 用例 @ PR #50）
   node --test <files…>  # 单文件/子集
   ```
-  全量基线明细：
+  全量基线明细（= `package.json` 的 `scripts.test`，4 条目录 glob 覆盖全仓 118 个测试文件）：
   ```bash
-  node --test lib/agent-loop/*.test.mjs lib/domain/raft/*.test.mjs components/ChannelView.test.mjs
+  node --test --test-timeout=60000 "lib/**/*.test.mjs" "app/**/*.test.mjs" "components/**/*.test.mjs" "hooks/**/*.test.mjs"
   ```
 - **测试类型**（按此分层，优先写便宜的那层）：
   - **服务层单测**：`lib/domain/raft/*.test.mjs` — 内存 tmp DB（`openDataDb(mkdtemp)`），验证纯逻辑/状态机/权限。
@@ -45,7 +45,7 @@
 
 1. `npm run typecheck`（= `tsc --noEmit`）
 2. `npm run lint`（eslint，0 error）
-3. `npm test`（全量基线）
+3. `npm test`（全量基线）—— 自 PR #50 起门禁真的接了全量（118 个测试文件），此前这条名义上叫「全量」但实际只覆盖 55.3%。**门禁里看到全量，就真的是全量：新增测试文件被 `**` glob 自动纳入，不需要手动改 `scripts.test`。**
 
 **绝不**在开发期跑 `next build`（污染 `.next/` 且破坏 `npm run dev`）。发布构建走 `npm run release` 流程。
 
