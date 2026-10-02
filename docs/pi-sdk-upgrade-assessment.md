@@ -29,9 +29,9 @@
    `lib/rpc/session.ts:430`、`:483` 会静默丢掉用户在 UI 里换模型/换思考级别的持久化副作用。
 3. **session jsonl 新增 `context_edit` / `usage` 两类条目**（0.87.0 起）。
    `lib/session-reader.ts:304` 的 `switch` 带 `default: return null`，
-   新条目被**静默丢弃**；`lib/session-stats.ts:92` 的成本口径会**漏算**。
+   新条目曾被**静默丢弃**、`lib/session-stats.ts` 的成本口径曾**漏算**——两处均已修（PR #58 / PR #57），详见 §4.3。
 4. **6 个新传递依赖**（含 `quickjs-wasi` 这个 WASM 运行时），
-   而 `next.config.ts:31` 的 `serverExternalPackages` 仍只列四个包。
+   而 `next.config.ts:31` 的 `serverExternalPackages` 共 6 项（其中 4 项是 pi 包），**6 个新依赖一个都不在**。
 
 而**不需要担心的**面比想象的大：`lib/pi-types.ts` 手写的 `AgentSessionLike`（39 个成员）
 在 0.99.1 里**一个都没少**；`SessionStats`、`navigateTree`、`SessionManager` /
@@ -287,7 +287,7 @@
 | `app/api/agent/new/route.ts` | 88 | `ThinkingLevel`（:2）；`THINKING_LEVELS` 硬编码 7 个值（:9） |
 | `app/api/models/route.ts` | 114 | `getAgentDir`、`SettingsManager`（:3）；`getSupportedThinkingLevels` from `pi-ai`（:4） |
 | `app/api/models-config/route.ts` | 67 | `getAgentDir`（:4） |
-| `next.config.ts` | 72 | `serverExternalPackages` 列 4 个包（:31-38）；构建期读 `node_modules/.../package.json` 取 `version`（:10-16） |
+| `next.config.ts` | 72 | `serverExternalPackages` 共 6 项、其中 4 项是 pi 包（:31-38）；构建期读 `node_modules/.../package.json` 取 `version`（:10-16） |
 
 ### 3.3 被误列为「触碰面」但其实不碰 SDK 的文件
 
@@ -469,12 +469,10 @@ export interface ModelMutationOptions {
     | CompactionEntry | BranchSummaryEntry | CustomEntry | CustomMessageEntry
     | LabelEntry | SessionInfoEntry;
   ```
-- `lib/session-reader.ts:304-349` 是穷举 `switch`，末尾
-  `:347-348` **`default: return null`** ⇒ 两条新条目类型**被静默丢弃**。
+- `lib/session-reader.ts:304-356` 是穷举 `switch`；**本报告写作时**末尾 `:347-348` 的 **`default: return null`** ⇒ 两条新条目类型**被静默丢弃**。**【已落地（PR #58）】** 今天 `:349 case "context_edit"` / `:352 case "usage"` 各带注释后 `return null`，`:354 default:` / `:355 return null` 兜底 ⇒ **不再是静默丢弃**。
 - `lib/session-reader.ts:212-218` 用双向 cast 把本地条目转成 SDK 条目传给
   `buildSessionContext`，**这层 cast 正是类型断裂被掩盖的地方**。
-- `lib/session-stats.ts:92-103` 的成本聚合只认
-  `entry.type === "message"` 与 `"compaction" | "branch_summary"`，**`"usage"` 条目完全不计入**。
+- **本报告写作时**（`lib/session-stats.ts:92-103`）的成本聚合只认 `entry.type === "message"` 与 `"compaction" | "branch_summary"`，**`"usage"` 条目完全不计入**。**【已落地（PR #57）】** 今天 `:131-139` 已补 `"usage"` → `addCostOnly`，只加费用、不碰三个 token 桶。
 - `lib/agent-loop/loop.ts:1529` `if (entry?.type !== "message" || !entry.message) continue;`
   —— backfill 只认 message 条目，新条目不影响补拉正确性（这点是好的）。
 - `lib/agent-loop/loop.ts:1401` `entry?.type === "session"` —— 读 header 取 cwd，不受影响。
@@ -486,7 +484,7 @@ export interface ModelMutationOptions {
 `case "usage"`，两个 case 都**显式不渲染**（各自 `return null`）——`context_edit` 记的是
 pi 如何裁剪/替换模型上下文，不是任何一方说的话；`usage` 是纯计费记账。渲染进 transcript
 只会让会话记录混进非对话事件（人类裁定；PR #58 已按「显式不呈现」落地）。
-`session-stats.ts:92` 的分支改用 `addCostOnly` 把 `"usage"` 条目的 `usage` **只加费用**、
+`session-stats.ts:137-139`（写作时 `:92`）的分支改用 `addCostOnly` 把 `"usage"` 条目的 `usage` **只加费用**、
 **不碰 uncached / cacheRead / total 三个 token 桶**（复用 `addUsage` 会把 `cacheWrite`
 折进 uncached 与 total，虚报上下文 token 用量）。
 **不需要任何去重逻辑**：PR #48 实测全 SDK 只有 `dist/core/cache-warmer.js:249` 一处调
@@ -586,7 +584,7 @@ MIT，`unpackedSize` 122964 字节 / 26 文件，无任何依赖。
 
 **消费侧证据**：
 
-- `next.config.ts:31-38` `serverExternalPackages` **只列 4 个包**：
+- `next.config.ts:31-38` `serverExternalPackages` **共 6 项，其中 4 项是 pi 包**：
   ```ts
   serverExternalPackages: [
     "undici", "better-sqlite3",
@@ -826,7 +824,7 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 | spec 位置 | 条目 | 与升级的关系 |
 |---|---|---|
 | **§7.3「保留不动的 pi SDK 接口面」[锁定] 06** | 「`@earendil-works/pi-*` 依赖（agent-core / ai / coding-agent / tui）」 | **不冲突**。四个包名不变，`engines.node >= 22.19.0` 不变，`repository.url` 不变，`pi-ai` 的 `./compat` 子路径不变。**升级本身不动这一条。** |
-| **§5.3「pi 升级改变 session 格式不影响 raft 数据」[锁定] 05** | 「raft 消息表是房间事实唯一来源；pi session 只承载认知过程」 | **这条被 B-3 直接命中，且结论是「前半句成立、后半句有裂缝」。** raft 侧确实不受影响（`lib/domain/raft/` 全域不 import SDK）。但「pi session 只承载认知过程」这个分工，在 `context_edit` / `usage` 出现后需要重述：session 文件现在**也承载上下文编辑语义**（`ContextEditEntry.targetId` + `replacement`），而 worksplice 的 `lib/session-reader.ts:347` 会把它丢掉。⇒ **需要在升级票里补一条 `lib/session-reader.ts` 的 `case`，否则 spec §5.3 的锁定意图在实现层被违反**（数据没丢进 raft，但也没被读出来） |
+| **§5.3「pi 升级改变 session 格式不影响 raft 数据」[锁定] 05** | 「raft 消息表是房间事实唯一来源；pi session 只承载认知过程」 | **这条被 B-3 直接命中，且结论是「前半句成立、后半句有裂缝」。** raft 侧确实不受影响（`lib/domain/raft/` 全域不 import SDK）。但「pi session 只承载认知过程」这个分工，在 `context_edit` / `usage` 出现后需要重述：session 文件现在**也承载上下文编辑语义**（`ContextEditEntry.targetId` + `replacement`），而 worksplice 的穷举 `switch` 会把它丢掉。⇒ **需要在升级票里补一条 `lib/session-reader.ts` 的 `case`，否则 spec §5.3 的锁定意图在实现层被违反**（数据没丢进 raft，但也没被读出来）。**【已落地（PR #58）】** 该 `case` 已补（`:349`），此缺口已闭合 |
 | **§5.2「pi 多实例与 AgentSession 生命周期」[锁定] 01** | 「恢复：`SessionManager.open(file)` 按需重建」；「同一 cwd 同时仅一个活跃会话（沿用 `hasBusyRpcSessionForCwd` 显式拒绝）」；「`PI_CODING_AGENT_DIR` 整体隔离为后续增强（进程级单例限制，同进程混用多份 agent 目录需 SDK 参数覆盖，首版不做）」 | **前两条不冲突**（`SessionManager.open/create` 签名未变）。第三条的「进程级单例限制」前提**未变但也未验证**——`getAgentDir()` 无参签名两版不变，但 `SettingsManager.create(cwd, agentDir, options)` 的 `SettingsManagerCreateOptions` 在 0.99.2 变大了（`dist/core/settings-manager.d.ts` 296 → 376 行），里面是否新增了与 agentDir 隔离相关的项，本票未逐字段核对。**标为「未经一手核实」**，留给 spike |
 | **§7.3「`PI_*` 环境变量」[锁定] 06** | 「`PI_CODING_AGENT_DIR`、`PI_CODING_AGENT_SESSION_DIR` 等」 | **未冲突但未核实。** 本票没有核对 0.99.x 是否增删了 `PI_*` 变量。**标为「未经一手核实」** |
 | **§5.8「pi-web 改造策略」[锁定] 04** | 「整体保留复用（lib/API）：lib/rpc、session-reader、…、skills-service、project-trust」 | **不冲突**。这批文件都在第 3 节的盘点里，结论是「类型层全绿 + 3 条运行时洞」 |
@@ -854,21 +852,13 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 **分 4 步。核心判断：绝大部分改动集中在少数几个 call site，且真正的风险集中在
 「装包后第一次跑起来」那个瞬间，而不是 diff 的行数。**
 
-### 第 0 步（前置，非改动）：立一个 spike 票
+### 第 0 步（前置，非改动）：核对三条已被实测回答的结论
 
-**本报告明确回答不了三个问题，因为它们只能靠实际装包 + 实跑来回答：**
+**本报告写作时列为「只能靠实际装包 + 实跑来回答」的三个问题，此后都已由 spike 票实跑回答；升级票开工前核对这三条，不要再当未解清单：**
 
-1. **B-4 的打包面**：6 个新传递依赖（尤其 `quickjs-wasi` 这个 WASM）是否需要进
-   `next.config.ts:31-38` 的 `serverExternalPackages`？
-2. **B-1 的正确修法**：空 systemPrompt 应该改成「追加一条空 system message」
-   （上游给的新通道）还是「不再覆盖」？两者行为不同，只能实跑比对。
-3. **B-3 的去重口径**：`UsageEntry.usage` 与 `message.usage` 是否会双算？
-   `kind: "cache_warm"` 这类条目该不该进面向用户的成本看板？
-
-**这三个问题使得「不实际装一次就答不出来」这句话在本票成立。**
-但按 spec 要求，本票**不扩成 spike**——第 4 节已把能答的都答完了。
-**后续票**：spike 票只需做「装 0.99.2 + 跑 `npm test` + 跑三个场景」，
-不产出生产代码。
+1. **B-5 的打包面**（PR #48，`docs/pi-sdk-upgrade-spike.md`）：**一个都不用加**——6 个新传递依赖全在已 external 的 `@earendil-works/pi-coding-agent` 之下、webpack 不遍历它；`quickjs-wasi` import 期零求值、`.wasm` 加载数 0、构建新增警告 0。
+2. **B-1 的正确修法**（PR #52，`docs/spike-systemprompt-fix.md`）：§4.1 建议的「追加一条空 system message」是该文的原话「**no-op**，两版都无效」；其 §1.3 裁决表的原话是「**唯一有效**」——即 extension 的 `before_agent_start` → `{ systemPrompt: "" }`（线上字符数 0）。
+3. **B-3 的去重口径**（PR #48 实测 + PR #57 落地）：`UsageEntry.usage` 与 `message.usage` 构造上**不相交**，**不需要去重逻辑**（额外去重只会引入缺陷）；`usage` 条目按 cost-only 计入。
 
 ### 第 1 步：四包同改的 pin（**原子，不可拆**）
 
@@ -920,12 +910,12 @@ UI 换模型/换思考级别后重启仍保持。
 
 - `lib/types.ts:265-274` 补 `ContextEditEntry` / `UsageEntry` 两个成员 —— **已完成**（PR #58）：
   两成员已进 `SessionEntry` 联合；`UsageEntry.usage` 刻意留 `unknown`（只为镜像对齐上游联合，本侧不消费）；
-- `lib/session-reader.ts:304-349` 的 `switch` 补两个 `case` —— **已完成**（PR #58）：
+- `lib/session-reader.ts:304` 的 `switch` 补两个 `case`（今天 `:304-356`）—— **已完成**（PR #58）：
   已**显式 case 化**，`context_edit` / `usage` 两个 case 各自 `return null`，
   并在注释里写明**不呈现的理由**（前者是 pi 裁剪 / 替换模型上下文的记账，不是任何一方说的话；
   后者是纯计费记账，成本看板从 `session-stats` 读，不从这里读）
   ⇒ **不再是 `default: return null` 的静默丢弃**；
-- `lib/session-stats.ts:92-103` 补 `"usage"` 分支 —— **已完成**（PR #57）：
+- `lib/session-stats.ts` 补 `"usage"` 分支（今天 `:137-139`）—— **已完成**（PR #57）：
   已用 `addCostOnly` 把 `"usage"` 条目的 `usage` **只加进 `costTotal`**、
   **不碰 uncached / cacheRead / total 三个 token 桶**（复用 `addUsage` 会把 `cacheWrite` 折进
   uncached 与 total，虚报上下文 token 用量），
@@ -1018,10 +1008,10 @@ UI 换模型/换思考级别后重启仍保持。
 | B-1 被镜像掩盖的原因 | `lib/pi-types.ts:131`（`systemPrompt?: string` 可变可选）+ `lib/rpc/session.ts:162`（`inner: AgentSessionLike`）；唯一对撞点 `lib/rpc/caller.ts:149` |
 | B-2 两个未传 `persist` 的 call site | `lib/rpc/session.ts:430`、`:483` |
 | B-2 启动路径显式持久化（不受影响） | `lib/startup-preferences.ts:50`、`:53`；per-agent 覆盖 `lib/agent-runtime.ts:279` → `lib/rpc/caller.ts:115`/`:121` |
-| B-3 静默丢弃点 | `lib/session-reader.ts:304-349`（`:347-348` `default: return null`）；本地联合缺成员 `lib/types.ts:265-274`；cast 掩盖点 `lib/session-reader.ts:212-218` |
-| B-3 成本漏算点 | `lib/session-stats.ts:92-103` |
+| B-3 静默丢弃点 | `lib/session-reader.ts:304-356`（写作时 `:347-348` `default: return null`；**PR #58 已显式 case 化**：`:349` `context_edit` / `:352` `usage` 各 `return null`，`:354` `default:` / `:355` `return null`）；本地联合缺成员 `lib/types.ts:265-274`；cast 掩盖点 `lib/session-reader.ts:212-218` |
+| B-3 成本漏算点 | `lib/session-stats.ts:131-139`（写作时 `:92-103`；**PR #57 已修**：`:137-139` 的 `"usage"` → `addCostOnly`） |
 | B-3 backfill 不受影响 | `lib/agent-loop/loop.ts:1529`（只认 `message`）、`:1401`（只认 `session` header） |
-| B-4 `serverExternalPackages` 未含新依赖 | `next.config.ts:31-38` |
+| B-5 `serverExternalPackages` 未含新依赖 | `next.config.ts:31-38` |
 | `next.config.ts` 读包根 `package.json`（不受 dist 重组影响） | `next.config.ts:10-16` |
 | B-6 `initTheme()` 调用点 | `lib/rpc/caller.ts:71`（无参） |
 | B-6 `PlainTextTheme` 类型安全（`ConstructorParameters` cast） | `lib/rpc/session.ts:99-121`（`:102-104`） |
@@ -1035,7 +1025,7 @@ UI 换模型/换思考级别后重启仍保持。
 | `tool-presets.ts` 仍硬编码工具名 | `lib/tool-presets.ts:10-12`；重复副本 `lib/rpc/session.ts:96` |
 | `updateSkill()` 仍不存在 ⇒ frontmatter 手术必须保留 | 0.99.2 `dist/` 全量搜索无 `updateSkill`；消费侧 `app/api/skills/route.ts:56-58` |
 | spec 锁定条目 | `docs/spec.md:462-466`（§7.3）、`:309-310`（§5.2）、`:320`（§5.3 的「pi 升级改变 session 格式不影响 raft 数据」）、`:363-377`（§5.8） |
-| spec §5.3 锁定条目与 B-3 的关系 | `docs/spec.md:320` vs `lib/session-reader.ts:347-348` |
+| spec §5.3 锁定条目与 B-3 的关系 | `docs/spec.md:320` vs `lib/session-reader.ts:304-356`（写作时 `:347-348`） |
 | ADR-0010 与 metadata 一致 | `docs/adr/0010-readme-source-attribution-exception.md`；`README.md:5`、`:160-166`；`README.zh-CN.md:160-166` |
 | 上游地址与 README 一致 | `README.md:5` / `README.md:166` 的 `https://github.com/earendil-works/pi` == 2.3 节的三版 metadata |
 | ADR-0006 决策未被升级触动 | `docs/adr/0006-backward-compat-and-migration-strategy.md`（单向前兼容 / 单事务幂等 / 会话文件门禁留在 worksplice 侧）——第 5.2 节的 B-3 修法正是「门禁留在 worksplice 侧」这条决策的延续 |
@@ -1050,7 +1040,7 @@ UI 换模型/换思考级别后重启仍保持。
 |---|---|
 | 0.88–0.98 断层的原因 | `time` map 与 `CHANGELOG.md` 均无任何说明。**上游未说明断层原因**，本报告不推测 |
 | `0.99.2` 的运行时是否有回归 | 未装包、未实跑。其 `.d.ts` 差异已核实全在 MCP/codemode 域，但运行时行为未验证 |
-| B-4 的打包面结论 | 取决于新依赖是否被 SDK 顶层静态 import，静态检查答不了 |
+| B-5 的打包面结论 | 取决于新依赖是否被 SDK 顶层静态 import，静态检查答不了 —— **PR #48 已实跑回答，见 §6 第 0 步第 1 条** |
 | B-6 在无 TTY 环境的实际行为 | `initTheme()` 的 `system` 主题 fallback 取值需实跑 |
 | `PI_*` 环境变量在 0.99.x 是否增删 | 本票未核对上游的环境变量清单 |
 | `SettingsManagerCreateOptions` 的字段级变化 | `dist/core/settings-manager.d.ts` 从 296 行涨到 376 行，但未逐字段核对是否含 agentDir 隔离相关项 |
