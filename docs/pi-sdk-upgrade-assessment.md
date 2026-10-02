@@ -366,11 +366,15 @@ coordinator 给的清单里有 4 个文件**根本不 import SDK**，核实后�
 **层级判定**：**类型层破了（SDK 侧 readonly）+ 运行时真的变了（抛异常）**。
 这是本报告里唯一一处「类型层与运行时同时破、且被本仓抽象掩盖」的变更。
 
-**修法**（本票不实施）：删掉 `applyForcedEmptySystemPrompt` 的赋值，改为在
+**修法**（**本报告写作时**列为「本票不实施」）：删掉 `applyForcedEmptySystemPrompt` 的赋值，改为在
 `session.sessionManager` 上追加一条空 system message（上游给的新通道），
 或直接不再覆盖 system prompt —— 上游现在把 `systemPrompt` 从 transcript 的 system
 messages 回放，空 tools 的场景本就没有 system prompt 可清。
 **这一步必须实跑验证**（见第 6 节 spike）。
+**【已落地（PR #64）】** 实跑否掉了上面那条建议：「在 `session.sessionManager` 上追加一条空
+system message」是 **no-op**（PR #52，`docs/spike-systemprompt-fix.md` §1.3 裁决表原话），
+**唯一有效的是候选 C** —— 强制清零搬到 extension 的 `before_agent_start` 返回
+`{ systemPrompt: "" }`，落在 `lib/rpc/forced-empty-system-prompt.ts`。
 
 ---
 
@@ -416,6 +420,10 @@ export interface ModelMutationOptions {
 `session.ts:483` 改 `setThinkingLevel(level, { persist: true })`。
 **但先要决定这个副作用是否还要**——worksplice 已经有 `lib/startup-preferences.ts`
 在做显式持久化，两条路都在写全局默认，可能本来就有重复写的问题。属产品决策，不是纯技术改动。
+**【已落地（PR #57）】** 那个产品决策已做出，结论是**显式写 `SettingsManager`、不用
+`{ persist: true }`**：今天 `lib/rpc/session.ts:541` / `:605` 分别是
+`setDefaultModelAndProvider` 与 `setDefaultThinkingLevel`，各自紧跟 `flush()`。
+不用 opt-in 的两个实测理由见 §6 第 3 步。
 
 ---
 
@@ -537,7 +545,43 @@ pi 如何裁剪/替换模型上下文，不是任何一方说的话；`usage` �
 **修法**：本条**没有代码可改**——它需要的是**行为验证**。
 必须实跑：连续两轮 prompt、带 auto-retry 的 prompt、带 compaction 的 prompt，
 观察 `waitForSettle` 的解除时机与状态点是否漂移。这是第 6 节 spike 的核心用例。
-**本报告不给这一条编一个补丁。**
+**本报告写作时**此处写的是「**本报告不给这一条编一个补丁**」。
+**【已落地（PR #64，验收项 A6）】** 三个场景都已实跑（`tsc` 与 `npm test` 对本条**双重失明**，只能实跑；
+下列是真实事件流，末列 = 投递时刻的 `wrapper.isRunning()`）。
+
+场景 1 · 连续两轮 prompt —— 就是 0.87.0 的签名：settled 处理器在自己的通知轮内不再看到
+重入的 `agent_start`，它落在 `prompt_done` **之后**。
+```
+  60 | agent_end      | true
+  61 | agent_settled  | true      <- settles with the next run already queued
+  61 | prompt_done    | false
+ 105 | agent_start    | true      <- re-entrant agent_start arrives AFTER agent_settled
+```
+
+场景 2 · 带 auto-retry 的 prompt（注入一次 provider 500）—— **最值得单独强调的一条**：
+auto-retry 是**轮内行为**，它的 `agent_start` 留在同一逻辑轮内、在 `agent_settled` **之前**。
+这正是按「deferred dispatch」字面读法会**预测反**的那一种：重试 ≠ 从 settled 处理器发起的 run。
+```
+   5 | agent_end         | true
+   6 | auto_retry_start  | true
+2010 | agent_start       | true   <- the retry's agent_start stays INSIDE the logical turn
+2024 | auto_retry_end    | true
+2025 | agent_end         | true
+2025 | agent_settled     | true
+2025 | prompt_done       | false
+```
+
+场景 3 · 同轮还发生 compaction —— `agent_settled` 跟在 `compaction_end` 之后，
+状态点 `online → working → online → online`，无漂移。
+```
+   4 | agent_end         | true
+   4 | compaction_start  | true
+   7 | compaction_end    | true
+   7 | agent_settled     | true
+   7 | prompt_done       | false
+```
+**复现场景 3 的坑**：须把 `compaction` 的 `reserveTokens` / `keepRecentTokens` 调到 `1`，
+否则 SDK early-exit 报 `Nothing to compact (session too small)`，看起来像这条验不了。
 
 ---
 
@@ -607,7 +651,9 @@ MIT，`unpackedSize` 122964 字节 / 26 文件，无任何依赖。
 
 **修法**：先装包跑一次 `npm run build`（不是 `next build` 在 dev 期间，而是 CI 场景），
 看 6 个新依赖哪些需要进 `serverExternalPackages`。**这是一个纯 spike 问题**，
-本报告不猜答案。
+**本报告写作时**此处写的是「本报告不猜答案」。
+**【已落地（PR #48）】** 今天已答：**6 个新依赖一个都不用加**（`docs/pi-sdk-upgrade-spike.md`），
+并经 PR #64 的 `npm run build` exit 0、`next.config.ts` 零 diff 复核。
 
 ---
 
@@ -644,13 +690,24 @@ MIT，`unpackedSize` 122964 字节 / 26 文件，无任何依赖。
 **消费侧证据**：
 
 - `lib/rpc/caller.ts:71` **`initTheme();`** —— 无参数，在 `startRpcSession()` 里同步调用。
-- `lib/rpc/session.ts:98-121` `class PlainTextTheme extends Theme`，`:104` 传位置参数
-  `"truecolor"`，`:102-103` 用 `ConstructorParameters<typeof Theme>[0] / [1]` 做 cast。
+- `lib/rpc/session.ts` 写作时 `:98-121`（今天 `:175-208`）`class PlainTextTheme extends Theme`，
+  `:104` 传位置参数 `"truecolor"`，`:102-103` 用 `ConstructorParameters<typeof Theme>[0] / [1]` 做 cast。
   → **类型层安全**：`TerminalColorMode` 值域含 `"truecolor"`，且那两个 `ConstructorParameters`
   cast 会自动跟随新签名。**`tsc` 不会报。**
-- `lib/rpc/session.ts:813` `factory(tui, PLAIN_TEXT_THEME, CUSTOM_UI_KEYBINDINGS, done)`
+  > **⚠️ 本报告写作时**这两句只有前半句成立，且**严重低估**了后半句 —— `tsc` 的沉默恰恰是
+  > 这条最危险的地方。**类型层那半句确实对**，但**运行时那半句是错的**：
+  > ① **0.99.2 上 `PlainTextTheme` 在模块 import 期就崩** —— `Error: Invalid color value: undefined`
+  > （`Theme` 构造函数从缺失的键合成新键，而合成源自己也是 `undefined`）；因为
+  > `PLAIN_TEXT_THEME` 是模块顶层常量，`lib/rpc/index.ts` 与 `lib/rpc/caller.ts` **都加载不了**。
+  > ② **光把 `super()` 补完整不够**：0.99.2 新增的 `style()` 会把**真 ANSI 转义**漏进 extension
+  > 拿到的那个对象（实测 `style("X", {fg:"accent"})` 返回 `"\x1b[38;2;167;152;215mX\x1b[39m"`），
+  > `colors` 还会用终端猜的默认值把 token 填满。**必须连 `style` / `colors` / `appearance`
+  > 一起覆盖**；且 51 个 required token **值的空无所谓（`""` 即可），键的完整性是硬要求**
+  > （`theme-schema.json` 的 `required` 实测正好 51 项 = 45 前景 + 6 背景）。
+  > 全部结论见 PR #55（`docs/spike-theme-crash.md` §1.2 / §1.3 候选裁决表），修法落在 PR #64。
+- `lib/rpc/session.ts` 写作时 `:813`（今天 `:932`）`factory(tui, PLAIN_TEXT_THEME, CUSTOM_UI_KEYBINDINGS, done)`
   —— extensions 拿到的始终是 worksplice 自己的 `PlainTextTheme`，**不受默认主题变更影响**。
-- `lib/rpc/session.ts:124` `new TuiKeybindingsManager(TUI_KEYBINDINGS)` ——
+- `lib/rpc/session.ts` 写作时 `:124`（今天 `:211`）`new TuiKeybindingsManager(TUI_KEYBINDINGS)` ——
   两个符号在 0.99.1 的 `dist/index.d.ts:22` 与 `dist/keybindings.d.ts:62/256` **仍在**
   （keybindings.d.ts 从 176 行涨到 256 行，导出名未变）。
 
@@ -658,11 +715,19 @@ MIT，`unpackedSize` 122964 字节 / 26 文件，无任何依赖。
 `initTheme()` 的默认主题从内置 `dark`/`light` 变成需要终端能力的 `system`。
 在无 TTY 的 Next.js server 进程里这**大概率是无害降级**（拿不到终端色 → 走 fallback），
 但**本票无法证明无害**，因为 fallback 的具体取值需要实跑。
+**【已落地（PR #55 / PR #64）】⚠️ 上面的判定要更正**：类型层那半句成立，但运行时那半句
+**严重低估** —— `PlainTextTheme` 不是「可能无害降级」，而是 **import 期必炸**。
+⇒ 层级判定更正为「**类型层安全 + 运行时必炸（import 期）**」。
 
-**修法**：**不改代码**。在 spike 里比对 `initTheme()` 前后的 `PLAIN_TEXT_THEME` 行为
-与 extensions 渲染结果即可。若 `initTheme()` 在无 TTY 环境变慢或抛错，
-再考虑改传显式主题名（`initTheme(themeName?: string, enableWatcher?: boolean): void`
-签名两版不变，`lib/rpc/caller.ts:71` 只需加一个参数）。
+**修法**：**本报告写作时**此处写的是「**不改代码**」——
+**该结论已失效：必须改，且改的不止一处**（PR #64）。全部落在 `PlainTextTheme` 一个类上：
+补齐 51 个 required token（值全 `""`）、显式传 `appearance`、并覆盖
+`style` / `colors` / `appearance` 三个 0.99.2 新增成员（今天 `lib/rpc/session.ts:175-208`）。
+**`initTheme()` 本身判定为不相关**（PR #55，`docs/spike-theme-crash.md` §1.5，三条独立依据：
+崩溃栈里没有任何一帧是它、它自己被 `try/catch` 兜住、它操作的是 SDK 全局 `theme` 代理
+而崩的是我们 `extends Theme` 出来的另一个对象）⇒ **`lib/rpc/caller.ts` 的 `initTheme()` 调用
+一行都不用改**（今天在 `:72`，写作时 `:71`），
+本节原先那句「若变慢或抛错再考虑改传显式主题名」作废。
 
 ---
 
@@ -825,8 +890,8 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 |---|---|---|
 | **§7.3「保留不动的 pi SDK 接口面」[锁定] 06** | 「`@earendil-works/pi-*` 依赖（agent-core / ai / coding-agent / tui）」 | **不冲突**。四个包名不变，`engines.node >= 22.19.0` 不变，`repository.url` 不变，`pi-ai` 的 `./compat` 子路径不变。**升级本身不动这一条。** |
 | **§5.3「pi 升级改变 session 格式不影响 raft 数据」[锁定] 05** | 「raft 消息表是房间事实唯一来源；pi session 只承载认知过程」 | **这条被 B-3 直接命中，且结论是「前半句成立、后半句有裂缝」。** raft 侧确实不受影响（`lib/domain/raft/` 全域不 import SDK）。但「pi session 只承载认知过程」这个分工，在 `context_edit` / `usage` 出现后需要重述：session 文件现在**也承载上下文编辑语义**（`ContextEditEntry.targetId` + `replacement`），而 worksplice 的穷举 `switch` 会把它丢掉。⇒ **需要在升级票里补一条 `lib/session-reader.ts` 的 `case`，否则 spec §5.3 的锁定意图在实现层被违反**（数据没丢进 raft，但也没被读出来）。**【已落地（PR #58）】** 该 `case` 已补（`:349`），此缺口已闭合 |
-| **§5.2「pi 多实例与 AgentSession 生命周期」[锁定] 01** | 「恢复：`SessionManager.open(file)` 按需重建」；「同一 cwd 同时仅一个活跃会话（沿用 `hasBusyRpcSessionForCwd` 显式拒绝）」；「`PI_CODING_AGENT_DIR` 整体隔离为后续增强（进程级单例限制，同进程混用多份 agent 目录需 SDK 参数覆盖，首版不做）」 | **前两条不冲突**（`SessionManager.open/create` 签名未变）。第三条的「进程级单例限制」前提**未变但也未验证**——`getAgentDir()` 无参签名两版不变，但 `SettingsManager.create(cwd, agentDir, options)` 的 `SettingsManagerCreateOptions` 在 0.99.2 变大了（`dist/core/settings-manager.d.ts` 296 → 376 行），里面是否新增了与 agentDir 隔离相关的项，本票未逐字段核对。**标为「未经一手核实」**，留给 spike |
-| **§7.3「`PI_*` 环境变量」[锁定] 06** | 「`PI_CODING_AGENT_DIR`、`PI_CODING_AGENT_SESSION_DIR` 等」 | **未冲突但未核实。** 本票没有核对 0.99.x 是否增删了 `PI_*` 变量。**标为「未经一手核实」** |
+| **§5.2「pi 多实例与 AgentSession 生命周期」[锁定] 01** | 「恢复：`SessionManager.open(file)` 按需重建」；「同一 cwd 同时仅一个活跃会话（沿用 `hasBusyRpcSessionForCwd` 显式拒绝）」；「`PI_CODING_AGENT_DIR` 整体隔离为后续增强（进程级单例限制，同进程混用多份 agent 目录需 SDK 参数覆盖，首版不做）」 | **前两条不冲突**（`SessionManager.open/create` 签名未变）。第三条的「进程级单例限制」前提**本报告写作时**标为「未经一手核实」，**现已核实仍成立**：`SettingsManagerCreateOptions` 在 0.99.2 仍**只有一个字段** `projectTrusted?: boolean`（`dist/core/settings-manager.d.ts:152-154`；0.83.0 同接口在 `:109-111`，逐字相同 —— 文件 296 → 376 行是**别处**的增长），**没有新增任何与 agentDir 隔离相关的项**；`getAgentDir()` 无参签名两版不变 |
+| **§7.3「`PI_*` 环境变量」[锁定] 06** | 「`PI_CODING_AGENT_DIR`、`PI_CODING_AGENT_SESSION_DIR` 等」 | **已核实：两个点名变量都还在** —— `PI_CODING_AGENT_DIR` / `PI_CODING_AGENT_SESSION_DIR` 由模板串构造（`dist/config.js:435-436`，0.83.0 为 `:397-398`），`getAgentDir()` 仍读 `process.env[ENV_AGENT_DIR]`（`dist/config.js:450-456`）。逐包核对 `process.env.PI_*`：**`pi-coding-agent` 增 8 删 0**（新增 `PI_HYPERLINKS` / `PI_IMAGE_PROTOCOL` / `PI_INSTALLER_API_BASE` / `PI_MANAGED_INSTALL_ROOT` / `PI_TRUE_COLOR` / `PI_TUI_DEBUG` / `PI_TUI_DEBUG_REDRAW` / `PI_TUI_WRITE_LOG`），**`pi-ai` 两版各 2 个、零增删**（`PI_CACHE_RETENTION` / `PI_OAUTH_CALLBACK_HOST`，经 `getProviderEnvValue()` 读 —— 只 grep `process.env.PI_` 会漏掉这一层间接），**`pi-agent-core` 两版都零个**。**唯一有删减的是 `pi-tui`：删 4 增 5**（删 `PI_CLEAR_ON_SHRINK` / `PI_CODING_AGENT_DIR` / `PI_DEBUG_REDRAW` / `PI_HARDWARE_CURSOR`）；其中 0.83.0 的 `PI_CODING_AGENT_DIR` 只用于 `this.logDirectory`（`dist/tui.js:144`），0.99.2 不再读，本仓无影响 |
 | **§5.8「pi-web 改造策略」[锁定] 04** | 「整体保留复用（lib/API）：lib/rpc、session-reader、…、skills-service、project-trust」 | **不冲突**。这批文件都在第 3 节的盘点里，结论是「类型层全绿 + 3 条运行时洞」 |
 | **§7.2 品牌脱钩清单 [锁定] 06** + ADR-0010 | 「`README.md` 的致谢小节」 | **不冲突，且被 2.3 加强。** metadata 的 `repository.url` 三版不变 = `https://github.com/earendil-works/pi`，与 `README.md:5` / `README.md:166` 现值一致，**无需因升级而改 README** |
 
@@ -860,7 +925,7 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 2. **B-1 的正确修法**（PR #52，`docs/spike-systemprompt-fix.md`）：§4.1 建议的「追加一条空 system message」是该文的原话「**no-op**，两版都无效」；其 §1.3 裁决表的原话是「**唯一有效**」——即 extension 的 `before_agent_start` → `{ systemPrompt: "" }`（线上字符数 0）。
 3. **B-3 的去重口径**（PR #48 实测 + PR #57 落地）：`UsageEntry.usage` 与 `message.usage` 构造上**不相交**，**不需要去重逻辑**（额外去重只会引入缺陷）；`usage` 条目按 cost-only 计入。
 
-### 第 1 步：四包同改的 pin（**原子，不可拆**）
+### 第 1 步：四包同改的 pin（**原子，不可拆**）—— **已完成**（PR #64）
 
 `package.json:43-46` 四行同时改 `0.83.0` → `0.99.2`，`bun.lock:8-11` 同步更新。
 
@@ -868,10 +933,17 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 `>=0.99.2 <0.100.0`。只改一个包，另外三个还 pin 在 0.83.0 的话，
 `^0.99.2` 根本满足不了，依赖树直接不可解。
 
-**验收**：`bun install` 无 conflict；`node -e "console.log(require('@earendil-works/pi-coding-agent/package.json').version)"` 打印 `0.99.2`；
+**验收**：`bun install` 无 conflict；
+`node -e "console.log(JSON.parse(require('fs').readFileSync('node_modules/@earendil-works/pi-coding-agent/package.json','utf8')).version)"` 打印 `0.99.2`；
 `next.config.ts:10-16` 的 `piVersion` 显示 `0.99.2`。
+**本报告写作时**这条验收用的是 `require('@earendil-works/pi-coding-agent/package.json').version`，
+**它在 0.99.2 上抛 `ERR_PACKAGE_PATH_NOT_EXPORTED`** —— 0.99.2 的 `exports` 映射不再暴露
+`./package.json` 子路径（`pi-ai` 同样不暴露；`pi-agent-core` 仍暴露，`pi-tui` 根本没有 `exports` 字段），
+故改成上面的文件系统读法。**这不影响应用**：全仓**没有任何代码** import 包的 `package.json` 子路径 ——
+`app/api/plugins/route.ts:141-142` 是 `join(..., "package.json")` 后 `readFileSync`，
+`next.config.ts:2` / `:6` / `:10-16` 也都是 `readFileSync`。
 
-### 第 2 步：跑类型检查，把 39 个镜像成员对齐（**与第 1 步同一步**）
+### 第 2 步：跑类型检查，把 39 个镜像成员对齐（**与第 1 步同一步**）—— **已完成**（PR #64）
 
 装包后**第一件事**是 `node_modules/.bin/tsc --noEmit`，而不是改代码。
 理由：`lib/pi-types.ts` 的结构化镜像会在构造点（`lib/rpc/caller.ts:149`）
@@ -882,10 +954,15 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 **过窄**的镜像成员（例如 `lib/pi-types.ts:31-49` 的 `SessionStatsInfo` 与真实
 `SessionStats` 的偏差、`ToolInfo` 现在少返回了 5 个字段但结构兼容所以不会报）。
 `AgentSessionLike` 的 39 个成员已核实全部存在，所以**这一层的报错预计很少**。
+**【已落地（PR #64）】这个量级预判错了**：实况 **3 处** —— `app/api/auth/api-key/[provider]/route.ts:37`
+新必填的 `signal`，加上 `lib/rpc/caller.ts` 写作时 `:146`（今天 `:155`）与 `:149`（今天 `:158`）
+两个 `AgentSessionLike` 对撞点。**最值得记的一条**：修好 `steer` 之后，**`followUp` 紧邻浮出同一条
+上游变更**（同一文件 `agent-session.d.ts:518` 与 `:529`，同为 `Promise<QueuedInputDisposition>`）
+—— **只修一个就是半镜像**，这是「镜像要整族对齐」的实证。
 
-**验收**：`tsc --noEmit` 零错误。
+**验收**：`tsc --noEmit` 零错误（PR #64 实测 0 错误）。
 
-### 第 3 步：修 B-1 与 B-2（**必须在同一步**）
+### 第 3 步：修 B-1 与 B-2（**必须在同一步**）—— **已完成**（B-1 走 PR #64，B-2 走 PR #57）
 
 这两条改的是同一个文件（`lib/rpc/session.ts`）的两处相邻逻辑，且共享同一个待决策问题：
 **模型/thinking 与 systemPrompt 的状态该由谁写**。拆开做会得到两个都不自洽的中间态。
@@ -894,19 +971,30 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
   `agent.state.systemPrompt = ""` 赋值，按 spike 结论改成追加空 system message，或删除该覆盖。
   同时**把 `lib/pi-types.ts:131` 的 `systemPrompt` 标成 `readonly`** ——
   这一步是防止同类问题再次被镜像掩盖的**结构性修复**，比修 B-1 本身更重要。
+  **【已落地（PR #64）】** 本条建议的「追加一条空 system message」**已被 spike 证伪为 no-op**
+  （PR #52，`docs/spike-systemprompt-fix.md` §1.3 裁决表原话）；**唯一有效的是候选 C** ——
+  强制清零搬到 extension 的 `before_agent_start` 返回 `{ systemPrompt: "" }`
+  （`lib/rpc/forced-empty-system-prompt.ts`）。镜像收紧同期做了（今天 `lib/pi-types.ts:146`）。
 - **B-2**：`lib/rpc/session.ts:430` 与 `:483` 决定是否补 `{ persist: true }`。
   补之前必须先按 5.1 决策 4 的建议，在 ADR 里把「持久化职责唯一归属
   `startup-preferences`」写清楚，否则会双写。
+  **【已落地（PR #57）】这个待办已过期**，结论是**不用** `{ persist: true }` —— 实测它带两个
+  没人要的副作用（① 写「请求值」而非「生效值」；② 顺手把模型追加进 `enabledModels`），
+  见 PR #56（`docs/spike-b2-persist.md` §1.3）。实际修法是**显式写 `SettingsManager`**：
+  今天 `lib/rpc/session.ts:541` 的 `setDefaultModelAndProvider` 与 `:605` 的
+  `setDefaultThinkingLevel`，各自紧跟 `flush()`。
 
 **顺带做**（成本极低、降低未来风险，且是 ADR-0007 决策 5 一直欠的账）：
 `lib/tool-presets.ts` 与 `lib/rpc/session.ts:96` 的两处硬编码工具名收敛成一处，
 并改成从 `getAllTools()` 派生（0.99.x 的 `getAllTools()` 返回值更丰富，做这件事更容易）。
+**【已落地（PR #64）】** 已收敛为 `lib/tool-presets.ts` 的单一定义 `CODING_TOOL_NAMES`，
+`lib/rpc/session.ts` 改为 import —— ADR-0007 决策 5 的欠账已清。
 
 **验收**：`PRESET_NONE` 启动的会话不再抛 `TypeError`；
 `POST /api/agent/new` 的 `toolNames: []` 路径可跑通；
-UI 换模型/换思考级别后重启仍保持。
+UI 换模型/换思考级别后重启仍保持。（PR #64 的 A1 / A3 均实跑通过）
 
-### 第 4 步：修 B-3 与补文档（可与第 3 步并行，但要在第 2 步之后）
+### 第 4 步：修 B-3 与补文档（可与第 3 步并行，但要在第 2 步之后）—— **已完成**（PR #57 / #58 / #64）
 
 - `lib/types.ts:265-274` 补 `ContextEditEntry` / `UsageEntry` 两个成员 —— **已完成**（PR #58）：
   两成员已进 `SessionEntry` 联合；`UsageEntry.usage` 刻意留 `unknown`（只为镜像对齐上游联合，本侧不消费）；
@@ -921,13 +1009,30 @@ UI 换模型/换思考级别后重启仍保持。
   uncached 与 total，虚报上下文 token 用量），
   **不需要任何去重逻辑**：PR #48 实测两个来源构造上不相交，额外去重只会引入缺陷；
 - 改 `docs/adr/0007-sdk-delegation-boundary.md`：版本号 `0.83.0` → `0.99.2`，
-  并按 5.1 的表对齐 3 处表述漂移 + 补 1 处持久化归属澄清（**只指出，本票不改**）；
+  并按 5.1 的表对齐 3 处表述漂移 + 补 1 处持久化归属澄清（**只指出，本票不改**）
+  —— **已完成**（PR #64，4 处：`:3` 版本号、决策 1 的 `events.ts` 收敛如实记录、
+  决策 3 的 `models.json` 写入方式漂移、决策 4 的持久化归属澄清）；
 - **不调** `next.config.ts:31-38` —— PR #48 的 spike 实测结论是**一个都不用加**：
   6 个新依赖全部在已 external 的 `@earendil-works/pi-coding-agent` 之下，webpack 根本不遍历它们；
   `quickjs-wasi` 在 import 期完全未被求值、`.wasm` 资源加载数 = 0、构建新增警告数 = 0。
+  **该结论经 PR #64 的 `npm run build` exit 0 复核成立**（`next.config.ts` 零 diff）。
 
 **验收**：`npm test` 全绿（`lib/session-reader.test.mjs` 有 11 处 `buildSessionContext` 断言，
 是 B-3 的天然回归网）；会话浏览器能显示新条目类型；成本看板数字与 SDK 口径一致。
+
+### 升级落地后新增的四条事实（原报告没有）
+
+1. `QueuedInputDisposition`：0.99.x 的 `steer()` / `followUp()` 返回
+   `Promise<"handled" | "queued">`（`dist/core/agent-session.d.ts:162`），不再返回 `Promise<void>`
+   —— 已反映在第 2 步的 3 处报错里。
+2. `PlainTextTheme` 需要 51 个 required token 全给值（值用 `""` 即可，**键的完整性是硬要求**），
+   且必须覆盖 `style` / `colors` / `appearance` —— 见 §4.6。
+3. **`SessionEntry` 联合审计结论**：`CompactionEntry.usage?`（`session-manager.d.ts:54`）与
+   `BranchSummaryEntry.usage?`（`:67`）**已镜像**（今天 `lib/types.ts:234` / `:248`）；
+   `CompactionEntry.systemMessage?: SystemMessage`（`:58`）**已核实本仓零消费**（全仓
+   `systemMessage` 的命中全是 `lib/domain/raft/reminders.ts` 的同名无关概念）
+   ⇒ **有意留白**，不是缺口。
+4. **门禁现值**：`tsc` 0 错误、`npm test` **868 pass / 0 fail**（升级前基线 856）。
 
 ### 步骤间不可拆的原子单元
 
@@ -1034,15 +1139,17 @@ UI 换模型/换思考级别后重启仍保持。
 
 ### 7.3 未经一手核实的条目
 
-以下内容本报告**没有**从一手来源确认，读者不应据此行动：
+以下内容本报告**没有**从一手来源确认，读者不应据此行动。
+标「**已核实**」的两条（`PI_*` 与 `SettingsManagerCreateOptions`）是本报告写作时的未解项，
+此后已对着 0.99.2 的包核完（结论见 5.2 表）：
 
 | 条目 | 为什么没核实 |
 |---|---|
 | 0.88–0.98 断层的原因 | `time` map 与 `CHANGELOG.md` 均无任何说明。**上游未说明断层原因**，本报告不推测 |
-| `0.99.2` 的运行时是否有回归 | 未装包、未实跑。其 `.d.ts` 差异已核实全在 MCP/codemode 域，但运行时行为未验证 |
+| `0.99.2` 的运行时是否有回归 | 未装包、未实跑。其 `.d.ts` 差异已核实全在 MCP/codemode 域，但运行时行为未验证（升级已落地，回归面由 PR #64 的 build 与 868 测试兜住） |
 | B-5 的打包面结论 | 取决于新依赖是否被 SDK 顶层静态 import，静态检查答不了 —— **PR #48 已实跑回答，见 §6 第 0 步第 1 条** |
-| B-6 在无 TTY 环境的实际行为 | `initTheme()` 的 `system` 主题 fallback 取值需实跑 |
-| `PI_*` 环境变量在 0.99.x 是否增删 | 本票未核对上游的环境变量清单 |
-| `SettingsManagerCreateOptions` 的字段级变化 | `dist/core/settings-manager.d.ts` 从 296 行涨到 376 行，但未逐字段核对是否含 agentDir 隔离相关项 |
+| B-6 在无 TTY 环境的实际行为 | `initTheme()` 的 `system` 主题 fallback 取值需实跑 —— **已答（PR #55 §1.5）：`initTheme()` 判定为不相关**；真正炸的是 `PlainTextTheme` 的 import 期崩溃，见 §4.6 |
+| `PI_*` 环境变量在 0.99.x 是否增删 | **已核实**：两个点名变量都在（`PI_CODING_AGENT_DIR` / `PI_CODING_AGENT_SESSION_DIR`），且 `pi-coding-agent` / `pi-ai` / `pi-agent-core` **一个都没删** —— 逐包结论见 5.2 表。唯一有删减的是 `pi-tui`（删 4 增 5），对本仓无影响。上游 `pi-coding-agent@0.99.2` `dist/config.js:435-436`（模板串构造）+ `:450-456`（`getAgentDir()` 读 `process.env[ENV_AGENT_DIR]`），对照 `0.83.0` 的 `:397-398`；`pi-ai` 的两个走 `getProviderEnvValue()` 间接读（`dist/api/anthropic-messages.js:26` 等） |
+| `SettingsManagerCreateOptions` 的字段级变化 | **已核实**：0.99.2 该接口仍只有 `projectTrusted?: boolean` 一个字段，与 0.83.0 逐字相同，**无任何 agentDir 隔离相关新增项**。上游 `pi-coding-agent@0.99.2` `dist/core/settings-manager.d.ts:152-154`，对照 `0.83.0` 的 `:109-111`（文件 296 → 376 行是别处的增长） |
 | `@earendil-works/pi-tui` 的 `parseOsc11BackgroundColor` 被删 | 初筛时发现该符号消失，但 worksplice 只从 `pi-tui` import `KeybindingsManager` 与 `TUI_KEYBINDINGS`（`lib/rpc/session.ts:14`），两者均已核实仍在 ⇒ **对本仓无影响**，无需进一步核实 |
 | `get_tools` 这个 preset 推断入口对应哪个 SDK 符号 | `AGENTS.md` 提到它，但 `get_tools` 在 0.83.0 与 0.99.1 的 `RpcCommand` union 里**都不存在**；worksplice 的 `get_tools` 是自研 RPC 命令名（`lib/rpc/session.ts:546`），由 `lib/tool-presets.ts:16` 的 `getPresetFromTools()` 消费 —— 不依赖任何 SDK 符号 |
