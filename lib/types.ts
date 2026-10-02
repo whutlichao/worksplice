@@ -226,6 +226,9 @@ export interface CompactionEntry extends SessionEntryBase {
   firstKeptEntryId: string;
   tokensBefore: number;
   details?: unknown;
+  /** Kept `unknown`: mirrored so the entry matches upstream
+   *  (`session-manager.d.ts:46-57` since 0.99.x), never consumed on this side. */
+  usage?: unknown;
   fromHook?: boolean;
 }
 

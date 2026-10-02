@@ -20,6 +20,7 @@ import { cacheSessionPath } from "../session-reader";
 import { persistExplicitStartupPreferences } from "../startup-preferences";
 import { AgentSessionWrapper, withExtensionTools } from "./session.ts";
 import type { RpcSessionStartOptions } from "./session.ts";
+import { forcedEmptySystemPromptExtension } from "./forced-empty-system-prompt";
 import { getRpcRegistry } from "./registry.ts";
 import { trackStarting } from "../cwd-mutex.ts";
 
@@ -90,9 +91,17 @@ export class RpcCaller {
       // Gate untrusted project extensions so opening a repository does not run
       // its .pi/extensions code automatically (see lib/project-trust.ts, #236).
       const trustReloadOptions = projectTrustReloadOptions(sessionCwd, agentDir);
+      // The forced-empty-system-prompt extension is registered here rather than mutated onto
+      // the agent afterwards, because 0.99.x makes `AgentState.systemPrompt` getter-only. The
+      // switch is created before the session so the extension and the wrapper built below
+      // share one object; `applyForcedEmptySystemPrompt()` keeps it current.
+      const forcedEmptySystemPromptSwitch = { enabled: false };
       const services = await createAgentSessionServices({
         cwd: sessionCwd,
         agentDir,
+        resourceLoaderOptions: {
+          extensionFactories: [forcedEmptySystemPromptExtension(forcedEmptySystemPromptSwitch)],
+        },
         ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
       });
       const scope = await resolveVisibleModels(
@@ -146,7 +155,7 @@ export class RpcCaller {
         inner.setActiveToolsByName(withExtensionTools(inner, toolNames));
       }
 
-      const wrapper = new AgentSessionWrapper(inner);
+      const wrapper = new AgentSessionWrapper(inner, forcedEmptySystemPromptSwitch);
       // When all tools are disabled, clear the system prompt entirely.
       // pi's buildSystemPrompt always produces a non-empty prompt even with no tools;
       // keep this forced after extension resource discovery and reloads as well.
