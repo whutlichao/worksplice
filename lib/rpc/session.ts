@@ -428,6 +428,10 @@ export class AgentSessionWrapper {
         }
         if (!model) throw new Error(`Model not found: ${provider}/${modelId}`);
         await this.inner.setModel(model);
+        // 0.84.3+ 的 setModel 不再写全局默认（docs/spike-b2-persist.md §6.1）——
+        // 显式写 SettingsManager，不用 `{persist:true}`（它会顺手改 enabledModels）。
+        this.inner.settingsManager.setDefaultModelAndProvider(model.provider, model.id);
+        await this.inner.settingsManager.flush();
         invalidateModelsCache();
         invalidateSessionListCache();
         return { id: model.id, provider: model.provider };
@@ -487,6 +491,12 @@ export class AgentSessionWrapper {
         if (level === "xhigh" && (this.inner.model as { compat?: { thinkingFormat?: string } } | null)?.compat?.thinkingFormat === "deepseek" && this.inner.agent?.state) {
           this.inner.agent.state.thinkingLevel = "xhigh";
         }
+        // 生效值，从 setter 与 DeepSeek 修正都跑完之后的状态读——写请求值 `level`
+        // 会复现 spike §4.4 STEP 3c 实测到的「全局默认落成当前模型用不了的档位」。
+        this.inner.settingsManager.setDefaultThinkingLevel(
+          (this.inner.agent?.state?.thinkingLevel ?? "off") as ThinkingLevel,
+        );
+        await this.inner.settingsManager.flush();
         invalidateSessionListCache();
         return null;
       }
