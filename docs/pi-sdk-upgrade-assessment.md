@@ -482,12 +482,19 @@ export interface ModelMutationOptions {
 **层级判定**：**类型层破了（联合新增两个成员）+ 运行时真的会写出这两类条目**
 ⇒ worksplice 侧表现为**静默数据丢失与统计漏算**，不是编译失败。
 
-**修法**：`session-reader.ts:304` 的 `switch` 增加 `case "context_edit"`（渲染成
-"上下文被编辑" 提示）与 `case "usage"`；`session-stats.ts:92` 的分支把 `"usage"`
-的 `usage` 累加进去（注意与 message 内嵌 `usage` **去重**，否则双算）；
+**修法**：`session-reader.ts:304` 的 `switch` 增加 `case "context_edit"` 与
+`case "usage"`，两个 case 都**显式不渲染**（各自 `return null`）——`context_edit` 记的是
+pi 如何裁剪/替换模型上下文，不是任何一方说的话；`usage` 是纯计费记账。渲染进 transcript
+只会让会话记录混进非对话事件（人类裁定；PR #58 已按「显式不呈现」落地）。
+`session-stats.ts:92` 的分支改用 `addCostOnly` 把 `"usage"` 条目的 `usage` **只加费用**、
+**不碰 uncached / cacheRead / total 三个 token 桶**（复用 `addUsage` 会把 `cacheWrite`
+折进 uncached 与 total，虚报上下文 token 用量）。
+**不需要任何去重逻辑**：PR #48 实测全 SDK 只有 `dist/core/cache-warmer.js:249` 一处调
+`appendUsage`，记的是 cache warmer 自己那次独立的 `streamSimple` 请求，而那条 message
+从不作为 `message` 条目落进 transcript ⇒ 两个来源在构造上不相交，额外去重只会引入缺陷。
+`UsageEntry` 的 `kind` 语义（例：`"cache_warm"`）也已定：只加费用，不计入 token 桶
+（PR #57 已落地 `addCostOnly`）。
 `lib/types.ts:265` 的本地联合补两个成员。
-**必须实跑验证**去重口径——`UsageEntry` 的 `kind` 语义（例：`"cache_warm"`）决定它是否
-应该计入面向用户的成本看板。
 
 ---
 
