@@ -226,8 +226,11 @@ export interface CompactionEntry extends SessionEntryBase {
   firstKeptEntryId: string;
   tokensBefore: number;
   details?: unknown;
-  /** Kept `unknown`: mirrored so the entry matches upstream
-   *  (`session-manager.d.ts:46-57` since 0.99.x), never consumed on this side. */
+  /** Kept `unknown`: mirrored so the entry matches upstream (`session-manager.d.ts:54`
+   *  since 0.99.x). The value IS read for token/cost accounting, but by
+   *  `lib/session-stats.ts`'s own structural reader, which validates the five fields
+   *  itself (`readUsage`) instead of trusting a static shape — so the mirror stays
+   *  `unknown` rather than importing pi's `Usage`. */
   usage?: unknown;
   fromHook?: boolean;
 }
@@ -237,6 +240,12 @@ export interface BranchSummaryEntry extends SessionEntryBase {
   fromId: string;
   summary: string;
   details?: unknown;
+  /** Kept `unknown`: mirrored so the entry matches upstream (`session-manager.d.ts:67`
+   *  since 0.99.x). The value IS read for token/cost accounting, but by
+   *  `lib/session-stats.ts`'s own structural reader, which validates the five fields
+   *  itself (`readUsage`) instead of trusting a static shape — so the mirror stays
+   *  `unknown` rather than importing pi's `Usage`. */
+  usage?: unknown;
   fromHook?: boolean;
 }
 
