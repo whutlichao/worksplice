@@ -493,6 +493,7 @@ export class AgentSessionWrapper {
         }
         // 生效值，从 setter 与 DeepSeek 修正都跑完之后的状态读——写请求值 `level`
         // 会复现 spike §4.4 STEP 3c 实测到的「全局默认落成当前模型用不了的档位」。
+        // `?? "off"` 与 get_state 分支同一兜底：state 缺失时别把 undefined 写进设置。
         this.inner.settingsManager.setDefaultThinkingLevel(
           (this.inner.agent?.state?.thinkingLevel ?? "off") as ThinkingLevel,
         );
