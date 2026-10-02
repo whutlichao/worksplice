@@ -262,6 +262,24 @@ export interface SessionInfoEntry extends SessionEntryBase {
   name?: string;
 }
 
+export interface ContextEditEntry extends SessionEntryBase {
+  type: "context_edit";
+  targetId: string;
+  /** Null omits the target from model context; a value replaces only its content. */
+  replacement: { content: unknown } | null;
+}
+
+export interface UsageEntry extends SessionEntryBase {
+  type: "usage";
+  /** Arbitrary usage category, such as "cache_warm". */
+  kind: string;
+  provider: string;
+  model: string;
+  /** Kept `unknown`: mirrored so the union matches upstream, never consumed on this side. */
+  usage: unknown;
+  note?: string;
+}
+
 export type SessionEntry =
   | SessionMessageEntry
   | ThinkingLevelChangeEntry
@@ -271,7 +289,9 @@ export type SessionEntry =
   | CustomEntry
   | CustomMessageEntry
   | LabelEntry
-  | SessionInfoEntry;
+  | SessionInfoEntry
+  | ContextEditEntry
+  | UsageEntry;
 
 export type FileEntry = SessionHeader | SessionEntry;
 
