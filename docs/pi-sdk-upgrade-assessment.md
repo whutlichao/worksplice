@@ -918,12 +918,23 @@ UI 换模型/换思考级别后重启仍保持。
 
 ### 第 4 步：修 B-3 与补文档（可与第 3 步并行，但要在第 2 步之后）
 
-- `lib/types.ts:265-274` 补 `ContextEditEntry` / `UsageEntry` 两个成员；
-- `lib/session-reader.ts:304-349` 的 `switch` 补两个 `case`（现在是 `default: return null` 静默丢弃）；
-- `lib/session-stats.ts:92-103` 补 `"usage"` 分支，并处理与 `message.usage` 的去重；
+- `lib/types.ts:265-274` 补 `ContextEditEntry` / `UsageEntry` 两个成员 —— **已完成**（PR #58）：
+  两成员已进 `SessionEntry` 联合；`UsageEntry.usage` 刻意留 `unknown`（只为镜像对齐上游联合，本侧不消费）；
+- `lib/session-reader.ts:304-349` 的 `switch` 补两个 `case` —— **已完成**（PR #58）：
+  已**显式 case 化**，`context_edit` / `usage` 两个 case 各自 `return null`，
+  并在注释里写明**不呈现的理由**（前者是 pi 裁剪 / 替换模型上下文的记账，不是任何一方说的话；
+  后者是纯计费记账，成本看板从 `session-stats` 读，不从这里读）
+  ⇒ **不再是 `default: return null` 的静默丢弃**；
+- `lib/session-stats.ts:92-103` 补 `"usage"` 分支 —— **已完成**（PR #57）：
+  已用 `addCostOnly` 把 `"usage"` 条目的 `usage` **只加进 `costTotal`**、
+  **不碰 uncached / cacheRead / total 三个 token 桶**（复用 `addUsage` 会把 `cacheWrite` 折进
+  uncached 与 total，虚报上下文 token 用量），
+  **不需要任何去重逻辑**：PR #48 实测两个来源构造上不相交，额外去重只会引入缺陷；
 - 改 `docs/adr/0007-sdk-delegation-boundary.md`：版本号 `0.83.0` → `0.99.2`，
   并按 5.1 的表对齐 3 处表述漂移 + 补 1 处持久化归属澄清（**只指出，本票不改**）；
-- 视 B-4 的 spike 结论调整 `next.config.ts:31-38`。
+- **不调** `next.config.ts:31-38` —— PR #48 的 spike 实测结论是**一个都不用加**：
+  6 个新依赖全部在已 external 的 `@earendil-works/pi-coding-agent` 之下，webpack 根本不遍历它们；
+  `quickjs-wasi` 在 import 期完全未被求值、`.wasm` 资源加载数 = 0、构建新增警告数 = 0。
 
 **验收**：`npm test` 全绿（`lib/session-reader.test.mjs` 有 11 处 `buildSessionContext` 断言，
 是 B-3 的天然回归网）；会话浏览器能显示新条目类型；成本看板数字与 SDK 口径一致。
