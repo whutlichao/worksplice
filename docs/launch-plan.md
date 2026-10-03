@@ -36,7 +36,7 @@
 | 10-03 → 10-08 | pi Discord：**已确认在群**；频道已定 **`# share-your-pi`**（论坛位，社区展示面且活跃）。剩：读 `# rules` 与置顶规范、答 2–3 个问题 | 只有作者 ⏳ |
 | 10-06（一） | **feature freeze 开始**（只修 bug + 做推广资产） | — |
 | 10-09（D-7 五） | `--demo`、README 中英改写、反馈模板 | ✅ 已完成（见 §4） |
-| 10-10（D-6 六） | `v0.1.0` tag + Release + `npm publish` | 只有作者 ⏳ |
+| 10-03（提前 7 天完成） | `v0.1.0` tag + Release + `npm publish` | ✅ 已完成（见 §4 A2/A3） |
 | 10-11（D-5 日） | 在 **Release 构建**里重跑证据 B ×2–3 | 可代做 ⏳ |
 | 10-12（D-4 一） | 90 秒录屏（预留 3 次重跑）+ 补静态截图 | 只有作者 ⏳ |
 | 10-13（D-3 二） | 静默提 `awesome-ai-agents` 清单；`awesome-multi-agent-orchestrators` 改开 issue | 作者 ⏳ |
@@ -51,8 +51,8 @@
 **A · 产品与分发**
 
 - [x] **A1 `--demo`**：干净环境下 `npx worksplice --demo` 显示 4 频道 / 14 任务；**不触发任何 agent 轮次**。→ `#68`（合并后实测 `round_logs=0`、`~/.worksplice` 未被触碰）
-- [ ] **A2 Release**：`v0.1.0` tag + GitHub Release，资产 = `npm pack` 产物（5.6 MB）。⏳ 只有作者
-- [ ] **A3 npm 发布**：`npx worksplice` 干净环境实测可用；**不加 `pi-package` 关键词**。⏳ 只有作者（2FA）
+- [x] **A2 Release**：`v0.1.0` tag + GitHub Release，资产 = `npm pack` 产物（5.6 MB）。→ [releases/tag/v0.1.0](https://github.com/whutlichao/worksplice/releases/tag/v0.1.0)（资产在干净目录实测可装可跑：4 频道 / 40 消息 / 14 任务 / `round_logs=0`）
+- [x] **A3 npm 发布**：`npx worksplice` 干净环境实测可用；**不加 `pi-package` 关键词**。→ [npmjs.com/package/worksplice](https://www.npmjs.com/package/worksplice)（`npx --yes worksplice@0.1.0 --demo` 在干净环境实测通过）
 - [ ] **A4 revise 硬项**：在 **Release 构建**里重跑证据 B 2–3 次，拿到 `[worksplice:revision]` 且该轮 `round_logs=replied`。⏳ 等 A2
 - [x] **A5 README 中英**：定位句首段、Quick Start 一行安装、`--demo` 演示段。→ `#70`（层级与条目数逐项对齐）
 - [x] **A6 反馈入口**：`tried-it` issue 模板 + `feedback` 标签。→ `#69`
@@ -101,10 +101,10 @@
 
 ## 8. 现在的状态
 
-- **代码侧已合并**：`--demo`、反馈模板、README 定位与一行安装、首发帖草案、失效报告与复现脚本、清单文案（6 个 PR）。
-- **只剩 4 项待办**：A2 Release、A3 npm 发布、A8 录屏（作者）；A4 Release 构建里重跑（等 A2）。
-- **一处需要留意**：README 现在写的是 `npx worksplice`，在 A3 完成前这条命令跑不通——A3 是「main 与一份诚实的 README」之间唯一的东西。
-- **发布前已验证**：`npm pack` 产物 5.6 MB、含 `demo/worksplice.db`；装到干净目录后 `--demo` 跑出 4 频道 / 5 agent / 40 消息 / 14 任务 / `round_logs=0`。
+- **代码侧已合并**：`--demo`、反馈模板、README 定位与一行安装、首发帖草案、失效报告与复现脚本、清单文案，以及 raft 命名切割（`worksplice.db` + `lib/domain/collab/`）。
+- **已发布（2026-10-03，比计划早 7 天）**：`worksplice@0.1.0` 在 npm 上，`v0.1.0` tag + GitHub Release 资产齐备；两者都在干净环境实测可装可跑。
+- **只剩 3 项待办**：A4 在 Release 构建里重跑证据 B（可代做）；A8 录屏、Discord `# rules` 与答问（作者）。
+- **发布前已验证**：`npm pack` 产物 5.6 MB、含 `demo/worksplice.db`；`npx --yes worksplice@0.1.0 --demo` 与 Release 资产两条路径都在干净目录跑出 4 频道 / 5 agent / 40 消息 / 14 任务 / `round_logs=0`。
 
 ## 9. 附录：证据与复现
 
