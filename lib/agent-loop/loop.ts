@@ -414,11 +414,33 @@ export function waitForPromptCompletion(
   });
 }
 
+/**
+ * 等会话真正空闲：`prompt_done` 只说明这一轮 prompt 调用返回了，pi SDK 可能仍在收尾。
+ * 此时再发下一个 prompt 会被 SDK 直接拒绝——原文是
+ * "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp')
+ *  to queue the message."；而 hold 后的 revise 正是「一轮之内发第二个 prompt」，
+ * 所以发之前必须等。返回是否在超时前等到空闲：超时也照发，让 SDK 的原始错误如实暴露，
+ * 不在这里把它变成静默失败。
+ */
+export async function waitForSessionIdle(
+  session: LoopSession,
+  timeoutMs = 10_000,
+  pollMs = 100,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (session.isRunning() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  return !session.isRunning();
+}
+
 /** 发 prompt 并等待完成，取最后一条 assistant 文本作为回复。 */
 export async function promptSession(
   session: LoopSession,
   prompt: string,
+  options: { idleTimeoutMs?: number } = {},
 ): Promise<{ ok: boolean; error?: string; text: string }> {
+  await waitForSessionIdle(session, options.idleTimeoutMs);
   const completion = waitForPromptCompletion(session);
   try {
     await session.send({ type: "prompt", message: prompt });
