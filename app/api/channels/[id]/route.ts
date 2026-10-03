@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getChannel } from "@/lib/domain/raft";
+import { getChannel } from "@/lib/domain/collab";
 
 export async function GET(
   _request: Request,

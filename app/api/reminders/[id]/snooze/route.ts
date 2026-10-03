@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { snoozeReminder, ReminderNotFoundError, ReminderNotAuthorizedError, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
+import { snoozeReminder, ReminderNotFoundError, ReminderNotAuthorizedError, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
 
 /**
  * reminders 路由组（§5.7）：POST /api/reminders/[id]/snooze。

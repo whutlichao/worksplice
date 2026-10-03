@@ -16,7 +16,7 @@ export type { MessageWithAuthor } from "./messages.ts";
 export interface DrainResult {
   targetId: string;
   messages: MessageWithAuthor[];
-  /** raft 协议兼容的 hasMore 语义：本地无分页上限，一次 drain 取尽（恒为 false）。 */
+  /** 协议兼容的 hasMore 语义：本地无分页上限，一次 drain 取尽（恒为 false）。 */
   hasMore: boolean;
   /** drain 时的已消费游标（ack 前的读数）。 */
   consumedSeq: number;
@@ -30,7 +30,7 @@ export function getSince(targetId: string, sinceSeq: number): MessageWithAuthor[
 }
 
 /**
- * §3.8 drain：按 consumed_seqs 游标拉取增量（本地无 raft 的 50 轮分页上限，
+ * §3.8 drain：按 consumed_seqs 游标拉取增量（本地无 50 轮分页上限，
  * 但保留 hasMore 语义）；不推进游标——重复 drain 不重不漏。
  * §3.2 mute 过滤：该成员静音了目标 channel 时，静音时刻之后的普通消息不进 inbox，
  * 个人 @mention 仍穿透（注意力信号）；静音前的消息照常投递。

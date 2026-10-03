@@ -25,7 +25,7 @@ import {
   sendMessage,
   subscribeWake,
   updateTaskStatus,
-} from "../domain/raft/index.ts";
+} from "../domain/collab/index.ts";
 import {
   publishAgentStatus,
   startAgentStatusSweeper,
@@ -51,12 +51,12 @@ import {
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
  * 编排面 = wake 驱动队列（driver）+ 崩溃恢复补拉（backfill）+ 提醒 cron（reminder-cron）
  * 全部收进本文件；公共接口 = createAgentLoop() → { start, stop, tick }（index.ts 只 re-export 它）。
- * wake 发布/订阅原语已下沉 lib/domain/raft/wake.ts（raft 服务层发、本模块订阅，依赖方向 raft ← agent-loop）。
+ * wake 发布/订阅原语已下沉 lib/domain/collab/wake.ts（协作服务层发、本模块订阅，依赖方向 collab ← agent-loop）。
  *
  * 轮次核心（runAgentRound）：wake → drain → decide → act → reply 收口。
  * - drain：按 consumed_seqs 拉增量，组装 channel 语境 + 新消息 + 相关任务状态；
  * - decide：AX 原则——prompt 给出"能直接用的信息 + 一个明确的 next action"，回复为结构化 JSON；
- * - act：经 raft 服务层执行（回复带 freshness 校验），held 时四选一（§3.3 与 §6.3）：
+ * - act：经 协作服务层执行（回复带 freshness 校验），held 时四选一（§3.3 与 §6.3）：
  *   revise（重读重写）/ resend（原样重试）/ silent（静默放弃）/ anyway（显式逃逸口）；
  * - reply 收口：回复走双写流落 SQLite，每轮结束后 ack 推进 consumed_seqs（§3.8/§5.5）。
  *
@@ -492,7 +492,7 @@ export type DeliverOutcome =
 /**
  * 回复投递（§3.3/§6.3）：携带写稿时的 baseSeq 走 freshness 校验；
  * 被 held 后按 agent 指定的 onConflict 四选一执行。
- * send 可注入（默认 raft sendMessage）；promptFn 用于 revise 重写。
+ * send 可注入（默认 协作域 sendMessage）；promptFn 用于 revise 重写。
  * ackSeq = agent 本轮实际读到/被告知的最新房间版本（held 后按 roomSeq 推进，
  * 避免游标停在旧 baseSeq 导致 target 永久 pending）。
  */
@@ -1386,7 +1386,7 @@ async function waitForSettle(
 
 // ----------------------------------------------------------------------------
 // 崩溃恢复补拉（§5.3，原 backfill.ts）：启动时按 seq 补拉。
-// 双写流中 raft 消息表是房间事实唯一来源；agent 回复的写序是
+// 双写流中 消息表是房间事实唯一来源；agent 回复的写序是
 // SDK 写 session jsonl → app 读回补写 SQLite。若在两步之间崩溃，SQLite 落后于
 // session jsonl 的已投递回复——本模块扫描 jsonl（user 条目携带的 target 标记，
 // 见 roomMarker）找回缺失的 assistant 回复，按序补写并推进消费游标。
@@ -1553,7 +1553,7 @@ export function scanSessionReplies(filePath: string): SessionReply[] {
     if (message.role === "user") {
       const text = textFromContent(message.content);
       const match = ROOM_MARKER_PATTERN.exec(text);
-      // 新的 user 条目（无论是否带标记）结束上一轮；带标记才开启新的 raft 轮。
+      // 新的 user 条目（无论是否带标记）结束上一轮；带标记才开启新的 协作轮。
       // 若该条目是 revise prompt（带 [worksplice:revision]），上一轮 assistant 是
       // 被 held 的草稿（实时路径从未落库）——丢弃而非按回复补写。
       if (!text.includes("[worksplice:revision]")) flush();

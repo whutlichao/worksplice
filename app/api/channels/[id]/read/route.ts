@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { markChannelRead, getChannel } from "@/lib/domain/raft";
+import { markChannelRead, getChannel } from "@/lib/domain/collab";
 
 /**
  * POST /api/channels/[id]/read（BAI-6 未读角标）：

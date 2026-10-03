@@ -1,13 +1,13 @@
 /**
- * raft 域单索引模块（Ticket 04 Extract Raft Domain）。
+ * 协作域单索引模块（Ticket 04 Extract Raft Domain）。
  *
- * 对外唯一导入面：消费方只 `import { ... } from "@/lib/domain/raft"`（或相对路径
- * `../domain/raft/index.ts`），不再逐个导入子域文件——app/api 路由、agent-loop、
+ * 对外唯一导入面：消费方只 `import { ... } from "@/lib/domain/collab"`（或相对路径
+ * `../domain/collab/index.ts`），不再逐个导入子域文件——app/api 路由、agent-loop、
  * agent-status/lifecycle/runtime、instrumentation 全部收敛到这里。
  *
  * 子域实现（channels/members/messages/tasks/…）是内部模块，互相之间仍用相对路径
  * 直接引用（避免经索引回环）；本索引只负责把全部公共 API 汇成一个 seam，测试可在
- * 一处 mock 整个 raft 域。
+ * 一处 mock 整个 协作域。
  *
  * 说明：
  * - `MessageWithAuthor`（messages.ts）与 `extractMentionedMemberIds`（members.ts）

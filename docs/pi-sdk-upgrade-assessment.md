@@ -283,7 +283,7 @@
 |---|---|---|
 | `lib/pi-types.ts` | 169 | **本仓的核心防线**。手写 `AgentSessionLike`（39 个成员）镜像 SDK 的 `AgentSession`，只用 5 个 `import type`（:1-7）。全仓只有 2 个文件消费它：`lib/rpc/session.ts:21` 与 `hooks/useAgentSession.ts:15` |
 | `lib/api-types.ts` | 105 | `ResourceDiagnostic`（type-only，:1） |
-| `lib/domain/raft/secretary-auto-create.ts` | 79 | `getAgentDir`（:3） |
+| `lib/domain/collab/secretary-auto-create.ts` | 79 | `getAgentDir`（:3） |
 | `app/api/agent/new/route.ts` | 88 | `ThinkingLevel`（:2）；`THINKING_LEVELS` 硬编码 7 个值（:9） |
 | `app/api/models/route.ts` | 114 | `getAgentDir`、`SettingsManager`（:3）；`getSupportedThinkingLevels` from `pi-ai`（:4） |
 | `app/api/models-config/route.ts` | 67 | `getAgentDir`（:4） |
@@ -889,7 +889,7 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 | spec 位置 | 条目 | 与升级的关系 |
 |---|---|---|
 | **§7.3「保留不动的 pi SDK 接口面」[锁定] 06** | 「`@earendil-works/pi-*` 依赖（agent-core / ai / coding-agent / tui）」 | **不冲突**。四个包名不变，`engines.node >= 22.19.0` 不变，`repository.url` 不变，`pi-ai` 的 `./compat` 子路径不变。**升级本身不动这一条。** |
-| **§5.3「pi 升级改变 session 格式不影响 raft 数据」[锁定] 05** | 「raft 消息表是房间事实唯一来源；pi session 只承载认知过程」 | **这条被 B-3 直接命中，且结论是「前半句成立、后半句有裂缝」。** raft 侧确实不受影响（`lib/domain/raft/` 全域不 import SDK）。但「pi session 只承载认知过程」这个分工，在 `context_edit` / `usage` 出现后需要重述：session 文件现在**也承载上下文编辑语义**（`ContextEditEntry.targetId` + `replacement`），而 worksplice 的穷举 `switch` 会把它丢掉。⇒ **需要在升级票里补一条 `lib/session-reader.ts` 的 `case`，否则 spec §5.3 的锁定意图在实现层被违反**（数据没丢进 raft，但也没被读出来）。**【已落地（PR #58）】** 该 `case` 已补（`:349`），此缺口已闭合 |
+| **§5.3「pi 升级改变 session 格式不影响协作域数据」[锁定] 05** | 「消息表是房间事实唯一来源；pi session 只承载认知过程」 | **这条被 B-3 直接命中，且结论是「前半句成立、后半句有裂缝」。** 协作域侧确实不受影响（`lib/domain/collab/` 全域不 import SDK）。但「pi session 只承载认知过程」这个分工，在 `context_edit` / `usage` 出现后需要重述：session 文件现在**也承载上下文编辑语义**（`ContextEditEntry.targetId` + `replacement`），而 worksplice 的穷举 `switch` 会把它丢掉。⇒ **需要在升级票里补一条 `lib/session-reader.ts` 的 `case`，否则 spec §5.3 的锁定意图在实现层被违反**（数据没丢进协作域，但也没被读出来）。**【已落地（PR #58）】** 该 `case` 已补（`:349`），此缺口已闭合 |
 | **§5.2「pi 多实例与 AgentSession 生命周期」[锁定] 01** | 「恢复：`SessionManager.open(file)` 按需重建」；「同一 cwd 同时仅一个活跃会话（沿用 `hasBusyRpcSessionForCwd` 显式拒绝）」；「`PI_CODING_AGENT_DIR` 整体隔离为后续增强（进程级单例限制，同进程混用多份 agent 目录需 SDK 参数覆盖，首版不做）」 | **前两条不冲突**（`SessionManager.open/create` 签名未变）。第三条的「进程级单例限制」前提**本报告写作时**标为「未经一手核实」，**现已核实仍成立**：`SettingsManagerCreateOptions` 在 0.99.2 仍**只有一个字段** `projectTrusted?: boolean`（`dist/core/settings-manager.d.ts:152-154`；0.83.0 同接口在 `:109-111`，逐字相同 —— 文件 296 → 376 行是**别处**的增长），**没有新增任何与 agentDir 隔离相关的项**；`getAgentDir()` 无参签名两版不变 |
 | **§7.3「`PI_*` 环境变量」[锁定] 06** | 「`PI_CODING_AGENT_DIR`、`PI_CODING_AGENT_SESSION_DIR` 等」 | **已核实：两个点名变量都还在** —— `PI_CODING_AGENT_DIR` / `PI_CODING_AGENT_SESSION_DIR` 由模板串构造（`dist/config.js:435-436`，0.83.0 为 `:397-398`），`getAgentDir()` 仍读 `process.env[ENV_AGENT_DIR]`（`dist/config.js:450-456`）。逐包核对 `process.env.PI_*`：**`pi-coding-agent` 增 8 删 0**（新增 `PI_HYPERLINKS` / `PI_IMAGE_PROTOCOL` / `PI_INSTALLER_API_BASE` / `PI_MANAGED_INSTALL_ROOT` / `PI_TRUE_COLOR` / `PI_TUI_DEBUG` / `PI_TUI_DEBUG_REDRAW` / `PI_TUI_WRITE_LOG`），**`pi-ai` 两版各 2 个、零增删**（`PI_CACHE_RETENTION` / `PI_OAUTH_CALLBACK_HOST`，经 `getProviderEnvValue()` 读 —— 只 grep `process.env.PI_` 会漏掉这一层间接），**`pi-agent-core` 两版都零个**。**唯一有删减的是 `pi-tui`：删 4 增 5**（删 `PI_CLEAR_ON_SHRINK` / `PI_CODING_AGENT_DIR` / `PI_DEBUG_REDRAW` / `PI_HARDWARE_CURSOR`）；其中 0.83.0 的 `PI_CODING_AGENT_DIR` 只用于 `this.logDirectory`（`dist/tui.js:144`），0.99.2 不再读，本仓无影响 |
 | **§5.8「pi-web 改造策略」[锁定] 04** | 「整体保留复用（lib/API）：lib/rpc、session-reader、…、skills-service、project-trust」 | **不冲突**。这批文件都在第 3 节的盘点里，结论是「类型层全绿 + 3 条运行时洞」 |
@@ -1030,7 +1030,7 @@ UI 换模型/换思考级别后重启仍保持。（PR #64 的 A1 / A3 均实跑
 3. **`SessionEntry` 联合审计结论**：`CompactionEntry.usage?`（`session-manager.d.ts:54`）与
    `BranchSummaryEntry.usage?`（`:67`）**已镜像**（今天 `lib/types.ts:234` / `:248`）；
    `CompactionEntry.systemMessage?: SystemMessage`（`:58`）**已核实本仓零消费**（全仓
-   `systemMessage` 的命中全是 `lib/domain/raft/reminders.ts` 的同名无关概念）
+   `systemMessage` 的命中全是 `lib/domain/collab/reminders.ts` 的同名无关概念）
    ⇒ **有意留白**，不是缺口。
 4. **门禁现值**：`tsc` 0 错误、`npm test` **868 pass / 0 fail**（升级前基线 856）。
 
@@ -1129,7 +1129,7 @@ UI 换模型/换思考级别后重启仍保持。（PR #64 的 A1 / A3 均实跑
 | `invalidateModelsCache` 是本仓自有 | `lib/models-cache.ts:38`；SDK `dist/` 内无此符号 |
 | `tool-presets.ts` 仍硬编码工具名 | `lib/tool-presets.ts:10-12`；重复副本 `lib/rpc/session.ts:96` |
 | `updateSkill()` 仍不存在 ⇒ frontmatter 手术必须保留 | 0.99.2 `dist/` 全量搜索无 `updateSkill`；消费侧 `app/api/skills/route.ts:56-58` |
-| spec 锁定条目 | `docs/spec.md:462-466`（§7.3）、`:309-310`（§5.2）、`:320`（§5.3 的「pi 升级改变 session 格式不影响 raft 数据」）、`:363-377`（§5.8） |
+| spec 锁定条目 | `docs/spec.md:462-466`（§7.3）、`:309-310`（§5.2）、`:320`（§5.3 的「pi 升级改变 session 格式不影响协作域数据」）、`:363-377`（§5.8） |
 | spec §5.3 锁定条目与 B-3 的关系 | `docs/spec.md:320` vs `lib/session-reader.ts:304-356`（写作时 `:347-348`） |
 | ADR-0010 与 metadata 一致 | `docs/adr/0010-readme-source-attribution-exception.md`；`README.md:5`、`:160-166`；`README.zh-CN.md:160-166` |
 | 上游地址与 README 一致 | `README.md:5` / `README.md:166` 的 `https://github.com/earendil-works/pi` == 2.3 节的三版 metadata |

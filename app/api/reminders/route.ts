@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { scheduleReminder, listReminders, CURRENT_MEMBER_ID, getMember } from "@/lib/domain/raft";
+import { scheduleReminder, listReminders, CURRENT_MEMBER_ID, getMember } from "@/lib/domain/collab";
 
 /**
  * reminders 路由组（§5.7）：GET/POST /api/reminders。

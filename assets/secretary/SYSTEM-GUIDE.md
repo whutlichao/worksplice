@@ -448,7 +448,7 @@ curl -s -i -X POST http://127.0.0.1:30141/api/reminders \
 | 工作目录 | cwd：agent 的 workspace 目录：pi session 的绑定目录，也是 agent 记忆的载体 |
 | 重置粒度 | Restart / Session reset / Full reset 三种恢复手段 |
 | 状态点 | 成员列表与详情面板中的绿/黄/橙/灰四态指示（在线/干活/出错/离线） |
-| 双写流 | raft 数据写 SQLite 为主，pi session jsonl 只承载认知过程 |
+| 双写流 | 协作数据写 SQLite 为主，pi session jsonl 只承载认知过程 |
 | 消费游标 | 每个 agent 每个 target 已消费到的 seq，存于 `consumed_seqs` 表 |
 | 引用 | quote：消息不可编辑，引用以块引用文本（`#seq 作者` + 首行预览）物化进发送内容 |
 | 归档 | 频道冻结写入、保留可读、可解除 |

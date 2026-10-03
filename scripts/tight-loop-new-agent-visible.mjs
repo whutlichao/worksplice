@@ -1,5 +1,5 @@
 // tight loop（秒级、确定性、agent-runnable）：用户精确症状 —— 创建 agent 后三处可见性含新成员。
-// 直调 raft 服务层（createAgent/listChannelMembers）+ 视图派生纯函数
+// 直调 协作服务层（createAgent/listChannelMembers）+ 视图派生纯函数
 // （channelAgents / mentionable joined / composerMentionCandidates，与 ChannelView 同语义）。
 // 旧快照（创建前拉取、不重拉）恒 stale = 红基线；重拉后新鲜快照三处全含 = 绿。
 // 用法：node scripts/tight-loop-new-agent-visible.mjs
@@ -12,8 +12,8 @@ import { BUILTIN_CHANNEL_ID } from "../lib/data/schema.ts";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "worksplice-tight-"));
 globalThis.__workspliceDb = openDataDb(root);
-const { createAgent } = await import("../lib/domain/raft/members.ts");
-const { listChannelMembers } = await import("../lib/domain/raft/channels.ts");
+const { createAgent } = await import("../lib/domain/collab/members.ts");
+const { listChannelMembers } = await import("../lib/domain/collab/channels.ts");
 const { composerMentionCandidates } = await import("../lib/mention.ts");
 
 // 旧快照：创建前拉一次 #all 成员（模拟不切频道时的 stale 快照）

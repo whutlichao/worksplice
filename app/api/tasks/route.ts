@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendMessage, createTask, TaskAlreadyExistsError, getTaskView, CURRENT_MEMBER_ID, getChannel } from "@/lib/domain/raft";
+import { sendMessage, createTask, TaskAlreadyExistsError, getTaskView, CURRENT_MEMBER_ID, getChannel } from "@/lib/domain/collab";
 
 /**
  * POST /api/tasks（§5.7 tasks 路由组）：创建任务 = 消息 + 元数据（§3.7）。

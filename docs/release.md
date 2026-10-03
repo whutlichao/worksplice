@@ -130,7 +130,7 @@ npm pack --dry-run        # check the file list and the size before publishing
 npm publish               # produces worksplice-<version>.tgz in the repo root
 ```
 
-Expected file list: `bin`, `demo`, `.next`, `public`, `next.config.ts`, `package.json`, plus the usual `README` / `LICENSE`. The tarball is roughly 6 MB, of which `demo/raft.db` is about 250 KB.
+Expected file list: `bin`, `demo`, `.next`, `public`, `next.config.ts`, `package.json`, plus the usual `README` / `LICENSE`. The tarball is roughly 6 MB, of which `demo/worksplice.db` is about 250 KB.
 
 Notes:
 

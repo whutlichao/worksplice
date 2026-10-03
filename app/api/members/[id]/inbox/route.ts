@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgent, AgentNotFoundError, drainAndAck, getPendingTargets } from "@/lib/domain/raft";
+import { getAgent, AgentNotFoundError, drainAndAck, getPendingTargets } from "@/lib/domain/collab";
 
 /**
  * GET /api/members/[id]/inbox（§5.7 inbox 路由组）：drain + ack。

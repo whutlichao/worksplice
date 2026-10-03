@@ -13,7 +13,7 @@ export async function register(): Promise<void> {
   // 秘书首次启动自动创建（spec-bootstrap-agent §6.1，ticket 05）：agent-loop 启动之后执行，
   // 幂等（名字全等 + 软删标记，删除后不重建），defaultModel 未配置跳过；两条启动路径均不阻塞、失败不致命
   const { createAgentLoop } = await import("@/lib/agent-loop/index");
-  const { autoCreateSecretary } = await import("@/lib/domain/raft");
+  const { autoCreateSecretary } = await import("@/lib/domain/collab");
   void Promise.resolve()
     .then(() => createAgentLoop().start())
     .catch((error) => {

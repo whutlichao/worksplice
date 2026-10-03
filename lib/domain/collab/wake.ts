@@ -4,8 +4,8 @@ import { extractMentionedMemberIds, getMember } from "./members.ts";
 import type { MessageRow } from "../../data/types.ts";
 
 /**
- * wake 事件总线（§5.4/§5.5，Ticket 02 从 agent-loop 下沉到 raft 域）：
- * raft 服务层（消息提交 / 提醒触发）发布唤醒事件，agent-loop 驱动订阅消费。
+ * wake 事件总线（§5.4/§5.5，Ticket 02 从 agent-loop 下沉到 协作域）：
+ * 协作服务层（消息提交 / 提醒触发）发布唤醒事件，agent-loop 驱动订阅消费。
  * hint 只含 seq/目标信息，不预组 prompt、不含正文（§3.8 拉取式——正文由 agent 自己 drain）。
  * 监听器挂 globalThis 扛热重载；服务层只负责发，订阅/取消由调用方（agent-loop driver）管理。
  */

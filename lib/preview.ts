@@ -11,5 +11,5 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** §3.5 单文件上限 50MB（服务端 lib/domain/raft/attachments.ts 与客户端共用同一来源）。 */
+/** §3.5 单文件上限 50MB（服务端 lib/domain/collab/attachments.ts 与客户端共用同一来源）。 */
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
