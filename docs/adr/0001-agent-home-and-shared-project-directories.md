@@ -9,7 +9,7 @@
 - Full reset：只清家目录内容；工作区是共享项目目录时拒绝/降级为 Session reset。
 - 服务层拒绝把其他 agent 的家目录绑成项目目录。
 
-**MEMORY.md**：家目录创建时预置固定大纲（角色描述/当前工作/工作流程/Skill 使用/工具使用/其他），正文可空，归 agent 所有，丢失不补种；**Full reset 保留**（记忆是身份资产，不是产物）；agent-loop prompt 每轮告知路径与用途（有实质进展时更新"当前工作"节），不注入正文。raft 不存 agent 私人记忆——共享消息流 + 任务状态 + 游标是重载真相，MEMORY.md 补 session reset 后丢失的推理上下文。
+**MEMORY.md**：家目录创建时预置固定大纲（角色描述/当前工作/工作流程/Skill 使用/工具使用/其他），正文可空，归 agent 所有，丢失不补种；**Full reset 保留**（记忆是身份资产，不是产物）；agent-loop prompt 每轮告知路径与用途（有实质进展时更新"当前工作"节），不注入正文。协作域不存 agent 私人记忆——共享消息流 + 任务状态 + 游标是重载真相，MEMORY.md 补 session reset 后丢失的推理上下文。
 
 **创建时可选模型/推理强度**：CreateAgentModal 内嵌 ModelPicker，不选即继承全局默认（null），复用 `members.model_provider/model_id/thinking_level` 列，启动时由 startSession 应用。
 

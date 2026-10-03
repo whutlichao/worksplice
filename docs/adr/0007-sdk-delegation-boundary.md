@@ -1,6 +1,6 @@
 # SDK 委托边界：lib/rpc 与 model/skills/extensions 收敛
 
-**背景**：`lib/rpc`（`session.ts`/`registry.ts`/`caller.ts`/`subscriber.ts`/`broadcaster.ts` 1479 行，3 处 `globalThis` 热重载守卫）与 `model-scope/thinkingLevelPins/enabledModels/models.json/skills/plugins` 分散在 20+ 文件，SDK `@earendil-works/pi-coding-agent@0.99.2` 已提供 `AgentSession/SessionManager/SettingsManager/ModelRuntime/DefaultResourceLoader/DefaultPackageManager/resolveModelScopeWithDiagnostics` 等中层能力，但 `SessionManager` 无 cwd 互斥、收款无 raft 域存储，需明确 `pi 管 pi、raft 管 raft` 切分线（ticket 04，`research/01 §1-2` 证据索引）。
+**背景**：`lib/rpc`（`session.ts`/`registry.ts`/`caller.ts`/`subscriber.ts`/`broadcaster.ts` 1479 行，3 处 `globalThis` 热重载守卫）与 `model-scope/thinkingLevelPins/enabledModels/models.json/skills/plugins` 分散在 20+ 文件，SDK `@earendil-works/pi-coding-agent@0.99.2` 已提供 `AgentSession/SessionManager/SettingsManager/ModelRuntime/DefaultResourceLoader/DefaultPackageManager/resolveModelScopeWithDiagnostics` 等中层能力，但 `SessionManager` 无 cwd 互斥、收款无 协作域存储，需明确 `pi 管 pi、worksplice 管 worksplice` 切分线（ticket 04，`research/01 §1-2` 证据索引）。
 
 **决策（ticket 04，2 轮 grilling 7 问全 A）**：
 - **AgentSessionWrapper 四模块保留、职责收窄**：`registry` 保留 per-member `__workspliceSessions` 记账（不按 cwd 猜归属，`lib/agent-runtime.ts:184-260` 按 `member.id` 记账纪律），`withCwdStartLock/trackStarting` 抽至 `lib/cwd-mutex.ts`（ADR-0005 已立，`realpathSync` 归一 + 计数器 + `isCwdBusy/findBusySession + waitForSettle(SETTLE_EVENTS)`），`caller` 保留 `createAgentSessionServices→resolveVisibleModels→createAgentSessionFromServices` 二段式（含 `trustReloadOptions/withExtensionTools`），`session.ts` 瘦身为仅叠 `promptRunning` + 薄订阅；**`subscriber.ts`（61 行）与 `broadcaster.ts`（58 行）仍是两个文件、各自在 `lib/rpc/index.ts` 的公共 API 面里导出**（原文写的「合为 `lib/rpc/events.ts` 窄面」描述的收敛从未落地，该文件至今不存在）。`SDK SessionManager.listAll` 不替代 registry 记账（SDK 无 `BusyCwdError`）。
@@ -12,7 +12,7 @@
 
 **Consequences**：
 - `lib/cwd-mutex.ts` 成为 `agent-runtime` 与 `agent-loop driver` 共用唯一串行事实来源（ADR-0005 补充），`lib/rpc` 行数收敛但 `globalThis` 三守卫与 `realpath` 单测保留。
-- `lib/model-scope.ts` 与 `models-cache` 成为后续 06 深模块图中 `lib/rpc` 的依赖下游，`Store 57` 宽总线与 `lib/domain/raft/index.ts` 唯一导入面不变（ADR-0006）。
+- `lib/model-scope.ts` 与 `models-cache` 成为后续 06 深模块图中 `lib/rpc` 的依赖下游，`Store 57` 宽总线与 `lib/domain/collab/index.ts` 唯一导入面不变（ADR-0006）。
 - 技能开关手术为已知 tech debt，spec §5 显式标注 sunset。
 
 **Status**: accepted

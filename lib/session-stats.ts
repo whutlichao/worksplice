@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from "fs";
 import { normalize as normalizePath } from "path";
 import type { MemberRow } from "./data/types.ts";
-import { normalizeWorkspacePath } from "./domain/raft/index.ts";
+import { normalizeWorkspacePath } from "./domain/collab/index.ts";
 
 /**
  * Token / 成本可观测性（spec §6.5）：从 pi session jsonl **只读解析**统计，

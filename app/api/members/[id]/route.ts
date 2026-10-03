@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgent, AgentNotFoundError } from "@/lib/domain/raft";
+import { getAgent, AgentNotFoundError } from "@/lib/domain/collab";
 import { deleteAgentIdentity } from "@/lib/agent-lifecycle";
 
 // GET /api/members/[id] — 单个 agent 成员详情

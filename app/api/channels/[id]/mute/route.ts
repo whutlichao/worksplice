@@ -6,7 +6,7 @@ import {
   listChannelMutes,
   muteChannel,
   unmuteChannel,
-} from "@/lib/domain/raft";
+} from "@/lib/domain/collab";
 
 /**
  * §3.2 mute 路由组：

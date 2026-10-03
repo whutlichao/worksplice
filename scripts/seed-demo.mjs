@@ -6,11 +6,11 @@
 // 契约：
 //   - 门禁：不设 WORKSPLICE_DATA_DIR 直接拒绝运行（退出码 1），绝不写默认目录 ~/.worksplice。
 //     门禁放在任何数据层/域层 import 之前 —— 动态 import 是主动选的写法，让「门禁失败时
-//     连 raft 域都不曾被加载」成为结构性事实，而不依赖模块求值顺序的推理。
+//     连 协作域都不曾被加载」成为结构性事实，而不依赖模块求值顺序的推理。
 //   - 幂等：成功 seed 过的目录带一个完成标记（SEED_MARKER_FILE），重跑跳过并汇报既有数据，
 //     退出码恒为 0；标记缺失却已存在同名 agent —— 说明上次 seed 中途失败，脚本拒绝在
 //     半成品上叠加第二份数据，报错退出。
-//   - 只经 raft 域层写入（createAgent / createChannel / sendMessage / createTask /
+//   - 只经 协作域层写入（createAgent / createChannel / sendMessage / createTask /
 //     claimTask / updateTaskStatus / toggleReaction / pinMessage / scheduleReminder），
 //     不直接写数据层、不发 SQL；汇报数据同样走域层读接口。
 //   - 每条消息都带 wake:false —— 不触发 agent-loop、不发起任何模型请求，纯本地秒级完成。
@@ -32,13 +32,13 @@ if (!dataDirOverride) {
   process.exit(1);
 }
 
-/** 幂等标记：与 raft.db 同目录，只记 seed 身份与完成时间，不承载任何业务事实。 */
+/** 幂等标记：与 worksplice.db 同目录，只记 seed 身份与完成时间，不承载任何业务事实。 */
 const SEED_ID = "worksplice-demo-v1";
 const SEED_MARKER_FILE = path.join(path.resolve(dataDirOverride), "seed-demo.json");
 
-// ---------- 数据层与 raft 域（动态 import：确保门禁先执行） ----------
+// ---------- 数据层与 协作域（动态 import：确保门禁先执行） ----------
 //
-// raft 域走 AGENTS.md 指定的唯一对外导入面 lib/domain/raft/index.ts，不逐个导入子模块。
+// 协作域走 AGENTS.md 指定的唯一对外导入面 lib/domain/collab/index.ts，不逐个导入子模块。
 
 const { openDataDb } = await import("../lib/data/sqlite.ts");
 const { BUILTIN_CHANNEL_ID } = await import("../lib/data/schema.ts");
@@ -61,7 +61,7 @@ const {
   sendMessage,
   toggleReaction,
   updateTaskStatus,
-} = await import("../lib/domain/raft/index.ts");
+} = await import("../lib/domain/collab/index.ts");
 
 globalThis.__workspliceDb = openDataDb(dataDirOverride);
 
@@ -332,7 +332,7 @@ const CONVERSATIONS = [
         key: "b1",
         author: "Nova",
         content:
-          "Got an alert last night: raft.db-wal grew to 300MB and never shrank back. First look says a read-only page runs maxSeq every 3 seconds and keeps the WAL pinned open. The way the service layer writes it is fine; the problem should be read amplification.",
+          "Got an alert last night: worksplice.db-wal grew to 300MB and never shrank back. First look says a read-only page runs maxSeq every 3 seconds and keeps the WAL pinned open. The way the service layer writes it is fine; the problem should be read amplification.",
       },
       {
         key: "b2",
@@ -410,7 +410,7 @@ const CONVERSATIONS = [
         key: "a2",
         author: "Quill",
         content:
-          "Let's settle the vocabulary so the docs stop mixing terms: cross-agent message passing is a \"wake\"; progress inside a single agent is a \"round\". The two live in separate places, lib/domain/raft/wake.ts and lib/agent-loop/loop.ts, and the docs should use this split consistently from here on.",
+          "Let's settle the vocabulary so the docs stop mixing terms: cross-agent message passing is a \"wake\"; progress inside a single agent is a \"round\". The two live in separate places, lib/domain/collab/wake.ts and lib/agent-loop/loop.ts, and the docs should use this split consistently from here on.",
       },
       {
         key: "a3",

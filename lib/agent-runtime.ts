@@ -8,7 +8,7 @@ import {
   getMember,
   normalizeWorkspacePath,
   setAgentSessionFile,
-} from "./domain/raft/index.ts";
+} from "./domain/collab/index.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
 import type { AgentSessionWrapper } from "./rpc/index.ts";
 import { findBusySession, isCwdBusy, withCwdMutex } from "./cwd-mutex.ts";

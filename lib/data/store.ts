@@ -1,7 +1,7 @@
 /**
- * raft 数据契约（Ticket 03 Separate Data Layer）。
+ * 数据契约（Ticket 03 Separate Data Layer）。
  *
- * `Store` 是业务模块（lib/domain/raft/*、lib/agent-loop/*）唯一依赖的数据抽象面：
+ * `Store` 是业务模块（lib/domain/collab/*、lib/agent-loop/*）唯一依赖的数据抽象面：
  * 一个持久化（SQLiteAdapter）或预留的内存（InMemoryAdapter）后盾都能实现它。
  * 业务代码经由 `lib/data/db-singleton.ts` 的 `getDb(): Store` 获取实例，不直接引用
  * 具体 adapter 模块——消除对 better-sqlite3 的直接耦合。

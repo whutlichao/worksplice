@@ -63,7 +63,7 @@ English summary:
 `package.json:39` 的 `scripts.test` 不是 glob，而是一条**逐个文件名列出的显式清单**：
 
 ```
-node --test lib/agent-loop/*.test.mjs lib/domain/raft/*.test.mjs lib/i18n/*.test.mjs \
+node --test lib/agent-loop/*.test.mjs lib/domain/collab/*.test.mjs lib/i18n/*.test.mjs \
   lib/agent-reconcile.test.mjs lib/channel-list.test.mjs lib/file-types.test.mjs \
   components/ChannelView.test.mjs components/WorkspaceSidebar.test.mjs hooks/useChannelData.test.mjs
 ```
@@ -93,7 +93,7 @@ $ find . -name '*.test.mjs' -not -path './node_modules/*' -not -path './.next/*'
       4 hooks
       1 app
 
-$ ls lib/agent-loop/*.test.mjs lib/domain/raft/*.test.mjs lib/i18n/*.test.mjs \
+$ ls lib/agent-loop/*.test.mjs lib/domain/collab/*.test.mjs lib/i18n/*.test.mjs \
     lib/agent-reconcile.test.mjs lib/channel-list.test.mjs lib/file-types.test.mjs \
     components/ChannelView.test.mjs components/WorkspaceSidebar.test.mjs hooks/useChannelData.test.mjs \
     | wc -l
@@ -122,7 +122,7 @@ $ comm -13 gate-47.txt all-118.txt | cut -d/ -f1 | sort | uniq -c | sort -rn
 两点实测发现，让缺口更难被察觉：
 
 1. **仓库没有 CI**：`ls .github/workflows/` → `No such file or directory`（`.github/` 下只有 `pull_request_template.md` 与两个 issue 模板）。`docs/engineering-standards.md:54` 自己写明「当前 CI 状态：**本地 gate 即 CI**」。也就是说 `npm test` 只在有人手动敲时才会跑 —— 没有任何机器会替我们发现新增的测试文件没进门禁。
-2. **标准文档把这个局部清单称作「全量基线」**：`docs/engineering-standards.md:25` 写 `npm test # 全量基线（agent-loop + raft + 组件，343 用例 @ BAI-6）`，`:28` 写「全量基线明细」，`:48` 把 `npm test`（全量基线）列为提交前硬门禁。而 `:30` 给出的「明细」命令本身也只有 3 条路径。用例数也已漂移（文档写 343、`docs/adr/0009` 写 347、实测 471），但**始终没有人核对过它是否真的「全量」**。
+2. **标准文档把这个局部清单称作「全量基线」**：`docs/engineering-standards.md:25` 写 `npm test # 全量基线（agent-loop + collab + 组件，343 用例 @ BAI-6）`，`:28` 写「全量基线明细」，`:48` 把 `npm test`（全量基线）列为提交前硬门禁。而 `:30` 给出的「明细」命令本身也只有 3 条路径。用例数也已漂移（文档写 343、`docs/adr/0009` 写 347、实测 471），但**始终没有人核对过它是否真的「全量」**。
 
 > 相关既有记录：`docs/pi-sdk-upgrade-spike.md:402` 已就另一类失明写过结论 ——「`npm test` 对 3 个断裂完全失明」，但那次的失明对象是 `tsc --noEmit` 能抓而测试抓不到的**类型**断裂，不是测试文件**根本没被执行**。根因同源（门禁是手工清单），现象不同，本票补上这一半。
 
@@ -385,7 +385,7 @@ DELETE FROM channels WHERE type = 'dm' AND id NOT IN (SELECT DISTINCT target_id 
 // 由 createDirectChannel 幂等创建；存量空 DM 由 cleanupEmptyDms 每开库回收。
 ```
 
-**且这个新行为有自己的正式测试、并且通过了** —— `lib/domain/raft/dm.test.mjs:121`：
+**且这个新行为有自己的正式测试、并且通过了** —— `lib/domain/collab/dm.test.mjs:121`：
 
 ```js
 test("migration deletes empty DMs (with their channel_members) and keeps non-empty DMs idempotently", () => {
@@ -402,7 +402,7 @@ test("migration deletes empty DMs (with their channel_members) and keeps non-emp
 **本票没有找到任何产品代码缺陷。** 3 条失败逐条经代码 + git 历史双向核实（§4.2、§4.3），全部指向「产品行为正确且有意，测试断言过期」。这一结论的强度来自三处否证，而非「没看出来」：
 
 1. **project-trust 的护栏逐条独立求值**：17 条断言中 13 条 PASS，包括全部行为类断言（`trustProject` → `invalidateModelsCache` → `destroyRpcSessionsForCwd` → `hasBusyRpcSessionForCwd` 这条失效链、`plugins` 的 `projectTrusted` 双点、`skills` 的 trust reload、`session.ts` 的 `syncProjectTrust()+reload` 计数恰为 2）。且 `lib/model-listing.ts:66` 实测仍持有被搬走的 `projectTrustReloadOptions(cwd, agentDir)` 字面量 —— 护栏是**搬家**不是**消失**。
-2. **data-layer 的新行为有独立测试且通过**：`lib/domain/raft/dm.test.mjs:121` 明确断言「空 DM 被删、非空 DM 幂等保留」。
+2. **data-layer 的新行为有独立测试且通过**：`lib/domain/collab/dm.test.mjs:121` 明确断言「空 DM 被删、非空 DM 幂等保留」。
 3. **git 时序自洽**：`cleanupEmptyDms` 的引入（`718c37e`, 2026-09-06）晚于该测试的最后改动（`49ad42f`, 2026-09-05）一天，两次 project-trust 相关重构（`eb7c423` 2026-08-20、`8e46848` 2026-09-04）也都晚于该测试的最后改动（`df985ca` 2026-08-14）。三次都是「代码先动、测试没动」，不是「测试揭示了回归」。
 
 ### 5.2 若按「修起来的工作量 × 风险」排序（供下一票决定先后）
@@ -522,7 +522,7 @@ Error: Cannot find module '/Users/apple/orca/workspaces/worksplice/test-gate-aud
 | 24 | `seed()` 每次无条件插 `#all`；`cleanupEmptyDms` 每次无条件删空 DM | 读 `lib/data/schema.ts:199-216`（`runMigrations`）、`:307-312`（`seed`）、`:338-367`（`cleanupEmptyDms`）、`:364-366`（删除 SQL） | §4.3 |
 | 25 | fixture 从不插 `messages` 行 → 空 DM 必被回收（失败稳定复现） | 读 `lib/data/data-layer.test.mjs:182-223`（仅 4 张 `CREATE TABLE`，无 `messages`） | §4.3 |
 | 26 | `3` 曾是正确的；`cleanupEmptyDms` 引入晚于该测试最后改动一天 | `git log --date=short -- lib/data/data-layer.test.mjs` → `49ad42f 2026-09-05`；`git log -S 'cleanupEmptyDms' -- lib/data/schema.ts` → `718c37e 2026-09-06` | §4.3 |
-| 27 | 新行为另有正式测试且通过 | 读 `lib/domain/raft/dm.test.mjs:121` | §4.3、§5.1 |
+| 27 | 新行为另有正式测试且通过 | 读 `lib/domain/collab/dm.test.mjs:121` | §4.3、§5.1 |
 | 28 | 真实缺陷 = 0（三重否证） | 由 #20、#21、#26、#27 合成 | §5.1 |
 | 29 | 修复面 = 4 处测试断言、0 处产品代码 | 由 #18–#27 逐条归位；改动清单见 §5.2 | §5.2 |
 | 30 | 该测试 grep 的全是实现细节，与本仓「只测外部行为」原则相悖 | 读 `docs/engineering-standards.md:35,38` | §5.3 |

@@ -16,7 +16,7 @@
 ### 1.2 与主 spec 的关系
 
 - 主 spec `docs/spec.md` 已确认（2026-08-03）；本文是它的子域补充，只覆盖"秘书"这一个 agent 的**内容与行为**，机制全部复用主 spec 既有章节：agent-loop（§5.4）、inbox / wake（§3.8、§5.5）、channel 成员机制（§3.2）、agent 身份与详情面板（§3.6）、提醒（§3.9）。
-- **零机制改动原则**（charting 时用户确认）：秘书 = 普通成员身份 + 内容（MEMORY.md / SYSTEM-GUIDE.md / prompt 预设 / 创建引导），**不碰** agent-loop / lib/rpc / raft 服务层的机制代码；本文每一条规则都能落到"成员行 + 家目录文件 + 启动/创建路径上的薄逻辑"上。**[锁定]**（map Notes）
+- **零机制改动原则**（charting 时用户确认）：秘书 = 普通成员身份 + 内容（MEMORY.md / SYSTEM-GUIDE.md / prompt 预设 / 创建引导），**不碰** agent-loop / lib/rpc / 协作服务层的机制代码；本文每一条规则都能落到"成员行 + 家目录文件 + 启动/创建路径上的薄逻辑"上。**[锁定]**（map Notes）
 - 本文不重复定义主 spec 已有术语（member / agent / channel / target / seq / thread / 任务 / inbox / drain / wake hint / freshness-hold / cwd / 状态点 / 消费游标），直接引用主 spec §1.3。
 
 ### 1.3 本 spec 新术语

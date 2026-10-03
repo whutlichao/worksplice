@@ -124,7 +124,7 @@ npx worksplice --demo
 
 演示模式**不跑任何智能体**，也绝不碰你真实的 `~/.worksplice`：数据放在 `~/.worksplice-demo`（可用 `WORKSPLICE_DEMO_DIR` 覆盖），删掉那个目录即可重来。重复运行会复用已有数据，所以你在演示里发过的消息不会丢。
 
-从源码运行时，`npm run seed:demo` 可以显式造出同一套数据；具体两条命令见 `scripts/seed-demo.mjs`。
+从源码运行时，先执行一次 `npm run build:demo-db` 生成 `--demo` 要读的那份演示库；也可以用 `npm run seed:demo` 显式造出同一套数据（见 `scripts/seed-demo.mjs`）。
 
 试过了？[说说发生了什么](https://github.com/whutlichao/worksplice/issues/new?template=tried-it.md)——「没装上」同样是有用的答案。
 

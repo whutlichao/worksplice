@@ -113,7 +113,7 @@ _Avoid_: busy-cwd 锁（仅描述现象）、文件锁（那是 `proper-lockfile
 _Avoid_: 成本日志（不可事后查的 console 日志）
 
 **SDK 委托边界 (SDK Delegation Boundary)**:
-`pi 管 pi、raft 管 raft` 的切分线：SDK 侧收敛 `tools/enabledModels/ThinkingLevel/SessionManager/buildSessionContext/SettingsManager/ModelRuntime/AuthStorage/DefaultResourceLoader/DefaultPackageManager/compaction`，worksplice 侧保留 `lib/rpc registry+caller` 的 per-member 记账与 `Cwd 互斥`、`双轨状态`、`lifecycle 家目录两分`、`pi_session_file 固化门禁`、`raft 域全量`（`Store 57`/`UNIQUE(target_id,seq)`/`freshness-hold`/`FTS5`）与 `project-trust/models-cache/provider-listing` 编排。
+`pi 管 pi、worksplice 管 worksplice` 的切分线：SDK 侧收敛 `tools/enabledModels/ThinkingLevel/SessionManager/buildSessionContext/SettingsManager/ModelRuntime/AuthStorage/DefaultResourceLoader/DefaultPackageManager/compaction`，worksplice 侧保留 `lib/rpc registry+caller` 的 per-member 记账与 `Cwd 互斥`、`双轨状态`、`lifecycle 家目录两分`、`pi_session_file 固化门禁`、`协作域全量`（`Store 57`/`UNIQUE(target_id,seq)`/`freshness-hold`/`FTS5`）与 `project-trust/models-cache/provider-listing` 编排。
 _Avoid_: SDK 边界（泛指）、中层收敛（未指明归属）
 
 **薄 Wrapper (Thin Wrapper)**:
@@ -125,5 +125,5 @@ _Avoid_: 厚 Wrapper（复刻 SDK 状态机）、代理（proxy 泛称）
 _Avoid_: 浅封装（仅做 re-export 转发）、大杂烩模块
 
 **唯一导入面 (Single Entry / Facade)**:
-一域对外唯一的 `index.ts` 聚合出口（如 `lib/domain/raft/index.ts: export *`），消费方只经此单口导入，域内子模块互相直引；测试缝以此单口 mock 整域。
+一域对外唯一的 `index.ts` 聚合出口（如 `lib/domain/collab/index.ts: export *`），消费方只经此单口导入，域内子模块互相直引；测试缝以此单口 mock 整域。
 _Avoid_: 散导入（直引子模块）、桶文件（仅为缩短路径）

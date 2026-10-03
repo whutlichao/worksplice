@@ -34,7 +34,7 @@ post_json() { node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.ar
   | curl -s -o "$SLOT" -w '%{http_code}' -X POST "$BASE$1" -H 'content-type: application/json' --data-binary @- ; }
 field() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);const v=eval(process.argv[1]);console.log(v===undefined?'':v)})" "$1" < "$SLOT"; }
 q() { node -e "
-  const D=require('better-sqlite3');const db=new D('$DATA/raft.db',{readonly:true});
+  const D=require('better-sqlite3');const db=new D('$DATA/worksplice.db',{readonly:true});
   console.log(eval(process.argv[1]));
 " "$1"; }
 marks() { node -e "
@@ -106,7 +106,7 @@ done
 echo
 echo "### 7. 房间现状"
 node -e "
-const D=require('better-sqlite3');const db=new D('$DATA/raft.db',{readonly:true});
+const D=require('better-sqlite3');const db=new D('$DATA/worksplice.db',{readonly:true});
 for (const m of db.prepare('SELECT seq,author_id,content FROM messages WHERE target_id=? ORDER BY seq').all('$CH')) {
   const who = m.author_id==='owner' ? 'Bob  ' : (m.author_id==='$ALICE' ? 'Alice' : 'Susan');
   console.log('  #'+m.seq+' '+who+'  '+String(m.content).replace(/\s+/g,' ').slice(0,150));
@@ -117,7 +117,7 @@ for (const m of db.prepare('SELECT seq,author_id,content FROM messages WHERE tar
 echo
 echo "### 8. round_logs"
 node -e "
-const D=require('better-sqlite3');const db=new D('$DATA/raft.db',{readonly:true});
+const D=require('better-sqlite3');const db=new D('$DATA/worksplice.db',{readonly:true});
 for (const r of db.prepare('SELECT status,reason,base_seq,created_at FROM round_logs WHERE agent_id=? ORDER BY id').all('$ALICE'))
   console.log('  status='+r.status+'  reason='+JSON.stringify(r.reason)+'  base_seq='+r.base_seq+'  '+r.created_at);
 "

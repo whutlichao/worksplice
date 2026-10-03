@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listChannelMembers, getChannel } from "@/lib/domain/raft";
+import { listChannelMembers, getChannel } from "@/lib/domain/collab";
 
 export async function GET(
   _request: Request,

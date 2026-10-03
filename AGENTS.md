@@ -105,7 +105,7 @@ app/api/
   channels/[id]/join/route.ts     POST { memberId? } — 公开自由加入；私有须 Owner
   channels/[id]/leave/route.ts    POST { memberId? } — `#all` 不可离开
   channels/[id]/read/route.ts     POST — BAI-6 未读角标：推进 Owner 已读游标到当前 max(seq)，清除角标
-  lib/domain/raft/reads.ts       BAI-6 未读角标服务层：unreadCount / markChannelRead / listChannelsWithUnread
+  lib/domain/collab/reads.ts       BAI-6 未读角标服务层：unreadCount / markChannelRead / listChannelsWithUnread
   channels/[id]/archive/route.ts  POST { archived } — Owner only，冻结写入
   channels/[id]/members/route.ts  GET member list
   messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）；
@@ -140,11 +140,11 @@ app/api/
   secretary/init/route.ts         POST 启动助手入口（spec-bootstrap-agent §6.3）：薄封装 initSecretaryFlow（§6.2 五步初始化），
                                   provider/modelId/thinkingLevel 可选（缺省继承全局默认）
 
-lib/domain/raft/                raft 服务层（app/api 仅薄封装；唯一导入面）
-  index.ts                      raft 域唯一对外导入面：`export *` 汇合全部子模块（channels/members/
-                                messages/tasks/inbox/wake/…），消费方只 `from "@/lib/domain/raft"` 一条
+lib/domain/collab/                协作服务层（app/api 仅薄封装；唯一导入面）
+  index.ts                      协作域唯一对外导入面：`export *` 汇合全部子模块（channels/members/
+                                messages/tasks/inbox/wake/…），消费方只 `from "@/lib/domain/collab"` 一条
                                 import；`getDb()` 不在此面（归 lib/data/db-singleton.ts）。子模块内部
-                                互相用相对路径直引，不经索引回环（测试在一个 seam mock 整个 raft 域）。
+                                互相用相对路径直引，不经索引回环（测试在一个 seam mock 整个 协作域）。
   channels.ts                     create/join/leave/archive/members + mute/unmute/getChannelMute（§3.2 mute）
                                   + CURRENT_MEMBER_ID（恒为 owner）
   messages.ts                     sendMessage（freshness + thread 校验 + quote + 附件落盘 + 提交后发 wake）
@@ -172,7 +172,7 @@ lib/domain/raft/                raft 服务层（app/api 仅薄封装；唯一�
                                   + nextFireAt（严格晚于 from，时区安全，delay 语义）
   wake.ts                         wake 事件总线（§5.4/§5.5）：WakeHint（只含 agentId/targetId/seq/reason，不含正文）；
                                   subscribeWake/emitWake；notifyMessageWakes（channel agent 成员除作者 + 未加入被
-                                  @mention 的穿透）；§3.7 任务延续自醒；@mention 解析 re-export（raft 服务层发，agent-loop 驱动订阅）
+                                  @mention 的穿透）；§3.7 任务延续自醒；@mention 解析 re-export（协作服务层发，agent-loop 驱动订阅）
 
 lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并为单文件深模块）
   loop.ts                         深模块（round + driver + backfill + reminder-cron 全收编）：
@@ -194,11 +194,11 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并
                                   状态扫掠 + 补拉 + 驱动 + cron；tick 手动推进 cron 扫描）
   index.ts                        AgentLoop 公共 API 面（窄）：仅 re-export createAgentLoop / AgentLoop 类型；
                                   内部函数测试面直接从 ./loop.ts 导入
-                                  （raft 域 wake 总线见 lib/domain/raft/wake.ts：raft 服务层发、本模块订阅）
+                                  （协作域 wake 总线见 lib/domain/collab/wake.ts：协作服务层发、本模块订阅）
 
-lib/data/                         raft 数据层（Ticket 03 Separate Data Layer：Store 契约 + SQLiteAdapter）
+lib/data/                         数据层（Ticket 03 Separate Data Layer：Store 契约 + SQLiteAdapter）
   store.ts                        `Store` 接口（数据契约；业务模块只依赖它，不 import 具体 adapter）
-  types.ts                        raft 共享类型（行类型/输入/枚举）+ 搜索纯函数（toFtsQuery/buildSearchSnippet）
+  types.ts                        共享类型（行类型/输入/枚举）+ 搜索纯函数（toFtsQuery/buildSearchSnippet）
   sqlite.ts                       `SQLiteAdapter implements Store`（better-sqlite3，同步 API）+ 工厂
                                   openSqliteAdapter/openDataDb；表 CRUD + maxSeq/freshness 原语 + seq 游标分页
   schema.ts                       schema v4（reminder_logs 事件表；members.deleted 为 v3 ALTER 迁移）+ 消息不可变触发器 + FTS5
@@ -369,16 +369,16 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 
 - `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
 
-### Raft message domain (`lib/domain/raft/`)
+### Collaboration message domain (`lib/domain/collab/`)
 
-- **服务层 = 唯一事实来源**：`lib/domain/raft/channels.ts` / `messages.ts` 直接操作数据层（`getDb(): Store`——Ticket 03 数据契约，运行时 `SQLiteAdapter`），API route 仅薄封装；join/leave/archive/mute 的权限规则、freshness-hold、thread 不可嵌套都在服务层强制，route 层不重复实现。
+- **服务层 = 唯一事实来源**：`lib/domain/collab/channels.ts` / `messages.ts` 直接操作数据层（`getDb(): Store`——Ticket 03 数据契约，运行时 `SQLiteAdapter`），API route 仅薄封装；join/leave/archive/mute 的权限规则、freshness-hold、thread 不可嵌套都在服务层强制，route 层不重复实现。
 - **Target 归一化**（§6.1）：消息 `target_id` 单列——命中 `channels` 即 channel，否则是 thread 锚点消息 id；`resolveTarget` 拒绝 thread 消息作为新 target（不可嵌套）。thread 读接口（`getThreadInfo`）会把 thread 内消息归一化回锚点。
 - **Freshness-hold**（§6.3）：`sendMessage` 带 `baseSeq`（客户端最新 `maxSeq`），事务内比对 `maxSeq(targetId)`，不等返回 `{ held, roomSeq, whatHappened }`，route 层 409；UI 收 held 后重新拉取并提示，agent 的四选一流程属 ticket 06。
 - **权限面**：写消息要求作者是 channel 成员（thread 回复继承 channel 规则）；私有 channel 加入/移除成员、归档都仅 Owner（`CURRENT_MEMBER_ID` = `"owner"`，人类恒为 Owner）；`#all` 不可离开；新 agent 创建时自动加入 `#all`（seed 也会在迁移时补齐既有成员）。
 - **引用 = 物化**：消息不可编辑，quote 以块引用文本（`> **#seq author**\n> preview`）拼进发送内容，不留结构化引用。
 - **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel composer 独享（ticket 13 线程迁出右栏后引用态变面板局部——`ThreadPanel` 自持 quoting，channel 与 thread 引用互不污染）；`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
 - **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。右栏线程面板（`ThreadPanel`）另有同纪律 3s 轮询（`THREAD_POLL_MS`），任务线程回复自动冒出，与中央轮询并存为两套循环。
-- **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq &gt; read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/domain/raft/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
+- **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq &gt; read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/domain/collab/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
 
@@ -389,7 +389,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **状态点 = 现场推导 + DB 回落**（`lib/agent-status.ts`）：`statusLookup` 有存活 wrapper 时推导（running → working / idle 且 DB 非 error → online），wrapper 不在时 DB error 保留、其余回落 offline；低频扫掠（10s）兜底 idle shutdown 的漂移。`prompt_error` 事件写 error 且不会被 idle 推导覆盖，直到下次 `agent_start` 或重启。lookup/listeners/snapshot 全部挂在 globalThis（热重载安全）；agent-runtime 用 `__workspliceAgentSessions` 按成员 id 记账 wrapper，**不按 cwd 猜归属**——同一 cwd 上的人类/他 agent 会话不会张冠李戴。
 - **生命周期接缝**：`AgentRuntime` 接口（start/destroy/find/removeSessionFilesForCwd）由 `lib/agent-runtime.ts` 实现，**惰性 import lib/rpc/SDK**（`getAgentRuntime()` 才拉起），测试注入 fake 即可单测 `agent-lifecycle`——node 的 TS strip 模式无法解析 lib/rpc/session.ts 的 parameter properties，绝不能静态 import 它。
 - **换目录即换会话**：`changeAgentWorkspace` 先校验新路径（坏路径不伤旧会话；拒绑他人家目录）→ 销毁旧 cwd 的会话 → 改绑定并清空 `pi_session_file`；Restart 按同一 session 文件重启（上下文保留）。**Session reset / Full reset 删掉该 cwd 下无成员引用的 session 文件**（`removeSessionFilesForCwd`），保证按需重建时是全新会话而不是复活旧上下文；共享项目目录下他 agent 的文件保留。
-- `**db-singleton` 版本守卫**：`openSqliteAdapter`/`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb(): Store` 比对版本，热重载后 `SQLiteAdapter` 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openSqliteAdapter，不会被误重建或误开 `~/.worksplice/raft.db`。
+- `**db-singleton` 版本守卫**：`openSqliteAdapter`/`openDataDb` 记录打开时的 `SCHEMA_VERSION` 到 `__workspliceDbOpenedVersion`，`getDb(): Store` 比对版本，热重载后 `SQLiteAdapter` 类已变时重建实例——避免拿到旧原型的 `setMemberPiSessionFile` 等新方法缺失报错；测试直连（`globalThis.__workspliceDb = openDataDb(tmp)`）同样经过 openSqliteAdapter，不会被误重建或误开 `~/.worksplice/worksplice.db`。
 
 ### agent-loop（ticket 06，§3.8/§5.3–5.5）
 
@@ -398,19 +398,19 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **mute（ticket 12，§3.2/§3.8）**：channel 级静音 = `channel_mutes` 表（PK channel+member）记录静音时刻的 `mute_from_seq`（channel max(seq)）与 `mute_rowid`（全表 max(messages.rowid)）。drain/getPendingTargets 过滤：静音后的普通消息不进 inbox，个人 @mention 仍穿透；channel 消息按 seq 比，thread 消息无 channel seq 可比（thread 自己的 seq 空间）按 rowid 比（全局插入序，避免同毫秒 created_at 歧义）。静音前的消息照常投递；取消 mute 后不补投静音期间被压制的消息（游标已推进）。`GET/POST /api/channels/[id]/mute`（Owner 可替任意 agent 设）；ChannelView 头部 `BellOff` 面板逐个 agent 开关。
 - **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author` 消息 + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` → 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 revise。**ack 语义**：ack 到 agent 本轮实际读到/被告知的房间版本（`deliverWithFreshness` 返回 ackSeq，held 后随 roomSeq 推进），避免游标停在旧 baseSeq 导致 target 永久 pending。
 - **freshness-hold 四选一**（`deliverWithFreshness`）：held 后按 agent 声明的 onConflict 执行——revise（`buildRevisionPrompt` 携带期间新消息正文重读重写，最多 2 次）/ resend（携带新 roomSeq 原样重试，最多 3 次）/ silent（静默放弃）/ anyway（不带 baseSeq 显式绕过，连续 hold 的逃逸口）；重试耗尽归入 silent。发送器可注入（`send` 参数，测试脚本化用）。
-- **崩溃恢复补拉**（loop.ts 内 backfill 段）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`createAgentLoop().start()`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis（lib/domain/raft/wake.ts）。
+- **崩溃恢复补拉**（loop.ts 内 backfill 段）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`createAgentLoop().start()`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis（lib/domain/collab/wake.ts）。
 - **driver 编排**：每 agent 一个 FIFO 队列，同 (agent, target) hint 合并；busy（会话运行中）/ busy-cwd（同 cwd 被占用）时挂 settle 监听（`SETTLE_EVENTS`：agent_end/agent_settled/prompt_done/compaction_end/auto_compaction_end）后重试，不丢 hint；busy-cwd 找不到等待对象（对方会话 starting 窗口未入 registry）时退避 `BUSY_CWD_RETRY_DELAY_MS` 后重试（不热自旋，定时器随 stop() 取消）；状态挂 `__workspliceAgentLoopDriver`。loop 只依赖 `LoopRuntime` 结构子集（findSession/startSession/findBusySessionForCwd），测试注入 fake，**不静态 import lib/rpc**。
 - **⚠️ 热重载陷阱（改代码必须重启 dev server）**：wake 监听器（`__workspliceWakeListeners`）在 server 启动时由 `startAgentLoopDriver` 注册，`started` 守卫阻止热重载后重新订阅——**旧监听器闭包永久持有旧 `runAgentRound`/`parseAgentAction`**。改 agent-loop/driver/wake/backfill 等被 globalThis 闭包引用的模块后，热重载不生效，行为照旧（曾因 parseAgentAction 修复不生效，脏 JSON 消息继续落库数小时）。验证手段：查 `ps aux | grep next-server` 的启动时间是否晚于改动。同理，`getAgentRuntime()` 的 wrapper 记账与 session 启动路径同此约束。
 - **状态点**：loop 在 prompt 前后 publish working/online（与 wrapper 的 agent_start/agent_end 事件双保险）；会话错误 publish error 且不推进游标（下次 wake 重试）。
 
 ### 任务板（ticket 07，§3.7/§5.7 tasks 路由组）
 
-- **task = 消息 + 元数据**（`lib/domain/raft/tasks.ts`）：`tasks` 表锚定 `message_id`（UNIQUE）；创建三途径——右键菜单 Convert to Task / 发送时勾 As Task / Tasks tab Create Task，全部收敛到 `createTask({messageId})`（board 创建先 `sendMessage` 再转）；**thread 内消息不可转**（锚点 target 必须是 channel）、消息不可重复转（`TaskAlreadyExistsError` → 409）。`number` 按 channel 内递增（join messages 算 max+1），跨 channel 各自从 #1 起。
+- **task = 消息 + 元数据**（`lib/domain/collab/tasks.ts`）：`tasks` 表锚定 `message_id`（UNIQUE）；创建三途径——右键菜单 Convert to Task / 发送时勾 As Task / Tasks tab Create Task，全部收敛到 `createTask({messageId})`（board 创建先 `sendMessage` 再转）；**thread 内消息不可转**（锚点 target 必须是 channel）、消息不可重复转（`TaskAlreadyExistsError` → 409）。`number` 按 channel 内递增（join messages 算 max+1），跨 channel 各自从 #1 起。
 - **状态机只走合法转移**（`TRANSITIONS` 表，服务层强制）：`todo ─claim→ in_progress ─complete→ in_review ─approve→ done`；`unclaim/reject` 回退（in_progress→todo、in_review→in_progress，owner 保留）；in_progress/in_review ─close→ closed；`done/closed ─reopen→ todo`（**reopen/unclaim 清 owner 回池**）。claim 只认未认领任务（`owner_id IS NULL`）；**互审"构建者不验证"**：approve/reject 必须由非 owner 的 channel 成员执行，owner 完成置 in_review 后由另一 agent 或人批准。
 - **重开封锁**（schema v8 `tasks.reopened` 列）：reopen 置标记回池——**agent-loop 不可自动认领**（`claimTask` 返回 `blocked` → route 409 / loop yielded "task reopened — awaiting the owner"），仅人类（`CURRENT_MEMBER_ID`）可认领接管并**清标**；人类 unclaim 后任务恢复 agent 可认领，再次重开再次封锁。unclaim/reject 不置标。向前生效，存量不追溯。`TaskView`/`listRelatedTasks` 带出标记：UI 任务板显示"重开"徽标、`buildReplyPrompt` 标注 "REOPENED … do not claim" 让模型不发起 claim。
 - **并发保护**（§6.3 同消息语义）：claim/updateStatus 携带 `baseSeq` = channel `max(seq)`，事务内比对不等返回 held（`summarizeChanges` 摘要复用）；claim 已认领返回 conflict（route 409）。UI 收 held 后刷新并提示。
 - **自动认领（agent-loop）**：协议扩展 `"task":{"number":N,"op":"claim"|"complete"|"unclaim"}`（`parseAgentAction` 向后兼容，无 task 字段行为不变）；`runTaskOperation` 先 `claimTask` 再开工——**held/conflict/非 owner → 让路**（`RoundStatus "yielded"`，不回复、channel 游标只推进到已读版本，更新的消息经 wake 重试重读）。回复投递到**任务线程**（anchor 消息 target，thread 自己的 seq/freshness 空间）；complete 的回复先落线程再置 in_review（状态更新 held 按 roomSeq 重试 ≤3 次，失败不吞回复）。
-- **任务延续自醒**（lib/domain/raft/wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。
+- **任务延续自醒**（lib/domain/collab/wake.ts）：任务 owner 的回复落任务线程且任务仍 in_progress → 自醒续工；`runAgentRound` 的 drain 对"全是我自己的消息但我在该线程有 in_progress 任务"不再 noop/skip（`ownsInProgressTaskAt`），而是以自身进度为语境续工或 complete。**游标收口**：channel 游标每轮推进；线程游标在任务离开 in_progress（complete/unclaim）时才推进，进行中留口供续工轮 drain 到自己的进度。
 - **板视图**：`GET /api/channels/[id]/tasks` 按 number 升序、每任务附 `reachable`（ADR-0002：服务端按人类 owner 身份推导的合法转移落点，含 todo→in_progress 的 claim 边；客户端不镜像状态机表）；UI 侧 List|Board 两种任务视图（ADR-0002，localStorage 记忆，默认列表）——List 按状态分组（todo→in_progress→in_review→done→closed），Board 5 列 = 5 状态常显、跨列拖拽 = 请求一次状态转移（HTML5 DnD，**不做乐观移动**：松手等服务端确认，非法落点弹回+提示）；卡片显示 #number/首行预览/owner/状态 + 按身份与状态出动作（Claim / Complete / Unclaim / Close / Approve / Reject / Reopen，与拖拽同权）；点卡片打开任务 thread（进展只在线程里，视图只显示状态）。
 
 ### 提醒（ticket 08，§3.9/§5.6 reminders 路由组）
@@ -418,7 +418,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **触发 = 系统消息 + 定向唤醒作者**：cron 到点 → `fireReminder` 以**作者署名**投递 `⏰ Reminder: <title>` 到**频道主流程**——channel 锚定投该 channel；消息锚定归一化后投其**归属 channel**（原设计投 thread 不可见，已修正为频道可见；正文附 `(anchored on #seq)` 锚点引用），`sendMessage({wake:false})` **不触发 channel 级 wake**（不惊动其他 agent）；随后仅当作者是 agent 才 `emitWake({reason:"reminder"})`（§3.9 唤醒作者本人；human 作者 = UI 轮询看到系统消息即通知）。
 - **作者选择 = 唤醒谁**：POST 默认 author = Owner；Owner 可替 agent 设（authorId = 某 agent，仅 Owner 权限，§3.6）——演示路径"给 agent 设 every:1m → 系统消息 + agent 被唤醒"靠这个闭环。ReminderModal 的"唤醒谁"下拉列出 channel 内 agent。
 - **自提醒可被 agent 看到**：系统消息以作者署名 → agent 自己设的提醒在 drain 里"全是自己的消息"，普通轮次会 noop/skip；`runAgentRound` 增加 reason 参数（driver 队列按 hint 合并取宽松侧 reason——含 reminder 即按 reminder 处理），`reason==="reminder"` 时"只有自己的消息"与"最新是本人消息"两条跳过都不生效，agent 以自身提醒为语境决定行动（loop 测试 reminded 用例）。
-- **recurrence DSL**（`lib/domain/raft/recurrence.ts` 纯模块）：`every:Nm/Nh/Nd`（delay 语义，服务端算绝对时间）/ `daily@HH:MM` / `weekly:mon,fri@HH:MM`（大小写不敏感、未知星期名整体拒绝）；`nextFireAt` **严格晚于 from**（等值视为已到点）——否则 reschedule 会立即重触发死循环；daily/weekly 用本地时区 Date 构造（时区安全）。
+- **recurrence DSL**（`lib/domain/collab/recurrence.ts` 纯模块）：`every:Nm/Nh/Nd`（delay 语义，服务端算绝对时间）/ `daily@HH:MM` / `weekly:mon,fri@HH:MM`（大小写不敏感、未知星期名整体拒绝）；`nextFireAt` **严格晚于 from**（等值视为已到点）——否则 reschedule 会立即重触发死循环；daily/weekly 用本地时区 Date 构造（时区安全）。
 - **幂等与收口**：fire 全程同步（无 await，单进程内不交错）；状态迁移 + log 在一个事务里，重复 tick/重复 fire 返回 not_due 不重复投递。**消息投递失败（作者已退出 channel 等）→ 记 error log 并收口 fired**（不无限重试），不 wake。
 - **生命周期 log**：schema v4 新增 `reminder_logs` 表（事件 schedule/fire/reschedule/snooze/update/cancel/error）；列表按 rowid 排序（同毫秒 created_at 的时序保真）；fire 事件先于 reschedule 写入（时间序）。
 - **管理权限**：snooze/update/cancel 仅作者本人或 Owner 可操作，且仅 `scheduled`（fired/canceled 报错）；snooze = `max(now, fire_at) + minutes`（默认 15）。
@@ -426,11 +426,11 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 
 ### 消息增强（ticket 09，§3.3–3.5 reactions/pinned/attachments）
 
-- **reaction = 先查后写 toggle**（`lib/domain/raft/reactions.ts`）：存在即删、不存在即加，UNIQUE(message_id, member_id, emoji) 单进程串行无竞争；**channel 成员才可点**（thread 消息经 `message.target_id` 锚点解析归属 channel，不可嵌套读侧同语义）；无通知/不进 inbox（§3.4）。聚合 = count 降序 + memberIds（UI 用 `includes(currentMemberId)` 判定"我点过"）。
-- **pinned 个性化**（`lib/domain/raft/pinned.ts`）：每成员每 channel 独立 pinned 区；`pinMessage` order = max+1（幂等返回既有行）、`unpinMessage` 幂等 false；**消息须属于该 channel**（thread 消息经锚点归一化，跨 channel 拒绝）；sort=manual（order 升序）/recent（pinned_at 降序，同毫秒按 order 兜底）/az（内容 localeCompare）。`setPinnedOrder` 只重排已 pin 行。
+- **reaction = 先查后写 toggle**（`lib/domain/collab/reactions.ts`）：存在即删、不存在即加，UNIQUE(message_id, member_id, emoji) 单进程串行无竞争；**channel 成员才可点**（thread 消息经 `message.target_id` 锚点解析归属 channel，不可嵌套读侧同语义）；无通知/不进 inbox（§3.4）。聚合 = count 降序 + memberIds（UI 用 `includes(currentMemberId)` 判定"我点过"）。
+- **pinned 个性化**（`lib/domain/collab/pinned.ts`）：每成员每 channel 独立 pinned 区；`pinMessage` order = max+1（幂等返回既有行）、`unpinMessage` 幂等 false；**消息须属于该 channel**（thread 消息经锚点归一化，跨 channel 拒绝）；sort=manual（order 升序）/recent（pinned_at 降序，同毫秒按 order 兜底）/az（内容 localeCompare）。`setPinnedOrder` 只重排已 pin 行。
 - **附件随消息原子提交**（§3.5）：`sendMessage` 增加 `attachments[]`（≤50MB）——先 `stageAttachmentFiles`（校验 + **随机文件名**落盘 `attachments/`，原始名只存库），事务内 appendMessage + insertAttachment 同生共死，**held/抛错 → `discardAttachmentFiles` 清理**，不留孤儿。文件下载走 `/api/attachments/[id]`（图片 inline 预览，其余 attachment）。
 - **messageWithAuthor 统一附料**：reactions（聚合）+ attachments（行）直接内嵌进消息 payload，UI 免 N+1 请求；thread 读接口/agent-loop 双写流同享（纯增量字段，向后兼容）。
-- **POST /api/messages 双形态**：JSON（原样）或 multipart（字段 + `files[]`）；单文件 &gt;50MB 由服务层 `stageAttachmentFiles` 校验拒绝（客户端预检兜底）。`formatBytes`/`MAX_ATTACHMENT_BYTES` 在 `lib/preview.ts`（client 可安全导入，**不**从 raft 服务层引——那会拖 better-sqlite3 进浏览器包）。
+- **POST /api/messages 双形态**：JSON（原样）或 multipart（字段 + `files[]`）；单文件 &gt;50MB 由服务层 `stageAttachmentFiles` 校验拒绝（客户端预检兜底）。`formatBytes`/`MAX_ATTACHMENT_BYTES` 在 `lib/preview.ts`（client 可安全导入，**不**从 协作服务层引——那会拖 better-sqlite3 进浏览器包）。
 - **UI**：消息 hover 快捷 reaction（👍❤️🎉👀）+ ＋ 选择器（24 常用 emoji 网格）+ 内容下聚合条（已点高亮黄）；动作栏 `Pin`（pinned 态黄底）channel/thread 消息通吃；Composer `Paperclip` 多选 + 文件 chips（≤50MB 前端预检）；channel 头部 `Pin` 展开 pinned 区（sort 三选一 + Manual ↑/↓ 重排 + 点击定位消息/展开线程）。
 
 ## Pi Session File Format

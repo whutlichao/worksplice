@@ -19,7 +19,9 @@ const os = require("node:os");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require("node:path");
 
-const DEMO_DB_NAME = "raft.db";
+const DEMO_DB_NAME = "worksplice.db";
+/** 早期项目名（raft-like）留下的演示库文件名：只用于判断"这个目录已经准备好了"。 */
+const LEGACY_DEMO_DB_NAME = "raft.db";
 const DEMO_DB_RELATIVE = path.join("demo", DEMO_DB_NAME);
 const AGENTS_DIR_NAME = "agents";
 const ATTACHMENTS_DIR_NAME = "attachments";
@@ -69,15 +71,18 @@ function rewriteAgentPaths(dbFile, dataDir) {
 
 /**
  * 准备演示数据目录并返回路径。
- * 幂等：目录里已经有 `raft.db` 时不再覆盖（用户可能在演示里发过消息，重跑不该抹掉）。
+ * 幂等：目录里已经有 `worksplice.db` 时不再覆盖（用户可能在演示里发过消息，重跑不该抹掉）。
  */
 function prepareDemoDataDir(options = {}) {
   const pkgDir = options.pkgDir ?? path.join(__dirname, "..");
   const dataDir = path.resolve(options.dataDir ?? resolveDemoDataDir(options.env));
   const source = path.join(pkgDir, DEMO_DB_RELATIVE);
   if (!fs.existsSync(source)) {
+    // 报错必须给出下一步命令：已发布的包里演示库是现成的，只有源码 checkout 才会缺它，
+    // 而"缺了"这件事光看路径猜不出该怎么办。
     throw new Error(
-      `Demo database not found at ${source}. It is generated at pack time by scripts/build-demo-db.mjs.`,
+      `Demo database not found at ${source}. Published packages already include it; ` +
+        `in a source checkout run \`npm run build:demo-db\` once to generate it.`,
     );
   }
 
@@ -86,7 +91,9 @@ function prepareDemoDataDir(options = {}) {
   fs.mkdirSync(path.join(dataDir, ATTACHMENTS_DIR_NAME), { recursive: true });
 
   const dbFile = path.join(dataDir, DEMO_DB_NAME);
-  if (fs.existsSync(dbFile)) {
+  // 旧名字也算「已准备好」：应用启动时的迁移会把它改成新名字，这里不能抢先复制一份新的，
+  // 否则用户上次在演示里发过的消息就没了。
+  if (fs.existsSync(dbFile) || fs.existsSync(path.join(dataDir, LEGACY_DEMO_DB_NAME))) {
     return { dataDir, dbFile, created: false, agentDirs: [] };
   }
   fs.copyFileSync(source, dbFile);

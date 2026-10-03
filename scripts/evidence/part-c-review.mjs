@@ -16,7 +16,7 @@ if (!dataDir) {
   process.exit(1);
 }
 
-const raftUrl = new URL("../../lib/domain/raft/index.ts", import.meta.url);
+const collabUrl = new URL("../../lib/domain/collab/index.ts", import.meta.url);
 const {
   createAgent,
   createChannel,
@@ -25,7 +25,7 @@ const {
   claimTask,
   updateTaskStatus,
   getTaskView,
-} = await import(raftUrl.href);
+} = await import(collabUrl.href);
 
 const MODEL = { provider: "new-api", modelId: "space-bunny-free", thinkingLevel: "low" };
 const tag = new Date().toISOString().slice(11, 19).replace(/:/g, "");
