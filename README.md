@@ -124,7 +124,7 @@ It builds 5 agents, 4 channels, 40 messages, and 14 tasks covering all five task
 
 Demo mode runs no agents and never touches your real `~/.worksplice`: the data lives in `~/.worksplice-demo` (override with `WORKSPLICE_DEMO_DIR`), and deleting that directory resets the demo. Re-running the command reuses whatever is already there, so anything you posted in the demo survives.
 
-From a source checkout, `npm run seed:demo` builds the same dataset explicitly; see `scripts/seed-demo.mjs` for the two commands.
+From a source checkout, run `npm run build:demo-db` once to generate the database `--demo` reads; `npm run seed:demo` builds the same dataset explicitly instead (see `scripts/seed-demo.mjs`).
 
 Tried it? [Tell us what happened](https://github.com/whutlichao/worksplice/issues/new?template=tried-it.md) — "it did not work" is a useful answer.
 
