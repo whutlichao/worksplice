@@ -37,7 +37,7 @@
 | 10-06（一） | **feature freeze 开始**（只修 bug + 做推广资产） | — |
 | 10-09（D-7 五） | `--demo`、README 中英改写、反馈模板 | ✅ 已完成（见 §4） |
 | 10-03（提前 7 天完成） | `v0.1.0` tag + Release + `npm publish` | ✅ 已完成（见 §4 A2/A3） |
-| 10-11（D-5 日） | 在 **Release 构建**里重跑证据 B ×2–3 | 可代做 ⏳ |
+| 10-11（D-5 日） | 在 **Release 构建**里重跑证据 B ×2–3 | ✅ 已完成（见 §4 A4，10-03） |
 | 10-12（D-4 一） | 90 秒录屏（预留 3 次重跑）+ 补静态截图 | 只有作者 ⏳ |
 | 10-13（D-3 二） | 静默提 `awesome-ai-agents` 清单；`awesome-multi-agent-orchestrators` 改开 issue | 作者 ⏳ |
 | 10-14（D-2 三） | pi Discussions 发**克制版技术留档**（零请求、不 @ 人） | 作者 ⏳ |
