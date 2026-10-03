@@ -2,11 +2,13 @@
 
 [中文文档](./README.zh-CN.md)
 
-Local workspace for collaborating with persistent [pi coding agent](https://github.com/earendil-works/pi) sessions. worksplice reads your local pi session files and gives you a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
+pi gives you one session at a time. worksplice puts several of them in one local room — and adds the three things that keep a room from going wrong: **who has read what, who may write, who verifies**.
+
+It is a local workspace for collaborating with persistent [pi coding agent](https://github.com/earendil-works/pi) sessions: channels, a task board with review, reminders, and an inbox-cursor wake model — plus a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
 
 ## What This Is
 
-pi gives you one session at a time: one agent, one conversation, one working directory. That is a good default, and it is also a hard ceiling the moment a second agent shows up. Two agents pointed at the same checkout do not fail loudly. Each one believes it is the only actor, each plan is valid against the version of the repo it read, and the human ends up merging two diffs that each look correct alone.
+One agent, one conversation, one working directory is a good default — and a hard ceiling the moment a second agent shows up. Two agents pointed at the same checkout do not fail loudly. Each one believes it is the only actor, each plan is valid against the version of the repo it read, and the human ends up merging two diffs that each look correct alone.
 
 worksplice does not replace pi. It puts several pi sessions into shared channels, and adds the handful of semantics that multi-agent work needs but that message passing alone cannot give you:
 
@@ -31,19 +33,45 @@ worksplice is deeply dependent on pi. It reads pi's session files, drives pi's a
 - You need several people to reach it over the internet. It binds to loopback by default and is built for a machine you trust.
 - You want hosting, accounts, or a shared database. This is a local workspace over one SQLite file.
 
+## How It Relates to Other Tools
+
+worksplice sits at a different layer from tools you may already use. [`agent-chat`](https://github.com/Hysilens-Helektra/agent-chat) deliberately stays a peer-to-peer messaging layer — discovery and transport, no orchestrator. Parallel terminal managers (vibe-kanban, claude-squad) answer a different question: how to run many agents at once. worksplice answers a third one: what has to be true for several agents to share one repo without overwriting each other — or rubber-stamping each other's work.
+
+| Question | The usual answer | worksplice |
+| --- | --- | --- |
+| What does a wake carry? | The message body, pushed at the agent | A hint — `{agentId, targetId, seq}` — and the agent reads the room itself |
+| How does an agent know what it missed? | "The last message", or re-reading everything | A durable cursor: reading does not advance it, an ack does |
+| Two writers, one stale version | Last write wins, or an automatic merge | The write is **held**, with a description of what changed; the author chooses revise, resend, stay silent, or bypass |
+| Who may declare work done? | Whoever did the work | A state machine, and only someone other than the author can approve |
+| Where does it run? | Cloud, accounts | One local SQLite file, loopback by default |
+
+One honest note on overlap: pi's own roadmap includes a **pi server** that will cover part of what worksplice does. This is the version that exists today — local, one SQLite file, readable end to end — and if the official one makes it redundant, that is a good outcome.
+
 ## Quick Start
 
-worksplice is not published to npm yet, so run it from a source checkout.
+Requirements: Node.js 22.19.0 or newer, check with `node --version`.
 
-Requirements: Node.js 22.19.0 or newer, check with `node --version`; Bun 1.3.14 or newer, check with `bun --version`; and git.
+```bash
+npx worksplice
+```
+
+Then open [http://127.0.0.1:30142](http://127.0.0.1:30142). worksplice listens on `127.0.0.1` by default, so other machines cannot reach it. To see the whole thing before wiring up your own agents, jump to [Try It with Demo Data](#try-it-with-demo-data).
+
+Every release also attaches the same package as a tarball, for machines that cannot reach the npm registry:
+
+```bash
+npx --yes https://github.com/whutlichao/worksplice/releases/download/v0.1.0/worksplice-0.1.0.tgz
+```
+
+### From a source checkout
+
+Requirements: Node.js 22.19.0 or newer, Bun 1.3.14 or newer (check with `bun --version`), and git. This repository tracks `bun.lock`, so `bun install` is the reproducible path; `npm install` also works, but it ignores `bun.lock` and does not guarantee a reproducible dependency tree.
 
 ```bash
 git clone https://github.com/whutlichao/worksplice.git
 cd worksplice
 bun install
 ```
-
-This repository tracks `bun.lock`, so `bun install` is the reproducible path. `npm install` also works, but it ignores `bun.lock` and does not guarantee a reproducible dependency tree.
 
 Development mode, always on port 30142:
 
@@ -86,16 +114,19 @@ API requests accept loopback names, IP literals, the selected bind hostname, and
 
 ## Try It with Demo Data
 
-A seed script builds a self-contained workspace, so you can see the whole thing before wiring up your own agents:
+One command starts a self-contained demo workspace, so you can see the whole thing before wiring up your own agents:
 
 ```bash
-WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run seed:demo
-WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
+npx worksplice --demo
 ```
 
-It creates 5 agents, 4 channels, 40 messages, and 14 tasks covering all five task states. The seeded messages, tasks, and agent descriptions are written in English; the interface itself switches to Chinese from the top bar without touching the data.
+It builds 5 agents, 4 channels, 40 messages, and 14 tasks covering all five task states. The seeded messages, tasks, and agent descriptions are written in English; the interface itself switches to Chinese from the top bar without touching the data.
 
-The script refuses to start unless `WORKSPLICE_DATA_DIR` is set, and it writes only inside the directory you name, so your real `~/.worksplice` is never touched. Re-running it is safe: the seed is idempotent and will not duplicate what is already there.
+Demo mode runs no agents and never touches your real `~/.worksplice`: the data lives in `~/.worksplice-demo` (override with `WORKSPLICE_DEMO_DIR`), and deleting that directory resets the demo. Re-running the command reuses whatever is already there, so anything you posted in the demo survives.
+
+From a source checkout, `npm run seed:demo` builds the same dataset explicitly; see `scripts/seed-demo.mjs` for the two commands.
+
+Tried it? [Tell us what happened](https://github.com/whutlichao/worksplice/issues/new?template=tried-it.md) — "it did not work" is a useful answer.
 
 ## HTTP Proxy
 
@@ -171,6 +202,7 @@ Separately, worksplice runs on [pi](https://github.com/earendil-works/pi) as its
 
 - **Report a bug**: open an issue at https://github.com/whutlichao/worksplice/issues
 - **Send a change**: open a pull request on this repository
+- **Tell us you tried it**: [open a "tried it" issue](https://github.com/whutlichao/worksplice/issues/new?template=tried-it.md) — including "it did not work"
 - **Set up and check your work**: see the Development section below
 
 ## Development

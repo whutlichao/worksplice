@@ -1,10 +1,11 @@
 # Release Checklist
 
-This repo publishes one artifact for each release:
+This repo publishes two artifacts for each release, from the same tarball:
 
-- GitHub Release: `whutlichao/worksplice`
+- npm: `worksplice` — what `npx worksplice` installs
+- GitHub Release: `whutlichao/worksplice` — the same tarball attached as an asset, for machines that cannot reach the npm registry
 
-There is no package-registry distribution; users install from source. See `README.md` for the install steps.
+Both come out of `npm pack`, so they are byte-identical by construction. See `README.md` for the install steps.
 
 Use this checklist from a clean `main` checkout.
 
@@ -119,16 +120,34 @@ Prepared from commits in `v<previous>..v<version>`.
 - ...
 ```
 
-## 6. Create or Update the GitHub Release
+## 6. Publish to npm
 
-Create a new release:
+`prepack` regenerates the demo database (`scripts/build-demo-db.mjs`), and `files` already excludes `.next/cache`, so there is nothing to assemble by hand.
+
+```bash
+npm login                 # once per machine; the account must have 2FA enabled
+npm pack --dry-run        # check the file list and the size before publishing
+npm publish               # produces worksplice-<version>.tgz in the repo root
+```
+
+Expected file list: `bin`, `demo`, `.next`, `public`, `next.config.ts`, `package.json`, plus the usual `README` / `LICENSE`. The tarball is roughly 6 MB, of which `demo/raft.db` is about 250 KB.
+
+Notes:
+
+- npm versions are immutable. A mistake costs a patch release, not an edit.
+- `npm publish` also runs `prepack`, so the published tarball always carries a freshly seeded demo database.
+
+## 7. Create or Update the GitHub Release
+
+Attach the tarball that npm just accepted, so both artifacts are the same bytes:
 
 ```bash
 gh release create v<version> \
   --repo whutlichao/worksplice \
   --verify-tag \
   --title "v<version>" \
-  --notes-file release-notes.md
+  --notes-file release-notes.md \
+  worksplice-<version>.tgz
 ```
 
 If the release already exists and only the notes need updating:
@@ -153,16 +172,19 @@ gh release edit v<version> --repo whutlichao/worksplice --notes-file - <<'EOF'
 EOF
 ```
 
-## 7. Final Verification
+## 8. Final Verification
 
 ```bash
 gh release view v<version> --repo whutlichao/worksplice
+npm view worksplice version
 git status --short --branch
 git log --oneline --decorate -3
 ```
 
 Expected:
 
-- GitHub Release exists and is not a draft unless intentionally published as one.
+- GitHub Release exists, carries the `worksplice-<version>.tgz` asset, and is not a draft unless intentionally published as one.
+- `npm view worksplice version` prints the version just tagged.
 - `main` is aligned with `origin/main`.
 - `HEAD` points at the release commit and `v<version>` tag.
+- A clean machine can run `npx worksplice --demo` (see the release-verification item in the launch checklist).

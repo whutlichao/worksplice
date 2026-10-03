@@ -2,11 +2,13 @@
 
 [English](./README.md)
 
-与持久化的 [pi 编程智能体](https://github.com/earendil-works/pi) 协作的本地工作区。它会读取本机的 pi 会话文件，在浏览器里提供会话管理、实时对话、模型配置、技能管理和项目文件预览。
+pi 一次只给你一个会话。worksplice 把几个会话放进同一个本地房间，并补上让房间不出错的三件事：**谁读到哪、谁能写、谁来验收**。
+
+它是一个本地工作区，用来与持久化的 [pi 编程智能体](https://github.com/earendil-works/pi) 会话协作：频道、带评审的任务板、提醒，以及 inbox 游标唤醒模型——同时提供会话管理、实时对话、模型配置、技能管理和项目文件预览的浏览器界面。
 
 ## 这是什么
 
-pi 一次给你一个会话：一个智能体、一段对话、一个工作目录。作为默认选择这很好，但第二个智能体一出现，它就成了硬天花板。两个智能体指向同一个 checkout 时不会大声报错——它们都以为自己是唯一的行动者，各自的计划对它们读到的那份仓库状态都成立，最后由人来合并两份单独看都没问题的 diff。
+一个智能体、一段对话、一个工作目录，作为默认选择很好，但第二个智能体一出现，它就成了硬天花板。两个智能体指向同一个 checkout 时不会大声报错——它们都以为自己是唯一的行动者，各自的计划对它们读到的那份仓库状态都成立，最后由人来合并两份单独看都没问题的 diff。
 
 worksplice 不替代 pi。它把多个 pi 会话放进共享频道，并补上多智能体协作需要、而单靠消息传递给不了的那几件事：
 
@@ -31,19 +33,45 @@ worksplice 深度依赖 pi：它读 pi 的会话文件、驱动 pi 的智能体�
 - 你需要让多个人从公网访问它。它默认只监听 loopback，设计前提是你信任这台机器。
 - 你要的是托管、账号体系或共享数据库。这是一个跑在单个 SQLite 文件上的本地工作区。
 
+## 与其他工具的关系
+
+worksplice 与你可能已经在用的工具处在不同的层。[`agent-chat`](https://github.com/Hysilens-Helektra/agent-chat) 有意停留在点对点消息层——发现与传输，不做编排器。并行终端管理器（vibe-kanban、claude-squad）回答的是另一个问题：怎么同时跑更多智能体。worksplice 回答第三个：要让几个智能体共用一个仓库而不互相覆盖——也不互相盖章放行——需要哪些前提成立。
+
+| 问题 | 常见答案 | worksplice |
+| --- | --- | --- |
+| 唤醒带什么？ | 把消息正文推给智能体 | 只给提示——`{agentId, targetId, seq}`——正文由智能体自己去房间里读 |
+| 智能体怎么知道自己漏了什么？ | 「最后一条消息」，或者干脆重读全部 | 持久化游标：读不推进它，ack 才推进 |
+| 两个写者、一个过期版本 | last-write-wins，或自动合并 | 写被 **hold**，附带「期间变了什么」；作者自己选 revise、resend、保持沉默，或显式绕过 |
+| 谁有权宣布做完？ | 谁做的谁说了算 | 状态机，且只有作者以外的人能批准 |
+| 跑在哪？ | 云端、要账号 | 本地一个 SQLite 文件，默认只听 loopback |
+
+一句实话：pi 的路线图里有 **pi server**，会覆盖 worksplice 的一部分。worksplice 是**今天就能用**的那个版本——本地、一个 SQLite 文件、从头到尾可读；如果官方版本让它变得多余，那是好事。
+
 ## 快速开始
 
-worksplice 尚未发布到 npm，请从源码运行。
+前置条件：Node.js 22.19.0 或更高版本（通过 `node --version` 检查）。
 
-前置条件：Node.js 22.19.0 或更高版本（通过 `node --version` 检查）、Bun 1.3.14 或更高版本（通过 `bun --version` 检查），以及 git。
+```bash
+npx worksplice
+```
+
+然后打开 [http://127.0.0.1:30142](http://127.0.0.1:30142)。worksplice 默认仅监听 `127.0.0.1`，其他机器无法访问。想在接自己的智能体之前先看全貌，直接跳到[用演示数据试试](#用演示数据试试)。
+
+每个 release 也会附上同一个包的 tarball，供无法访问 npm registry 的机器使用：
+
+```bash
+npx --yes https://github.com/whutlichao/worksplice/releases/download/v0.1.0/worksplice-0.1.0.tgz
+```
+
+### 从源码运行
+
+前置条件：Node.js 22.19.0 或更高版本、Bun 1.3.14 或更高版本（通过 `bun --version` 检查），以及 git。本仓库跟踪 `bun.lock`，因此 `bun install` 才是可复现的安装路径；`npm install` 也能跑，但它会忽略 `bun.lock`，不保证得到可复现的依赖树。
 
 ```bash
 git clone https://github.com/whutlichao/worksplice.git
 cd worksplice
 bun install
 ```
-
-本仓库跟踪 `bun.lock`，因此 `bun install` 才是可复现的安装路径。`npm install` 也能跑，但它会忽略 `bun.lock`，不保证得到可复现的依赖树。
 
 开发模式，端口固定为 30142：
 
@@ -86,16 +114,19 @@ API 请求仅接受 loopback 名称、IP 字面量、当前监听主机名，以
 
 ## 用演示数据试试
 
-有一个 seed 脚本会造出一套自带的演示工作区，让你先看清全貌，再去接自己的智能体：
+一条命令就能起一套自带的演示工作区，让你先看清全貌，再去接自己的智能体：
 
 ```bash
-WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run seed:demo
-WORKSPLICE_DATA_DIR="$HOME/.worksplice-demo" npm run dev
+npx worksplice --demo
 ```
 
 它会造出 5 个智能体、4 个频道、40 条消息和 14 个任务，覆盖全部五种任务状态。seed 出来的消息、任务和智能体描述是英文；界面本身可在顶栏切到中文，数据不用重来。
 
-脚本在 `WORKSPLICE_DATA_DIR` 未设置时拒绝运行，并且只往你指定的那个目录里写，因此不会碰到你真实的 `~/.worksplice`。重复运行是安全的：seed 幂等，不会把已有的数据再造一份。
+演示模式**不跑任何智能体**，也绝不碰你真实的 `~/.worksplice`：数据放在 `~/.worksplice-demo`（可用 `WORKSPLICE_DEMO_DIR` 覆盖），删掉那个目录即可重来。重复运行会复用已有数据，所以你在演示里发过的消息不会丢。
+
+从源码运行时，`npm run seed:demo` 可以显式造出同一套数据；具体两条命令见 `scripts/seed-demo.mjs`。
+
+试过了？[说说发生了什么](https://github.com/whutlichao/worksplice/issues/new?template=tried-it.md)——「没装上」同样是有用的答案。
 
 ## HTTP 代理
 
@@ -171,6 +202,7 @@ worksplice 的代码起始于 [agegr/pi-web](https://github.com/agegr/pi-web) �
 
 - **报 bug**：在 https://github.com/whutlichao/worksplice/issues 提 issue
 - **提改动**：在本仓库发 pull request
+- **告诉我们你试过了**：[开一个「我用过了」issue](https://github.com/whutlichao/worksplice/issues/new?template=tried-it.md)——包括「没装上」
 - **搭建与检查**：见下方的开发小节
 
 ## 开发
