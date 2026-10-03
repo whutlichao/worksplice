@@ -44,6 +44,65 @@ function defaultThinkingLevel(
   return pinned && THINKING_LEVELS.includes(pinned) ? pinned : "medium";
 }
 
+/** 渲染面完整 ModelsData 骨架（各字段缺省值）。 */
+const EMPTY_MODELS_BODY: Pick<
+  ModelsData,
+  "models" | "modelList" | "defaultModel" | "thinkingLevels" | "thinkingLevelMaps" | "thinkingLevelPins"
+> = {
+  models: {},
+  modelList: [],
+  defaultModel: null,
+  thinkingLevels: {},
+  thinkingLevelMaps: {},
+  thinkingLevelPins: {},
+};
+
+/**
+ * 归一化 `/api/models` 的 body → 完整 ModelsData。
+ *
+ * 该路由在 cwd 校验失败时返回 `{ error }`（400/403，无 modelList 字段，见
+ * app/api/models/route.ts）；客户端只判 JSON 解析成败、不看 HTTP status，所以
+ * `res.json()` 会把 `{ error }` 原样交给 setModels；`.catch(() => ({}))` 还会兜出 `{}`。
+ * 直接 setModels(body) 会让渲染侧读到缺字段的对象——这条曾打穿整页（渲染抛错且
+ * 全仓无 error boundary），故在此收口：state 里永远只放结构完整的 ModelsData。
+ * 合法 body 原样透传，不改服务端契约。
+ */
+export function normalizeModelsBody(body: unknown): ModelsData {
+  const raw = (body ?? {}) as Partial<ModelsData>;
+  return {
+    models: raw.models ?? EMPTY_MODELS_BODY.models,
+    modelList: raw.modelList ?? EMPTY_MODELS_BODY.modelList,
+    defaultModel: raw.defaultModel ?? EMPTY_MODELS_BODY.defaultModel,
+    thinkingLevels: raw.thinkingLevels ?? EMPTY_MODELS_BODY.thinkingLevels,
+    thinkingLevelMaps: raw.thinkingLevelMaps ?? EMPTY_MODELS_BODY.thinkingLevelMaps,
+    thinkingLevelPins: raw.thinkingLevelPins ?? EMPTY_MODELS_BODY.thinkingLevelPins,
+    ...(raw.modelError ? { modelError: raw.modelError } : {}),
+    ...(raw.modelScopeWarnings ? { modelScopeWarnings: raw.modelScopeWarnings } : {}),
+  };
+}
+
+/**
+ * 模型列表为空提示（ADR-0001）。承载 `models` 的空值收口，与 ModelPicker 同形。
+ * 单独成组件：`renderToStaticMarkup` 不跑 useEffect，渲染面回归测试只能从这里进入
+ * 「models 拿到的 body 不含 modelList」这条真实路径（见 CreateAgentModal.test.mjs）。
+ */
+export function ModelsEmptyHint({
+  models,
+  loading,
+}: {
+  models: ModelsData | null;
+  loading: boolean;
+}) {
+  const { t } = useI18n();
+  if (loading) return null;
+  if ((models?.modelList?.length ?? 0) !== 0) return null;
+  return (
+    <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+      {t("agent.modelsEmpty")}
+    </div>
+  );
+}
+
 /**
  * 创建 agent（ADR-0001）：不选目录——家目录自动生成；模型/推理强度必选（预选全局默认）。
  * 启动助手入口（spec §6.3）：成员列表无存活 Susan 时显示「创建启动助手」按钮——模型已配置
@@ -78,12 +137,13 @@ export function CreateAgentModal({
     (async () => {
       try {
         const res = await fetch("/api/models");
-        const body = (await res.json().catch(() => ({}))) as ModelsData;
+        const body = await res.json().catch(() => ({}));
         if (disposed) return;
-        setModels(body);
-        const options = body.modelList ?? [];
-        const defaultKey = body.defaultModel
-          ? `${body.defaultModel.provider}:${body.defaultModel.modelId}`
+        const modelsData = normalizeModelsBody(body);
+        setModels(modelsData);
+        const options = modelsData.modelList;
+        const defaultKey = modelsData.defaultModel
+          ? `${modelsData.defaultModel.provider}:${modelsData.defaultModel.modelId}`
           : null;
         const initial = defaultKey
           ? options.find((o) => `${o.provider}:${o.id}` === defaultKey)
@@ -91,7 +151,7 @@ export function CreateAgentModal({
         const chosen = initial ?? options[0];
         if (chosen) {
           setModel({ provider: chosen.provider, modelId: chosen.id });
-          setThinkingLevel(defaultThinkingLevel(body, chosen.provider, chosen.id));
+          setThinkingLevel(defaultThinkingLevel(modelsData, chosen.provider, chosen.id));
         }
       } finally {
         if (!disposed) setModelsLoading(false);
@@ -242,11 +302,7 @@ export function CreateAgentModal({
           onThinkingChange={setThinkingLevel}
           onClearThinking={() => setThinkingLevel(null)}
         />
-        {!modelsLoading && (models?.modelList.length ?? 0) === 0 && (
-          <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
-            {t("agent.modelsEmpty")}
-          </div>
-        )}
+        <ModelsEmptyHint models={models} loading={modelsLoading} />
         <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
           {t("agent.homeHint")}
         </div>
