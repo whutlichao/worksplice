@@ -1,25 +1,43 @@
 <!--
-POST DRAFT — worksplice launch post for the pi Discord.
+POST DRAFT — worksplice launch post for the pi Discord ("The Shitty Coders Club").
 
 HOW TO POST
-1. Channel: decide after the D-14 → D-7 lurking window (confirm the community's
-   self-promotion norms first). Do not post this anywhere it reads as an ad.
-2. Timing: 22:00 Beijing time on D-day = 14:00 UTC = 10:00 US Eastern =
+1. Channel: **# share-your-pi**. Confirmed against the server's channel list on
+   2026-10-03: it is the community's showcase surface, and unlike the pi
+   repository's Discussions (where five of six "Show & tell" posts got no reply
+   at all) it is actively used. `# pi-apps` is the second choice; `# extensions`
+   is for pi extensions and worksplice is not one.
+2. It is a **forum channel**: posting means a title plus a first message, and
+   everything after that lives in the thread. So pick a title from below — in a
+   forum the title is the only thing people see while scrolling.
+3. Read `# rules` and any pinned guidance in `# share-your-pi` first. This draft
+   is written to avoid every obvious ad pattern (no @, no ask, no superlatives),
+   but the channel's own norms win.
+4. Timing: 22:00 Beijing time on D-day = 14:00 UTC = 10:00 US Eastern =
    16:00 Central Europe. No first-hand data backs this hour; it is a heuristic.
-3. The main message must stay under Discord's 2000-character limit. Paste the
-   "MAIN" block first, then the "REPLY" block as the first reply in the same
-   channel — the main post is written to stand on its own if nobody opens the
-   reply.
-4. Attach the 90-second screencast to the main message. Discord's default
+5. Both the first message and the first reply must stay under Discord's
+   2000-character limit. Post "MAIN" as the forum post, then "REPLY" as its first
+   reply — MAIN is written to stand on its own if nobody opens the thread.
+6. Attach the 90-second screencast to the first message. Discord's default
    per-file limit is 10 MB, so export it at 720p and check the size; the same
    file also goes into the GitHub Release for permanence.
-5. Do not @ anyone, and do not post anything to the pi repository — its
+7. Do not @ anyone, and do not post anything to the pi repository — its
    CONTRIBUTING closes new contributors' issues and PRs and blocks accounts for
    tracker spam.
-6. Replace every <PLACEHOLDER> before posting.
+8. Replace every <PLACEHOLDER> before posting.
 -->
 
 # Discord launch post
+
+## Title
+
+Discord forums show the title and nothing else while people scroll, so keep it
+descriptive and searchable. Match whatever style the channel already uses once
+you look at the list.
+
+1. **worksplice: several pi agents in one local room — channels, tasks, held writes**
+2. worksplice — a local workspace for running several pi agents as a team
+3. several pi agents, one checkout: what message passing does not solve
 
 ## MAIN (target: under 2000 characters)
 
