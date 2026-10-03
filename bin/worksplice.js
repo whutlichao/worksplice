@@ -36,13 +36,35 @@ try {
   }
 }
 
-const { port, hostname, openBrowser } = parseLaunchOptions();
+const { port, hostname, openBrowser, demo } = parseLaunchOptions();
 const loopbackHostnames = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 const passwordEnabled = Boolean(process.env.WORKSPLICE_PASSWORD);
 
 if (!fs.existsSync(nextDir)) {
   console.error("Build artifacts not found. Please report this issue.");
   process.exit(1);
+}
+
+// 演示模式：用一份预置演示库启动，不碰用户真实的 ~/.worksplice，也不启动任何 agent。
+let demoDataDir = null;
+if (demo) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { prepareDemoDataDir } = require("./demo-data");
+    const prepared = prepareDemoDataDir();
+    demoDataDir = prepared.dataDir;
+    console.log(
+      prepared.created
+        ? `Demo workspace created at ${prepared.dataDir}`
+        : `Using the existing demo workspace at ${prepared.dataDir}`,
+    );
+    console.log("Demo mode: no agent runs, and your own ~/.worksplice is never touched.");
+  } catch (error) {
+    console.error(
+      `Could not prepare the demo workspace: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  }
 }
 
 if (!loopbackHostnames.has(hostname)) {
@@ -65,7 +87,11 @@ nextArgs.push("-H", hostname);
 const child = spawn(process.execPath, [nextBin, ...nextArgs], {
   cwd: pkgDir,
   stdio: ["inherit", "pipe", "inherit"],
-  env: { ...process.env, WORKSPLICE_HOSTNAME: hostname },
+  env: {
+    ...process.env,
+    WORKSPLICE_HOSTNAME: hostname,
+    ...(demoDataDir ? { WORKSPLICE_DATA_DIR: demoDataDir, WORKSPLICE_DEMO: "1" } : {}),
+  },
 });
 
 let browserOpened = false;
