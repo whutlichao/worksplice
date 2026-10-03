@@ -53,7 +53,7 @@
 - [x] **A1 `--demo`**：干净环境下 `npx worksplice --demo` 显示 4 频道 / 14 任务；**不触发任何 agent 轮次**。→ `#68`（合并后实测 `round_logs=0`、`~/.worksplice` 未被触碰）
 - [x] **A2 Release**：`v0.1.0` tag + GitHub Release，资产 = `npm pack` 产物（5.6 MB）。→ [releases/tag/v0.1.0](https://github.com/whutlichao/worksplice/releases/tag/v0.1.0)（资产在干净目录实测可装可跑：4 频道 / 40 消息 / 14 任务 / `round_logs=0`）
 - [x] **A3 npm 发布**：`npx worksplice` 干净环境实测可用；**不加 `pi-package` 关键词**。→ [npmjs.com/package/worksplice](https://www.npmjs.com/package/worksplice)（`npx --yes worksplice@0.1.0 --demo` 在干净环境实测通过）
-- [ ] **A4 revise 硬项**：在 **Release 构建**里重跑证据 B 2–3 次，拿到 `[worksplice:revision]` 且该轮 `round_logs=replied`。⏳ 等 A2
+- [x] **A4 revise 硬项**：在 **Release 构建**里重跑证据 B 2–3 次，拿到 `[worksplice:revision]` 且该轮 `round_logs=replied`。→ ✅ 2026-10-03：用 **Release 资产装出来的那份**跑了 4 次——4 次都出现 `[worksplice:revision]`，3 次确认该轮 `round_logs=replied`（`base_seq=2`；第 3 次是 runner 在轮次收口前杀掉服务，故无记录）。房间记录可直接读出设计意图：`#1` 请求 → `#2` 插话（房间 seq 1→2）→ `#3` 改稿回复（承认插话、改为先讲方案），**被 hold 的草稿没有落库**。
 - [x] **A5 README 中英**：定位句首段、Quick Start 一行安装、`--demo` 演示段。→ `#70`（层级与条目数逐项对齐）
 - [x] **A6 反馈入口**：`tried-it` issue 模板 + `feedback` 标签。→ `#69`
 - [x] **A7 对比表**：README 的「与其他工具的关系」。→ `#70`
@@ -103,7 +103,7 @@
 
 - **代码侧已合并**：`--demo`、反馈模板、README 定位与一行安装、首发帖草案、失效报告与复现脚本、清单文案，以及 raft 命名切割（`worksplice.db` + `lib/domain/collab/`）。
 - **已发布（2026-10-03，比计划早 7 天）**：`worksplice@0.1.0` 在 npm 上，`v0.1.0` tag + GitHub Release 资产齐备；两者都在干净环境实测可装可跑。
-- **只剩 3 项待办**：A4 在 Release 构建里重跑证据 B（可代做）；A8 录屏、Discord `# rules` 与答问（作者）。
+- **只剩 2 项待办（都在作者手上）**：A8 90 秒录屏；Discord `# rules` 与在 `# ask-for-help` 答 2–3 个问题。**备料期的产品/分发硬项已全部清空**（A1–A9）。
 - **发布前已验证**：`npm pack` 产物 5.6 MB、含 `demo/worksplice.db`；`npx --yes worksplice@0.1.0 --demo` 与 Release 资产两条路径都在干净目录跑出 4 频道 / 5 agent / 40 消息 / 14 任务 / `round_logs=0`。
 
 ## 9. 附录：证据与复现
