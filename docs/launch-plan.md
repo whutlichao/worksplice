@@ -57,7 +57,7 @@
 - [x] **A5 README 中英**：定位句首段、Quick Start 一行安装、`--demo` 演示段。→ `#70`（层级与条目数逐项对齐）
 - [x] **A6 反馈入口**：`tried-it` issue 模板 + `feedback` 标签。→ `#69`
 - [x] **A7 对比表**：README 的「与其他工具的关系」。→ `#70`
-- [ ] **A8 90 秒录屏**：纯字幕、10 镜分镜、第 5–8 镜真跑 + 3 张静态图。⏳ 只有作者
+- [x] **A8 90 秒录屏**：纯字幕、10 镜分镜、第 5–7 镜**真跑**（Release 构建 + 真实模型）。→ 2026-10-03 完成：[`worksplice-90s.mp4`](https://github.com/whutlichao/worksplice/releases/download/v0.1.0/worksplice-90s.mp4)（90.0s / 1600×900 / 6.4 MB / 英文界面与字幕）；素材与生成脚本见本地 `.scratch/promote-worksplice/evidence/screencast/`
 - [x] **A9 实测证据文**：失效报告 + 三个复现脚本。→ `#72`
 
 **B · 文案**
@@ -96,14 +96,14 @@
 
 - **预算 0 元**，只投入时间。
 - **feature freeze**：10-06 → 10-19，只修 bug + 做推广资产。
-- **红线**：不去 `earendil-works/pi` 发 issue/PR；不在公开频道 @ 人做推广；不群发同一段文字；不讲同类项目的优劣。
+- **红线**：不去 `earendil-works/pi` 发 issue/PR；**只在 `# share-your-pi` 发一次、绝不跨频道转发**（服务器 `# rules` 第 2 条明禁 self-promo 与未经邀请的私信——官方展示频道是唯一豁免位）；**一对一触达一律走对方公开仓库，不发私信**；不 @ 人做推广；不群发同一段文字；不讲同类项目的优劣。
 - **诚实纪律**：失效与错误照写（失效报告就是首发内容之一），不把预测说成事实。
 
 ## 8. 现在的状态
 
 - **代码侧已合并**：`--demo`、反馈模板、README 定位与一行安装、首发帖草案、失效报告与复现脚本、清单文案，以及 raft 命名切割（`worksplice.db` + `lib/domain/collab/`）。
 - **已发布（2026-10-03，比计划早 7 天）**：`worksplice@0.1.0` 在 npm 上，`v0.1.0` tag + GitHub Release 资产齐备；两者都在干净环境实测可装可跑。
-- **只剩 2 项待办（都在作者手上）**：A8 90 秒录屏；Discord `# rules` 与在 `# ask-for-help` 答 2–3 个问题。**备料期的产品/分发硬项已全部清空**（A1–A9）。
+- **只剩 1 项待办（在作者手上）**：Discord 的 `# rules` 已读、频道已定；剩在 `# ask-for-help` 答 2–3 个问题攒履历。**备料期的产品/分发硬项 A1–A9 已全部清空。**
 - **发布前已验证**：`npm pack` 产物 5.6 MB、含 `demo/worksplice.db`；`npx --yes worksplice@0.1.0 --demo` 与 Release 资产两条路径都在干净目录跑出 4 频道 / 5 agent / 40 消息 / 14 任务 / `round_logs=0`。
 
 ## 9. 附录：证据与复现

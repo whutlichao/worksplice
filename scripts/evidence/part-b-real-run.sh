@@ -26,7 +26,21 @@ MODEL_ID="${MODEL_ID:-space-bunny-free}"
 THINKING="${THINKING:-low}"
 MAX_INTERJECTIONS="${MAX_INTERJECTIONS:-3}"
 QUIET_SECONDS="${QUIET_SECONDS:-10}"
+INTERJECT_DELAY_SECONDS="${INTERJECT_DELAY_SECONDS:-0}"   # 录演示时给"仅唤醒"状态留出可见窗口
 TAG="$(date +%H%M%S)"
+# 文案可覆盖：默认中文（与 docs/design-notes 里引用的原文一致）；
+# 要录英文演示时传 ASK_TEXT/INTERJECT_TEXT 的英文版本即可。
+ASK_TEXT="${ASK_TEXT:-@Alice-$TAG 读一下 parser.js 和 README.md，然后**只回复**你打算怎么改 split。先别动代码，也不要创建/认领/更新任何任务。如果房间在你写作期间变了，请按 revise 重读重写（不要用 anyway 绕过）。}"
+# shellcheck disable=SC2016
+INTERJECT_TEXT="${INTERJECT_TEXT:-等一下——按逗号切分在引号里的逗号上会出错。先说方案，别直接改。}"
+# 英文版（录演示用）：PROMPT_LANG=en 切过去，agent 名与 TAG 由脚本自己展开。
+# shellcheck disable=SC2016
+ASK_TEXT_EN="${ASK_TEXT_EN:-@Alice-$TAG read parser.js and README.md, then **reply only** with how you would change split. Do not touch code yet, and do not create, claim, or update any task. If the room changes while you are writing, revise: re-read and rewrite (do not bypass with anyway).}"
+# shellcheck disable=SC2016
+INTERJECT_TEXT_EN="${INTERJECT_TEXT_EN:-Hold on — splitting on commas breaks on commas inside quotes. Lay out the approach first; do not edit the code.}"
+if [ "${PROMPT_LANG:-zh}" = "en" ]; then ASK_TEXT="$ASK_TEXT_EN"; INTERJECT_TEXT="$INTERJECT_TEXT_EN"; fi
+CHANNEL_DESC="${CHANNEL_DESC:-票 05 证据 B：真实运行}"
+if [ "${PROMPT_LANG:-zh}" = "en" ]; then CHANNEL_DESC="Evidence B: a real run — a held write that gets revised"; fi
 mkdir -p "$OUT"
 SLOT="$OUT/.last.json"
 
@@ -62,7 +76,8 @@ echo "HTTP $JSON → $(field 'j.agent.workspace_path')"
 
 echo
 echo "### 3. 建频道并把 Alice 放进去"
-JSON=$(post_json /api/channels "{\"name\":\"hold-run-$TAG\",\"description\":\"票 05 证据 B：真实运行\",\"memberIds\":[\"$ALICE\"]}")
+CH_JSON=$(node -e 'process.stdout.write(JSON.stringify({name: "hold-run-" + process.argv[1], description: process.argv[2], memberIds: [process.argv[3]]}))' "$TAG" "$CHANNEL_DESC" "$ALICE")
+JSON=$(post_json /api/channels "$CH_JSON")
 CH=$(field 'j.channel.id'); echo "$CH" > "$OUT/part-b-channel-id.txt"; echo "HTTP $JSON → channel = $CH"
 
 echo
@@ -79,7 +94,8 @@ done
 
 echo
 echo "### 5. Bob 唤醒 Alice"
-JSON=$(post_json /api/messages "{\"targetId\":\"$CH\",\"content\":\"@Alice-$TAG 读一下 parser.js 和 README.md，然后**只回复**你打算怎么改 split。先别动代码，也不要创建/认领/更新任何任务。如果房间在你写作期间变了，请按 revise 重读重写（不要用 anyway 绕过）。\"}")
+ASK_JSON=$(node -e 'process.stdout.write(JSON.stringify({targetId: process.argv[1], content: process.argv[2]}))' "$CH" "$ASK_TEXT")
+JSON=$(post_json /api/messages "$ASK_JSON")
 echo "HTTP $JSON → seq = $(field 'j.message.seq')"
 
 echo
@@ -96,7 +112,12 @@ for i in $(seq 1 600); do
       echo "  · 对照变量：静音该频道，让插话不唤醒她（HTTP $JSON）"
     fi
     echo "  → 第 $INTER 次插话：她 drain 到 N=$N，房间随即走到 $((N+1))"
-    JSON=$(post_json /api/messages "{\"targetId\":\"$CH\",\"content\":\"等一下——按逗号切分在引号里的逗号上会出错。先说方案，别直接改。\"}")
+    if [ "$INTER" -eq 1 ] && [ "${INTERJECT_DELAY_SECONDS}" -gt 0 ]; then
+      echo "     （按 INTERJECT_DELAY_SECONDS=${INTERJECT_DELAY_SECONDS}s 延迟插话，让"仅唤醒"状态可见）"
+      sleep "$INTERJECT_DELAY_SECONDS"
+    fi
+    INT_JSON=$(node -e 'process.stdout.write(JSON.stringify({targetId: process.argv[1], content: process.argv[2]}))' "$CH" "$INTERJECT_TEXT")
+    JSON=$(post_json /api/messages "$INT_JSON")
     echo "     HTTP $JSON"
   fi
   sleep 0.5
