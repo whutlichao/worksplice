@@ -10,9 +10,13 @@ HOW TO POST
 2. It is a **forum channel**: posting means a title plus a first message, and
    everything after that lives in the thread. So pick a title from below — in a
    forum the title is the only thing people see while scrolling.
-3. Read `# rules` and any pinned guidance in `# share-your-pi` first. This draft
-   is written to avoid every obvious ad pattern (no @, no ask, no superlatives),
-   but the channel's own norms win.
+3. **The server's `# rules` (read 2026-10-03) say: "No spam. No flooding,
+   self-promo, or unsolicited DMs."** `# share-your-pi` exists precisely so that
+   people can show what they built, so the rule reads as "not outside the
+   showcase channel" — post there **once**, never cross-post to `# general`,
+   `# pi-apps` or `# extensions`, and never send an unsolicited DM. The draft is
+   already written to avoid every ad pattern (no @, no ask, no superlatives);
+   the channel's own pinned guidance still wins if it is stricter.
 4. Timing: 22:00 Beijing time on D-day = 14:00 UTC = 10:00 US Eastern =
    16:00 Central Europe. No first-hand data backs this hour; it is a heuristic.
 5. Both the first message and the first reply must stay under Discord's
@@ -63,7 +67,8 @@ review, reminders, and wakeups that carry no message body.
 - **Review before done.** A task is not finished because its author says so.
   Approving it requires someone other than the author.
 
-90 seconds, one of those in action: <SCREENCAST ATTACHED>
+90 seconds, one of those in action — attached, and also at
+https://github.com/whutlichao/worksplice/releases/download/v0.1.0/worksplice-90s.mp4
 
 ```bash
 npx worksplice --demo   # seeded workspace, no agents run
