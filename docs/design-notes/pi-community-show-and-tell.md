@@ -1,37 +1,46 @@
 <!--
-POST DRAFT — worksplice Show & Tell for pi community Discussions.
+POST DRAFT — worksplice technical archive post for pi community Discussions.
+
+WHAT THIS IS FOR: a public, searchable record of the design, so the launch post
+on Discord has somewhere durable to point at. It is deliberately NOT a pitch:
+no "please try it", no "feedback welcome", no @mentions, no star request.
+Expect it to get few or no replies — the six existing "Show & tell" posts in
+this repository average under one comment, so treat reach as a bonus.
 
 BEFORE POSTING:
-1. Pick one of the three titles under "Title options" and use it as the post
-   title (GitHub Discussions takes the title separately from the body).
+1. Pick one of the titles under "Title options" and use it as the post title
+   (GitHub Discussions takes the title separately from the body).
 2. Post everything from the "BODY" marker onward, verbatim.
 3. Delete this entire comment block and the "Title options" heading and list.
-
-Nothing below the BODY marker needs editing.
+4. Do not open an issue or PR in this repository — CONTRIBUTING.md closes them
+   by default and blocks accounts for tracker spam.
 -->
 
 ## Title options
 
-1. pi Show & Tell: worksplice — a local workspace where several pi agents work in the same channels
-2. Show & Tell: I built a multi-agent collaboration layer on top of pi sessions
-3. worksplice — shared channels, tasks, and review for persistent pi agents (Show & Tell)
+1. **Show & tell: worksplice — channels, freshness holds, and review for several
+   pi agents** ← recommended: keeps the community's title convention while
+   staying descriptive and searchable
+2. worksplice: what several pi agents in one room need that message passing does
+   not give them
+3. worksplice — a local workspace for collaborating with persistent pi agents
 
 <!-- BODY MARKER — POST FROM HERE -->
 
-Hi, I built [worksplice](https://github.com/whutlichao/worksplice) on top of
-[pi](https://github.com/earendil-works/pi), and I think the interesting part is
-not the UI — it is the set of semantics I had to invent to keep several pi
-sessions from stepping on each other.
+[worksplice](https://github.com/whutlichao/worksplice) is a local workspace that
+puts several pi sessions into shared channels with a human owner. The
+interesting part is not the UI — it is the set of semantics that keeps those
+sessions from stepping on each other, and those turned out to be the whole
+design.
 
-The short version of the problem: pi gives you one session, one agent, one
-working directory. worksplice puts several of them in shared channels with a
-human owner, and then it has to answer the questions that immediately show up.
-What wakes an agent, and how much of the new message reaches it? How does an
-agent know what it has already read? What happens when two agents reply to the
-same thing based on the same stale belief? Who is allowed to say a piece of work
-is finished?
+The problem it starts from: pi gives you one session, one agent, one working
+directory. Point a second agent at the same checkout and nothing fails loudly.
+So the questions show up immediately. What wakes an agent, and how much of the
+new message reaches it? How does an agent know what it has already read? What
+happens when two agents reply to the same thing based on the same stale belief?
+Who is allowed to say a piece of work is finished?
 
-Those turned out to be the whole design. Concretely:
+Four answers, all in the local server rather than in a UI:
 
 - **Wake hints carry no body text.** A wake is `{agentId, targetId, seq,
   reason}` and nothing else. The agent drains its own inbox by cursor. Keeping
@@ -56,30 +65,27 @@ agents](https://github.com/whutlichao/worksplice/blob/main/docs/design-notes/orc
 
 ## Running it
 
-It is not published to npm, so it runs from source. You need Node.js 22.19.0 or
-newer.
+Published to npm, and it needs Node.js 22.19.0 or newer:
 
 ```bash
-git clone https://github.com/whutlichao/worksplice.git
-cd worksplice
-npm install
-npm run dev
+npx worksplice --demo   # a seeded workspace, no agents run, nothing to configure
+npx worksplice          # the real thing, on your own pi sessions and models
 ```
 
-Then open http://127.0.0.1:30142. It binds to loopback by default;
-`npm run dev:lan` exposes it on your trusted network. worksplice reads your
-existing pi session files, so anything you already have in `~/.pi/agent/sessions`
+Then open http://127.0.0.1:30142. It binds to loopback by default, and it reads
+your existing pi session files, so anything already in `~/.pi/agent/sessions`
 shows up in the sidebar.
 
-## One honest boundary
+## Two honest boundaries
 
 This is not a general-purpose agent framework and it is not trying to be. It is
 deeply coupled to pi — it uses pi's session files, its `AgentSession` lifecycle,
-its model and skill management, and its per-cwd session rules. If you are not
-already running pi, there is no reason to adopt it. What I would take from it
-if you are building something similar is the four semantics above and nothing
-else; the reactions, attachments, pinned messages, and reminder scheduler are
+its model and skill management, and its per-cwd session rules. What is worth
+taking from it if you are building something similar is the four semantics
+above; reactions, attachments, pinned messages, and the reminder scheduler are
 product surface, not the load-bearing part.
 
-Happy to answer questions, and especially happy to be told which of the four
-invariants I got wrong.
+The second boundary is upstream: pi's roadmap includes a **pi server** that will
+cover part of what worksplice does. This is the version that exists today —
+local, one SQLite file, readable end to end — and if the official one makes it
+redundant, that is a good outcome.
