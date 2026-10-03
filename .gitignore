@@ -51,6 +51,7 @@ pnpm-workspace.yaml
 .codex/
 .commandcode/
 .agent-teams/
+.codebuddy
 
 # 打包期生成的演示库（随 npm 包分发，不进版本库）
 /demo/
