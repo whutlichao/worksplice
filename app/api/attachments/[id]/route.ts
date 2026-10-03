@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { NextResponse } from "next/server";
-import { getAttachmentRow } from "@/lib/domain/raft";
+import { getAttachmentRow } from "@/lib/domain/collab";
 
 /**
  * §3.5 附件下载/预览：文件实体存 `~/.worksplice/attachments/`（随机文件名），

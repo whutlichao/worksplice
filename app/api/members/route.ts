@@ -5,7 +5,7 @@ import {
   agentHomePath,
   getOwner,
   DuplicateAgentNameError,
-} from "@/lib/domain/raft";
+} from "@/lib/domain/collab";
 
 export async function GET() {
   try {

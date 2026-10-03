@@ -29,7 +29,7 @@ import type {
   TaskStatus,
 } from "./types.ts";
 
-// Ticket 03 Separate Data Layer：SQLiteAdapter 是 raft 数据契约 `Store` 的一种实现
+// Ticket 03 Separate Data Layer：SQLiteAdapter 是 数据契约 `Store` 的一种实现
 // （业务模块只依赖 lib/data/store.ts 的接口，不直接引用本具体 adapter）。
 
 export class SQLiteAdapter implements Store {

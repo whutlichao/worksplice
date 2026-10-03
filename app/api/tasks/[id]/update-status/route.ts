@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateTaskStatus, getTaskView, TaskClaimConflictError, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
+import { updateTaskStatus, getTaskView, TaskClaimConflictError, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
 import type { TaskStatus } from "@/lib/data/types";
 
 const TASK_STATUSES = new Set<TaskStatus>(["todo", "in_progress", "in_review", "done", "closed"]);

@@ -38,7 +38,7 @@ The instinct is to push the message body into the notification. "New message in
 `#refactor`: <full text>" feels obvious and helpful.
 
 worksplice refuses. The wake hint is a four-field struct in
-`lib/domain/raft/wake.ts`:
+`lib/domain/collab/wake.ts`:
 
 ```ts
 export interface WakeHint {
@@ -63,7 +63,7 @@ drain, where the agent already knows whether there is anything new to read.
 
 **It forces the pull shape.** Because the hint cannot be the content, the
 consumer has to go read. That is not an accident of the type — it is the type
-doing the architectural work. `sendMessage` in `lib/domain/raft/messages.ts`
+doing the architectural work. `sendMessage` in `lib/domain/collab/messages.ts`
 emits wake hints *after* the transaction commits and *outside* it, precisely so
 a rolled-back write never wakes anybody.
 
@@ -89,7 +89,7 @@ own rubric.
 highest `seq` that agent has finished processing in that target. It is the
 agent's entire memory of "what I have already dealt with".
 
-The read/advance primitives in `lib/domain/raft/inbox.ts` separate reading
+The read/advance primitives in `lib/domain/collab/inbox.ts` separate reading
 from advancing:
 
 ```ts
@@ -162,11 +162,11 @@ preventing is an agent posting a reply that contradicts or duplicates a reply
 that arrived thirty seconds earlier. Overwriting is silent. Being held is loud.
 
 The held response also refuses to be content-free. `summarizeChanges`
-(`lib/domain/raft/messages.ts`) returns a human-readable description of what
+(`lib/domain/collab/messages.ts`) returns a human-readable description of what
 landed in the interval — the count and the `seq` range — not just a boolean. The
 writer now knows it was wrong *and* why, which is the difference between a
 protocol and a mutex. It is reused verbatim by task claims and status
-transitions in `lib/domain/raft/tasks.ts`: a task operation writes shared state
+transitions in `lib/domain/collab/tasks.ts`: a task operation writes shared state
 under the same assumption, so it gets the same freshness check and the same
 held shape from the same function. One fact, one code path.
 
@@ -200,7 +200,7 @@ Exhausting retries collapses to `silent` rather than looping. And one asymmetry 
 deliberate: a revise that comes back with *no* content is an `error`, not a
 `silent`. `silent` advances the cursor and terminates; an error does not, so the
 held message stays pending and a later wake retries it. Calling that "abandoned"
-would be a lie — `isAbandonedRound` in `lib/domain/raft/rounds.ts` encodes
+would be a lie — `isAbandonedRound` in `lib/domain/collab/rounds.ts` encodes
 exactly this distinction, so the observability badge cannot claim a round was
 dropped when it is actually queued for another attempt.
 
@@ -209,7 +209,7 @@ dropped when it is actually queued for another attempt.
 ## 4. The builder does not verify their own work
 
 Tasks are anchored to a message and move through a state machine. The transition
-table in `lib/domain/raft/tasks.ts` maps each status to the reachable statuses,
+table in `lib/domain/collab/tasks.ts` maps each status to the reachable statuses,
 each with an authorization predicate:
 
 ```ts
@@ -319,9 +319,9 @@ same transaction as the claim, so it cannot be talked past.
 
 ## 6. Deep modules: one entry, straight imports inside
 
-`lib/domain/raft/index.ts` is the only door into the domain. Nothing outside
-`lib/domain/raft` imports a submodule directly; all 40 external consumers go
-through the index — 35 of them via the `@/lib/domain/raft` alias (33 route files
+`lib/domain/collab/index.ts` is the only door into the domain. Nothing outside
+`lib/domain/collab` imports a submodule directly; all 40 external consumers go
+through the index — 35 of them via the `@/lib/domain/collab` alias (33 route files
 under `app/api`, plus `components/SearchView.tsx` and `instrumentation.ts`) and
 5 under `lib/` via the relative path. The index itself is a barrel of
 `export *` over 18 submodules.
@@ -340,7 +340,7 @@ third example — a narrow interface centered on `withCwdMutex`, `isCwdBusy`, an
 living inside it.
 
 **What this buys.** The domain becomes mockable at one seam: a test that needs
-`notifyMessageWakes` to be inert mocks the whole raft domain in one place
+`notifyMessageWakes` to be inert mocks the whole collab domain in one place
 instead of stubbing functions across many files. Route handlers cannot reach
 past the domain boundary into the data layer, because the one thing deliberately
 *not* re-exported from the index is `getDb()` — that lives in

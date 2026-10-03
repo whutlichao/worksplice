@@ -673,7 +673,7 @@ worksplice 的 `lib/rpc/caller.ts:110-122` 会把 `scopedModels` 传进去，
 | 层 | 位置 | 谁读它 |
 | --- | --- | --- |
 | **① 全局默认** `settings.json` 的 `defaultProvider` / `defaultModel` / `defaultThinkingLevel` | `getAgentDir()/settings.json` | `lib/rpc/caller.ts:102-103` 建会话时的起点；`app/api/models/route.ts:58-65` 给 UI 预选；`0.99.2` 的 `_getThinkingLevelForModelSwitch` 兜底 |
-| **② per-agent 覆盖** `members.model_provider / model_id / thinking_level`（spec §3.10） | `lib/domain/raft/members.ts` `setAgentRuntimeConfig` → `getDb().setMemberModel` | `lib/agent-runtime.ts:275-280` 建会话时作为 `initialModel` / `thinkingLevel` 传入 |
+| **② per-agent 覆盖** `members.model_provider / model_id / thinking_level`（spec §3.10） | `lib/domain/collab/members.ts` `setAgentRuntimeConfig` → `getDb().setMemberModel` | `lib/agent-runtime.ts:275-280` 建会话时作为 `initialModel` / `thinkingLevel` 传入 |
 | **③ 显式启动偏好** | `lib/startup-preferences.ts` `persistExplicitStartupPreferences` | `lib/rpc/caller.ts:126-140`，只在**建会话时**、且只在调用方**显式传了** `initialModel` / `thinkingLevel` 时写 ① |
 | **④ session jsonl** | `~/.pi/agent/sessions/**/*.jsonl` 的 `model_change` / `thinking_level_change` 条目 | 恢复会话时 `lib/session-reader.ts` 回放 |
 
@@ -952,7 +952,7 @@ $ sed -n '1476,1487p' hooks/useAgentSession.ts
 | --- | --- |
 | 建会话只从全局默认取起点（有消息的会话不取） | `sed -n '102,116p' lib/rpc/caller.ts` |
 | per-agent 覆盖作为 `initialModel` 注入 | `sed -n '273,281p' lib/agent-runtime.ts` |
-| per-agent 变更显式写 `members` | `sed -n '260,287p' lib/domain/raft/members.ts` |
+| per-agent 变更显式写 `members` | `sed -n '260,287p' lib/domain/collab/members.ts` |
 | 存活会话应用走 `set_model` / `set_thinking_level` | `sed -n '84,99p' app/api/members/[id]/runtime/route.ts` |
 | 新建会话显式选择 → `initialModel` / `thinkingLevel` | `sed -n '35,49p' app/api/agent/new/route.ts` |
 | 本仓已有显式持久化接缝 | `sed -n '15,21p;22,55p' lib/startup-preferences.ts` |

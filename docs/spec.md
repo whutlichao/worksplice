@@ -1,16 +1,16 @@
 # worksplice 产品与架构 spec
 
-> 状态：**已确认（2026-08-03，ticket 09 逐章确认完成）** — 本稿由 wayfinder effort `raft-clone` 的 ticket 08 按 ticket 07 定的形态撰写，经 ticket 09 人类逐章确认（8 章 + 9 个 [展开] 项全部放行）后合格，进入构建阶段（另起 effort）。
-> 正文一律简体中文；标注 **[锁定]** 的内容来自已确认决策（对应 `.scratch/raft-clone/issues/` 下的 ticket），标注 **[展开]** 的内容为本次写作对骨架 UI 细节的新提议，均已在确认阶段逐条放行。
+> 状态：**已确认（2026-08-03，ticket 09 逐章确认完成）** — 本稿由 上一轮 wayfinder effort 的 ticket 08 按 ticket 07 定的形态撰写，经 ticket 09 人类逐章确认（8 章 + 9 个 [展开] 项全部放行）后合格，进入构建阶段（另起 effort）。
+> 正文一律简体中文；标注 **[锁定]** 的内容来自已确认决策（对应 当时的 ticket 目录 下的 ticket），标注 **[展开]** 的内容为本次写作对骨架 UI 细节的新提议，均已在确认阶段逐条放行。
 
 ## 已锁决策索引
 
 | 决策 | 出处 ticket | 一句话 |
 |---|---|---|
 | pi 能力边界与多实例模型 | 01 | 持久 agent = 绑定 cwd 的 AgentSession / `pi --mode rpc` 子进程；隔离单位 cwd |
-| raft 视觉参考与马卡龙配色 | 02 | `--color-brutal-*` 色板 + 2px 粗边框 + 0 圆角 + 硬偏移阴影 |
-| raft 产品与架构细节研究 | 03 | 拉取式 inbox、freshness-hold、任务板状态机、记忆 = workspace 磁盘目录 |
-| pi-web 功能去留与能力映射 | 04 | 骨架重写为 raft 式；pi-web 降级为组件库；保留/重写/删除清单 |
+| 参考形态的视觉参考与马卡龙配色 | 02 | `--color-brutal-*` 色板 + 2px 粗边框 + 0 圆角 + 硬偏移阴影 |
+| 参考产品与架构细节研究 | 03 | 拉取式 inbox、freshness-hold、任务板状态机、记忆 = workspace 磁盘目录 |
+| pi-web 功能去留与能力映射 | 04 | 骨架按参考形态重写；pi-web 降级为组件库；保留/重写/删除清单 |
 | 数据层选型与数据建模 | 05 | better-sqlite3 独立存储层；`UNIQUE(target_id, seq)`；双写流；FTS5 |
 | 命名与品牌脱钩 | 06 | 产品名 = npm 包名 = **worksplice**；git 历史重开；标识符替换清单 |
 | spec 文档形态 | 07 | 本文档的 8 章结构、两张 Mermaid 图、验收标准 |
@@ -21,7 +21,7 @@
 
 ### 1.1 愿景
 
-**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照 raft（Discord 式 agent 协作工作区）：agent 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 agent 在同一个 channel / thread 里对话、在同一张任务板上分活与互审。
+**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照同类 agent 协作工作区（Discord 式）：agent 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 agent 在同一个 channel / thread 里对话、在同一张任务板上分活与互审。
 
 核心工作循环（一切协作的通用模式）：**describe → hand off → let it run → review**（描述 → 交接 → 让它跑 → 审查）。多 agent 协作 = 同一循环并行运行。
 
@@ -34,7 +34,7 @@
 
 | 术语 | 英文 | 定义 |
 |---|---|---|
-| 工作区 | workspace | worksplice 的产品容器，对应 raft 的 Server；单机形态下即本应用本身 |
+| 工作区 | workspace | worksplice 的产品容器，对应同类产品的 Server；单机形态下即本应用本身 |
 | 成员 | member | 工作区内的参与者，human 或 agent 统一建模；human 为 Owner，agent 为 Member |
 | agent | agent | 由 pi SDK 驱动的持久成员：绑定固定 cwd（workspace 目录）、有名字与描述、可被 @mention |
 | channel | channel | 消息频道；`#all` 内建，全员自动加入；公开/私有两种 |
@@ -52,7 +52,7 @@
 | 工作目录 | cwd | agent 的 workspace 目录：pi session 的绑定目录，也是 agent 记忆的载体 |
 | 重置粒度 | reset granularity | Restart / Session reset / Full reset 三种恢复手段 |
 | 状态点 | status dot | 成员列表与详情面板中的绿/黄/橙/灰四态指示 |
-| 双写流 | dual write | raft 数据写 SQLite 为主，pi session jsonl 只承载认知过程的写入路径 |
+| 双写流 | dual write | 协作数据写 SQLite 为主，pi session jsonl 只承载认知过程的写入路径 |
 | 消费游标 | consumed seq | 每个 agent 每个 target 已消费到的 seq，存于 `consumed_seqs` 表 |
 
 ---
@@ -77,7 +77,7 @@
 
 - 多人 / 多机 / 服务器部署：daemon 分离、邀请、joint channels、跨团队协作、外部 agent 接入（device-login）、多 computer
 - 非 pi 的 runtimes（Claude Code、Codex、OpenCode 等 8 个）
-- 手机端 / 云端托管；OAuth/apps 生态（Login with Raft 等）
+- 手机端 / 云端托管；OAuth/apps 生态（第三方登录等）
 - 构建实现本身（本 spec 确认后另起 effort）
 
 另外两个首版明确排除、不属于"路线图"的小项：**消息分享为图片**与**Saved 书签**（本地单机场景价值低，如确认阶段希望保留可提出，否则不进首版）。
@@ -120,7 +120,7 @@
 
 ### 3.3 消息不可变与修正流程 **[展开]**
 
-raft 的产品原则是"可靠记录"：**消息永久不可编辑、不可删除**。worksplice 沿用。
+参考形态的产品原则是"可靠记录"：**消息永久不可编辑、不可删除**。worksplice 沿用。
 
 - **人类的修正方式**：对出错的顶层消息开 thread 回复，或在 thread 内回复修正；支持**引用**（quote）被修正的消息以保持上下文可读。
 - **agent 的修正方式**：agent 写稿期间房间若已变化，发送时受 freshness-hold 保护（见 §3.8 与 §6.3），收到 held 后四选一：
@@ -139,7 +139,7 @@ raft 的产品原则是"可靠记录"：**消息永久不可编辑、不可删�
 ### 3.5 Pinned 与附件 **[展开]**
 
 - **Pinned（个性化）**：每个成员在 channel 内维护自己的 pinned 区；channel 头部可展开。排序三选一：Manual（手动排序，默认）/ Recent / A-Z。数据落 `pinned_messages` 表（§6.2）。
-- **附件**：消息可挂附件（输入区回形针按钮，复用 pi-web FileViewer 预览）。**单文件上限 50MB**（与 raft 一致）；文件实体存应用数据目录 `attachments/`，库内只存元数据（`attachments` 表，§6.2）。附件类型不限，预览能力以 pi-web FileViewer 覆盖范围为准，超出则提供下载。
+- **附件**：消息可挂附件（输入区回形针按钮，复用 pi-web FileViewer 预览）。**单文件上限 50MB**（与参考形态一致）；文件实体存应用数据目录 `attachments/`，库内只存元数据（`attachments` 表，§6.2）。附件类型不限，预览能力以 pi-web FileViewer 覆盖范围为准，超出则提供下载。
 
 ### 3.6 Agent 身份与详情面板
 
@@ -148,13 +148,13 @@ raft 的产品原则是"可靠记录"：**消息永久不可编辑、不可删�
 | 面板区块 | 内容 | 决策状态 |
 |---|---|---|
 | 重置 | **Restart**（沿用现有 session 接着干）/ **Session reset**（清会话上下文，workspace 保留）/ **Full reset**（会话 + workspace 全清）/ **删除身份** | **[锁定]** 03、04 |
-| workspace | 绑定目录查看与更换（DirectoryPicker，可选 worktree 目录）；对应 raft workspace 概念 | **[锁定]** 04 |
+| workspace | 绑定目录查看与更换（DirectoryPicker，可选 worktree 目录）；对应同类产品的 workspace 概念 | **[锁定]** 04 |
 | runtime | per-agent 模型 / provider / thinking 选择（复用 ChatInput 模型选择器） | **[锁定]** 04 |
 | 可观测性 tab | ① 状态点 ② token/成本（per-agent 聚合）③ 任务历史（该 agent 参与的任务 + 状态变更时间线）④ 会话导出与上下文状态（export/context，cost/compaction 可见性） | **[锁定]** 04 |
 
 **状态点四态**（成员列表实时更新 + 详情面板）：绿 = 在线可响应（session 存活且 idle）；黄（脉冲）= 正在干活（agent 处理中）；橙 = 出错（会话错误，如缺 API key）；灰 = 离线（stopped / session 未启动）。idle/active 自动切换：无活时 session 保活低耗（沿用 pi-web 10 分钟 idle shutdown），新消息 / @mention / reminder 触发激活。**Stopped ≠ 删除**，只停止响应。
 
-**角色**：human 为 Owner；agent 恒为 Member（raft 中 agent 永远不能成为 Owner）。本地单机形态下，raft 的 Admin 级操作（建 channel、增删成员）由 human 在 UI 直接执行；agent 不做需要管理权限的操作，因此 **action card（人审批卡片）机制不在首版实现**。
+**角色**：human 为 Owner；agent 恒为 Member（参考形态中 agent 永远不能成为 Owner）。本地单机形态下，管理级操作（建 channel、增删成员）由 human 在 UI 直接执行；agent 不做需要管理权限的操作，因此 **action card（人审批卡片）机制不在首版实现**。
 
 ### 3.7 任务板状态机
 
@@ -177,7 +177,7 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 ### 3.8 Inbox（agent 拉取）与 freshness-hold
 
 - **拉取式，不推送**：新消息不主动塞进 agent 上下文；服务端按 target 累积，agent 有空自己 drain。每次拉进 prompt 的信号都会挤掉别的东西，所以把选择权交给 agent。
-- **drain 流程**：agent 收到 wake hint（只含 seq，不含正文）→ 按 `consumed_seqs` 游标拉取增量（`since` = 已消费 seq）→ 按 seq 排序 → 返回前 ack 推进游标 → 若还有更多则继续，直到拉尽（本地实现无需 raft 的 50 轮分页上限，但保留 hasMore 语义）。
+- **drain 流程**：agent 收到 wake hint（只含 seq，不含正文）→ 按 `consumed_seqs` 游标拉取增量（`since` = 已消费 seq）→ 按 seq 排序 → 返回前 ack 推进游标 → 若还有更多则继续，直到拉尽（本地实现无需 50 轮分页上限，但保留 hasMore 语义）。
 - **freshness-hold（竞态保护）**：发送消息 / claim / updateStatus 时携带写稿时的房间版本（= target 的 `max(seq)`）；提交事务内比对 `base_seq == max(seq)`，相等才写；不等则返回 **held** 及"期间发生了什么"的摘要，agent 四选一（§3.3）。
 - **mute**：channel 级静音 + `muteFromSeq`，个人 @mention 穿透（§3.2）。
 
@@ -193,7 +193,7 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 
 ### 3.10 模型配置与技能管理
 
-- **全局**：models.json 面板保留（几乎不改，对应 raft server 级设置）；技能管理保留为全局设置（raft 无对应概念，作为本地形态增强）。两者复用 pi-web 的 ModelsConfig / SkillsConfig 组件。
+- **全局**：models.json 面板保留（几乎不改，对应 服务端级设置）；技能管理保留为全局设置（参考形态无对应概念，作为本地形态增强）。两者复用 pi-web 的 ModelsConfig / SkillsConfig 组件。
 - **per-agent**：agent 详情面板 runtime 区可单独选择模型 / provider / thinking，覆盖全局默认。
 
 ### 3.11 文件预览三分法
@@ -270,17 +270,17 @@ flowchart TB
 
     subgraph App["Next.js 服务端进程（单机常驻，bin/worksplice.js 启动）"]
         Routes["app/api 路由 + SSE 事件出口"]
-        RaftSvc["raft 服务层<br/>channels / threads / tasks / inbox / reminders / freshness-hold"]
+        CollabSvc["协作服务层<br/>channels / threads / tasks / inbox / reminders / freshness-hold"]
         AgentLoop["agent-loop（自研）<br/>drain → decide → act → reply"]
         Cron["reminder cron 调度"]
-        DB[("better-sqlite3<br/>raft.db")]
+        DB[("better-sqlite3<br/>worksplice.db")]
         FTS[("FTS5 虚拟表")]
         RPC["lib/rpc<br/>AgentSessionWrapper 注册表"]
         Reader["session-reader<br/>（jsonl 只读解析）"]
-        RaftSvc <--> DB
+        CollabSvc <--> DB
         DB <--> FTS
-        RaftSvc <--> RPC
-        AgentLoop --> RaftSvc
+        CollabSvc <--> RPC
+        AgentLoop --> CollabSvc
         Cron --> DB
     end
 
@@ -290,16 +290,16 @@ flowchart TB
     ATT[("~/.worksplice/attachments/")]
 
     Browser <--> Routes
-    Routes <--> RaftSvc
-    RaftSvc --> Reader
+    Routes <--> CollabSvc
+    CollabSvc --> Reader
     RPC --> PI
     PI --> SESS
     PI --> WS
     Reader --> SESS
-    RaftSvc --> ATT
+    CollabSvc --> ATT
 ```
 
-数据边界（**[锁定]** 05）：两套存储并存、互不掺和——pi session jsonl 保持原生格式、读写权完全交 SDK（`SessionManager`），app 只持有文件路径、只读不解析不修改（详情面板历史走 session-reader）；raft 应用数据（channels/threads/messages/tasks/reminders/reactions/attachments/pinned/consumed_seqs）存独立 SQLite。
+数据边界（**[锁定]** 05）：两套存储并存、互不掺和——pi session jsonl 保持原生格式、读写权完全交 SDK（`SessionManager`），app 只持有文件路径、只读不解析不修改（详情面板历史走 session-reader）；应用数据（channels/threads/messages/tasks/reminders/reactions/attachments/pinned/consumed_seqs）存独立 SQLite。
 
 ### 5.2 pi 多实例与 AgentSession 生命周期
 
@@ -313,31 +313,31 @@ flowchart TB
 ### 5.3 数据流（双写流与崩溃恢复）
 
 ```
-用户发消息 ──▶ SQLite（事务内 seq 递增 + freshness 校验，raft 消息表 = 房间事实唯一来源）
+用户发消息 ──▶ SQLite（事务内 seq 递增 + freshness 校验，消息表 = 房间事实唯一来源）
     ──▶ SDK prompt 喂给该 agent
     ──▶ agent 回复，SDK 自写 session jsonl
     ──▶ app 读回回复，补写 SQLite（消息 + seq 递增）
 ```
 
-- raft 消息表是**房间事实唯一来源**；pi session 只承载认知过程。**[锁定]** 05
+- 消息表是**房间事实唯一来源**；pi session 只承载认知过程。**[锁定]** 05
 - **非跨存储事务**：两步各是独立事务；崩溃恢复靠 `consumed_seqs` 游标 + **启动时按 seq 补拉**（对每个 agent×target，若 SQLite 中 seq 落后于 session jsonl 中的已投递 seq，按序补写）。**[锁定]** 05
-- pi 升级改变 session 格式不影响 raft 数据。**[锁定]** 05
+- pi 升级改变 session 格式不影响协作域数据。**[锁定]** 05
 
 ### 5.4 agent-loop（自研组件）**[展开]**
 
-本地单机形态下"daemon 唤醒 agent"对应物 = app 内的 **agent-loop**（`lib/agent-loop`），它是把 raft 协议概念映射到本地 pi 会话的驱动层：
+本地单机形态下"daemon 唤醒 agent"对应物 = app 内的 **agent-loop**（`lib/agent-loop`），它是把协作协议概念映射到本地 pi 会话的驱动层：
 
 1. **wake**：inbox 服务收到新消息（或 reminder 到点）→ 向目标 agent 的 loop 发唤醒事件（内容为 seq 级 hint，不预组 prompt）。
 2. **drain**：按 `consumed_seqs` 拉取增量，组装为该 agent 可读的上下文（channel/thread 语境 + 新消息 + 相关任务状态）。
 3. **decide**：把选项空间显式交给 agent——按 AX 原则，输出 = "能直接用的信息 + 一个明确的 next action"（如：处理该 mention 并回复 / 认领任务 / 忽略）。
-4. **act**：通过 raft 服务层执行动作（回复、claim、updateStatus、schedule reminder、react、pin），全部带 freshness 校验；held 时把"期间发生了什么"摘要交回 agent 四选一。
+4. **act**：通过 协作服务层执行动作（回复、claim、updateStatus、schedule reminder、react、pin），全部带 freshness 校验；held 时把"期间发生了什么"摘要交回 agent 四选一。
 5. **reply 收口**：回复走双写流（§5.3），推进 `consumed_seqs`。
 
 状态点驱动：loop 活跃时黄（脉冲），回复落库后回绿；session 错误置橙。
 
 ### 5.5 Inbox / wake 本地实现
 
-- 无需网络协议层：inbox 是 raft 服务层内部的查询接口（`getSince(target, sinceSeq)` / `drain(target, agentId)` / `ack`），wake 是 app 内事件分发。**[锁定]** 03 的语义 + 05 的表结构，**[展开]** 本地实现形态
+- 无需网络协议层：inbox 是 协作服务层内部的查询接口（`getSince(target, sinceSeq)` / `drain(target, agentId)` / `ack`），wake 是 app 内事件分发。**[锁定]** 03 的语义 + 05 的表结构，**[展开]** 本地实现形态
 - `consumed_seqs(agent_id, target_id, seq)` 即持久化游标；agent-loop 每轮结束后推进。
 
 ### 5.6 Reminder 调度
@@ -362,7 +362,7 @@ app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=sche
 
 ### 5.8 pi-web 改造策略
 
-**骨架重写为 raft 式，pi-web 降级为组件库。** 清单如下（**[锁定]** 04）：
+**骨架按参考形态重写，pi-web 降级为组件库。** 清单如下（**[锁定]** 04）：
 
 | 处理 | 内容 |
 |---|---|
@@ -433,8 +433,8 @@ erDiagram
 
 ### 6.6 数据位置 **[展开]**
 
-- raft 数据目录：`~/.worksplice/`（可用环境变量 `WORKSPLICE_DATA_DIR` 覆盖），内含 `raft.db`（SQLite）、`attachments/`。
-- 备份 = 复制 `raft.db` + `attachments/` + `~/.pi/agent/sessions/` 对应 cwd 目录（首版不做内建备份 UI）。
+- 数据目录：`~/.worksplice/`（可用环境变量 `WORKSPLICE_DATA_DIR` 覆盖），内含 `worksplice.db`（SQLite）、`attachments/`。
+- 备份 = 复制 `worksplice.db` + `attachments/` + `~/.pi/agent/sessions/` 对应 cwd 目录（首版不做内建备份 UI）。
 
 ---
 
@@ -479,8 +479,8 @@ erDiagram
 
 ### 8.2 确认流程
 
-最终确认权在人类（agent 不自证合格）：**逐章通读本 spec，每章明确表示"确认"或提出修改**；全部章节确认后，本 spec 视为确认合格，`raft-clone` effort 收尾，构建 effort 另起。
+最终确认权在人类（agent 不自证合格）：**逐章通读本 spec，每章明确表示"确认"或提出修改**；全部章节确认后，本 spec 视为确认合格，本轮 effort 收尾，构建 effort 另起。
 
 ---
 
-*本 spec 由 wayfinder effort `raft-clone` ticket 08 撰写；[展开] 项（§3.3–3.5、§5.4–5.5、§6.6、§7.2#6）已在 ticket 09 确认阶段逐条放行（2026-08-03）。*
+*本 spec 由 上一轮 wayfinder effort ticket 08 撰写；[展开] 项（§3.3–3.5、§5.4–5.5、§6.6、§7.2#6）已在 ticket 09 确认阶段逐条放行（2026-08-03）。*

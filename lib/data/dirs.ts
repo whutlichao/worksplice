@@ -2,7 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export const DB_FILE_NAME = "raft.db";
+export const DB_FILE_NAME = "worksplice.db";
+/** 早期项目名（raft-like）留下的数据库文件名：只用于启动时迁移，新代码不要引用它。 */
+export const LEGACY_DB_FILE_NAME = "raft.db";
 export const ATTACHMENTS_DIR_NAME = "attachments";
 export const AGENTS_DIR_NAME = "agents";
 export const MEMORY_FILE_NAME = "MEMORY.md";
@@ -33,7 +35,27 @@ export function ensureDataDir(dataDir: string): DataPaths {
   fs.mkdirSync(paths.dataDir, { recursive: true });
   fs.mkdirSync(paths.attachmentsDir, { recursive: true });
   fs.mkdirSync(paths.agentsDir, { recursive: true });
+  migrateLegacyDbFileName(dataDir);
   return paths;
+}
+
+/**
+ * 把早期版本留下的 `raft.db`（连同 `-wal`/`-shm` 兄弟文件）改名为 `worksplice.db`。
+ * 只在目标名不存在时动手：已迁移过的目录是 no-op，也绝不覆盖新库。
+ * 返回是否真的迁移了——测试用它断言，调用方据此决定要不要打日志。
+ */
+export function migrateLegacyDbFileName(dataDir: string): boolean {
+  const legacy = path.join(dataDir, LEGACY_DB_FILE_NAME);
+  const current = path.join(dataDir, DB_FILE_NAME);
+  if (fs.existsSync(current) || !fs.existsSync(legacy)) return false;
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const from = `${legacy}${suffix}`;
+    if (fs.existsSync(from)) fs.renameSync(from, `${current}${suffix}`);
+  }
+  console.log(
+    `[worksplice] renamed the legacy ${LEGACY_DB_FILE_NAME} to ${DB_FILE_NAME} in ${dataDir}`,
+  );
+  return true;
 }
 
 /** 家目录 slug：小写、非 [a-z0-9] 转连字符、折叠、去首尾；空（纯中文名等）回退 "agent"。 */

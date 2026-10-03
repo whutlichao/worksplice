@@ -7,7 +7,7 @@ declare global {
 }
 
 /**
- * 进程级 raft 存储单例（契约类型为 `Store`，运行时是 SQLiteAdapter）；globalThis 扛
+ * 进程级存储单例（契约类型为 `Store`，运行时是 SQLiteAdapter）；globalThis 扛
  * Next.js 热重载（与 lib/rpc 同模式）。openSqliteAdapter 会记录打开时的 schema 版本；
  * 热重载后 SQLiteAdapter 类已变时（版本不同）重建实例，避免拿到旧原型的
  * setMemberPiSessionFile 等新方法缺失报错。

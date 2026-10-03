@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgent, AgentNotFoundError, listAgentTasks, buildAgentTimeline, listRoundLogs } from "@/lib/domain/raft";
+import { getAgent, AgentNotFoundError, listAgentTasks, buildAgentTimeline, listRoundLogs } from "@/lib/domain/collab";
 import { aggregateAgentUsage } from "@/lib/session-stats";
 import { resolveSessionIdByPath } from "@/lib/session-reader";
 import { getAgentRuntime } from "@/lib/agent-runtime";

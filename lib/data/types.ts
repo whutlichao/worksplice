@@ -1,5 +1,5 @@
 /**
- * raft 数据层共享类型与纯函数（Ticket 03 Separate Data Layer）。
+ * 数据层共享类型与纯函数（Ticket 03 Separate Data Layer）。
  *
  * 这是业务模块与数据适配器（SQLiteAdapter/未来的 InMemoryAdapter）之间的共享词表：
  * 行类型、插入输入类型、枚举联合、搜索纯函数。存储实现（`lib/data/sqlite.ts`）与

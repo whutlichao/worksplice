@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { searchMessages } from "@/lib/domain/raft";
+import { searchMessages } from "@/lib/domain/collab";
 
 /**
  * search 路由组（§5.7 / §6.4）：GET /api/search?q=&limit= — FTS5 全文搜索。

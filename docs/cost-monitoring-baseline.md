@@ -72,7 +72,7 @@
 ### 3.4 运行态验证
 
 - 应用实例：`http://127.0.0.1:30142` 存活，3 agent 均 online。
-- 质量闸门：`tsc --noEmit` 干净、`npm run lint` 干净、测试 **668/668 pass**（lib + agent-loop + raft + data + components + hooks）。
+- 质量闸门：`tsc --noEmit` 干净、`npm run lint` 干净、测试 **668/668 pass**（lib + agent-loop + collab + data + components + hooks）。
 
 ## 4. 后续建议（不阻塞本轮）
 

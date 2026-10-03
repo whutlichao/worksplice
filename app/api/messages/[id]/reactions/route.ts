@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { toggleReaction, listReactionSummaries, getMessageWithAuthor, CURRENT_MEMBER_ID } from "@/lib/domain/raft";
+import { toggleReaction, listReactionSummaries, getMessageWithAuthor, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
 
 /**
  * §3.4 reaction 读写：
