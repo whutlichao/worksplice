@@ -19,6 +19,7 @@
   },
   "files": [
     "bin",
+    "demo",
     ".next",
     "!.next/cache",
     "!.next/dev",
@@ -30,6 +31,8 @@
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 30142",
     "seed:demo": "node scripts/seed-demo.mjs",
+    "build:demo-db": "node scripts/build-demo-db.mjs",
+    "prepack": "node scripts/build-demo-db.mjs",
     "dev:lan": "next dev -H 0.0.0.0 -p 30142",
     "build": "next build --webpack",
     "start": "next start -H 127.0.0.1 -p 30142",
