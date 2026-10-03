@@ -5,7 +5,7 @@ This repo publishes two artifacts for each release, from the same tarball:
 - npm: `worksplice` — what `npx worksplice` installs
 - GitHub Release: `whutlichao/worksplice` — the same tarball attached as an asset, for machines that cannot reach the npm registry
 
-Both come out of `npm pack`, so they are byte-identical by construction. See `README.md` for the install steps.
+Both come out of `npm pack` at the same commit, so they carry the **same file list and contents** — but they are **not byte-identical**: the tarball embeds file metadata, so two packs of the same tree differ by a few bytes (v0.1.0: 5,888,706 vs 5,888,682). Treat them as equivalent builds, not as the same bytes; verify by file list, not by hash. See `README.md` for the install steps.
 
 Use this checklist from a clean `main` checkout.
 
