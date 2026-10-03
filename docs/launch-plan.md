@@ -104,7 +104,7 @@
 - **代码侧已合并**：`--demo`、反馈模板、README 定位与一行安装、首发帖草案、失效报告与复现脚本、清单文案（6 个 PR）。
 - **只剩 4 项待办**：A2 Release、A3 npm 发布、A8 录屏（作者）；A4 Release 构建里重跑（等 A2）。
 - **一处需要留意**：README 现在写的是 `npx worksplice`，在 A3 完成前这条命令跑不通——A3 是「main 与一份诚实的 README」之间唯一的东西。
-- **发布前已验证**：`npm pack` 产物 5.6 MB、含 `demo/raft.db`；装到干净目录后 `--demo` 跑出 4 频道 / 5 agent / 40 消息 / 14 任务 / `round_logs=0`。
+- **发布前已验证**：`npm pack` 产物 5.6 MB、含 `demo/worksplice.db`；装到干净目录后 `--demo` 跑出 4 频道 / 5 agent / 40 消息 / 14 任务 / `round_logs=0`。
 
 ## 9. 附录：证据与复现
 
