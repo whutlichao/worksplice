@@ -76,8 +76,11 @@ function prepareDemoDataDir(options = {}) {
   const dataDir = path.resolve(options.dataDir ?? resolveDemoDataDir(options.env));
   const source = path.join(pkgDir, DEMO_DB_RELATIVE);
   if (!fs.existsSync(source)) {
+    // 报错必须给出下一步命令：已发布的包里演示库是现成的，只有源码 checkout 才会缺它，
+    // 而"缺了"这件事光看路径猜不出该怎么办。
     throw new Error(
-      `Demo database not found at ${source}. It is generated at pack time by scripts/build-demo-db.mjs.`,
+      `Demo database not found at ${source}. Published packages already include it; ` +
+        `in a source checkout run \`npm run build:demo-db\` once to generate it.`,
     );
   }
 
