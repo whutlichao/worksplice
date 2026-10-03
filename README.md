@@ -154,6 +154,7 @@ All four shots are the seeded demo workspace (`npm run seed:demo`) with the Engl
 ## Design Notes
 
 - **Orchestrating coding agents**: [What "Just Let Them Message Each Other" Misses](./docs/design-notes/orchestrating-coding-agents.md) argues that the hard part of multi-agent work is not the transport but having a shared notion of what is true right now, then walks through how worksplice's wake hints, read cursors, freshness holds, and task review answer it, pointing at the code.
+- **When one of those rules only worked in the happy path**: [A Held Write That Never Got Revised](./docs/design-notes/when-a-held-write-could-not-be-revised.md) is the failure report — the held-write path that failed in every real run while its tests stayed green, the SDK-level seam that injected fakes cannot see, and the fix. Three runnable reproduction scripts live in `scripts/evidence/`.
 
 ## License
 

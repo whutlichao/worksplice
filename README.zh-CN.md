@@ -154,6 +154,7 @@ node bin/worksplice.js
 ## 设计笔记
 
 - **编排编程智能体**：[What "Just Let Them Message Each Other" Misses](./docs/design-notes/orchestrating-coding-agents.md) 论证多智能体协作真正难的地方不是传输，而是「当下什么是真的」需要共享共识；随后对着代码讲解 worksplice 的唤醒提示、读取游标、时效拦截和任务评审如何回答这四点（该文档目前只有英文版）。
+- **只在顺利路径上成立的那条规则**：[A Held Write That Never Got Revised](./docs/design-notes/when-a-held-write-could-not-be-revised.md) 是一份失效报告——「写被 hold 后由作者重写」这条语义在每次真实运行里都悄悄失败，而它的单测始终是绿的；报告讲清了那条单测看不见的 SDK 接缝，以及最后怎么修。附三个可运行的复现脚本（`scripts/evidence/`，该文档目前只有英文版）。
 
 ## 许可证
 
