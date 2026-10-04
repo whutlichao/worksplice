@@ -72,6 +72,27 @@ export function agentHomeDir(dataDir: string, id: string, name: string): string 
   return path.join(dataDir, AGENTS_DIR_NAME, `${agentSlug(name)}-${id.slice(0, 8)}`);
 }
 
+/**
+ * 家目录派生路径判据（ADR-0001）：候选路径形如 `<任意数据目录>/agents/<slug>-<本 agent id 前 8 位>`。
+ * 只按形状判定、不碰文件系统：
+ * - 不要求 slug 与当前名字一致（目录名是创建时的 slug，改名不会搬目录）；
+ * - 不要求父目录真在当前数据目录下——备份还原 / 副本 / 另一环境的历史值同样算家目录派生；
+ * - id 前 8 位是本 agent 提供的，所以只认它自己的家目录，他人家目录与普通项目目录不会被误判。
+ * 用途：读取侧的 workspace_path 重推（见 lib/data/sqlite.ts 的成员行视图）。
+ */
+export function isDerivedAgentHomePath(
+  candidate: string,
+  memberId: string,
+): boolean {
+  if (!candidate) return false;
+  const basename = path.basename(candidate);
+  const idSuffix = `-${memberId.slice(0, 8)}`;
+  if (!basename.endsWith(idSuffix)) return false;
+  // slug 部分不能为空（`agents/-<id8>` 不是 agentHomeDir 的产物）
+  if (basename.length === idSuffix.length) return false;
+  return path.basename(path.dirname(candidate)) === AGENTS_DIR_NAME;
+}
+
 /** MEMORY.md 固定大纲（ADR-0001）：正文可为空，文件归 agent 所有。节名英文（docs/i18n.md 分层规则：内容层英文硬编码）。 */
 export function buildMemoryTemplate(name: string, description: string): string {
   const role = description.trim() ? `## Role\n\n${description.trim()}` : "## Role";
