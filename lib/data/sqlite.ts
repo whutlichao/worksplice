@@ -108,6 +108,11 @@ export class SQLiteAdapter implements Store {
     this.db.prepare("UPDATE channels SET name = ? WHERE id = ?").run(name, id);
   }
 
+  /** 频道描述更新：只改 description，不动 name/type/归档态与任何关联表。 */
+  updateChannelDescription(id: string, description: string): void {
+    this.db.prepare("UPDATE channels SET description = ? WHERE id = ?").run(description, id);
+  }
+
   setChannelArchived(id: string, archived: number): void {
     this.db.prepare("UPDATE channels SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
   }
@@ -265,6 +270,11 @@ export class SQLiteAdapter implements Store {
 
   updateMemberStatus(id: string, status: MemberStatus): void {
     this.db.prepare("UPDATE members SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  /** 成员描述更新：只改 description，不动名字/工作区/模型/会话绑定/存活状态。 */
+  updateMemberDescription(id: string, description: string): void {
+    this.db.prepare("UPDATE members SET description = ? WHERE id = ?").run(description, id);
   }
 
   setMemberWorkspace(id: string, workspacePath: string, piSessionFile: string): void {
