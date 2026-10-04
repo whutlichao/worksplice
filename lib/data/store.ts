@@ -55,6 +55,8 @@ export interface Store {
     description?: string;
     createdAt?: string;
   }): ChannelRow;
+  /** 频道改名（存量内容英文化迁移脚本的唯一写入路径；只改 name，id/类型/成员/历史消息都不动）。 */
+  renameChannel(id: string, name: string): void;
   setChannelArchived(id: string, archived: number): void;
   listChannelMembers(channelId: string): ChannelMemberRow[];
   isChannelMember(channelId: string, memberId: string): boolean;

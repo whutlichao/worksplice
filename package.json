@@ -31,6 +31,7 @@
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 30142",
     "seed:demo": "node scripts/seed-demo.mjs",
+    "migrate:i18n-content": "node scripts/migrate-i18n-content.mjs",
     "build:demo-db": "node scripts/build-demo-db.mjs",
     "prepack": "node scripts/build-demo-db.mjs",
     "dev:lan": "next dev -H 0.0.0.0 -p 30142",
