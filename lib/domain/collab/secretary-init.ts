@@ -12,19 +12,28 @@ import { MEMORY_FILE_NAME } from "../../data/dirs.ts";
  * 秘书初始化流程（spec-bootstrap-agent.md §6.2，构建 effort ticket 04）：
  * 自动创建与手动入口共用的五步就绪流程，全部是既有服务层能力组合（零机制改动、签名不破坏）——
  * ① 身份与家目录（createAgent 契约）② 手册重写（MEMORY.md 速查 + SYSTEM-GUIDE.md，读自 02/03 内容资产）
- * ③ 频道覆盖（全部现存频道静默加入）④ 办公室频道「秘书办公室」幂等创建 ⑤ Owner 署名欢迎事件 → 秘书唤醒后正常回复。
+ * ③ 频道覆盖（全部现存频道静默加入）④ 办公室频道 `secretary-office` 幂等创建 ⑤ Owner 署名欢迎事件 → 秘书唤醒后正常回复。
  * 幂等：全步骤可重跑（手册覆盖写、加入幂等、办公室频道按 name 全等复用）；欢迎事件只在
  * 身份新建/办公室频道新建/办公室频道尚无消息（部分失败补跑窗口）时投递，重复运行不刷欢迎语。
  */
 
-/** 秘书描述（spec §2.3）：展示于成员列表/详情面板。 */
+/** 秘书描述（spec §2.3）：展示于成员列表/详情面板。内容层英文硬编码（docs/i18n.md 分层规则）。 */
 export const SUSAN_DESCRIPTION =
-  "worksplice 的秘书：自动加入全部频道，熟悉系统手册，可代办频道/成员创建与查询，越权操作引导 Owner UI";
+  "worksplice secretary: joins every channel, knows the system guide, handles channel/member creation and lookups, and points to the Owner UI when an action is out of scope";
 
-/** 办公室频道（spec §1.3）：私有频道，成员 = Owner + 秘书；幂等判定键 = name 全等（§6.2-④）。 */
-export const OFFICE_CHANNEL_NAME = "秘书办公室";
+/** 办公室频道（spec §1.3）：私有频道，成员 = Owner + 秘书；幂等判定键 = name 全等（§6.2-④）。
+ *  新名英文（内容层），旧名只用于查找既有频道（LEGACY_OFFICE_CHANNEL_NAMES，不迁移存量）。 */
+export const OFFICE_CHANNEL_NAME = "secretary-office";
 
-export const OFFICE_CHANNEL_DESCRIPTION = "秘书的 1:1 沟通场所";
+export const OFFICE_CHANNEL_DESCRIPTION = "1:1 workspace for the secretary";
+
+/** 办公室频道历史名（内容层英文化的 forward-only 兼容）：仅参与「查找既有频道」，创建只用新名。 */
+export const LEGACY_OFFICE_CHANNEL_NAMES = ["秘书办公室"];
+
+/** 办公室频道判定（新名或历史名）：查找既有频道用；创建写路径只用 OFFICE_CHANNEL_NAME。 */
+export function isOfficeChannelName(name: string): boolean {
+  return name === OFFICE_CHANNEL_NAME || LEGACY_OFFICE_CHANNEL_NAMES.includes(name);
+}
 
 /** SYSTEM-GUIDE.md 手册文件名（MEMORY.md 常量在 lib/data/dirs.ts）。 */
 export const SECRETARY_GUIDE_FILE_NAME = "SYSTEM-GUIDE.md";
@@ -82,7 +91,7 @@ export function initSecretaryFlow(options: InitSecretaryOptions = {}): MemberRow
   }
   const createdSusan = !existing;
 
-  // ② 手册重写：MEMORY.md 整体重写为速查结构（保留"当前工作"节名，与 ADR-0001 固定大纲兼容），
+  // ② 手册重写：MEMORY.md 整体重写为速查结构（保留 `## Current work` 节名，与 ADR-0001 固定大纲兼容），
   //    SYSTEM-GUIDE.md 首次落盘——内容 = 02/03 交付的内容资产逐字节
   const homeDir = susan.workspace_path ?? agentHomePath(susan);
   mkdirSync(homeDir, { recursive: true });
@@ -99,10 +108,10 @@ export function initSecretaryFlow(options: InitSecretaryOptions = {}): MemberRow
     }
   }
 
-  // ④ 办公室频道「秘书办公室」：name 全等判定，已存在即复用（幂等），确保 Owner + 秘书成员。
+  // ④ 办公室频道 `secretary-office`：name 全等（含历史名，见 LEGACY_OFFICE_CHANNEL_NAMES）判定，已存在即复用（幂等），确保 Owner + 秘书成员。
   //    直接走 DB 原语而非 createChannel——createChannel 提交后投"新频道已建立"报到事件（§4.1 节点 2），
   //    与节点 3 的欢迎事件重复（双重唤醒/双重回复）；办公室频道以欢迎事件为唯一事件（§6.2-⑤）。
-  let office = listChannels().find((c) => c.name === OFFICE_CHANNEL_NAME);
+  let office = listChannels().find((c) => isOfficeChannelName(c.name));
   const officeCreated = !office;
   if (!office) {
     office = getDb().insertChannel({
