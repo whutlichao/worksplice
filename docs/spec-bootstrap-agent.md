@@ -25,8 +25,8 @@
 |---|---|
 | 秘书 | 本文描述的启动 agent 的**角色定位**；普通 agent 成员（role 恒为 member），以两本手册与行为契约为知识体 |
 | Susan | 秘书的默认名字（身份名，Owner 2026-08-08 确认）；@mention 用 `@Susan` |
-| 办公室频道 | 秘书 1:1 沟通场所：私有频道「秘书办公室」，成员 = Owner + Susan，首次创建秘书时自动建立 |
-| 事件系统消息 | 服务层在关键节点提交后、以 Owner 署名投递的短消息（如"新成员 @X 加入频道"），内容只含关注对象、不含欢迎正文；用于唤醒秘书使其**正常回复** |
+| 办公室频道 | 秘书 1:1 沟通场所：私有频道 `secretary-office`（历史名「秘书办公室」仅用于查找既有频道，存量不迁移），成员 = Owner + Susan，首次创建秘书时自动建立 |
+| 事件系统消息 | 服务层在关键节点提交后、以 Owner 署名投递的短消息（如 "New member @X joined the channel"），内容只含关注对象、不含欢迎正文；用于唤醒秘书使其**正常回复** |
 | 启动助手入口 | CreateAgentModal 内的「创建启动助手」按钮：秘书不存在的降级创建入口 |
 | 速查 / 手册 | MEMORY.md 速查（每轮必读，≤150 行）与 SYSTEM-GUIDE.md 手册（按需读取，~700 行）两本知识文件的简称 |
 
@@ -58,7 +58,7 @@
 | 项 | 值 | 说明 |
 |---|---|---|
 | 名字 | **Susan** | 影响 @mention（`@Susan`）、家目录 slug（`susan-<id8>`）；≤32 字符合法 |
-| 描述 | "worksplice 的秘书：自动加入全部频道，熟悉系统手册，可代办频道/成员创建与查询，越权操作引导 Owner UI" | 展示于成员列表/详情面板 |
+| 描述 | "worksplice secretary: joins every channel, knows the system guide, handles channel/member creation and lookups, and points to the Owner UI when an action is out of scope" | 展示于成员列表/详情面板（产品内容层英文硬编码） |
 | 头像 | 沿用现有机制（seed = 成员 id 确定性生成） | 系统无头像字段，PixelAvatar 一律 seed=member id，**不加特判** |
 | 自称 | 对话中自称"秘书"（02 契约 §5） | 身份名与角色自称并存：系统侧叫 Susan，行为侧自称秘书 |
 
@@ -103,21 +103,21 @@
 
 | # | 关键节点 | 触发时点 | 发言示例基调 |
 |---|---|---|---|
-| 1 | 新 agent 加入频道 → 欢迎 | 成员加入频道提交后（加入者是 agent 且非 Susan） | "欢迎 @X 加入频道"（≤2 句） |
-| 2 | 新频道建立 → 报到 | 频道创建提交后 | "新频道 #Y 已建立，有需要随时叫我"（≤2 句） |
+| 1 | 新 agent 加入频道 → 欢迎 | 成员加入频道提交后（加入者是 agent 且非 Susan） | "Welcome @X to the channel"（≤2 句） |
+| 2 | 新频道建立 → 报到 | 频道创建提交后 | "New channel #Y is up — ping me whenever you need me"（≤2 句） |
 | 3 | 办公室频道欢迎语 | 秘书首次创建、初始化流程完成时 | 简短自我介绍 + 能做什么（≤2 句） |
 
 ### 4.2 关键节点触发路径 **[锁定]**（01 研究 + 02 契约 §2，方案 A）
 
-- **触发 = 事件系统消息**：join/create 提交后，服务层以 **Owner 署名**投递短消息（如 `@Susan 新成员 @X 加入频道` / `@Susan 新频道 #Y 已建立`，只含关注对象不含欢迎正文），走现有 `sendMessage` + **@mention 穿透唤醒**（机制现成，reminder fire 先例）。
+- **触发 = 事件系统消息**：join/create 提交后，服务层以 **Owner 署名**投递短消息（如 `@Susan New member @X joined the channel` / `@Susan New channel #Y created`，只含关注对象不含欢迎正文），走现有 `sendMessage` + **@mention 穿透唤醒**（机制现成，reminder fire 先例）。
 - **欢迎语 = 秘书被唤醒后的正常回复**（非系统消息本身）；秘书 drain 到事件消息 → 以正常 `runAgentRound` 应答。
 - **铁律：不得以秘书署名触发**——loop 对"drain 到的全是自己的消息"直接 noop，秘书会被自己的消息挡住。**[锁定]**（01 研究，loop.ts:581-594）
 - 事件消息不惊动其他 agent（`wake:false` 关闭 channel 级 wake，仅 @Susan 穿透）；**验收点：事件消息发出后 Susan 必被唤醒、其他 agent 不被惊动**（构建 effort 按此验收，穿透与定向唤醒的组合细节由构建 effort 落地）。
-- 节点 3（办公室频道欢迎语）：创建流程内以 Owner 署名投事件消息到办公室频道（如 `@Susan 欢迎入职——这是你的办公室频道`）→ Susan 正常回复欢迎语。
+- 节点 3（办公室频道欢迎语）：创建流程内以 Owner 署名投事件消息到办公室频道（如 `@Susan Welcome aboard — this is your office channel`）→ Susan 正常回复欢迎语。
 
 ### 4.3 回复风格 **[锁定]**（02 契约 §3 + map 决策 16 修订）
 
-- **语言跟随用户**：按用户消息的语言回复；歧义回落简体中文。手册/文档正文仍一律简体中文。
+- **语言跟随用户**：按用户消息的语言回复；歧义回落英文（**内容层统一英文**：事件消息/频道名/家目录文件/秘书手册均是英文硬编码）。仓库文档与代码注释仍用简体中文（分层规则见 `docs/i18n.md`）。
 - 简洁、可操作（给具体步骤而非概念）。
 - 创建类操作后一行式回执；缺关键参数先问后做（§3.1）。
 - 自称"秘书"；职业、克制、工具型（不卖萌、无多余语气词）；称呼对方"你"。**[锁定]**（02 契约 §5）
@@ -155,7 +155,7 @@
 2. **能力边界（硬性）**：可做清单（只读 + 创建类）/ 不可做清单（引导 Owner UI）/ 不认领任务；缺参数先问后做；兜底三话术速记
 3. **操作速查**：base URL 声明（`http://127.0.0.1:30142`，自定义端口改此文件；设了密码加 `-u pi:<密码>`）+ 7 条一行式 curl（频道列表 / 成员列表 / 发消息 / 建频道 / 建 agent / 搜索 / 设提醒；建 agent 先 `GET /api/models` 取 provider/modelId）
 4. **SYSTEM-GUIDE.md 读取指引**：映射表（概念不懂 → 手册 §1；API 不会调 → §2；"怎么 X" → §3；权限/越权 → §4）
-5. **当前工作 / 工作流程 / Skill 使用**：与 ADR-0001 固定大纲兼容的节名保留（"当前工作"节名必须保留），正文为占位骨架，不依赖 Skill
+5. **Current work / Workflow / Skills**：与 ADR-0001 固定大纲兼容的节名保留（`## Current work` 节名必须保留），正文为占位骨架，不依赖 Skill
 
 ### 5.3 SYSTEM-GUIDE.md 手册（5 章）**[锁定]**（03 大纲 B）
 
@@ -204,10 +204,10 @@
 创建秘书身份后立即执行，全部是既有服务层能力组合：
 
 1. **身份与家目录**：`createAgent`（name=Susan、描述见 §2.3、provider/modelId/thinkingLevel 取全局默认/显式选择）→ 家目录 + 固定大纲 MEMORY.md（`buildMemoryTemplate`）落地。
-2. **手册重写**：将 MEMORY.md 整体重写为速查结构（§5.2，保留"当前工作"节名）；SYSTEM-GUIDE.md 首次落地（§5.3）。——顺序：先落模板、随后初始化覆盖（**MEMORY.md 不与 ADR-0001 固定六节兼容，属有意重写**）。**[锁定]**（03-1）
+2. **手册重写**：将 MEMORY.md 整体重写为速查结构（§5.2，保留 `## Current work` 节名）；SYSTEM-GUIDE.md 首次落地（§5.3）。——顺序：先落模板、随后初始化覆盖（**MEMORY.md 不与 ADR-0001 固定六节兼容，属有意重写**）。**[锁定]**（03-1）
 3. **频道覆盖**：加入全部现存频道（公开 + 私有，静默加入，§7.1）。
-4. **办公室频道**：创建私有频道「秘书办公室」（成员 = Owner + Susan）；以频道 name 全等判定，已存在即复用、不重复建。
-5. **欢迎语触发**：以 Owner 署名向办公室频道投事件系统消息（`@Susan 欢迎入职——这是你的办公室频道`）→ @mention 穿透唤醒 → Susan 正常回复欢迎语（节点 3，≤2 句）。铁律：不以 Susan 署名触发。
+4. **办公室频道**：创建私有频道 `secretary-office`（成员 = Owner + Susan）；以频道 name 全等判定，已存在即复用、不重复建；查找兼容历史名「秘书办公室」（forward-only，存量不迁移）。
+5. **欢迎语触发**：以 Owner 署名向办公室频道投事件系统消息（`@Susan Welcome aboard — this is your office channel`）→ @mention 穿透唤醒 → Susan 正常回复欢迎语（节点 3，≤2 句）。铁律：不以 Susan 署名触发。
 
 ### 6.3 UI 降级引导（启动助手入口）**[锁定]**（map 决策 8 + **[展开]** 形态）
 

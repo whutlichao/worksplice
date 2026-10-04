@@ -72,8 +72,8 @@ export function agentHomeDir(dataDir: string, id: string, name: string): string 
   return path.join(dataDir, AGENTS_DIR_NAME, `${agentSlug(name)}-${id.slice(0, 8)}`);
 }
 
-/** MEMORY.md 固定大纲（ADR-0001）：正文可为空，文件归 agent 所有。 */
+/** MEMORY.md 固定大纲（ADR-0001）：正文可为空，文件归 agent 所有。节名英文（docs/i18n.md 分层规则：内容层英文硬编码）。 */
 export function buildMemoryTemplate(name: string, description: string): string {
-  const role = description.trim() ? `## 角色描述\n\n${description.trim()}` : "## 角色描述";
-  return `# ${name}\n\n${role}\n\n## 当前工作\n\n## 工作流程\n\n## Skill 使用\n\n## 工具使用\n\n## 其他\n`;
+  const role = description.trim() ? `## Role\n\n${description.trim()}` : "## Role";
+  return `# ${name}\n\n${role}\n\n## Current work\n\n## Workflow\n\n## Skills\n\n## Tools\n\n## Other\n`;
 }

@@ -230,6 +230,7 @@ export const enLocale: LocalePlugin = {
     "i18n.dormant": "Dormant",
     "i18n.hiddenButInvocable": "Hidden from model, still manually invocable",
     "i18n.skillSearchPlaceholder": "e.g. react, testing, deploy",
+    "i18n.projectDirectoryPath": ".pi/skills/ (project directory)",
     "i18n.searching": "Searching…",
     "i18n.noSkills": "No skills found",
     "i18n.checkUpdates": "Check updates",

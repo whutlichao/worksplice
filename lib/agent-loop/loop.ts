@@ -329,7 +329,7 @@ export function buildReplyPrompt(input: {
   );
   if (input.memoryFile) {
     lines.push(
-      `- Long-term memory: your memory file is at ${input.memoryFile}. Read it when you need context about who you are or ongoing work; after meaningful progress, update its "## 当前工作" section and clear it when the work is done. It survives session resets.`,
+      `- Long-term memory: your memory file is at ${input.memoryFile}. Read it when you need context about who you are or ongoing work; after meaningful progress, update its "## Current work" section and clear it when the work is done. It survives session resets.`,
     );
   }
   lines.push(roomMarker(input.targetId, input.baseSeq));

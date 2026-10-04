@@ -453,7 +453,7 @@ function AddSkillPanel({
       ? "~/.pi/agent/skills/"
       : cwd
         ? `${shortenPath(cwd)}/.pi/skills/`
-        : ".pi/skills/（项目目录）";
+        : t("i18n.projectDirectoryPath");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>

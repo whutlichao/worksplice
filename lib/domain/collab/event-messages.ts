@@ -7,7 +7,7 @@ import type { ChannelRow, MemberRow } from "../../data/types.ts";
 
 /**
  * 事件系统消息（spec-bootstrap-agent.md §4.2/§7，构建 effort ticket 01）：
- * 关键节点提交后、以 Owner 署名投递的短消息（如 `@Susan 新成员 @X 加入频道`），
+ * 关键节点提交后、以 Owner 署名投递的短消息（如 `@Susan New member @X joined the channel`），
  * 内容只含关注对象、不含欢迎正文；wake:false 关闭 channel 级 wake（不惊动其他 agent），
  * 仅定向唤醒秘书（@mention 穿透语义，mute 也拦不住个人 mention，§4.5）。
  * 欢迎语 = 秘书被唤醒后的正常 loop 回复（铁律：不以秘书署名触发）。
@@ -72,7 +72,7 @@ export function notifyAgentJoinedChannel(channelId: string, joinerId: string): v
   const targetId = isChannelMember(channelId, susan.id) ? channelId : BUILTIN_CHANNEL_ID;
   deliverEventMessage(
     targetId,
-    `${mentionText(susan.name)} 新成员 ${mentionText(joiner.name)} 加入频道`,
+    `${mentionText(susan.name)} New member ${mentionText(joiner.name)} joined the channel`,
   );
 }
 
@@ -84,11 +84,11 @@ export function notifyChannelCreated(channel: ChannelRow): void {
   const susan = findSusanMember();
   if (!susan) return;
   const targetId = isChannelMember(channel.id, susan.id) ? channel.id : BUILTIN_CHANNEL_ID;
-  deliverEventMessage(targetId, `${mentionText(susan.name)} 新频道 #${channel.name} 已建立`);
+  deliverEventMessage(targetId, `${mentionText(susan.name)} New channel #${channel.name} created`);
 }
 
 /** 节点 3 欢迎事件正文（spec §4.1/§6.2-⑤，构建 effort ticket 04）：只含关注对象，欢迎语由秘书回复。 */
-export const SECRETARY_WELCOME_CONTENT = `${mentionText(SUSAN_MEMBER_NAME)} 欢迎入职——这是你的办公室频道`;
+export const SECRETARY_WELCOME_CONTENT = `${mentionText(SUSAN_MEMBER_NAME)} Welcome aboard — this is your office channel`;
 
 /**
  * 节点 3：办公室频道欢迎语（spec §4.1/§6.2-⑤，构建 effort ticket 04）——秘书初始化流程
