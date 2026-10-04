@@ -103,6 +103,11 @@ export class SQLiteAdapter implements Store {
     return row;
   }
 
+  /** 频道改名：消息/成员/任务都按 id 关联，改名不动任何其它表。 */
+  renameChannel(id: string, name: string): void {
+    this.db.prepare("UPDATE channels SET name = ? WHERE id = ?").run(name, id);
+  }
+
   setChannelArchived(id: string, archived: number): void {
     this.db.prepare("UPDATE channels SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
   }
