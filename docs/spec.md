@@ -406,7 +406,7 @@ erDiagram
 | 表 | 列（PK 下划线标注；`→` 为外键） | 说明 |
 |---|---|---|
 | `channels` | `id`, `name`, `type`('public'/'private'), `description`, `archived`, `created_at` | `#all` 内建行，全员自动加入 |
-| `members` | `id`, `type`('human'/'agent'), `name`, `description`, `role`('owner'/'member'), `workspace_path`（agent 绑定 cwd）, `pi_session_file`（当前 session jsonl 路径，agent 专用）, `status`('online'/'working'/'error'/'offline'), `created_at` | human/agent 统一建模；`pi_session_file` 由 lib/rpc 按 cwd 解析后回填 |
+| `members` | `id`, `type`('human'/'agent'), `name`, `description`, `role`('owner'/'member'), `workspace_path`（agent 显式绑定的项目目录；NULL = 未显式绑定）, `pi_session_file`（当前 session jsonl 路径，agent 专用）, `status`('online'/'working'/'error'/'offline'), `created_at` | human/agent 统一建模；`pi_session_file` 由 lib/rpc 按 cwd 解析后回填 |
 | `messages` | `id`(UUID), `target_id`→channels.id 或 messages.id, `seq`(int), `author_id`→members.id, `content`(text), `created_at` | **`UNIQUE(target_id, seq)`**；不可编辑/删除 |
 | `tasks` | `id`, `message_id`→messages.id(unique), `number`(int), `status`('todo'/'in_progress'/'in_review'/'done'/'closed'), `owner_id`→members.id(nullable), `updated_at` | number 按 channel 内递增；claim/unclaim 改 owner_id |
 | `reminders` | `id`, `title`, `fire_at`(datetime), `recurrence`(DSL 串, nullable), `target_id`（锚定消息或 channel, nullable）, `author_id`→members.id, `status`('scheduled'/'fired'/'canceled'), `created_at` | fire 由 app 内 cron 驱动（§5.6） |
@@ -414,6 +414,8 @@ erDiagram
 | `attachments` | `id`, `message_id`→messages.id, `file_name`, `mime`, `size_bytes`, `disk_path`, `created_at` | 文件实体存 `attachments/` 目录，库内只存元数据 |
 | `pinned_messages` | `id`, `channel_id`→channels.id, `message_id`→messages.id, `member_id`→members.id, `pinned_at` | 个性化 pinned；排序字段由 UI 侧维护（Manual 顺序存 JSON 于成员偏好，首版可存 `order` int 列） |
 | `consumed_seqs` | `agent_id`→members.id, `target_id`, `seq` | **PK(agent_id, target_id)**：inbox 消费游标；agent-loop 每轮推进 |
+
+**工作区 = `workspace_path ?? 家目录`（ADR-0001）的落库/读取口径**：家目录派生绑定**不落库绝对路径**（存 NULL，`createAgent` 只建目录不写路径）；读取侧按**当前**数据目录重推 `<dataDir>/agents/<slug>-<id8>`——历史行里遗留的「绝对家目录」值（含搬迁前的旧数据目录）同样重推，显式项目目录绑定原样返回。因此数据目录被复制/搬迁后（备份还原、副本演练、另一环境），写路径跟着当前数据目录走，不回流原目录。判据是形状 + 本 agent id 前 8 位（`lib/data/dirs.ts` 的 `isDerivedAgentHomePath`），不做存量批量改写。
 
 ### 6.3 Freshness-hold 实现（不建表）**[锁定]** 05
 
@@ -433,7 +435,7 @@ erDiagram
 
 ### 6.6 数据位置 **[展开]**
 
-- 数据目录：`~/.worksplice/`（可用环境变量 `WORKSPLICE_DATA_DIR` 覆盖），内含 `worksplice.db`（SQLite）、`attachments/`。
+- 数据目录：`~/.worksplice/`（可用环境变量 `WORKSPLICE_DATA_DIR` 覆盖），内含 `worksplice.db`（SQLite）、`attachments/`、`agents/`（每个 agent 的家目录）。**可整体复制/搬迁**：把 `WORKSPLICE_DATA_DIR` 指向副本即用，家目录派生的 agent 工作区按当前数据目录重推（不写回旧目录）；显式绑定的项目目录（数据目录之外）不受影响。测试一律不打开默认数据目录（守卫：`lib/data/default-datadir-guard.test.mjs`）。
 - 备份 = 复制 `worksplice.db` + `attachments/` + `~/.pi/agent/sessions/` 对应 cwd 目录（首版不做内建备份 UI）。
 
 ---

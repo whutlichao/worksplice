@@ -57,7 +57,11 @@ export function homeDirOfAnotherAgent(
     );
 }
 
-/** 确定性家目录推导（ADR-0001 单槽工作区）：`workspace_path ?? 家目录`；新 agent 创建时即建。 */
+/**
+ * 确定性家目录推导（ADR-0001 单槽工作区）：`workspace_path ?? 家目录`；新 agent 创建时即建。
+ * 存库的 `workspace_path` 只表达**显式项目目录绑定**（家目录派生绑定存 NULL）；历史行里
+ * 「绝对家目录」形态的值由数据层读侧视图按当前数据目录重推（lib/data/sqlite.ts）。
+ */
 export function agentHomePath(member: MemberRow): string {
   return agentHomeDir(getDb().paths.dataDir, member.id, member.name);
 }
@@ -132,7 +136,8 @@ export function getOwner(): MemberRow | undefined {
 
 /**
  * 创建 agent（ADR-0001）：默认自动在 <dataDir>/agents/<slug>-<id8>/ 生成专属家目录
- * 并预置 MEMORY.md 固定大纲（删除身份时随家目录一并删除）；显式 workspacePath
+ * 并预置 MEMORY.md 固定大纲（删除身份时随家目录一并删除），但**不把家目录写进**
+ * `workspace_path`（存 NULL——家目录是派生值，见 agentHomePath）；显式 workspacePath
  * 仅用于测试/内部路径（生产创建流程不传，绑定项目目录走 changeAgentWorkspace）。
  * 模型/推理强度为可选项：route 层创建契约强制必选；null = 继承全局默认。
  */
@@ -170,13 +175,16 @@ export function createAgent(input: {
   }
 
   const agentId = randomUUID();
+  // 家目录派生绑定不落库绝对路径（ADR-0001）：workspace_path = NULL 表示「未显式绑定项目目录，
+  // 工作区即家目录」，由 `workspace_path ?? 家目录`（agentHomePath）在读取侧按**当前**数据目录推导——
+  // 因此数据目录被复制/搬迁后，写路径跟着当前数据目录走，不会回流旧目录。
   let workspacePath: string | null = null;
   if (input.workspacePath) {
     workspacePath = assertWorkspaceDir(input.workspacePath);
   } else {
-    workspacePath = agentHomeDir(getDb().paths.dataDir, agentId, name);
-    mkdirSync(workspacePath, { recursive: true });
-    const memoryFile = join(workspacePath, MEMORY_FILE_NAME);
+    const homeDir = agentHomeDir(getDb().paths.dataDir, agentId, name);
+    mkdirSync(homeDir, { recursive: true });
+    const memoryFile = join(homeDir, MEMORY_FILE_NAME);
     if (!existsSync(memoryFile)) {
       writeFileSync(
         memoryFile,

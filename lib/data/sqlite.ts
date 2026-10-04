@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
-import { ensureDataDir, resolveDataDir, type DataPaths } from "./dirs.ts";
+import {
+  agentHomeDir,
+  ensureDataDir,
+  isDerivedAgentHomePath,
+  resolveDataDir,
+  type DataPaths,
+} from "./dirs.ts";
 import { runMigrations, SCHEMA_VERSION } from "./schema.ts";
 import { buildSearchSnippet, escapeLike, toFtsQuery } from "./types.ts";
 import type { Store } from "./store.ts";
@@ -189,31 +195,50 @@ export class SQLiteAdapter implements Store {
       .all(targetId, afterSeq) as MessageRow[];
   }
 
+  /**
+   * 成员行视图（读侧派生，ADR-0001）：家目录派生的绑定不落库绝对路径——
+   * 未显式绑定（NULL）与历史遗留的「绝对家目录」值（含其他数据目录，即数据目录被复制/搬迁前写下的值）
+   * 都按**当前**数据目录重推 `<dataDir>/agents/<slug>-<id8>`，写路径才不会回流旧数据目录；
+   * 显式项目目录绑定原样返回（ADR-0001：项目目录可绑定、可多 agent 共享、可在数据目录之外）。
+   * 存量行不做批量改写：两种编码（NULL / 家目录形态的绝对路径）读出来是同一个有效工作区。
+   */
+  private withEffectiveWorkspace(row: MemberRow): MemberRow {
+    if (row.type !== "agent") return row;
+    if (row.workspace_path && !isDerivedAgentHomePath(row.workspace_path, row.id)) {
+      return row;
+    }
+    return { ...row, workspace_path: agentHomeDir(this.paths.dataDir, row.id, row.name) };
+  }
+
   listMembers(): MemberRow[] {
-    return this.db
-      .prepare("SELECT * FROM members WHERE deleted = 0 ORDER BY created_at, id")
-      .all() as MemberRow[];
+    return (
+      this.db
+        .prepare("SELECT * FROM members WHERE deleted = 0 ORDER BY created_at, id")
+        .all() as MemberRow[]
+    ).map((row) => this.withEffectiveWorkspace(row));
   }
 
   /** 原始行列表（含 soft-deleted）：归属引用集需要被删成员的固化登记（ticket 08，§3.6 行保留承载所有权）。 */
   listMembersIncludingDeleted(): MemberRow[] {
-    return this.db
-      .prepare("SELECT * FROM members ORDER BY created_at, id")
-      .all() as MemberRow[];
+    return (
+      this.db.prepare("SELECT * FROM members ORDER BY created_at, id").all() as MemberRow[]
+    ).map((row) => this.withEffectiveWorkspace(row));
   }
 
   /** 原始行查询（含 soft-deleted）：消息作者渲染与历史保留需要（§3.6）。 */
   getMember(id: string): MemberRow | undefined {
-    return this.db.prepare("SELECT * FROM members WHERE id = ?").get(id) as
+    const row = this.db.prepare("SELECT * FROM members WHERE id = ?").get(id) as
       | MemberRow
       | undefined;
+    return row ? this.withEffectiveWorkspace(row) : undefined;
   }
 
   /** 按名字查原始行（含 soft-deleted）：秘书唯一性判定（spec-bootstrap-agent §6.1，判定键 = 名字 + 软删标记）。 */
   getMemberByName(name: string): MemberRow | undefined {
-    return this.db.prepare("SELECT * FROM members WHERE name = ? LIMIT 1").get(name) as
+    const row = this.db.prepare("SELECT * FROM members WHERE name = ? LIMIT 1").get(name) as
       | MemberRow
       | undefined;
+    return row ? this.withEffectiveWorkspace(row) : undefined;
   }
 
   insertMember(input: {
@@ -265,7 +290,7 @@ export class SQLiteAdapter implements Store {
         row.thinking_level,
         row.created_at,
       );
-    return row;
+    return this.withEffectiveWorkspace(row);
   }
 
   updateMemberStatus(id: string, status: MemberStatus): void {

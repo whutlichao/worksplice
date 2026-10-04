@@ -83,6 +83,10 @@ export interface Store {
   hasMessageByContentByOther(targetId: string, authorId: string, content: string): boolean;
 
   // -- members --------------------------------------------------------------
+  // 读侧派生（ADR-0001）：agent 行的 `workspace_path` 表达**有效工作区**——显式项目目录绑定原样返回，
+  // 未显式绑定（NULL）与历史遗留的「绝对家目录」值（含其他数据目录）都按**当前**数据目录重推
+  // `<dataDir>/agents/<slug>-<id8>`；写入侧仍只落显式绑定（家目录派生 = NULL）。
+  // 因此数据目录被复制/搬迁后，消费方拿到的路径跟着当前数据目录走，不回流旧目录。
   listMembers(): MemberRow[];
   listMembersIncludingDeleted(): MemberRow[];
   getMember(id: string): MemberRow | undefined;
