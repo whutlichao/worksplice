@@ -57,6 +57,8 @@ export interface Store {
   }): ChannelRow;
   /** 频道改名（存量内容英文化迁移脚本的唯一写入路径；只改 name，id/类型/成员/历史消息都不动）。 */
   renameChannel(id: string, name: string): void;
+  /** 频道描述更新（同上，只改 description；迁移脚本专用，不改变名/成员/归档态）。 */
+  updateChannelDescription(id: string, description: string): void;
   setChannelArchived(id: string, archived: number): void;
   listChannelMembers(channelId: string): ChannelMemberRow[];
   isChannelMember(channelId: string, memberId: string): boolean;
@@ -100,6 +102,8 @@ export interface Store {
     createdAt?: string;
   }): MemberRow;
   updateMemberStatus(id: string, status: MemberStatus): void;
+  /** 成员描述更新（存量内容英文化迁移脚本专用写路径：只改 description，其余字段不动）。 */
+  updateMemberDescription(id: string, description: string): void;
   setMemberWorkspace(id: string, workspacePath: string, piSessionFile: string): void;
   updateMemberWorkspace(id: string, workspacePath: string): void;
   setMemberPiSessionFile(id: string, piSessionFile: string | null): void;
