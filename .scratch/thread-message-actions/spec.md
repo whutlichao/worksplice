@@ -102,16 +102,37 @@ D5 的代答依据：(a) `AGENTS.md:434` 现有措辞「消息 hover 快捷 reac
 
 ## Testing Decisions
 
-- **本票无被测对象**（不改一行源码），故不跑测试、不做双轴 code-review、不跑 typecheck/lint。设计票的门禁是文档与裁决的完整性。
-- **既有测试的受影响面已核（实施票的起点）**：`components/ChannelView.test.mjs` 四个 `MessageRow` 用例——`:47`（断言 `title="Reply in thread"`，用例名「the three §3.2 actions」）、`:67`（⏰ 入口）、`:84`（三个 handler 触发）、`:299`（reaction 快捷条 + Pin + 附件）——**全部显式传了 `onReply`**，因此把 `onReply` 转可选不会让它们变红；`:299` 传了 `onTogglePin` + `pinned: true`，断言 `title="Unpin"`，也不受影响。`components/DetailPanel.test.mjs` 只按 kind 分派到 `ThreadPanel`，不传消息行 props。**结论：既有测试预期零改动。**
-- **不新增测试的理由与替代**：本票的行为差异是「某一面少渲染几个按钮」，而 `MessageRow` 的渲染测试是源码级/renderToStaticMarkup 断言，为「线程面少两个键」补一条测试需要新造 ThreadPanel 的 props 夹具（anchor + 消息 + members + tasks + pinned 五路加载），成本远大于收益。
-- **实施票的人工回归清单（无自动化覆盖，替代自动化测试）**：
+> **本节已被实施票（`issues/02-thread-message-actions-narrowing.md`）改写**：原「不新增测试」的结论被推翻，
+> 改为下方的 S1 结论。其余六节与 D1–D6 裁决**一字未动**。
+
+- **S1 = 复用已有的 `MessageRow` 渲染 seam，零新夹具**（人定）。`components/ChannelView.test.mjs` 已有
+  多个 `MessageRow` 用例，断言写法已经是 `title="Reply in thread"` 这类无障碍名；同一个 seam 上新增两条：
+  1. 不传 `onReply` → markup 里**没有** `title="Reply in thread"`（那个键不存在，而不是存在但点了没反应）；
+  2. 不传 `onTogglePin`（并传 `pinned`）→ markup 里**没有** pin / unpin 键（`title="Unpin"` / `title="Pin to channel"`）。
+
+  断言落在产品真正渲染的东西上（无障碍名），**不**落在 Pin / Reply 图标的 class 字符串上——class 是实现的
+  偶然形状，会随样式调整漂移却一直让断言变绿。tdd 红绿节奏已留：第 1 条在未改实现时为红，第 2 条在改动前
+  即为绿（Pin 本来就已按 `onTogglePin` 门控），它是防回归护栏——若将来有人把 `pinned` 布尔重新耦合到渲染，
+  这条会红。
+- **「items 为空 → 右键不弹菜单」无自动化覆盖**：它需要 DOM `contextmenu` 模拟，而现有 seam 是静态渲染
+  （`renderToStaticMarkup`）。归入下方人工回归清单第 3 条。
+- **既有测试预期零改动**（实施票已核）：`components/ChannelView.test.mjs` 的 8 个 `MessageRow` 用例
+  **全部显式传了 `onReply`**（其中 `:299` 还传了 `onTogglePin` + `pinned: true`），所以 `onReply` 转可选
+  不会让它们变红；`components/DetailPanel.test.mjs` 只按 kind 分派、不传消息行 props。
+  （**修正**：设计票写的是「四个 `MessageRow` 用例」，实际是 8 个——`:47` / `:67` / `:84` / `:299` /
+  `:354` / `:367` / `:397` / `:429`；结论不变。）
+- **窄档测试集**（本票影响面可圈定：只触 `MessageActions`/`MessageRow` 的一个 prop 可选化 + 两个调用点
+  + 一段自包含的模块内死代码 + 一条无生产者的事件总线）：`components/ChannelView.test.mjs`、
+  `components/DetailPanel.test.mjs`、`lib/panel-state.test.mjs`。全量测试由 main 合入后验。
+- **实施票的人工回归清单**（无自动化覆盖，替代自动化测试）：
   1. 线程面板 hover 锚点行 = 表情 / 引用 / 复制链接 / ⏰ 四键，无 Reply、无 Pin；
   2. 线程面板 hover 线程内消息行 = 表情 / 引用 / 复制链接 三键；
   3. 右键线程内消息 → 不弹菜单；右键锚点消息（未转任务）→ 弹「转为任务」且点击生效；
   4. 右键频道主流程消息 → 仍弹「在线程中回复 / 转为任务」，两项均生效；
   5. 频道主流程 hover 气泡 → 仍是六键，Pin 仍能 pin/unpin 且频道头部 pinned 区即时刷新；
-  6. 线程内不再发 `notifyPinnedChanged`，频道侧 pinned 区不再因线程操作而重拉（决策 5 的 (a)/(b) 都要验这一条）；
+  6. 线程内不再发 `notifyPinnedChanged`，频道侧 pinned 区不再因线程操作而重拉（决策 5 已选 (a) 删总线，
+     `lib/panel-state.ts` 不再导出该对函数，订阅方 effect 一并删除——观察频道 pinned 区在纯频道面
+     pin/unpin 下仍即时刷新即可）；
   7. 锚点行 ⏰ 仍能打开 `ReminderModal` 且标题预填首行预览。
 
 ## Out of Scope

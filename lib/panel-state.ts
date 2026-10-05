@@ -4,11 +4,10 @@
  * 面板是"非长驻单槽 dock"：任何内容互斥（单槽替换），关闭即 null，
  * 切换频道即清空（面板与中央频道无耦合——线程打开时中央保持当前频道）。
  *
- * 除转移外，本模块还持有两条跨面板/中央的协调规则：
- * - `memberPanel`：mention/成员入口 → 面板内容的映射（agent 与人类走同一容器）；
- * - pinned 变更订阅：面板线程内的 pin/unpin 通知中央频道刷新（服务端事实，双端自洽）。
+ * 除转移外，本模块还持有一条跨面板/中央的规则：
+ * - `memberPanel`：mention/成员入口 → 面板内容的映射（agent 与人类走同一容器）。
  *
- * 纯函数 + 极小事件订阅，无副作用，AppShell 仅消费这里导出的规则。
+ * 纯函数、无副作用、无事件总线，AppShell 仅消费这里导出的规则。
  */
 
 export type PanelContent =
@@ -38,26 +37,4 @@ export function closePanel(_state: PanelContent): PanelContent {
 export function onChannelSwitched(_state: PanelContent): PanelContent {
   void _state;
   return null;
-}
-
-// ---------------------------------------------------------------------------
-// pinned 变更广播：面板线程内的 pin/unpin 是频道级操作（§3.5 个性化 pinned），
-// 通知中央 ChannelView 重拉，双端都收敛到服务端事实。
-// ---------------------------------------------------------------------------
-
-type PinnedListener = () => void;
-
-const pinnedListeners = new Set<PinnedListener>();
-
-/** 订阅频道 pinned 变更（返回取消函数；ChannelView 挂载期订阅）。 */
-export function subscribePinnedChanged(listener: PinnedListener): () => void {
-  pinnedListeners.add(listener);
-  return () => {
-    pinnedListeners.delete(listener);
-  };
-}
-
-/** 通知频道 pinned 变更（ThreadPanel pin/unpin 成功后调用）。 */
-export function notifyPinnedChanged(): void {
-  for (const listener of pinnedListeners) listener();
 }

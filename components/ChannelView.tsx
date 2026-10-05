@@ -50,11 +50,7 @@ import {
   type AtQueryMatch,
 } from "@/lib/file-fuzzy";
 import { composerMentionCandidates } from "@/lib/mention";
-import {
-  memberPanel,
-  subscribePinnedChanged,
-  type PanelContent,
-} from "@/lib/panel-state";
+import { memberPanel, type PanelContent } from "@/lib/panel-state";
 import { useChannelData } from "@/hooks/useChannelData";
 
 export type CenterTab = "messages" | "tasks";
@@ -578,7 +574,8 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
   );
 }
 
-/** 消息动作栏（§3.2/§3.3）：hover 浮出；回复 / 引用 / 复制链接 / 设提醒（§5.6）/ Pin / emoji+（点开展开二级快捷 bar，再点开完整选择器）。 */
+/** 消息动作栏（§3.2/§3.3）：hover 浮出；回复 / 引用 / 复制链接 / 设提醒（§5.6）/ Pin / emoji+（点开展开二级快捷 bar，再点开完整选择器）。
+ *  每个键都按 prop 门控：频道面全给，线程面只给 表情 / 引用 / 复制链接 / ⏰（仅锚点）——收窄靠「不传 prop」，不是「传空函数」。 */
 function MessageActions({
   message,
   onReply,
@@ -592,7 +589,7 @@ function MessageActions({
   onToggleReactOpen,
 }: {
   message: ChannelMessage;
-  onReply: (message: ChannelMessage) => void;
+  onReply?: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
   onReminder?: (message: ChannelMessage) => void;
@@ -628,14 +625,16 @@ function MessageActions({
           <SmilePlus size={13} />
         </button>
       )}
-      <button
-        type="button"
-        title={t("message.reply")}
-        style={actionButtonStyle}
-        onClick={() => onReply(message)}
-      >
-        <Reply size={13} />
-      </button>
+      {onReply && (
+        <button
+          type="button"
+          title={t("message.reply")}
+          style={actionButtonStyle}
+          onClick={() => onReply(message)}
+        >
+          <Reply size={13} />
+        </button>
+      )}
       <button
         type="button"
         title={t("message.quote")}
@@ -840,7 +839,7 @@ export const MessageRow = memo(function MessageRow({
   }) => void;
   /** §09 已放弃 badge 点击：打开该 agent 的面板（轮次记录在可观测页）。 */
   onOpenMember?: (memberId: string) => void;
-  onReply: (message: ChannelMessage) => void;
+  onReply?: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
   onConvertToTask?: (message: ChannelMessage) => void;
@@ -870,7 +869,9 @@ export const MessageRow = memo(function MessageRow({
     };
   }, [reactOpen]);
   const items = [
-    { label: t("message.reply"), onClick: () => onReply(message) },
+    ...(onReply
+      ? [{ label: t("message.reply"), onClick: () => onReply(message) }]
+      : []),
     ...(canConvertToTask && onConvertToTask
       ? [{ label: t("tasks.convert"), onClick: () => onConvertToTask(message) }]
       : []),
@@ -2352,7 +2353,6 @@ export function ChannelView({
     setPinnedSort,
     pinnedError,
     pinnedLoading,
-    loadPinned,
     togglePin,
     reorderPinned,
     mutes,
@@ -2536,10 +2536,6 @@ export function ChannelView({
   }, [tab, channel?.id]);
 
   // 任务板数据循环由 useChannelData.loadTasks 持有（旧内联已删）。
-
-  // ticket 13：面板线程内 pin/unpin 后刷新本频道 pinned 列表（服务端事实，中央/面板双端自洽；
-  // loadPinned 由 useChannelData 持有，03 票）。
-  useEffect(() => subscribePinnedChanged(() => loadPinned()), [loadPinned]);
 
   /** 👥 Owner 替 agent 加入频道（公开/私有均可；#all 已全员加入，按钮不出现）。
    * 03 票：成员 id 集合由 useChannelData 持有，增删成功后经 loadMembers 重拉收敛
