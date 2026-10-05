@@ -1,6 +1,6 @@
 # 01: 线程消息操作气泡收窄（只留 表情 / 引用 / 复制链接 / ⏰）
 
-**What to build:** 不写任何代码。把「在任务线程的消息操作气泡里只留 表情添加、引用、链接复制」这条诉求问透到可实施的粒度：逐条裁决 D1–D6，产出 `docs/design-notes/2026-10-05-thread-message-actions.md`（线程面与频道面各自的最终按钮清单 + `MessageActions` 收窄机制的具体形状 + 被收窄的已写明裁决清单）。
+**What to build:** 不写任何代码。把「在任务线程的消息操作气泡里只留 表情添加、引用、链接复制」这条诉求问透到可实施的粒度：逐条裁决 D1–D6，产出 `.scratch/thread-message-actions/spec.md`（线程面与频道面各自的最终按钮清单 + `MessageActions` 收窄机制的具体形状 + 被收窄的已写明裁决清单）。
 
 **Blocked by:** None — can start immediately.
 
@@ -31,7 +31,7 @@
 
 ### 产出物
 
-- `docs/design-notes/2026-10-05-thread-message-actions.md`——设计文档本体（七节齐全，无自由章节；因 `.scratch/` 不进版本库，文档必须落 `docs/`）。
+- `.scratch/thread-message-actions/spec.md`——设计文档本体（七节齐全，无自由章节）。原始产出位置是 `docs/design-notes/2026-10-05-thread-message-actions.md`，**当时的理由「`.scratch/` 未被跟踪，spec 只能落 `docs/`」已失效**：`.scratch/` 自 PR #86（commit `223a4af`）起入库，本文件已按 `docs/agents/issue-tracker.md` 的约定归位到 `.scratch/<feature-slug>/spec.md`（归位经过见末尾「归位记录」小节）。
 - `.scratch/thread-message-actions/issues/01-thread-message-actions-bubble.md`——本票据（Status 已流转 `claimed` → `resolved`）。
 - `CONTEXT.md` **未改**：无新术语（详见设计文档「术语决议」节）。
 - `docs/adr/` **未新增**：ADR 三条件逐条判定后不建（详见设计文档「ADR 判定」节）。
@@ -84,6 +84,8 @@
 
 ### 门禁自检（G-docs）
 
+> **本节后半的 git 命令结果、`docs/design-notes/...` 路径与 `.gitignore:50` 描述，均为 #86 之前的历史事实**，按当时原样保留、不回填成现在（`.scratch/` 自 PR #86 commit `223a4af` 起已入库）。归位后的现状见末尾「归位记录」。
+
 - 七节齐全：Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes；`## ` 顶层无自由章节（两张按钮清单等均为既有章节内的 `###` 子节）。
 - 源码面为空：`git diff 2ab2535 HEAD --name-only | grep -v '^docs/\|^CONTEXT.md\|^\.scratch/'` → 空（见下方「命令结果」）。
 - 不跑测试 / 不做双轴 code-review / 不跑 typecheck / lint（设计票门禁；无被测对象）。
@@ -93,6 +95,8 @@
 - 提问全程走 `orca orchestration ask`（2 轮 / 2 次调用），未用 AskUserQuestion；open 决策无一自行拍板。
 
 ### 命令结果
+
+> **以下命令结果为 #86 之前的历史事实**（base `2ab2535`，当时 spec 还在 `docs/design-notes/`、本票据尚未入库），路径按当时原样保留。
 
 - `git diff 2ab2535 HEAD --name-only | grep -v '^docs/\|^CONTEXT.md\|^\.scratch/'` → 无输出（源码面为空 ✅）
 - `git status --porcelain` → 仅 `A  docs/design-notes/2026-10-05-thread-message-actions.md`（`.pi-lens.json` 已被 exclude）
@@ -109,3 +113,17 @@
 
 - 分支：`whutlichao/thread-message-actions`（`new-top-level` 从 origin/main 切出，base `2ab2535`）
 - PR：**#85** — https://github.com/whutlichao/worksplice/pull/85 （`whutlichao/thread-message-actions` → `main`，files=1，+157/−0，OPEN）
+
+### 归位记录：spec 移回 `.scratch/`（#86 之后）
+
+**依据**：PR #86（commit `223a4af`）已从 `.gitignore` 移除 `.scratch/` 并把本 effort 的票据提交进库，`docs/agents/issue-tracker.md` 约定的 spec 位置（`.scratch/<feature-slug>/spec.md`）重新可用且被跟踪；本票据当时「`.scratch/` 未被跟踪、spec 只能落 `docs/`」的理由就此失效。**人定：只重做存放位置**——D1–D6 六条裁决、两张按钮清单、被收窄裁决清单、ADR 判定、术语决议逐字保留，不重跑 grill。
+
+**改了什么**：
+
+1. `git mv docs/design-notes/2026-10-05-thread-message-actions.md .scratch/thread-message-actions/spec.md`（保留文件历史）。原位置**不留指针文件**——留一份就有两份真相，而仓库约定只有 `.scratch/<feature-slug>/spec.md` 一个位置。
+2. `spec.md` 头部在「性质」那行后补一句位置说明（正本 + 位置依 `docs/agents/issue-tracker.md`）；**正文逐字未动**：`git diff -M` = `similarity index 99%`、`numstat` 为 `1 0`，唯一内容差异就是那一行。
+3. 本票据三处失效表述：`What to build` 的产出路径改指 `.scratch/thread-message-actions/spec.md`；「产出物」条目同步新位置并写明旧理由失效的新事实；「门禁自检」「命令结果」两节**加标注而不改写**（其中的 `docs/design-notes/...` 路径、`git status` / `git diff --numstat` 结果、`.gitignore:50` 描述是当时的历史事实，按当时原样保留，并已标明为 #86 之前）。
+
+**门禁**：G-docs —— 文件到位（旧路径已不存在、新路径七节齐全）、裁决逐字未丢（grep 复核 D1 / D3 / D4 原文与两张按钮清单仍在）、失效表述已处理、design tree frontier 仍为空。本票**不跑测试、不做双轴 code-review、不跑 typecheck / lint**；源码面为空：`git diff afc9a11 HEAD --name-only | grep -v '^\.scratch/\|^docs/'` 无输出。除本票的两个文档外无其他改动；`.pi-lens.json` 按 BEHAVIOR RULE 6 写在本仓并本地 exclude，未入库。
+
+**PR**：#PR_NUMBER#（分支 `whutlichao/thread-message-actions-spec-home` → `main`，纯文档移动 + 几处表述；diff = 1 个高相似度 rename + 少量行改动）
