@@ -2,6 +2,7 @@
 
 日期：2026-10-05 · 票据：`.scratch/thread-message-actions/issues/01-thread-message-actions-bubble.md`（Type: grilling）
 性质：**设计票**，本文件不含任何源码改动；改写由后续实施票落地。
+本文件即本 effort 的 spec 正本，位置依 `docs/agents/issue-tracker.md` 的约定（`.scratch/<feature-slug>/spec.md`）。
 
 ## Problem Statement
 
