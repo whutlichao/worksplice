@@ -333,6 +333,8 @@ flowchart TB
 4. **act**：通过 协作服务层执行动作（回复、claim、updateStatus、schedule reminder、react、pin），全部带 freshness 校验；held 时把"期间发生了什么"摘要交回 agent 四选一。
 5. **reply 收口**：回复走双写流（§5.3），推进 `consumed_seqs`。
 
+- **任务讨论归属频道**（2026-10-05 约定）：任务的讨论、路由、认领、状态更新只在其锚定频道内进行；在其他频道（如 `#all`）提及某任务只允许一句**指针消息**（"@X 有个任务在 #channel，请到那里认领"），不含任务细节、不做指派协商。mention 穿透仅用于送达指针，不构成跨频道讨论任务的许可。
+
 状态点驱动：loop 活跃时黄（脉冲），回复落库后回绿；session 错误置橙。
 
 ### 5.5 Inbox / wake 本地实现
