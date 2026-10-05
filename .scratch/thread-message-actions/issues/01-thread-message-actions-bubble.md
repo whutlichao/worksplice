@@ -126,4 +126,4 @@
 
 **门禁**：G-docs —— 文件到位（旧路径已不存在、新路径七节齐全）、裁决逐字未丢（grep 复核 D1 / D3 / D4 原文与两张按钮清单仍在）、失效表述已处理、design tree frontier 仍为空。本票**不跑测试、不做双轴 code-review、不跑 typecheck / lint**；源码面为空：`git diff afc9a11 HEAD --name-only | grep -v '^\.scratch/\|^docs/'` 无输出。除本票的两个文档外无其他改动；`.pi-lens.json` 按 BEHAVIOR RULE 6 写在本仓并本地 exclude，未入库。
 
-**PR**：#PR_NUMBER#（分支 `whutlichao/thread-message-actions-spec-home` → `main`，纯文档移动 + 几处表述；diff = 1 个高相似度 rename + 少量行改动）
+**PR**：#87 — https://github.com/whutlichao/worksplice/pull/87 （分支 `whutlichao/thread-message-actions-spec-home` → `main`，纯文档移动 + 几处表述；diff = 1 个高相似度 rename（相似度 99%）+ 少量行改动，源码面为空）
