@@ -217,7 +217,7 @@ lib/
   markdown.ts          shared markdown helpers
   npx.ts               npx runner used by skill install
   panel-state.ts       ticket 13 面板转移纯模块：openPanel（单槽替换）/ closePanel / onChannelSwitched（清空）
-                       + memberPanel（mention → 面板映射）+ subscribePinnedChanged/notifyPinnedChanged（面板↔中央 pinned 双端收敛）
+                       + memberPanel（mention → 面板映射）
   pi-types.ts          local structural types for pi SDK objects
   rpc/                RPC 会话管理四模块 + 出口：session.ts（AgentSessionWrapper）/ registry.ts（RpcRegistry
                       注册表 + busy-cwd）/ caller.ts（RpcCaller.start = startRpcSession）/ subscriber.ts +
@@ -243,7 +243,8 @@ components/
                           / 线程经 onOpenPanel 在右栏打开（ticket 13 起不再内嵌侧栏）
   DetailPanel.tsx        右栏单槽容器：按 kind 分派 agent → AgentDetailPanel / human → 薄资料卡 / thread → ThreadPanel（ticket 13）
   ThreadPanel.tsx        右栏线程面板：锚点 + 消息 + composer + 面板局部引用 + 3s 轮询（THREAD_POLL_MS，后台 tab 暂停）
-                         freshness baseSeq 按线程自己的 seq 空间；pin/unpin 经 notifyPinnedChanged 通知中央刷新
+                         freshness baseSeq 按线程自己的 seq 空间；动作栏收窄为 表情 / 引用 / 复制链接 / ⏰（仅锚点），无 Reply / Pin
+                         （收窄理由见 spec `.scratch/thread-message-actions/spec.md` D2/D3）
   CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
   CreateAgentModal.tsx   建 agent
   ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
@@ -431,7 +432,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - **附件随消息原子提交**（§3.5）：`sendMessage` 增加 `attachments[]`（≤50MB）——先 `stageAttachmentFiles`（校验 + **随机文件名**落盘 `attachments/`，原始名只存库），事务内 appendMessage + insertAttachment 同生共死，**held/抛错 → `discardAttachmentFiles` 清理**，不留孤儿。文件下载走 `/api/attachments/[id]`（图片 inline 预览，其余 attachment）。
 - **messageWithAuthor 统一附料**：reactions（聚合）+ attachments（行）直接内嵌进消息 payload，UI 免 N+1 请求；thread 读接口/agent-loop 双写流同享（纯增量字段，向后兼容）。
 - **POST /api/messages 双形态**：JSON（原样）或 multipart（字段 + `files[]`）；单文件 &gt;50MB 由服务层 `stageAttachmentFiles` 校验拒绝（客户端预检兜底）。`formatBytes`/`MAX_ATTACHMENT_BYTES` 在 `lib/preview.ts`（client 可安全导入，**不**从 协作服务层引——那会拖 better-sqlite3 进浏览器包）。
-- **UI**：消息 hover 快捷 reaction（👍❤️🎉👀）+ ＋ 选择器（24 常用 emoji 网格）+ 内容下聚合条（已点高亮黄）；动作栏 `Pin`（pinned 态黄底）channel/thread 消息通吃；Composer `Paperclip` 多选 + 文件 chips（≤50MB 前端预检）；channel 头部 `Pin` 展开 pinned 区（sort 三选一 + Manual ↑/↓ 重排 + 点击定位消息/展开线程）。
+- **UI**：消息 hover 快捷 reaction（👍❤️🎉👀）+ ＋ 选择器（24 常用 emoji 网格）+ 内容下聚合条（已点高亮黄）；动作栏 `Pin`（pinned 态黄底）**仅频道主流程**（线程面板不提供）；Composer `Paperclip` 多选 + 文件 chips（≤50MB 前端预检）；channel 头部 `Pin` 展开 pinned 区（sort 三选一 + Manual ↑/↓ 重排 + 点击定位消息/展开线程）。收窄的代价：线程内消息无法置顶，置顶只能在频道主流程做；已置顶的线程消息仍可从频道头部 pinned 区定位/展开线程。
 
 ## Pi Session File Format
 

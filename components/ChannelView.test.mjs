@@ -64,6 +64,40 @@ test("MessageRow renders author, seq, content and the three §3.2 actions", () =
     assert.doesNotMatch(html, /Set a reminder on this message/);
 });
 
+// spec D2：收窄靠「不传 prop ⇒ 键根本不存在」，不是「传空函数让按钮不做事」——
+// 线程面板不再传 onReply，动作栏里不该有这个键（真按钮只在频道面渲染）。
+test("MessageRow omits the reply action when onReply is absent", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+        }),
+    );
+
+    assert.doesNotMatch(html, /title="Reply in thread"/);
+    // 收窄是逐 prop 的：Quote / Copy link 不受影响，仍在
+    assert.match(html, /title="Quote"/);
+    assert.match(html, /title="Copy link"/);
+});
+
+// spec D3：Pin 是频道面专属动作，pinned 布尔本身不渲染任何东西——
+// 断言落在无障碍名上（Pin to channel / Unpin），不落在 Pin 图标的 class 上。
+test("MessageRow omits the pin action when onTogglePin is absent, even when pinned", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onReply: () => undefined,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+            pinned: true,
+        }),
+    );
+
+    assert.doesNotMatch(html, /title="Unpin"/);
+    assert.doesNotMatch(html, /title="Pin to channel"/);
+});
+
 test("MessageRow renders the ⏰ reminder action when onSetReminder is provided (§5.6)", () => {
     const calls = { reminder: null };
     const html = renderI18n(

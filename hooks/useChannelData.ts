@@ -530,8 +530,7 @@ export async function postChannelMessage(
  *   不切频道时也需重拉——旧语义只在 channelId 变化时加载，新成员恒 stale）。
  * - `togglePin / toggleMute` 只管切换与重拉收敛：toast 文案（mute.toastMuted 等）与
  *   成员增删（addChannelMember/removeChannelMember）留视图侧，hook 不持有 i18n/成员行状态。
- * - pinned 变更广播订阅（subscribePinnedChanged）留视图侧：面板↔中央双端收敛属排版编排，
- *   hook 只暴露 loadPinned 供订阅回调调用。
+ *   loadPinned 是 hook 内部私有的重拉原语（togglePin / reorderPinned / 切频道共用），不再导出。
  *
  * 04 票语义（与 ChannelView 旧内联实现一致）：
  * - `tasks / tasksError / taskNotice` 持有任务板数据循环：切换频道时重拉
@@ -1185,7 +1184,6 @@ export function useChannelData(
     setPinnedSort,
     pinnedError,
     pinnedLoading,
-    loadPinned,
     togglePin,
     reorderPinned,
     mutes,
