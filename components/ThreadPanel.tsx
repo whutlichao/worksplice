@@ -6,11 +6,10 @@ import { useI18n } from "@/hooks/useI18n";
 import { copyText } from "@/lib/clipboard";
 import { previewLine } from "@/lib/preview";
 import { Composer, MessageRow, type ChannelMessage, type ChannelWithMeta, type ReactionSummary } from "./ChannelView";
-import type { PinnedItem } from "@/hooks/useChannelData";
 import { mergeIncomingMessages } from "@/hooks/useChannelData";
 import { ReminderModal } from "./ReminderModal";
 import type { MemberRow } from "@/lib/data/types";
-import { memberPanel, notifyPinnedChanged, type PanelContent } from "@/lib/panel-state";
+import { memberPanel, type PanelContent } from "@/lib/panel-state";
 import { composerMentionCandidates } from "@/lib/mention";
 
 const INK = "#141111";
@@ -53,9 +52,6 @@ export function ThreadPanel({
   const [loading, setLoading] = useState(!initialAnchor);
   const [error, setError] = useState<string | null>(null);
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
-
-  // §3.5 pinned（当前成员在该 channel 的个性化 pinned）：面板本地拉取，按钮态与频道区共用服务端事实
-  const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
 
   // §5.6 提醒弹窗（锚点消息动作栏 ⏰，与旧 thread 侧栏一致——只锚点行提供）
   const [reminderTarget, setReminderTarget] = useState<{
@@ -108,22 +104,6 @@ export function ThreadPanel({
     if (initialAnchor) return;
     void loadThread(anchorId);
   }, [anchorId, initialAnchor, loadThread]);
-
-  /** §3.5 pinned 列表加载（按钮态 = pinnedItems 含该消息；排序不影响判定）。 */
-  const loadPinned = useCallback(() => {
-    if (!channel) return;
-    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned?sort=manual`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`GET pinned: ${res.status}`);
-        const body = (await res.json()) as { pinned?: PinnedItem[] };
-        setPinnedItems(body.pinned ?? []);
-      })
-      .catch(() => undefined);
-  }, [channel]);
-
-  useEffect(() => {
-    loadPinned();
-  }, [loadPinned]);
 
   /** §3.7 频道任务列表（只用于锚点行 Convert to Task 判定）。 */
   const loadTasks = useCallback(() => {
@@ -255,32 +235,6 @@ export function ThreadPanel({
     }
   }, []);
 
-  /** §3.5 pin / unpin：切换后重拉本地 pinned 列表（服务端事实）。 */
-  const togglePin = useCallback(
-    async (message: ChannelMessage) => {
-      if (!channel) return;
-      const alreadyPinned = pinnedItems.some((item) => item.message.id === message.id);
-      try {
-        const res = alreadyPinned
-          ? await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned?messageId=${message.id}`, {
-              method: "DELETE",
-            })
-          : await fetch(`/api/channels/${encodeURIComponent(channel.id)}/pinned`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ messageId: message.id }),
-            });
-        if (!res.ok) throw new Error(`pin: ${res.status}`);
-        loadPinned();
-        // ticket 13：通知中央频道重拉 pinned（面板/中央双端收敛到服务端事实）
-        notifyPinnedChanged();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [channel, pinnedItems, loadPinned],
-  );
-
   const handleCopyLink = async (message: ChannelMessage) => {
     const url = `${window.location.origin}${window.location.pathname}#c/${encodeURIComponent(channel?.id ?? "")}?m=${message.id}`;
     await copyText(url);
@@ -375,18 +329,15 @@ export function ThreadPanel({
             message={anchor}
             isAnchor
             currentMemberId={currentMemberId}
-            pinned={pinnedItems.some((item) => item.message.id === anchor.id)}
             canConvertToTask={!taskMessageIds.has(anchor.id)}
             mentionMembers={mentionMembers}
             onOpenMention={openMention}
             onOpenMember={(memberId) => onOpenPanel(memberPanel(memberId, false))}
-            onReply={() => undefined}
             onQuote={setQuoting}
             onCopyLink={(target) => void handleCopyLink(target)}
             onConvertToTask={(target) => void convertAnchorToTask(target)}
             onSetReminder={joined ? openAnchorReminder : undefined}
             onToggleReaction={joined ? toggleReaction : undefined}
-            onTogglePin={joined ? togglePin : undefined}
           />
         )}
         {loading ? (
@@ -399,16 +350,13 @@ export function ThreadPanel({
               key={m.id}
               message={m}
               currentMemberId={currentMemberId}
-              pinned={pinnedItems.some((item) => item.message.id === m.id)}
               canConvertToTask={false}
               mentionMembers={mentionMembers}
               onOpenMention={openMention}
               onOpenMember={(memberId) => onOpenPanel(memberPanel(memberId, false))}
-              onReply={() => undefined}
               onQuote={setQuoting}
               onCopyLink={(target) => void handleCopyLink(target)}
               onToggleReaction={joined ? toggleReaction : undefined}
-              onTogglePin={joined ? togglePin : undefined}
             />
           ))
         )}
