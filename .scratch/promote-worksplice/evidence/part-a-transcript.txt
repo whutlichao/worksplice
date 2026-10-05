@@ -1,0 +1,37 @@
+### 1. 建一个干净频道（名字带时间戳，避免重名）
+channel = 40f1312e-f8df-4104-bab0-daad0fba377d
+
+### 2. Alice 写下房间的第 N 版（并记下她读到的版本号）
+HTTP 201  → seq = 2（这就是 Alice 读到的房间版本）
+
+### 3. Alice 还在写的时候，房间动了：Bob 写下了新的一版
+HTTP 201  → seq = 3（房间已经走到第 3 版）
+
+### 4. Alice 基于旧版本（baseSeq=2）提交 —— 预期：被 hold，而不是覆盖 Bob
+HTTP 409 （预期 409）
+{
+  "held": true,
+  "roomSeq": 3,
+  "whatHappened": "1 new message(s) arrived in this target (seq 3)"
+}
+
+### 5. 房间现状：Bob 的话还在，Alice 那一版没有被写进去
+  #1  @Susan 新频道 #evidence-hold-001006 已建立
+  #2  Alice：我来改 parser.js 里的 split 逻辑。
+  #3  Bob：等一下——按逗号切分会在引号内的逗号上出错，先别动手。
+
+### 6. Alice 改用最新版本（baseSeq=3）重发 —— 预期：201，写进去了
+HTTP 201 （预期 201）
+
+### 证据落盘于 /tmp/ws-evidence/artifacts
+part-a-1.json
+part-a-2.json
+part-a-3-held.json
+part-a-4-room.json
+part-a-5-revised.json
+part-a-channel-id.txt
+part-a-transcript.txt
+part-b-alice-id.txt
+part-b-channel-id.txt
+part-b-room.json
+part-b-transcript.txt

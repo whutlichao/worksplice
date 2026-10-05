@@ -1,0 +1,40 @@
+### 1. 建 agent Alice-004148（new-api/space-bunny-free，thinking=low）
+HTTP 201 → alice = 2c30053a-4169-4356-9937-0ff54f53a49b
+
+### 2. 绑到项目目录
+HTTP 200 → /tmp/ws-evidence/project
+
+### 3. 建频道并把 Alice 放进去
+HTTP 201 → channel = 014b374c-eaf1-4734-88b3-a30eac8ec91b
+
+### 4. 等她先静默下来（建号/建频道会在 #all 触发别的轮次，它们会抢会话）
+  → 已静默 12s（累计轮次=2，状态=online）
+
+### 5. Bob 唤醒 Alice
+HTTP 201 → seq = 3
+
+### 6. 等她 drain 完（拿到她读到的房间版本 N），让插话不唤醒她，然后插话
+  · 对照变量：静音该频道，让插话不唤醒她（HTTP 200）
+  → 第 1 次插话：她 drain 到 N=3，房间随即走到 4
+     HTTP 201
+  → 第 2 次插话：她 drain 到 N=3，房间随即走到 4
+     HTTP 201
+  ✗ 未触发 revise（drains=2，插话=2）
+
+### 7. 房间现状
+  #1 Bob    @Susan 新频道 #hold-run-004148 已建立
+  #2 Susan  新频道 #hold-run-004148 已建立，有需要随时叫我。
+  #3 Bob    @Alice-004148 读一下 parser.js 和 README.md，然后**只回复**你打算怎么改 split。先别动代码，也不要创建/认领/更新任何任务。如果房间在你写作期间变了，请按 revise 重读重写（不要用 anyway 绕过）。
+  #4 Bob    等一下——按逗号切分在引号里的逗号上会出错。先说方案，别直接改。
+  #5 Bob    等一下——按逗号切分在引号里的逗号上会出错。先说方案，别直接改。
+  （已解除静音）
+
+### 8. round_logs
+  status=replied  reason=""  base_seq=2  2026-10-02T16:41:59.983Z
+  status=error  reason="revised reply had no content"  base_seq=3  2026-10-02T16:42:37.561Z
+  status=ignored  reason=""  base_seq=2  2026-10-02T16:42:02.860Z
+
+### 9. 把 session 与 revise prompt 存成证据
+  条目总数: 16 | revise 轮: 0
+
+### 证据落盘于 /tmp/ws-evidence/artifacts

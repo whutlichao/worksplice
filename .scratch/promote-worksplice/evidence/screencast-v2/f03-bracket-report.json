@@ -1,0 +1,238 @@
+{
+  "video": "/Users/apple/orca/workspaces/worksplice/screencast-v2-rev2/.scratch/promote-worksplice/evidence/screencast-v2/renders/worksplice-90s-v2.mp4",
+  "frameStart": 12,
+  "steps": [
+    {
+      "step": 0,
+      "column": "Pool",
+      "targetLeft": 429,
+      "targetRight": 615,
+      "window": [
+        17.8,
+        18.02
+      ],
+      "samples": [
+        17.82,
+        17.91,
+        18
+      ],
+      "at": 17.91,
+      "measured": [
+        {
+          "t": 17.82,
+          "borders": 2,
+          "left": 429,
+          "right": 615
+        },
+        {
+          "t": 17.91,
+          "borders": 2,
+          "left": 429,
+          "right": 615
+        },
+        {
+          "t": 18,
+          "borders": 2,
+          "left": 429,
+          "right": 615
+        }
+      ],
+      "rules": [
+        416,
+        431,
+        605,
+        613,
+        791,
+        801,
+        977,
+        987,
+        1163,
+        1173,
+        1349
+      ],
+      "ruleHits": "429✓ 615✓ 801✓ 987✓ 1173✓",
+      "chip": {
+        "title": "Pool",
+        "iou": 0.7166666666666667,
+        "runnerUp": 0.4966442953020134,
+        "bands": 1
+      },
+      "failures": [],
+      "verdict": "PASS"
+    },
+    {
+      "step": 1,
+      "column": "In progress",
+      "targetLeft": 615,
+      "targetRight": 801,
+      "window": [
+        18.36,
+        18.58
+      ],
+      "samples": [
+        18.38,
+        18.47,
+        18.560000000000002
+      ],
+      "at": 18.47,
+      "measured": [
+        {
+          "t": 18.38,
+          "borders": 2,
+          "left": 615,
+          "right": 801
+        },
+        {
+          "t": 18.47,
+          "borders": 2,
+          "left": 615,
+          "right": 801
+        },
+        {
+          "t": 18.560000000000002,
+          "borders": 2,
+          "left": 615,
+          "right": 801
+        }
+      ],
+      "rules": [
+        416,
+        429,
+        605,
+        617,
+        791,
+        799,
+        977,
+        987,
+        1163,
+        1173,
+        1349
+      ],
+      "ruleHits": "429✓ 615✓ 801✓ 987✓ 1173✓",
+      "chip": {
+        "title": "In progress",
+        "iou": 0.7298850574712644,
+        "runnerUp": 0.4222520107238606,
+        "bands": 1
+      },
+      "failures": [],
+      "verdict": "PASS"
+    },
+    {
+      "step": 2,
+      "column": "In review",
+      "targetLeft": 801,
+      "targetRight": 987,
+      "window": [
+        18.92,
+        19.14
+      ],
+      "samples": [
+        18.939999999999998,
+        19.03,
+        19.12
+      ],
+      "at": 19.03,
+      "measured": [
+        {
+          "t": 18.939999999999998,
+          "borders": 2,
+          "left": 801,
+          "right": 987
+        },
+        {
+          "t": 19.03,
+          "borders": 2,
+          "left": 801,
+          "right": 987
+        },
+        {
+          "t": 19.12,
+          "borders": 2,
+          "left": 801,
+          "right": 987
+        }
+      ],
+      "rules": [
+        416,
+        429,
+        605,
+        615,
+        791,
+        803,
+        977,
+        985,
+        1163,
+        1173,
+        1349
+      ],
+      "ruleHits": "429✓ 615✓ 801✓ 987✓ 1173✓",
+      "chip": {
+        "title": "In review",
+        "iou": 0.7450271247739603,
+        "runnerUp": 0.3712871287128713,
+        "bands": 1
+      },
+      "failures": [],
+      "verdict": "PASS"
+    },
+    {
+      "step": 3,
+      "column": "Done",
+      "targetLeft": 987,
+      "targetRight": 1173,
+      "window": [
+        19.48,
+        19.84
+      ],
+      "samples": [
+        19.5,
+        19.66,
+        19.82
+      ],
+      "at": 19.66,
+      "measured": [
+        {
+          "t": 19.5,
+          "borders": 2,
+          "left": 987,
+          "right": 1173
+        },
+        {
+          "t": 19.66,
+          "borders": 2,
+          "left": 987,
+          "right": 1173
+        },
+        {
+          "t": 19.82,
+          "borders": 2,
+          "left": 987,
+          "right": 1173
+        }
+      ],
+      "rules": [
+        416,
+        429,
+        605,
+        615,
+        791,
+        801,
+        977,
+        989,
+        1163,
+        1171,
+        1349
+      ],
+      "ruleHits": "429✓ 615✓ 801✓ 987✓ 1173✓",
+      "chip": {
+        "title": "Done",
+        "iou": 0.8065693430656934,
+        "runnerUp": 0.5366666666666666,
+        "bands": 1
+      },
+      "failures": [],
+      "verdict": "PASS"
+    }
+  ]
+}

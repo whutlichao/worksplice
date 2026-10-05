@@ -1,0 +1,368 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    /* ---- frame root: styled by #root only (never a class on the root element) ---- */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      color: #141111;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root div,
+    #root span {
+      box-sizing: border-box;
+    }
+
+    /* ---- full-bleed ground: lowest clip layer (z-index 0), never #root ---- */
+    .f03-ground {
+      position: absolute;
+      inset: 0;
+      background: #FFFAEF;
+      z-index: 0;
+    }
+
+    /* ---- the plate's drawn frame — the footage is hoisted and stripped of local CSS,
+       so the ink border + hard offset shadow must be their own z-indexed DOM box ---- */
+    .f03-plate {
+      position: absolute;
+      left: 240px;
+      top: 130px;
+      width: 1440px;
+      height: 680px;
+      border: 7px solid #141111;
+      box-shadow: 24px 24px 0 #F8A16F, 24px 24px 0 4px #141111;
+      z-index: 5;
+    }
+
+    /* ---- the crop bracket: a DOM-scrubbed overlay that travels the board's five real
+       columns; the footage itself is never transformed ---- */
+    .f03-crop {
+      position: absolute;
+      left: 418px;
+      top: 292px;
+      /* one board column wide: the crop seats on column lefts 429/615/801/987/1173,
+         each column being 186px wide with a 186.7px pitch */
+      width: 186px;
+      height: 440px;
+      border: 4px solid #141111;
+      z-index: 4;
+    }
+    .f03-chip {
+      position: absolute;
+      left: -4px;
+      top: 452px;
+      width: 236px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px 0 12px;
+      background: #141111;
+      color: #FFFAEF;
+    }
+    .f03-dot {
+      flex: none;
+      width: 12px;
+      height: 12px;
+      background: #FFD440;
+    }
+    .f03-ticker {
+      position: relative;
+      width: 184px;
+      height: 22px;
+      overflow: hidden;
+    }
+    .f03-ticker-strip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 184px;
+    }
+    .f03-col {
+      height: 22px;
+      line-height: 22px;
+      font-family: "Space Mono", monospace;
+      font-size: 18px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* ---- mono chrome ---- */
+    .f03-topbar {
+      position: absolute;
+      left: 96px;
+      right: 96px;
+      top: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 6;
+    }
+    .f03-mark {
+      font-family: "Space Mono", monospace;
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .f03-pill {
+      font-family: "Space Mono", monospace;
+      font-size: 20px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: #FFFAEF;
+      border: 3px solid #141111;
+      border-radius: 999px;
+      padding: 9px 20px 10px;
+    }
+    .f03-badge {
+      position: absolute;
+      left: 96px;
+      top: 826px;
+      background: #FFD440;
+      border: 4px solid #141111;
+      padding: 7px 16px 9px;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 28px;
+      line-height: 1;
+      text-transform: uppercase;
+      z-index: 6;
+    }
+
+    /* ---- the read rule: draws once under the plate as the channel half plays ---- */
+    .f03-rule {
+      position: absolute;
+      left: 240px;
+      top: 886px;
+      width: 1440px;
+      height: 6px;
+      background: #FFD440;
+      transform-origin: 0% 50%;
+      z-index: 4;
+    }
+
+    /* ---- the caption band: designed in-frame typography, one cue at a time ---- */
+    .f03-caps {
+      position: absolute;
+      left: 96px;
+      top: 944px;
+      width: 1728px;
+      height: 64px;
+      z-index: 8;
+    }
+    .f03-cap {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1728px;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 68px;
+      line-height: 0.92;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .f03-cap .f03-unit {
+      display: inline-block;
+      white-space: pre;
+    }
+  </style>
+
+  <div id="root" data-composition-id="03-the-room" data-width="1920" data-height="1080" data-duration="15.5">
+    <div id="f03-ground" class="clip f03-ground" data-start="0" data-duration="15.5" data-track-index="0"></div>
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->    
+<!-- approved frame video hoisted by assemble-index -->
+
+    <!-- approved real-capture clips: declared frame-locally, hoisted to the host root by the
+         assembler. Same plate rect as Frame 6; distinct track indices, windows never overlap. -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+
+    <div id="f03-plate" class="f03-plate"></div>
+
+    <div id="f03-crop" class="f03-crop" data-layout-allow-occlusion>
+      <div id="f03-chip" class="f03-chip">
+        <span class="f03-dot"></span>
+        <div class="f03-ticker">
+          <div id="f03-strip" class="f03-ticker-strip" data-layout-allow-overflow>
+            <div class="f03-col">Pool</div>
+            <div class="f03-col">In progress</div>
+            <div class="f03-col">In review</div>
+            <div class="f03-col">Done</div>
+            <div class="f03-col">Closed</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="f03-rule" class="f03-rule"></div>
+
+    <div id="f03-topbar" class="f03-topbar">
+      <span class="f03-mark">W0RKSPLICE</span>
+      <span class="f03-pill">F03 · THE ROOM</span>
+    </div>
+
+    <div id="f03-badge" class="f03-badge">Demo data</div>
+
+    <div id="f03-caps" class="f03-caps" data-layout-allow-caption-zone>
+      <div id="f03-cap-0" class="f03-cap" data-layout-allow-overlap>Several pi sessions. One local room.</div>
+      <div id="f03-cap-1" class="f03-cap" data-layout-allow-overlap>Channels, a task board, review.</div>
+      <div id="f03-cap-2" class="f03-cap" data-layout-allow-overlap>A workspace — not a chat log.</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      /* the cues are authored in the markup; wrap them into reveal units here —
+         cue 1 types in per character, cues 2–3 stagger per word */
+      var CUES = [byId("f03-cap-0"), byId("f03-cap-1"), byId("f03-cap-2")];
+      var units = [];
+      CUES.forEach(function (line, i) {
+        var text = line.textContent;
+        line.textContent = "";
+        var parts = i === 0 ? text.split("") : text.split(" ");
+        var list = [];
+        parts.forEach(function (part, j) {
+          if (i > 0 && j > 0) line.appendChild(document.createTextNode(" "));
+          var s = document.createElement("span");
+          s.className = "f03-unit";
+          s.textContent = part;
+          line.appendChild(s);
+          list.push(s);
+        });
+        units.push(list);
+      });
+
+      var plate = byId("f03-plate");
+      var topbar = byId("f03-topbar");
+      var badge = byId("f03-badge");
+      var crop = byId("f03-crop");
+      var strip = byId("f03-strip");
+      var rule = byId("f03-rule");
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* — scene 1 · 0.0–5.0 — the real board capture holds the plate; the drawn frame
+         settles onto it (short push-in), chrome lands, cue 1 types in bottom-left — */
+      tl.fromTo(plate, { opacity: 0, scale: 1.012 }, { opacity: 1, scale: 1, duration: 0.45, ease: "power3.out" }, 0);
+      tl.fromTo(topbar, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.06);
+      tl.fromTo(units[0], { opacity: 0 }, { opacity: 1, duration: 0.012, ease: "none", stagger: 0.01 }, 0.7);
+      /* the honesty mark — both plates are real captures running demo data */
+      tl.fromTo(
+        badge,
+        { opacity: 0, scale: 0.6, rotation: -14 },
+        { opacity: 1, scale: 1, rotation: -4, duration: 0.34, ease: "back.out(2.4)" },
+        2.9
+      );
+
+      /* — scene 2 · 5.0–8.0 — cue 2: the crop bracket steps across the board's five real
+         columns with the mono label ticking over it (DOM-scrubbed; the footage never moves) — */
+      tl.to(CUES[0], { opacity: 0, y: -14, duration: 0.16, ease: "power2.in" }, 5.06);
+      tl.fromTo(
+        units[1],
+        { x: -26, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.32, ease: "power3.out", stagger: 0.05 },
+        5.22
+      );
+      tl.fromTo(crop, { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" }, 5.28);
+
+      /* the five real board columns, as offsets from the crop's seat (left: 418px):
+         column lefts 429 / 615 / 801 / 987 / 1173 -> +11 / +197 / +383 / +569 / +755.
+         STEP_T holds four stops, so the tour walks Pool -> In progress -> In review ->
+         Done and stops one column short of Closed (the timing is fixed). */
+      var COL_X = [11, 197, 383, 569, 755];
+      var STEP_T = [5.46, 6.02, 6.58, 7.14];
+      STEP_T.forEach(function (t, i) {
+        tl.fromTo(
+          crop,
+          { x: i === 0 ? 0 : COL_X[i - 1] },
+          { x: COL_X[i], duration: 0.34, ease: "power3.inOut", immediateRender: false },
+          t
+        );
+        /* the mono label rides the same slot as the box: step i shows row i (Pool at
+           the first stop), so the chip never reads ahead of the column under it */
+        tl.fromTo(
+          strip,
+          { y: i === 0 ? 0 : -22 * (i - 1) },
+          { y: -22 * i, duration: 0.3, ease: "power3.out", immediateRender: false },
+          t
+        );
+      });
+      tl.to(crop, { opacity: 0, scale: 0.985, duration: 0.16, ease: "power2.in" }, 7.84);
+
+      /* — scene 3 · 8.0–15.0 — the frame cuts hard from board to channel (same plate);
+         the read rule draws once under it and the conversation holds — */
+      tl.fromTo(rule, { scaleX: 0 }, { scaleX: 1, duration: 2.6, ease: "power1.inOut" }, 8.45);
+      /* cue 3 lands with the storyboard's scene boundary (10.0) — and fully in before it */
+      tl.to(units[1], { y: -18, opacity: 0, duration: 0.18, ease: "power2.in", stagger: 0.04 }, 9.30);
+      tl.fromTo(
+        units[2],
+        { x: -26, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.32, ease: "power3.out", stagger: 0.045 },
+        9.42
+      );
+
+      /* full-span anchor: render length 15s */
+      tl.to({}, { duration: 15 }, 0);
+
+      window.__timelines["03-the-room"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

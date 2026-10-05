@@ -1,0 +1,223 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    /* ---- frame root: styled by #root only ---- */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+      color: #141111;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root div,
+    #root span {
+      box-sizing: border-box;
+    }
+
+    /* ---- full-bleed ground: lowest clip layer, never #root ---- */
+    .f08-ground {
+      position: absolute;
+      inset: 0;
+      background: #FFFAEF;
+      z-index: 0;
+    }
+
+    /* ---- chrome ---- */
+    .f08-topbar {
+      position: absolute;
+      left: 96px;
+      right: 96px;
+      top: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 6;
+    }
+    .f08-mark {
+      font-family: "Space Mono", monospace;
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .f08-pill {
+      font-family: "Space Mono", monospace;
+      font-size: 20px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: #FFFAEF;
+      border: 3px solid #141111;
+      border-radius: 999px;
+      padding: 9px 20px 10px;
+    }
+
+    /* ---- scene 1: the claim seats at display size, left-anchored ---- */
+    .f08-line1 {
+      position: absolute;
+      left: 96px;
+      top: 372px;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 104px;
+      line-height: 0.92;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      z-index: 4;
+    }
+    /* the one accent: an ink-bordered yellow mark under the claim */
+    .f08-bar {
+      position: absolute;
+      left: 96px;
+      top: 508px;
+      width: 340px;
+      height: 20px;
+      background: #FFD440;
+      border: 4px solid #141111;
+      z-index: 4;
+    }
+
+    /* ---- scene 2: the qualifier appends beneath; the file chip draws in ---- */
+    .f08-line2 {
+      position: absolute;
+      left: 96px;
+      top: 600px;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 66px;
+      line-height: 0.92;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      color: #6F6A5E;
+      white-space: nowrap;
+      z-index: 4;
+    }
+    .f08-chip {
+      position: absolute;
+      left: 96px;
+      top: 706px;
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      background: #FFFDF5;
+      border: 4px solid #141111;
+      padding: 14px 22px 15px;
+      z-index: 4;
+    }
+    .f08-chip-glyph {
+      display: block;
+      width: 14px;
+      height: 14px;
+      background: #141111;
+    }
+    .f08-chip-label {
+      font-family: "Space Mono", monospace;
+      font-size: 25px;
+      line-height: 1;
+      letter-spacing: 0.02em;
+    }
+
+    /* ---- scene 3: the honest note, quiet mono, set as the footnote ---- */
+    .f08-note {
+      position: absolute;
+      left: 96px;
+      top: 800px;
+      width: 1728px;
+      font-family: "Space Mono", monospace;
+      /* 27px read too small at normal playback size; 36px keeps the two lines inside
+         the caption band (ends ~y=920, band starts 944) */
+      font-size: 36px;
+      line-height: 1.5;
+      color: #5F5A50;
+      z-index: 4;
+    }
+  </style>
+
+  <div id="root" data-composition-id="08-local-one-file" data-width="1920" data-height="1080">
+    <div id="f08-ground" class="clip f08-ground" data-start="0" data-duration="7" data-track-index="0"></div>
+
+    <div id="f08-topbar" class="f08-topbar">
+      <span class="f08-mark">W0RKSPLICE</span>
+      <span class="f08-pill">F08 · WHERE IT RUNS</span>
+    </div>
+
+    <div id="f08-line1" class="f08-line1">Local. One SQLite file.</div>
+    <div id="f08-bar" class="f08-bar"></div>
+    <div id="f08-line2" class="f08-line2">Loopback by default. No accounts.</div>
+
+    <div id="f08-chip" class="f08-chip">
+      <span class="f08-chip-glyph"></span>
+      <span id="f08-chip-label" class="f08-chip-label">worksplice.db</span>
+    </div>
+
+    <div id="f08-note" class="f08-note">One honest note: pi’s roadmap includes a pi server that will cover part of this. This is the version that exists today.</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      var topbar = byId("f08-topbar");
+      var line1 = byId("f08-line1");
+      var bar = byId("f08-bar");
+      var line2 = byId("f08-line2");
+      var chip = byId("f08-chip");
+      var chipLabel = byId("f08-chip-label");
+      var note = byId("f08-note");
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* — scene 1 · 0.0–2.4 — chrome seats, the accent mark draws, then line 1 lands on cue 1 — */
+      tl.fromTo(topbar, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.05);
+      tl.fromTo(
+        bar,
+        { scaleX: 0, opacity: 0 },
+        { scaleX: 1, opacity: 1, duration: 0.42, ease: "power2.out", transformOrigin: "0% 50%" },
+        0.45
+      );
+      tl.fromTo(line1, { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" }, 0.6);
+
+      /* — scene 2 · 2.4–4.8 — line 2 appends beneath on cue 2; the file chip draws in beside it — */
+      tl.fromTo(line2, { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 2.6);
+      tl.fromTo(
+        chip,
+        { opacity: 0, scaleX: 0.25 },
+        { opacity: 1, scaleX: 1, duration: 0.45, ease: "power3.out", transformOrigin: "0% 50%" },
+        3.05
+      );
+      tl.fromTo(chipLabel, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out" }, 3.3);
+
+      /* — scene 3 · 4.8–7.0 — the honest note fades up quietly, then the plate holds dead still — */
+      tl.fromTo(note, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 5.0);
+
+      /* full-span anchor: render length 7s */
+      tl.to({}, { duration: 7 }, 0);
+
+      window.__timelines["08-local-one-file"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

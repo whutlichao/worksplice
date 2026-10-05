@@ -1,0 +1,408 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    /* ---- frame root: styled by #root only ---- */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+      color: #141111;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root div,
+    #root span {
+      box-sizing: border-box;
+    }
+
+    /* ---- full-bleed ground: lowest clip layer (z-index 0), never #root ---- */
+    .f07-ground {
+      position: absolute;
+      inset: 0;
+      background: #FFFAEF;
+      z-index: 0;
+    }
+
+    /* ---- plate frame: border-only box painted above the hoisted footage ---- */
+    .f07-plateframe {
+      position: absolute;
+      left: 240px;
+      top: 130px;
+      width: 1440px;
+      height: 680px;
+      border: 7px solid #141111;
+      z-index: 5;
+    }
+
+    /* ---- chrome (above the footage) ---- */
+    .f07-topbar {
+      position: absolute;
+      left: 96px;
+      right: 96px;
+      top: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 6;
+    }
+    .f07-mark {
+      font-family: "Space Mono", monospace;
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .f07-pill {
+      font-family: "Space Mono", monospace;
+      font-size: 20px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: #FFFAEF;
+      border: 3px solid #141111;
+      border-radius: 999px;
+      padding: 9px 20px 10px;
+    }
+
+    /* ---- scene 2: the mono state strip under the plate ---- */
+    .f07-strip {
+      position: absolute;
+      left: 96px;
+      top: 828px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      z-index: 6;
+    }
+    .f07-sbox {
+      border: 3px solid #141111;
+      background: #FFFDF5;
+      font-family: "Space Mono", monospace;
+      font-size: 27px;
+      line-height: 1;
+      padding: 7px 16px 10px;
+      white-space: nowrap;
+    }
+    .f07-sbox.is-now {
+      background: #27CCF3;
+    }
+    .f07-arrow {
+      display: flex;
+      align-items: center;
+      margin: 0 12px;
+    }
+    .f07-arrow-line {
+      display: block;
+      width: 26px;
+      height: 4px;
+      background: #141111;
+    }
+    .f07-arrow-head {
+      display: block;
+      width: 0;
+      height: 0;
+      border-left: 10px solid #141111;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+    }
+
+    /* ---- scene 3: the enforced rule, verbatim, as the band's right chip ---- */
+    .f07-rule {
+      position: absolute;
+      right: 96px;
+      top: 828px;
+      height: 50px;
+      background: #141111;
+      color: #FFFAEF;
+      font-family: "Space Mono", monospace;
+      font-size: 27px;
+      line-height: 50px;
+      letter-spacing: 0.02em;
+      padding: 0 20px;
+      white-space: nowrap;
+      z-index: 6;
+    }
+    /* the coral stamp lands above the In-review card (storyboard: a coral OK-stamp) ... */
+    .f07-stamp {
+      position: absolute;
+      left: 992px;
+      top: 230px;
+      background: #F97264;
+      border: 4px solid #141111;
+      color: #141111;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 34px;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      padding: 16px 28px 18px;
+      box-shadow: 10px 10px 0 #141111;
+      z-index: 8;
+    }
+    /* ... and its leader runs down the column gutter into Approve */
+    .f07-drop {
+      position: absolute;
+      left: 1072px;
+      top: 340px;
+      width: 5px;
+      height: 250px;
+      background: #141111;
+      transform-origin: 50% 0%;
+      z-index: 8;
+    }
+    .f07-lead {
+      position: absolute;
+      left: 1072px;
+      top: 585px;
+      width: 24px;
+      height: 5px;
+      background: #141111;
+      transform-origin: 0% 50%;
+      z-index: 8;
+    }
+    .f07-caret {
+      position: absolute;
+      left: 1094px;
+      top: 578px;
+      width: 0;
+      height: 0;
+      border-left: 13px solid #141111;
+      border-top: 9px solid transparent;
+      border-bottom: 9px solid transparent;
+      transform-origin: 0% 50%;
+      z-index: 8;
+    }
+
+    /* ---- honesty witness, in the capture's empty column field ---- */
+    .f07-note {
+      position: absolute;
+      left: 462px;
+      top: 766px;
+      background: rgba(255, 250, 239, 0.9);
+      border-left: 5px solid #141111;
+      padding: 6px 12px 7px;
+      font-family: "Space Mono", monospace;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      z-index: 7;
+    }
+
+    /* ---- caption band: designed in-frame typography, one cue at a time ---- */
+    .f07-capband {
+      position: absolute;
+      left: 96px;
+      top: 940px;
+      width: 1728px;
+      height: 48px;
+      z-index: 8;
+    }
+    .f07-capline {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1600px;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 38px;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .f07-capword {
+      display: inline-block;
+    }
+  </style>
+
+  <div id="root" data-composition-id="07-approve-by-other" data-width="1920" data-height="1080" data-duration="9.5">
+    <div id="f07-ground" class="clip f07-ground" data-start="0" data-duration="9.5" data-track-index="0"></div>
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+
+    <!-- approved real-capture clip: declared frame-locally, hoisted to the host root by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+
+    <div id="f07-plateframe" class="f07-plateframe"></div>
+
+    <div id="f07-topbar" class="f07-topbar">
+      <span class="f07-mark">W0RKSPLICE</span>
+      <span class="f07-pill">F07 · REVIEW</span>
+    </div>
+
+    <div id="f07-strip" class="f07-strip">
+      <span class="f07-sbox" id="f07-sbox-0">claimed</span>
+      <span class="f07-arrow" id="f07-arrow-0"><span class="f07-arrow-line"></span><span class="f07-arrow-head"></span></span>
+      <span class="f07-sbox is-now" id="f07-sbox-1">in_review</span>
+      <span class="f07-arrow" id="f07-arrow-1"><span class="f07-arrow-line"></span><span class="f07-arrow-head"></span></span>
+      <span class="f07-sbox" id="f07-sbox-2">done</span>
+    </div>
+
+    <div id="f07-rule" class="f07-rule">the builder cannot verify their own work</div>
+
+    <div id="f07-stamp" class="f07-stamp" data-layout-allow-occlusion data-layout-allow-overlap>approve requires someone else</div>
+    <div id="f07-drop" class="f07-drop" data-layout-allow-occlusion data-layout-allow-overlap></div>
+    <div id="f07-lead" class="f07-lead" data-layout-allow-occlusion data-layout-allow-overlap></div>
+    <div id="f07-caret" class="f07-caret" data-layout-allow-occlusion data-layout-allow-overlap></div>
+
+    <div id="f07-note" class="f07-note" data-layout-allow-occlusion data-layout-allow-overlap>real capture · hover only, no click</div>
+
+    <div id="f07-capband" class="f07-capband">
+      <div class="f07-capline" id="f07-cap-0"></div>
+      <div class="f07-capline" id="f07-cap-1"></div>
+      <div class="f07-capline" id="f07-cap-2"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      /* this beat's captions — designed in-frame typography, one cue at a time (verbatim) */
+      var CAPTIONS = [
+        "\u201CDone\u201D is not a claim.",
+        "It\u2019s a state machine.",
+        "Only someone other than the author can approve."
+      ];
+      var CUE = [0.6, 3.2, 6.0];
+
+      /* caption lines -> word spans (space text nodes keep the measure + wrap points) */
+      var caps = [];
+      CAPTIONS.forEach(function (text, i) {
+        var line = byId("f07-cap-" + i);
+        var words = [];
+        text.split(" ").forEach(function (w, j) {
+          if (j) line.appendChild(document.createTextNode(" "));
+          var s = document.createElement("span");
+          s.className = "f07-capword";
+          s.textContent = w;
+          line.appendChild(s);
+          words.push(s);
+        });
+        caps.push({ line: line, words: words });
+      });
+
+      var plateframe = byId("f07-plateframe");
+      var topbar = byId("f07-topbar");
+      var sbox = [byId("f07-sbox-0"), byId("f07-sbox-1"), byId("f07-sbox-2")];
+      var arrows = [byId("f07-arrow-0"), byId("f07-arrow-1")];
+      var rule = byId("f07-rule");
+      var stamp = byId("f07-stamp");
+      var drop = byId("f07-drop");
+      var lead = byId("f07-lead");
+      var caret = byId("f07-caret");
+      var note = byId("f07-note");
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* — scene 1 · 0.0–3.0 — the real board plate holds; the pointer travels to the
+         In-review card inside the footage; frame + chrome seat, cue 1 lands at 0.6 — */
+      tl.fromTo(plateframe, { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.out" }, 0);
+      tl.fromTo(topbar, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.05);
+      tl.fromTo(
+        caps[0].words,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.06 },
+        CUE[0]
+      );
+
+      /* — scene 2 · 3.0–6.0 — cue 2: the state machine draws under the plate, the card's
+         current state (in_review) lands boxed — */
+      tl.to(caps[0].line, { opacity: 0, y: -12, duration: 0.18, ease: "power2.in" }, 3.02);
+      tl.fromTo(
+        caps[1].words,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.06 },
+        CUE[1]
+      );
+      tl.fromTo(sbox[0], { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.26, ease: "power3.out" }, 3.34);
+      tl.fromTo(
+        arrows[0],
+        { opacity: 0, scaleX: 0 },
+        { opacity: 1, scaleX: 1, duration: 0.22, ease: "power2.out", transformOrigin: "0% 50%" },
+        3.46
+      );
+      tl.fromTo(
+        sbox[1],
+        { opacity: 0, y: 14, scale: 0.86 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)", transformOrigin: "50% 50%" },
+        3.56
+      );
+      tl.fromTo(
+        arrows[1],
+        { opacity: 0, scaleX: 0 },
+        { opacity: 1, scaleX: 1, duration: 0.22, ease: "power2.out", transformOrigin: "0% 50%" },
+        3.72
+      );
+      tl.fromTo(sbox[2], { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.26, ease: "power3.out" }, 3.84);
+
+      /* — scene 3 · 6.0–9.0 — cue 3: the lime stamp lands above the card, its leader draws
+         down the gutter into Approve, the rule fades in; then hold — */
+      tl.to(caps[1].line, { opacity: 0, y: -12, duration: 0.18, ease: "power2.in" }, 5.92);
+      tl.fromTo(
+        caps[2].words,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.055 },
+        CUE[2]
+      );
+      tl.fromTo(
+        stamp,
+        { opacity: 0, scale: 1.9, rotation: -18 },
+        { opacity: 1, scale: 0.96, rotation: -6, duration: 0.15, ease: "power3.in", transformOrigin: "50% 50%" },
+        6.0
+      );
+      tl.to(stamp, { scale: 1, duration: 0.1, ease: "power2.out" }, 6.15);
+      tl.fromTo(drop, { scaleY: 0 }, { scaleY: 1, duration: 0.18, ease: "power2.out", transformOrigin: "50% 0%" }, 6.2);
+      tl.fromTo(lead, { scaleX: 0 }, { scaleX: 1, duration: 0.14, ease: "power2.out", transformOrigin: "0% 50%" }, 6.36);
+      tl.fromTo(
+        caret,
+        { opacity: 0, scale: 0 },
+        { opacity: 1, scale: 1, duration: 0.2, ease: "back.out(2.5)", transformOrigin: "0% 50%" },
+        6.46
+      );
+      tl.fromTo(rule, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 6.55);
+      tl.fromTo(note, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 6.72);
+
+      /* full-span anchor: render length 9s */
+      tl.to({}, { duration: 9 }, 0);
+
+      window.__timelines["07-approve-by-other"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

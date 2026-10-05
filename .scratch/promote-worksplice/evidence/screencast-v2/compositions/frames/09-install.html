@@ -1,0 +1,299 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    /* ---- frame root: styled by #root only ---- */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+      color: #FFFAEF;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root div,
+    #root span {
+      box-sizing: border-box;
+    }
+
+    /* ---- full-bleed ink ground: lowest clip layer, never #root ---- */
+    .f09-ground {
+      position: absolute;
+      inset: 0;
+      background: #141111;
+      z-index: 0;
+    }
+
+    /* ---- scene 1: the yellow-square wordmark lockup (the plate's hero) ---- */
+    .f09-logo {
+      position: absolute;
+      left: 96px;
+      top: 269px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      z-index: 6;
+    }
+    #f09-sq {
+      display: block;
+      /* the closing lockup carries the ink plate from its very first frame — a lockup
+         this size also keeps the plate from reading as an empty black frame */
+      width: 136px;
+      height: 136px;
+      background: #FFD440;
+      border: 10px solid #FFFAEF;
+    }
+    .f09-wm {
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 126px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      color: #FFFAEF;
+    }
+    .f09-wml {
+      display: inline-block;
+    }
+
+    /* ---- scene 2: the cream terminal pill (the one rounded element) ---- */
+    .f09-pill {
+      position: absolute;
+      left: 96px;
+      top: 616px;
+      width: 744px;
+      overflow: hidden;
+      background: #FFFAEF;
+      color: #141111;
+      border: 8px solid #FFFAEF;
+      border-radius: 999px;
+      box-shadow: 12px 12px 0 rgba(255, 250, 239, 0.28);
+      z-index: 6;
+    }
+    .f09-cmdline {
+      display: block;
+      padding: 26px 40px;
+      font-family: "Space Mono", monospace;
+      font-size: 50px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .f09-ps1,
+    .f09-ch {
+      display: inline-block;
+      white-space: pre;
+    }
+    #f09-caret {
+      position: absolute;
+      left: 100px;
+      top: 29px;
+      display: block;
+      width: 15px;
+      height: 44px;
+      background: #141111;
+    }
+
+    /* ---- scene 2/3: the mono meta line — everything above y=900 ---- */
+    .f09-metarow {
+      position: absolute;
+      left: 96px;
+      right: 96px;
+      top: 806px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      z-index: 6;
+    }
+    .f09-meta {
+      font-family: "Space Mono", monospace;
+      font-size: 28px;
+      line-height: 1.2;
+      letter-spacing: 0.02em;
+      color: #C9C7C2;
+    }
+
+    /* ---- the caption band: designed in-frame type, one cue ----
+       band top edge sits at y=920; all other content stays above y=900 */
+    #f09-capband {
+      position: absolute;
+      left: 96px;
+      right: 96px;
+      top: 47.92cqw;
+      height: 4.2cqw;
+      z-index: 9;
+    }
+    .f09-capline {
+      position: absolute;
+      left: 0;
+      top: 1.15cqw;
+      width: 100%;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 2.4cqw;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      color: #FFFAEF;
+      white-space: nowrap;
+    }
+    .f09-capword {
+      display: inline-block;
+    }
+  </style>
+
+  <div id="root" data-composition-id="09-install" data-width="1920" data-height="1080">
+    <div id="f09-ground" class="clip f09-ground" data-start="0" data-duration="6" data-track-index="0"></div>
+
+    <div id="f09-logo" class="f09-logo">
+      <span id="f09-sq"></span>
+      <span id="f09-wm" class="f09-wm"></span>
+    </div>
+
+    <div id="f09-pill" class="f09-pill">
+      <div class="f09-cmdline">
+        <span class="f09-ps1">$ </span><span id="f09-cmd"></span>
+      </div>
+      <span id="f09-caret"></span>
+    </div>
+
+    <div id="f09-metarow" class="f09-metarow">
+      <span id="f09-meta" class="f09-meta">local · one sqlite file · no accounts</span>
+      <span id="f09-repo" class="f09-meta">github.com/whutlichao/worksplice</span>
+    </div>
+
+    <div id="f09-capband">
+      <div id="f09-cap" class="f09-capline"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      /* the film's closing cue — designed in-frame type (verbatim) */
+      var CAPTION = "Run it with your own pi sessions.";
+      /* from the README Quick Start — rendered exactly as given */
+      var COMMAND = "npx worksplice";
+      var WORDMARK = "WORKSPLICE";
+
+      var wm = byId("f09-wm");
+      var letters = [];
+      for (var i = 0; i < WORDMARK.length; i++) {
+        var L = document.createElement("span");
+        L.className = "f09-wml";
+        L.textContent = WORDMARK.charAt(i);
+        wm.appendChild(L);
+        letters.push(L);
+      }
+
+      /* typed chars are laid out up front (opacity only) — no reflow while typing */
+      var cmd = byId("f09-cmd");
+      var chars = [];
+      for (var k = 0; k < COMMAND.length; k++) {
+        var c = document.createElement("span");
+        c.className = "f09-ch";
+        c.textContent = COMMAND.charAt(k);
+        cmd.appendChild(c);
+        chars.push(c);
+      }
+
+      /* caption -> word spans */
+      var cap = byId("f09-cap");
+      var words = [];
+      CAPTION.split(" ").forEach(function (w, j) {
+        if (j) cap.appendChild(document.createTextNode(" "));
+        var s = document.createElement("span");
+        s.className = "f09-capword";
+        s.textContent = w;
+        cap.appendChild(s);
+        words.push(s);
+      });
+
+      var sq = byId("f09-sq");
+      var pill = byId("f09-pill");
+      var caret = byId("f09-caret");
+      var meta = byId("f09-meta");
+      var repo = byId("f09-repo");
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* — scene 1 · 0.0–2.0 — ink plate; the lockup assembles from the first frame (a
+         0.22s head start on an ink field read as a black-frame glitch on the cut) — */
+      tl.fromTo(
+        sq,
+        { scale: 0, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.34, ease: "back.out(2.4)", transformOrigin: "50% 50%" },
+        0
+      );
+      tl.fromTo(
+        letters,
+        { y: 26, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.24, ease: "power3.out", stagger: 0.016 },
+        0
+      );
+      tl.fromTo(
+        words,
+        { y: 18, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.3, ease: "power3.out", stagger: 0.03 },
+        0.1
+      );
+
+      /* — scene 2 · 2.0–4.4 — the chip spring-pops and stretches into the wide
+         terminal pill; the command types behind the caret; the mono line rises — */
+      tl.fromTo(
+        pill,
+        { width: 132, scale: 0.9, opacity: 0 },
+        { width: 744, scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.4)", transformOrigin: "0% 50%" },
+        2.02
+      );
+      var TYPE_T = 2.62;
+      var TYPE_STEP = 0.072;
+      chars.forEach(function (ch, idx) {
+        var t = TYPE_T + idx * TYPE_STEP;
+        tl.fromTo(ch, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, t);
+        tl.to(caret, { x: 30 + 30 * idx, duration: 0.01, ease: "none" }, t);
+      });
+      /* the hold's one sanctioned motion: the caret blink (explicit, seek-safe) */
+      tl.to(caret, { opacity: 0, duration: 0.01, ease: "none" }, 3.7);
+      tl.to(caret, { opacity: 1, duration: 0.01, ease: "none" }, 3.98);
+      tl.to(caret, { opacity: 0, duration: 0.01, ease: "none" }, 4.26);
+      tl.to(caret, { opacity: 1, duration: 0.01, ease: "none" }, 4.54);
+      tl.to(caret, { opacity: 0, duration: 0.01, ease: "none" }, 4.82);
+      tl.to(caret, { opacity: 1, duration: 0.01, ease: "none" }, 5.1);
+      tl.to(caret, { opacity: 0, duration: 0.01, ease: "none" }, 5.38);
+      tl.to(caret, { opacity: 1, duration: 0.01, ease: "none" }, 5.66);
+
+      tl.fromTo(meta, { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power3.out" }, 3.95);
+
+      /* — scene 3 · 4.4–6.0 — the repo line fades up; the plate holds dead still
+         to the last frame — */
+      tl.fromTo(repo, { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power3.out" }, 4.45);
+
+      /* full-span anchor: render length 6s */
+      tl.to({}, { duration: 6 }, 0);
+
+      window.__timelines["09-install"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

@@ -1,0 +1,185 @@
+{
+  "typography": [
+    {
+      "role": "display",
+      "fontFamily": "Hanken Grotesk",
+      "fontSize": "20px",
+      "fontWeight": "700",
+      "lineHeight": "30px",
+      "letterSpacing": "-0.2px",
+      "color": "#141111",
+      "sampleText": "##all"
+    },
+    {
+      "role": "body",
+      "fontFamily": "Space Grotesk",
+      "fontSize": "14px",
+      "fontWeight": "400",
+      "lineHeight": "23.8px",
+      "letterSpacing": "normal",
+      "color": "#141111",
+      "sampleText": "Pacing for this week: fix the SSE drop gap first, then the W"
+    },
+    {
+      "role": "label",
+      "fontFamily": "Hanken Grotesk",
+      "fontSize": "11px",
+      "fontWeight": "700",
+      "lineHeight": "16.5px",
+      "letterSpacing": "normal",
+      "color": "#141111",
+      "sampleText": "作为任务"
+    }
+  ],
+  "spacing": {
+    "observed": [
+      2,
+      4,
+      5,
+      6,
+      8,
+      9,
+      10,
+      12,
+      14,
+      16
+    ],
+    "baseUnit": 4
+  },
+  "radius": [],
+  "shadows": [
+    {
+      "value": "rgba(20, 17, 17, 0.35) 2px 2px 0px 0px",
+      "count": 5
+    },
+    {
+      "value": "rgba(20, 17, 17, 0.4) 2px 2px 0px 0px",
+      "count": 4
+    },
+    {
+      "value": "rgba(20, 17, 17, 0.45) 2px 2px 0px 0px",
+      "count": 3
+    },
+    {
+      "value": "rgba(20, 17, 17, 0.55) 3px 3px 0px 0px",
+      "count": 1
+    }
+  ],
+  "buttons": [
+    {
+      "label": "button",
+      "background": "#A9D877",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#141111",
+      "padding": "0px",
+      "borderRadius": "0px",
+      "border": "2px solid rgb(20, 17, 17)",
+      "boxShadow": "rgba(20, 17, 17, 0.35) 2px 2px 0px 0px",
+      "fontSize": "13px",
+      "fontWeight": "400",
+      "height": "28px"
+    },
+    {
+      "label": "+ 新建频道",
+      "background": "#FE7DA8",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#141111",
+      "padding": "0px",
+      "borderRadius": "0px",
+      "border": "2px solid rgb(20, 17, 17)",
+      "boxShadow": "rgba(20, 17, 17, 0.55) 3px 3px 0px 0px",
+      "fontSize": "12px",
+      "fontWeight": "700",
+      "height": "30px"
+    },
+    {
+      "label": "+ 新建 agent",
+      "background": "#FFFFFF",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#141111",
+      "padding": "0px",
+      "borderRadius": "0px",
+      "border": "2px solid rgb(20, 17, 17)",
+      "boxShadow": "rgba(20, 17, 17, 0.35) 2px 2px 0px 0px",
+      "fontSize": "12px",
+      "fontWeight": "700",
+      "height": "30px"
+    },
+    {
+      "label": "##all",
+      "background": "#FFD440",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#141111",
+      "padding": "6px 10px",
+      "borderRadius": "0px",
+      "border": "2px solid rgb(20, 17, 17)",
+      "boxShadow": "rgba(20, 17, 17, 0.45) 2px 2px 0px 0px",
+      "fontSize": "13px",
+      "fontWeight": "700",
+      "height": "35.5px"
+    },
+    {
+      "label": "#stream-sync",
+      "background": "transparent",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#141111",
+      "padding": "6px 10px",
+      "borderRadius": "0px",
+      "border": "2px solid rgba(0, 0, 0, 0)",
+      "boxShadow": "none",
+      "fontSize": "13px",
+      "fontWeight": "500",
+      "height": "35.5px"
+    }
+  ],
+  "cards": [],
+  "nav": {
+    "label": "navigation",
+    "background": "#FFFAEF",
+    "backgroundImage": "",
+    "backdropFilter": "",
+    "color": "#141111",
+    "padding": "14px 16px 10px",
+    "borderRadius": "0px",
+    "border": "",
+    "boxShadow": "none",
+    "fontSize": "14px",
+    "fontWeight": "400",
+    "height": "96.5px"
+  },
+  "chips": [],
+  "statCells": [],
+  "tabs": [
+    {
+      "label": "消息",
+      "background": "#FFD440",
+      "color": "#141111",
+      "padding": "9px 16px",
+      "borderRadius": "0px",
+      "border": "",
+      "boxShadow": "rgba(20, 17, 17, 0.45) 2px 2px 0px 0px",
+      "fontSize": "13px",
+      "fontWeight": "700",
+      "height": "39.5px"
+    },
+    {
+      "label": "任务",
+      "background": "transparent",
+      "color": "#141111",
+      "padding": "9px 16px",
+      "borderRadius": "0px",
+      "border": "",
+      "boxShadow": "none",
+      "fontSize": "13px",
+      "fontWeight": "700",
+      "height": "39.5px"
+    }
+  ],
+  "backgrounds": [],
+  "glass": []
+}

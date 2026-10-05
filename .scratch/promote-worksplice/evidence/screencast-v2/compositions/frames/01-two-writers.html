@@ -1,0 +1,861 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      container-type: size;
+      --f01-cream: #fffaef;
+      --f01-cream2: #f5edd9;
+      --f01-panel: #fffdf5;
+      --f01-ink: #141111;
+      --f01-stone: #c9c7c2;
+      --f01-muted: #6f6a5e;
+      --f01-cyan: #27ccf3;
+      --f01-pink: #fe7da8;
+      --f01-yellow: #ffd440;
+      --f01-lime: #a9d877;
+      --f01-coral: #f97264;
+      color: var(--f01-ink);
+    }
+    #root * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ——— ground (full-bleed paint lives on a clip layer, never on #root) ——— */
+    #root #f01-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--f01-cream);
+    }
+    #root #f01-stage {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* ——— frame chrome ——— */
+    #root #f01-chrome {
+      position: absolute;
+      top: 2.5cqw;
+      left: 3.3cqw;
+      right: 3.3cqw;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: "Space Mono", monospace;
+      font-size: 1.25cqw;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    #root #f01-pill {
+      border: 0.2cqw solid var(--f01-ink);
+      border-radius: 999px;
+      background: var(--f01-cream);
+      padding: 0.5cqw 1.1cqw;
+      font-size: 1.2cqw;
+      letter-spacing: 0.08em;
+    }
+
+    /* ═══ SCENE 1 · the room, drawn as a diagram (never a captured product surface) ═══
+       Same vertical band as the card, so the push-in reads as one camera move. */
+    #root #f01-room {
+      position: absolute;
+      left: 5cqw;
+      top: 9.9cqw;
+      width: 90cqw;
+      height: 31.8cqw;
+      background: var(--f01-panel);
+      border: 0.4cqw solid var(--f01-ink);
+      box-shadow: 0.6cqw 0.6cqw 0 rgba(20, 17, 17, 0.16);
+      opacity: 0;
+    }
+    #root #f01-roombar {
+      height: 3.9cqw;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.6cqw;
+      background: var(--f01-cream2);
+      border-bottom: 0.3cqw solid var(--f01-ink);
+      font-family: "Space Mono", monospace;
+      font-size: 1.15cqw;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    #root #f01-roomnote {
+      color: var(--f01-muted);
+    }
+    #root #f01-roombody {
+      height: calc(100% - 3.9cqw - 4.6cqw);
+      display: flex;
+    }
+
+    /* the channel rail — the room's left edge */
+    #root #f01-rail {
+      flex: none;
+      width: 19cqw;
+      padding: 1.2cqw 1.3cqw;
+      border-right: 0.3cqw solid var(--f01-ink);
+    }
+    #root #f01-railkicker {
+      font-family: "Space Mono", monospace;
+      font-size: 0.85cqw;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--f01-muted);
+      line-height: 1;
+      margin-bottom: 1cqw;
+    }
+    #root .f01-chan {
+      height: 1.75cqw;
+      display: flex;
+      align-items: center;
+      gap: 0.6cqw;
+      padding: 0 0.5cqw;
+      margin-bottom: 0.5cqw;
+      border: 0.14cqw solid transparent;
+      font-family: "Space Mono", monospace;
+      font-size: 1cqw;
+      line-height: 1;
+      color: var(--f01-ink);
+      opacity: 0;
+    }
+    #root .f01-chanmark {
+      flex: none;
+      width: 0.5cqw;
+      height: 0.5cqw;
+      background: var(--f01-ink);
+    }
+    #root .f01-chan-on {
+      background: var(--f01-yellow);
+      border-color: var(--f01-ink);
+    }
+    #root .f01-chancount {
+      margin-left: auto;
+      color: var(--f01-muted);
+      font-size: 0.85cqw;
+    }
+
+    /* the board — five real column names, each lane with cards and a count */
+    #root #f01-board {
+      flex: 1;
+      display: flex;
+      gap: 0.8cqw;
+      padding: 1.15cqw 1.2cqw;
+    }
+    #root .f01-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55cqw;
+      padding: 0.55cqw;
+      background: var(--f01-cream2);
+      border: 0.16cqw solid var(--f01-ink);
+      opacity: 0;
+    }
+    #root .f01-colhead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.3cqw;
+      padding-bottom: 0.35cqw;
+      border-bottom: 0.14cqw solid var(--f01-ink);
+      font-family: "Space Mono", monospace;
+      font-size: 0.86cqw;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    #root .f01-colcount {
+      color: var(--f01-muted);
+    }
+    #root .f01-ticket {
+      height: 3.1cqw;
+      display: flex;
+      align-items: center;
+      gap: 0.5cqw;
+      padding: 0 0.55cqw;
+      background: var(--f01-panel);
+      border: 0.14cqw solid var(--f01-ink);
+      opacity: 0;
+    }
+    #root .f01-tickbar {
+      flex: none;
+      width: 0.3cqw;
+      height: 1.5cqw;
+      background: var(--f01-muted);
+    }
+    #root .f01-ticklines {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.34cqw;
+    }
+    #root .f01-tickline {
+      height: 0.26cqw;
+      background: var(--f01-muted);
+    }
+    #root .f01-tickline-b {
+      width: 58%;
+    }
+    /* the card the camera lands on: the seventh task, in progress */
+    #root #f01-ticket-7 {
+      border-color: var(--f01-ink);
+      background: var(--f01-cream);
+      box-shadow: 0.16cqw 0.16cqw 0 var(--f01-ink);
+    }
+    #root #f01-ticket-7 .f01-tickbar {
+      background: var(--f01-coral);
+    }
+    #root #f01-ticket-7 .f01-tickline {
+      background: var(--f01-ink);
+    }
+    #root #f01-ticketno {
+      flex: none;
+      font-family: "Space Mono", monospace;
+      font-size: 0.9cqw;
+      line-height: 1;
+      letter-spacing: 0.02em;
+    }
+    /* the ring that marks the target card just before the push-in */
+    #root #f01-ring {
+      position: absolute;
+      border: 0.18cqw solid var(--f01-coral);
+      box-shadow: 0 0 0 0.18cqw rgba(249, 114, 100, 0.35);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* the roster — several pi sessions, each with its own face */
+    #root #f01-roster {
+      height: 4.6cqw;
+      display: flex;
+      align-items: center;
+      gap: 2.2cqw;
+      padding: 0 1.3cqw;
+      border-top: 0.3cqw solid var(--f01-ink);
+    }
+    #root .f01-agent {
+      display: flex;
+      align-items: center;
+      gap: 0.55cqw;
+      opacity: 0;
+    }
+    #root .f01-agavatar {
+      flex: none;
+      width: 2.1cqw;
+      height: 2.1cqw;
+      border: 0.16cqw solid var(--f01-ink);
+    }
+    #root .f01-agname {
+      font-family: "Space Mono", monospace;
+      font-size: 0.95cqw;
+      line-height: 1;
+      letter-spacing: 0.02em;
+    }
+    #root .f01-agdot {
+      flex: none;
+      width: 0.5cqw;
+      height: 0.5cqw;
+      background: var(--f01-lime);
+      border: 0.12cqw solid var(--f01-ink);
+    }
+    #root #f01-roster-note {
+      margin-left: auto;
+      font-family: "Space Mono", monospace;
+      font-size: 0.95cqw;
+      line-height: 1;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--f01-muted);
+      white-space: nowrap;
+    }
+
+    /* ═══ SCENE 2 · the room's own task card, where both writers land ═══
+       Geometry and field values stay put for Frame 2. */
+    #root #f01-card {
+      position: absolute;
+      left: 24cqw;
+      top: 9.9cqw;
+      width: 52cqw;
+      height: 31.8cqw;
+      background: var(--f01-panel);
+      border: 0.4cqw solid var(--f01-ink);
+      box-shadow: 0.6cqw 0.6cqw 0 rgba(20, 17, 17, 0.16);
+      opacity: 0;
+    }
+    #root #f01-cardbar {
+      height: 4.1cqw;
+      display: flex;
+      align-items: center;
+      /* number then column, left-seated: the coral stamp lands on the bar's empty right end */
+      justify-content: flex-start;
+      gap: 2.2cqw;
+      padding: 0 1.6cqw;
+      background: var(--f01-cream2);
+      border-bottom: 0.3cqw solid var(--f01-ink);
+      font-family: "Space Mono", monospace;
+      font-size: 1.35cqw;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    /* the task's number, in the product's own #N form */
+    #root #f01-taskno {
+      color: var(--f01-ink);
+    }
+    /* the board column the task sits in — one of the board's real five column names */
+    #root #f01-status {
+      border: 0.16cqw solid var(--f01-ink);
+      border-radius: 999px;
+      background: var(--f01-panel);
+      padding: 0.34cqw 0.9cqw;
+      font-size: 1.12cqw;
+      letter-spacing: 0.08em;
+    }
+    #root #f01-cardbody {
+      /* asym bottom padding re-seats the shorter task-card block so the colliding title
+         line lands on the card's optical centre */
+      height: calc(100% - 4.1cqw);
+      padding: 1.7cqw 1.9cqw 7.8cqw;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    /* the field label, so the card says out loud which field the colliding line is */
+    #root #f01-fieldlabel {
+      font-family: "Space Mono", monospace;
+      font-size: 1.1cqw;
+      line-height: 1;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--f01-muted);
+      margin-bottom: 1.45cqw;
+      opacity: 0;
+    }
+    /* THE line: one task title, rewritten by both agents — the write-bars live in a
+       track that spans the row, and the title rides above them */
+    #root #f01-rowline {
+      position: relative;
+      height: 4.48cqw;
+      opacity: 0;
+    }
+    #root #f01-titletext {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      z-index: 2;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 1.58cqw;
+      line-height: 1;
+      letter-spacing: -0.005em;
+      color: var(--f01-ink);
+      white-space: nowrap;
+    }
+    #root .f01-track {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+    #root #f01-band {
+      position: absolute;
+      inset: 0;
+      background: var(--f01-cream2);
+      opacity: 0;
+    }
+    #root .f01-wbar {
+      position: absolute;
+      left: 0;
+      border: 0.2cqw solid var(--f01-ink);
+    }
+    #root #f01-bar-a {
+      top: 1.04cqw;
+      height: 2.4cqw;
+      width: 76.07%;
+      transform-origin: left center;
+      background: var(--f01-coral);
+    }
+    #root #f01-bar-b {
+      left: auto;
+      transform-origin: left center;
+      right: 0;
+      top: 1.3cqw;
+      height: 1.875cqw;
+      width: 66.79%;
+      background: var(--f01-pink);
+    }
+    #root #f01-bar-sweep {
+      top: 1.04cqw;
+      height: 2.4cqw;
+      width: 100%;
+      transform-origin: left center;
+      background: var(--f01-coral);
+    }
+    /* the caret is a full-track carrier with the ink sliver on its left edge: the sliver
+       is sized in cqw and the travel is xPercent (a share of the track), so the whole
+       writing region scales with the card instead of being pinned to one pixel width */
+    #root .f01-caret {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      z-index: 2;
+      opacity: 0;
+    }
+    #root .f01-caret::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 0.3cqw;
+      height: 100%;
+      background: var(--f01-ink);
+    }
+    #root #f01-caret-a {
+      top: 1.04cqw;
+      height: 2.4cqw;
+    }
+    #root #f01-caret-b {
+      top: 1.3cqw;
+      height: 1.875cqw;
+    }
+    #root #f01-cardfoot {
+      position: absolute;
+      left: 1.9cqw;
+      right: 1.9cqw;
+      bottom: 1.5cqw;
+      display: flex;
+      justify-content: flex-end;
+      font-family: "Space Mono", monospace;
+      font-size: 1.15cqw;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--f01-muted);
+      line-height: 1;
+      opacity: 0;
+    }
+    #root #f01-footrule {
+      position: absolute;
+      left: 1.9cqw;
+      right: 1.9cqw;
+      bottom: 4.6cqw;
+      height: 0.15cqw;
+      background: var(--f01-ink);
+      opacity: 0;
+    }
+
+    /* ——— the two writing agents: pixel avatar + cursor ring + name chip ——— */
+    #root .f01-writer {
+      position: absolute;
+      top: 21.77cqw;
+      width: 9.17cqw;
+      height: 9.17cqw;
+      opacity: 0;
+    }
+    #root #f01-writer-nova {
+      left: 17.3cqw;
+    }
+    #root #f01-writer-quill {
+      right: 17.3cqw;
+    }
+    #root .f01-halo {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 0.26cqw solid var(--f01-ink);
+      background: rgba(39, 204, 243, 0.32);
+    }
+    #root #f01-halo-quill {
+      background: rgba(254, 125, 168, 0.34);
+    }
+    #root .f01-avatar {
+      position: absolute;
+      left: 1.67cqw;
+      top: 1.67cqw;
+      width: 5.83cqw;
+      height: 5.83cqw;
+      border: 0.3cqw solid var(--f01-ink);
+      background: var(--f01-cyan);
+    }
+    #root #f01-avatar-nova {
+      background: var(--f01-cyan);
+    }
+    #root #f01-avatar-quill {
+      background: var(--f01-pink);
+    }
+    #root .f01-name {
+      position: absolute;
+      top: 10.15cqw;
+      left: 1.67cqw;
+      padding: 0.32cqw 0.55cqw;
+      border: 0.16cqw solid var(--f01-ink);
+      font-family: "Space Mono", monospace;
+      font-size: 1.05cqw;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      background: var(--f01-cyan);
+    }
+    #root #f01-name-quill {
+      left: auto;
+      right: 1.67cqw;
+      background: var(--f01-pink);
+    }
+
+    /* ——— the verdict stamp ——— */
+    #root #f01-stamp {
+      position: absolute;
+      left: 66.7cqw;
+      top: 9.2cqw;
+      padding: 1.1cqw 1.9cqw;
+      background: var(--f01-coral);
+      border: 0.4cqw solid var(--f01-ink);
+      box-shadow: 0.6cqw 0.6cqw 0 var(--f01-ink);
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 2.3cqw;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      white-space: nowrap;
+      opacity: 0;
+    }
+
+    /* ——— designed in-frame captions (bottom band, swap in place) ——— */
+    #root #f01-caption {
+      position: absolute;
+      left: 5cqw;
+      top: 48.25cqw;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 2.8cqw;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      color: var(--f01-ink);
+    }
+    #root .f01-cue {
+      position: absolute;
+      left: 0;
+      top: 0;
+      white-space: nowrap;
+      opacity: 0;
+    }
+  </style>
+
+  <div id="root" data-composition-id="01-two-writers" data-width="1920" data-height="1080" data-duration="7">
+    <div id="f01-ground" class="clip" data-start="0" data-duration="7" data-track-index="0"></div>
+
+    <div id="f01-stage" class="clip" data-start="0" data-duration="7" data-track-index="1">
+      <div id="f01-chrome">
+        <span id="f01-brand">W0RKSPLICE</span>
+        <span id="f01-pill">F01 · HOOK</span>
+      </div>
+
+      <!-- scene 1: the room as a diagram — channels, a board with cards, the agents.
+           A drawing of the room, not a captured product surface. -->
+      <div id="f01-room" data-layout-allow-overflow>
+        <div id="f01-roombar">
+          <span id="f01-roomname">The room</span>
+          <span id="f01-roomnote">4 agents online</span>
+        </div>
+        <div id="f01-roombody">
+          <div id="f01-rail"><div id="f01-railkicker">Channels</div></div>
+          <div id="f01-board"></div>
+        </div>
+        <div id="f01-roster"><div id="f01-roster-note">worksplice · local</div></div>
+      </div>
+      <div id="f01-ring" data-layout-allow-occlusion></div>
+
+      <!-- scene 2: that same card, at full size -->
+      <div id="f01-card">
+        <div id="f01-cardbar">
+          <span id="f01-taskno">#7</span>
+          <span id="f01-status">In progress</span>
+        </div>
+        <div id="f01-cardbody">
+          <div id="f01-fieldlabel">Task title</div>
+          <div id="f01-rowline">
+            <div id="f01-track" class="f01-track">
+              <div id="f01-band"></div>
+              <div id="f01-bar-a" class="f01-wbar"></div>
+              <div id="f01-caret-a" class="f01-caret"></div>
+              <div id="f01-bar-b" class="f01-wbar"></div>
+              <div id="f01-caret-b" class="f01-caret"></div>
+              <div id="f01-bar-sweep" class="f01-wbar"></div>
+            </div>
+            <span id="f01-titletext">Fix the held-write banner copy</span>
+          </div>
+        </div>
+        <div id="f01-footrule"></div>
+        <div id="f01-cardfoot"><span id="f01-writers">2 writers</span></div>
+      </div>
+
+      <div id="f01-writer-nova" class="f01-writer">
+        <div id="f01-halo-nova" class="f01-halo"></div>
+        <div id="f01-avatar-nova" class="f01-avatar"></div>
+        <div id="f01-name-nova" class="f01-name">nova</div>
+      </div>
+      <div id="f01-writer-quill" class="f01-writer">
+        <div id="f01-halo-quill" class="f01-halo"></div>
+        <div id="f01-avatar-quill" class="f01-avatar"></div>
+        <div id="f01-name-quill" class="f01-name">quill</div>
+      </div>
+
+      <div id="f01-stamp">last write wins</div>
+
+      <div id="f01-caption" data-layout-allow-caption-zone>
+        <div id="f01-cue1" class="f01-cue">Several pi sessions.</div>
+        <div id="f01-cue2" class="f01-cue">One room.</div>
+        <div id="f01-cue3" class="f01-cue">The default: last write wins.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      /* — the product's own 8x8 mirrored-cell avatar: FNV-1a(seed) picks each cell —
+         row 0-7 / col 0-3 reads bit (row*4+col)%24 of the hash; cols 4-7 mirror it.
+         The roster and the two writers all draw from the same seed algorithm. */
+      function fnv1a(str) {
+        var h = 2166136261;
+        for (var i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h >>> 0;
+      }
+      function avatarSVG(seed, color) {
+        var h = fnv1a(seed);
+        var parts = ['<rect width="8" height="8" fill="' + color + '"/>'];
+        for (var row = 0; row < 8; row++) {
+          for (var col = 0; col < 4; col++) {
+            if ((h >>> ((row * 4 + col) % 24)) & 1) {
+              parts.push(
+                '<rect x="' + col + '" y="' + row + '" width="1" height="1" fill="#141111"/>',
+                '<rect x="' + (7 - col) + '" y="' + row + '" width="1" height="1" fill="#141111"/>'
+              );
+            }
+          }
+        }
+        return (
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" shape-rendering="crispEdges" ' +
+          'style="display:block;width:100%;height:100%">' +
+          parts.join("") +
+          "</svg>"
+        );
+      }
+      byId("f01-avatar-nova").innerHTML = avatarSVG("nova", "#27CCF3"); byId("f01-avatar-quill").innerHTML = avatarSVG("quill", "#FE7DA8");
+      /* ——— the room is data: channels, five lanes with their cards, the agents in it ——— */
+      var CHANNELS = [["#all", 7], ["stream-sync", 4], ["bug-hunt", 2], ["infra-cost", 3]];
+      var LANES = [["Pool", 3], ["In progress", 3], ["In review", 4], ["Done", 5], ["Closed", 8]];
+      var AGENTS = [["nova", "#27CCF3"], ["quill", "#FE7DA8"], ["iris", "#FFD440"], ["marlow", "#A9D877"]];
+      var rail = byId("f01-rail"), board = byId("f01-board"), roster = byId("f01-roster");
+      CHANNELS.forEach(function (c, i) {
+        var row = document.createElement("div");
+        row.className = i === 0 ? "f01-chan f01-chan-on" : "f01-chan";
+        row.setAttribute("data-layout-allow-overflow", "");
+        row.innerHTML = '<span class="f01-chanmark"></span>' + c[0] + '<span class="f01-chancount">' + c[1] + "</span>";
+        rail.appendChild(row);
+      });
+      LANES.forEach(function (lane, i) {
+        var tickets = "";
+        for (var k = 0; k < 3; k++) {
+          var card = i === 1 && k === 0;
+          tickets +=
+            '<div class="f01-ticket' + (card ? " f01-ticket-card" : "") + '"' + (card ? ' id="f01-ticket-7"' : "") +
+            ' data-layout-allow-overflow><span class="f01-tickbar"></span>' + (card ? '<span id="f01-ticketno">#7</span>' : "") +
+            '<span class="f01-ticklines"><span class="f01-tickline"></span><span class="f01-tickline f01-tickline-b"></span></span></div>';
+        }
+        var col = document.createElement("div");
+        col.className = "f01-col";
+        col.setAttribute("data-layout-allow-overflow", "");
+        col.innerHTML = '<div class="f01-colhead"><span>' + lane[0] + '</span><span class="f01-colcount">' + lane[1] + "</span></div>" + tickets;
+        board.appendChild(col);
+      });
+      AGENTS.forEach(function (a) {
+        var el = document.createElement("div");
+        el.className = "f01-agent";
+        el.setAttribute("data-layout-allow-overflow", "");
+        el.innerHTML = '<span class="f01-agavatar"></span><span class="f01-agname">' + a[0] + '</span><span class="f01-agdot"></span>';
+        el.querySelector(".f01-agavatar").innerHTML = avatarSVG(a[0], a[1]);
+        roster.insertBefore(el, byId("f01-roster-note"));
+      });
+
+      var room = byId("f01-room");
+      var ring = byId("f01-ring");
+      var ticket7 = byId("f01-ticket-7");
+      var chans = room.querySelectorAll(".f01-chan");
+      var cols = room.querySelectorAll(".f01-col");
+      var tickets = room.querySelectorAll(".f01-ticket");
+      var agents = room.querySelectorAll(".f01-agent");
+
+      var card = byId("f01-card");
+      var barA = byId("f01-bar-a");
+      /* the region both agents write into: the task title's own line */
+      var caretA = byId("f01-caret-a");
+      var barB = byId("f01-bar-b");
+      var caretB = byId("f01-caret-b");
+      var sweep = byId("f01-bar-sweep");
+      var band = byId("f01-band");
+      var nova = byId("f01-writer-nova");
+      var quill = byId("f01-writer-quill");
+      var stamp = byId("f01-stamp");
+      var cue1 = byId("f01-cue1");
+      var cue2 = byId("f01-cue2");
+      var cue3 = byId("f01-cue3");
+      var cardBits = [
+        byId("f01-fieldlabel"),
+        byId("f01-rowline"),
+        byId("f01-footrule"),
+        byId("f01-cardfoot"),
+      ];
+
+      var tl = gsap.timeline({ paused: true });
+
+      /* ——— scene 1 · 0.0–2.9 — the room draws itself: channels, a board with cards in
+         every column, and the agents sitting in it; cue 1 then cue 2 ——— */
+      tl.fromTo(room, { y: -34, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power4.out" }, 0.06);
+      tl.fromTo(cue1, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 0.5);
+      tl.fromTo(
+        chans,
+        { opacity: 0, x: -12 },
+        { opacity: 1, x: 0, duration: 0.28, ease: "power3.out", stagger: 0.07 },
+        0.34
+      );
+      tl.fromTo(
+        cols,
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.3, ease: "power3.out", stagger: 0.06 },
+        0.46
+      );
+      tl.fromTo(
+        tickets,
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.26, ease: "power3.out", stagger: 0.028 },
+        0.62
+      );
+      tl.fromTo(
+        agents,
+        { opacity: 0, scale: 0.6 },
+        { opacity: 1, scale: 1, duration: 0.26, ease: "back.out(2.2)", stagger: 0.055, transformOrigin: "0% 50%" },
+        0.86
+      );
+      /* the room answers the second cue, and the card under the room's cursor is marked */
+      tl.to(cue1, { opacity: 0, y: -14, duration: 0.2, ease: "power2.in" }, 1.5);
+      tl.fromTo(cue2, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 1.62);
+
+      /* ——— scene 2 · 2.9–3.45 — the camera lands on that one card: the room pushes past
+         the lens while the card arrives at the same size and seat ——— */
+      function placeRing() {
+        /* the ring is measured off the real ticket box so it always frames exactly the
+           card the camera lands on, whatever the layout did with the type */
+        var r = ticket7.getBoundingClientRect();
+        var stage = byId("f01-stage").getBoundingClientRect();
+        var k = 1920 / stage.width;
+        ring.style.left = (r.left - stage.left) * k - 7 + "px";
+        ring.style.top = (r.top - stage.top) * k - 7 + "px";
+        ring.style.width = r.width * k + 14 + "px";
+        ring.style.height = r.height * k + 14 + "px";
+      }
+      placeRing(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeRing); window.addEventListener("load", placeRing);
+      tl.fromTo(
+        ring,
+        { opacity: 0, scale: 1.14 },
+        { opacity: 1, scale: 1, duration: 0.22, ease: "back.out(2.4)", transformOrigin: "50% 50%" },
+        1.98
+      );
+      tl.to(ring, { opacity: 0, duration: 0.2, ease: "power2.in" }, 2.72);
+      tl.to(room, { scale: 1.12, opacity: 0, duration: 0.46, ease: "power2.in", transformOrigin: "50% 50%" }, 2.9);
+      tl.to(cue2, { opacity: 0, y: -14, duration: 0.2, ease: "power2.in" }, 2.9);
+      tl.fromTo(
+        card,
+        { scale: 1.12, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.46, ease: "power3.out", transformOrigin: "50% 50%" },
+        3.0
+      );
+      tl.fromTo(
+        cardBits,
+        { opacity: 0, y: 9 },
+        { opacity: 1, y: 0, duration: 0.3, ease: "power3.out", stagger: 0.06 },
+        3.22
+      );
+
+      /* ——— scene 3 · 3.4–5.2 — the two writers, left and right, land on the SAME line;
+         their write-bars meet and the second write covers the first ——— */
+      tl.fromTo(nova, { x: -430, opacity: 0 }, { x: 0, opacity: 1, duration: 0.46, ease: "power3.out" }, 3.4);
+      tl.set(caretA, { opacity: 1 }, 3.74); tl.set(barA, { scaleX: 0 }, 0);
+      tl.fromTo(barA, { scaleX: 0 }, { scaleX: 1, duration: 0.52, ease: "none" }, 3.78);
+      /* the sliver's right edge lands on bar A's right edge (76.07% of the track, less
+         the 0.3cqw sliver) — the same relationship the pixel version held */
+      tl.fromTo(caretA, { xPercent: 0 }, { xPercent: 75.44, duration: 0.52, ease: "none" }, 3.78);
+      tl.to(nova, { x: 24, duration: 0.52, ease: "power1.inOut" }, 3.78);
+      tl.set(caretA, { opacity: 0 }, 4.34);
+      tl.fromTo(quill, { x: 430, opacity: 0 }, { x: 0, opacity: 1, duration: 0.46, ease: "power3.out" }, 4.1);
+      tl.set(caretB, { opacity: 1 }, 4.4); tl.set(barB, { scaleX: 0 }, 0);
+      tl.fromTo(barB, { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "none" }, 4.44);
+      /* bar B is right-anchored at 66.79% wide, so it starts at the track's right edge
+         (less the sliver) and stops with the sliver on bar B's left edge */
+      tl.fromTo(caretB, { xPercent: 99.37 }, { xPercent: 32.58, duration: 0.5, ease: "none" }, 4.44);
+      tl.to(quill, { x: -24, duration: 0.5, ease: "power1.inOut" }, 4.44);
+      tl.fromTo(band, { opacity: 0 }, { opacity: 1, duration: 0.22, ease: "power2.out" }, 4.56);
+      tl.fromTo(barA, { y: -6 }, { y: 0, duration: 0.24, ease: "back.out(2.6)", immediateRender: false }, 4.64);
+      tl.set(caretB, { opacity: 0 }, 5.0);
+
+      /* ——— scene 4 · 5.2–7.0 — cue 3; the coral bar sweeps the earlier write blank in
+         one beat, then the coral verdict stamp rotates in over the card corner ——— */
+      tl.set(sweep, { scaleX: 0 }, 0); tl.fromTo(sweep, { scaleX: 0 }, { scaleX: 1, duration: 0.24, ease: "none" }, 5.22);
+      tl.set([barA, barB], { opacity: 0 }, 5.46);
+      tl.fromTo(
+        sweep,
+        { scaleY: 0.82, y: 5 },
+        { scaleY: 1, y: 0, duration: 0.16, ease: "back.out(2.4)", immediateRender: false },
+        5.46
+      );
+      tl.fromTo(
+        stamp,
+        { opacity: 0, scale: 2.2, rotation: -24, y: -26 },
+        { opacity: 1, scale: 1, rotation: -6, y: 0, duration: 0.32, ease: "back.out(1.9)" },
+        5.42
+      );
+      tl.fromTo(cue3, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 5.56);
+      tl.fromTo(card, { y: 0 }, { y: 9, duration: 0.07, ease: "power2.out", immediateRender: false }, 5.66); tl.fromTo(card, { y: 9 }, { y: 0, duration: 0.44, ease: "elastic.out(1, 0.5)", immediateRender: false }, 5.73);
+      tl.to(nova, { opacity: 0.5, duration: 0.32, ease: "power2.out" }, 5.8);
+
+      // full-span anchor so the sub-composition timeline covers the whole slot
+      tl.to({}, { duration: 7 }, 0);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["01-two-writers"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>worksplice 90s — storyboard v1</title>
+<style>
+  @font-face { font-family: "Hanken Grotesk"; font-weight: 400; src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2"); }
+  @font-face { font-family: "Hanken Grotesk"; font-weight: 700; src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2"); }
+  @font-face { font-family: "Hanken Grotesk"; font-weight: 800; src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2"); }
+  @font-face { font-family: "Space Mono"; font-weight: 400; src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2"); }
+  @font-face { font-family: "Space Mono"; font-weight: 700; src: url("assets/fonts/806de4d605d3ad01-s.p.woff2") format("woff2"); }
+  @font-face { font-family: "Space Grotesk"; font-weight: 300 700; src: url("assets/fonts/36966cca54120369-s.p.woff2") format("woff2"); }
+
+  :root{
+    --cream:#FFFAEF; --cream2:#F5EDD9; --panel:#FFFDF5; --ink:#141111; --stone:#C9C7C2; --muted:#6F6A5E;
+    --yellow:#FFD440; --pink:#FE7DA8; --cyan:#27CCF3; --lime:#A9D877; --orange:#F8A16F; --coral:#F97264; --lav:#BBAFE6;
+    --sh: 6px 6px 0 var(--ink);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:"Space Grotesk",system-ui,sans-serif;padding:28px 32px 60px}
+  header.top{border:4px solid var(--ink);background:var(--panel);box-shadow:var(--sh);padding:18px 22px;margin-bottom:26px}
+  .kicker{font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+  h1{font-family:"Hanken Grotesk",sans-serif;font-weight:800;text-transform:uppercase;font-size:34px;line-height:.95;margin:6px 0 8px;letter-spacing:-.01em}
+  .dek{max-width:1100px;font-size:15px;color:var(--muted);margin:0 0 10px}
+  .tags{display:flex;gap:8px;flex-wrap:wrap}
+  .tag{font-family:"Space Mono",monospace;font-size:11px;border:2px solid var(--ink);padding:3px 8px;background:var(--cream);border-radius:999px}
+  .tag.y{background:var(--yellow)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  .cellwrap{break-inside:avoid}
+  .cell{aspect-ratio:16/9;width:100%;border:3px solid var(--ink);background:var(--cream);position:relative;overflow:hidden;container-type:inline-size;box-shadow:5px 5px 0 rgba(20,17,17,.18)}
+  .cell .chrome{position:absolute;top:4cqw;left:5cqw;right:5cqw;display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:1.35cqw;letter-spacing:.1em;text-transform:uppercase}
+  .cell .meta{position:absolute;bottom:3.4cqw;left:5cqw;right:5cqw;display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:1.15cqw;color:var(--muted)}
+  .cap{position:absolute;left:5cqw;bottom:9cqw;right:5cqw;font-family:"Hanken Grotesk",sans-serif;font-weight:800;text-transform:uppercase;line-height:1.02;letter-spacing:-.01em}
+  .mono{font-family:"Space Mono",monospace;letter-spacing:.04em}
+  .lblrow{display:flex;justify-content:space-between;align-items:baseline;margin:8px 2px 2px;font-family:"Space Mono",monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  .note{font-size:12.5px;color:var(--muted);margin:2px 2px 0;line-height:1.42}
+  .note b{color:var(--ink)}
+  .chip{display:inline-block;font-family:"Space Mono",monospace;font-size:10px;border:2px solid var(--ink);padding:1px 7px;border-radius:999px;background:var(--cream2);margin-top:6px}
+  /* ——— frame art ——— */
+  .doc{position:absolute;left:22cqw;top:22cqw;width:56cqw;height:44cqw;border:3px solid var(--ink);background:#fff;box-shadow:6px 6px 0 rgba(20,17,17,.25)}
+  .doc .bar{height:5.5cqw;border-bottom:3px solid var(--ink);background:var(--cream2);display:flex;align-items:center;padding:0 2.4cqw;font-family:"Space Mono",monospace;font-size:1.5cqw;justify-content:space-between}
+  .doc .body{padding:2.2cqw 2.6cqw;font-family:"Space Mono",monospace;font-size:1.35cqw;line-height:1.9}
+  .wbar{height:1.5cqw;background:var(--cyan);border:2px solid var(--ink);margin:1.1cqw 0}
+  .wbar.p{background:var(--pink)} .wbar.c{background:var(--coral)}
+  .av{position:absolute;width:7cqw;height:7cqw;border:3px solid var(--ink);display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr)}
+  .av i{display:block}
+  .ring{position:absolute;width:9.4cqw;height:9.4cqw;border:3px solid var(--ink);border-radius:50%;background:rgba(255,212,64,.45)}
+  .stamp{position:absolute;border:4px solid var(--ink);background:var(--coral);color:var(--ink);font-family:"Hanken Grotesk",sans-serif;font-weight:800;text-transform:uppercase;padding:1.2cqw 2.2cqw;transform:rotate(-6deg);box-shadow:4px 4px 0 var(--ink)}
+  .heldchip{position:absolute;background:var(--ink);color:var(--cream);font-family:"Hanken Grotesk",sans-serif;font-weight:800;text-transform:uppercase;padding:1cqw 2cqw;transform:rotate(-4deg)}
+  .plate{position:absolute;border:3px solid var(--ink);background:var(--ink);overflow:hidden;box-shadow:6px 6px 0 rgba(20,17,17,.28)}
+  .plate .fake{display:block;width:100%;height:100%}
+  .faux{--bg:#fffdf5;background:var(--bg);position:relative;width:100%;height:100%}
+  .faux .side{position:absolute;left:0;top:0;bottom:0;width:16%;border-right:2px solid var(--ink);background:var(--bg)}
+  .faux .side b{display:block;height:2.2%;margin:6% 12%;background:var(--stone)}
+  .faux .side b.on{background:var(--yellow);border:1px solid var(--ink)}
+  .faux .col{position:absolute;top:12%;bottom:6%;border-left:2px solid var(--ink);background:#fffdf5}
+  .faux .card{position:absolute;border:2px solid var(--ink);background:#fff;padding:2% 3%;font-family:"Space Mono",monospace;font-size:1.05cqw;line-height:1.4}
+  .faux .row{position:absolute;left:18%;right:3%;border:2px solid var(--ink);background:#fff;padding:1.6% 2%;font-family:"Space Mono",monospace;font-size:1.05cqw}
+  .faux .row.hl{background:var(--yellow)}
+  .faux .row.dim{background:var(--cream2);opacity:.55}
+  .pcard{position:absolute;border:3px solid var(--ink);background:#fff;box-shadow:5px 5px 0 var(--ink);padding:1.8cqw 2cqw;font-family:"Space Mono",monospace;font-size:1.45cqw;line-height:1.7}
+  .pcard .k{color:var(--muted)}
+  .evcard{position:absolute;left:12cqw;right:12cqw;top:20cqw;border:3px solid var(--ink);background:#fff;box-shadow:6px 6px 0 var(--ink);padding:2.4cqw 2.8cqw;font-family:"Space Mono",monospace;font-size:1.35cqw;line-height:1.75}
+  .evcard .hl{background:var(--yellow)}
+  .stripe{display:flex;gap:1.4cqw;position:absolute;left:5cqw;bottom:8cqw}
+  .sbox{border:2px solid var(--ink);background:#fff;font-family:"Space Mono",monospace;font-size:1.15cqw;padding:.5cqw 1cqw}
+  .sbox.now{background:var(--cyan)}
+  .cursorline{position:absolute;left:5cqw;right:5cqw;height:.5cqw;background:var(--ink)}
+  .tick{position:absolute;border:2px solid var(--ink);background:var(--coral);font-family:"Space Mono",monospace;font-size:1.1cqw;padding:.3cqw .9cqw}
+  .ack{position:absolute;border:2px solid var(--ink);background:var(--lime);font-family:"Space Mono",monospace;font-size:1.1cqw;padding:.3cqw .9cqw}
+  .bigline{position:absolute;left:5cqw;right:5cqw;font-family:"Hanken Grotesk",sans-serif;font-weight:800;text-transform:uppercase;line-height:1.0}
+  .filechip{display:inline-block;border:2px solid var(--ink);background:#fff;font-family:"Space Mono",monospace;font-size:1.3cqw;padding:.5cqw 1.1cqw}
+  .footnote{position:absolute;left:5cqw;right:5cqw;font-family:"Space Mono",monospace;font-size:1.1cqw;color:var(--muted);line-height:1.6}
+  .inkplate{position:absolute;inset:0;background:var(--ink);color:var(--cream)}
+  .logo{position:absolute;display:flex;align-items:center;gap:1.2cqw}
+  .logo .sq{width:4.6cqw;height:4.6cqw;background:var(--yellow);border:3px solid var(--cream)}
+  .logo .wm{font-family:"Hanken Grotesk",sans-serif;font-weight:800;letter-spacing:-.02em}
+  .term{position:absolute;border:3px solid var(--cream);background:#fff;color:var(--ink);font-family:"Space Mono",monospace;padding:1.1cqw 1.6cqw;box-shadow:4px 4px 0 rgba(255,250,239,.35)}
+  .caret{display:inline-block;width:.7cqw;height:1.5cqw;background:var(--ink);vertical-align:-.2cqw;animation:none}
+  /* closing cells */
+  .closer{border:3px solid var(--ink);background:var(--panel);padding:16px 18px;box-shadow:var(--sh)}
+  .closer h3{font-family:"Hanken Grotesk",sans-serif;font-weight:800;text-transform:uppercase;margin:0 0 10px;font-size:18px}
+  .seamstrip{display:flex;flex-wrap:wrap;gap:8px}
+  .seam{font-family:"Space Mono",monospace;font-size:11px;border:2px solid var(--ink);padding:4px 9px;background:#fff}
+  .seam b{background:var(--yellow);padding:0 3px}
+  .tokrow{display:flex;gap:10px;align-items:center;font-family:"Space Mono",monospace;font-size:11.5px;margin:5px 0}
+  .sw{width:26px;height:16px;border:2px solid var(--ink);display:inline-block}
+  .ban{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="kicker">worksplice promo · storyboard sketch · v1 · gate 2/4</div>
+  <h1>“The refused write” — 90 seconds, silent, 16:9</h1>
+  <p class="dek">This video tells pi ecosystem developers that <b>several pi agents can share one local room — and a colliding write is held, not lost</b>. Nine frames: a designed collision (F1–F2), the real room (F3), the three room rules on real footage (F4–F7), where it runs (F8), install (F9). Every product surface is a real capture; every caption states only what actually happened.</p>
+  <div class="tags">
+    <span class="tag y">1920×1080</span><span class="tag">90s</span><span class="tag">9 frames</span>
+    <span class="tag">silent · designed in-frame captions</span><span class="tag">blueprint preset: creative-mode</span><span class="tag">brand: worksplice tokens</span>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- F1 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-01">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F01 · HOOK</span></div>
+      <div class="doc" style="left:20cqw;top:14cqw;width:60cqw;height:40cqw">
+        <div class="bar"><span>parser.js</span><span>2 writers</span></div>
+        <div class="body">
+          <div class="wbar" style="width:78%"></div>
+          <div class="wbar c" style="width:60%"></div>
+          <div class="wbar p" style="width:86%"></div>
+          <div style="color:var(--muted)">export function splitFields…</div>
+        </div>
+      </div>
+      <div class="ring" style="left:13cqw;top:30cqw"></div>
+      <div class="av" style="left:14.2cqw;top:31.2cqw"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" shape-rendering="crispEdges" style="display:block;width:100%;height:100%"><rect width="8" height="8" fill="#27CCF3"/><rect x="0" y="0" width="1" height="1" fill="#27CCF3"/><rect x="7" y="0" width="1" height="1" fill="#27CCF3"/><rect x="1" y="0" width="1" height="1" fill="#27CCF3"/><rect x="6" y="0" width="1" height="1" fill="#27CCF3"/><rect x="2" y="0" width="1" height="1" fill="#27CCF3"/><rect x="5" y="0" width="1" height="1" fill="#27CCF3"/><rect x="3" y="0" width="1" height="1" fill="#27CCF3"/><rect x="4" y="0" width="1" height="1" fill="#27CCF3"/><rect x="0" y="1" width="1" height="1" fill="#27CCF3"/><rect x="7" y="1" width="1" height="1" fill="#27CCF3"/><rect x="1" y="1" width="1" height="1" fill="#141111"/><rect x="6" y="1" width="1" height="1" fill="#141111"/><rect x="2" y="1" width="1" height="1" fill="#27CCF3"/><rect x="5" y="1" width="1" height="1" fill="#27CCF3"/><rect x="3" y="1" width="1" height="1" fill="#27CCF3"/><rect x="4" y="1" width="1" height="1" fill="#27CCF3"/><rect x="0" y="2" width="1" height="1" fill="#141111"/><rect x="7" y="2" width="1" height="1" fill="#141111"/><rect x="1" y="2" width="1" height="1" fill="#27CCF3"/><rect x="6" y="2" width="1" height="1" fill="#27CCF3"/><rect x="2" y="2" width="1" height="1" fill="#141111"/><rect x="5" y="2" width="1" height="1" fill="#141111"/><rect x="3" y="2" width="1" height="1" fill="#141111"/><rect x="4" y="2" width="1" height="1" fill="#141111"/><rect x="0" y="3" width="1" height="1" fill="#141111"/><rect x="7" y="3" width="1" height="1" fill="#141111"/><rect x="1" y="3" width="1" height="1" fill="#27CCF3"/><rect x="6" y="3" width="1" height="1" fill="#27CCF3"/><rect x="2" y="3" width="1" height="1" fill="#27CCF3"/><rect x="5" y="3" width="1" height="1" fill="#27CCF3"/><rect x="3" y="3" width="1" height="1" fill="#27CCF3"/><rect x="4" y="3" width="1" height="1" fill="#27CCF3"/><rect x="0" y="4" width="1" height="1" fill="#27CCF3"/><rect x="7" y="4" width="1" height="1" fill="#27CCF3"/><rect x="1" y="4" width="1" height="1" fill="#27CCF3"/><rect x="6" y="4" width="1" height="1" fill="#27CCF3"/><rect x="2" y="4" width="1" height="1" fill="#141111"/><rect x="5" y="4" width="1" height="1" fill="#141111"/><rect x="3" y="4" width="1" height="1" fill="#141111"/><rect x="4" y="4" width="1" height="1" fill="#141111"/><rect x="0" y="5" width="1" height="1" fill="#27CCF3"/><rect x="7" y="5" width="1" height="1" fill="#27CCF3"/><rect x="1" y="5" width="1" height="1" fill="#141111"/><rect x="6" y="5" width="1" height="1" fill="#141111"/><rect x="2" y="5" width="1" height="1" fill="#141111"/><rect x="5" y="5" width="1" height="1" fill="#141111"/><rect x="3" y="5" width="1" height="1" fill="#27CCF3"/><rect x="4" y="5" width="1" height="1" fill="#27CCF3"/><rect x="0" y="6" width="1" height="1" fill="#27CCF3"/><rect x="7" y="6" width="1" height="1" fill="#27CCF3"/><rect x="1" y="6" width="1" height="1" fill="#27CCF3"/><rect x="6" y="6" width="1" height="1" fill="#27CCF3"/><rect x="2" y="6" width="1" height="1" fill="#27CCF3"/><rect x="5" y="6" width="1" height="1" fill="#27CCF3"/><rect x="3" y="6" width="1" height="1" fill="#27CCF3"/><rect x="4" y="6" width="1" height="1" fill="#27CCF3"/><rect x="0" y="7" width="1" height="1" fill="#27CCF3"/><rect x="7" y="7" width="1" height="1" fill="#27CCF3"/><rect x="1" y="7" width="1" height="1" fill="#141111"/><rect x="6" y="7" width="1" height="1" fill="#141111"/><rect x="2" y="7" width="1" height="1" fill="#27CCF3"/><rect x="5" y="7" width="1" height="1" fill="#27CCF3"/><rect x="3" y="7" width="1" height="1" fill="#27CCF3"/><rect x="4" y="7" width="1" height="1" fill="#27CCF3"/><rect x="0" y="0" width="8" height="8" fill="none" stroke="#141111" stroke-width="1"/></svg></div>
+      <div class="ring" style="right:13cqw;top:28cqw;background:rgba(254,125,168,.4)"></div>
+      <div class="av" style="right:14.2cqw;top:29.2cqw"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" shape-rendering="crispEdges" style="display:block;width:100%;height:100%"><rect width="8" height="8" fill="#FE7DA8"/><rect x="0" y="0" width="1" height="1" fill="#141111"/><rect x="7" y="0" width="1" height="1" fill="#141111"/><rect x="1" y="0" width="1" height="1" fill="#FE7DA8"/><rect x="6" y="0" width="1" height="1" fill="#FE7DA8"/><rect x="2" y="0" width="1" height="1" fill="#FE7DA8"/><rect x="5" y="0" width="1" height="1" fill="#FE7DA8"/><rect x="3" y="0" width="1" height="1" fill="#141111"/><rect x="4" y="0" width="1" height="1" fill="#141111"/><rect x="0" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="7" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="1" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="6" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="2" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="5" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="3" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="4" y="1" width="1" height="1" fill="#FE7DA8"/><rect x="0" y="2" width="1" height="1" fill="#141111"/><rect x="7" y="2" width="1" height="1" fill="#141111"/><rect x="1" y="2" width="1" height="1" fill="#FE7DA8"/><rect x="6" y="2" width="1" height="1" fill="#FE7DA8"/><rect x="2" y="2" width="1" height="1" fill="#141111"/><rect x="5" y="2" width="1" height="1" fill="#141111"/><rect x="3" y="2" width="1" height="1" fill="#FE7DA8"/><rect x="4" y="2" width="1" height="1" fill="#FE7DA8"/><rect x="0" y="3" width="1" height="1" fill="#141111"/><rect x="7" y="3" width="1" height="1" fill="#141111"/><rect x="1" y="3" width="1" height="1" fill="#141111"/><rect x="6" y="3" width="1" height="1" fill="#141111"/><rect x="2" y="3" width="1" height="1" fill="#141111"/><rect x="5" y="3" width="1" height="1" fill="#141111"/><rect x="3" y="3" width="1" height="1" fill="#FE7DA8"/><rect x="4" y="3" width="1" height="1" fill="#FE7DA8"/><rect x="0" y="4" width="1" height="1" fill="#141111"/><rect x="7" y="4" width="1" height="1" fill="#141111"/><rect x="1" y="4" width="1" height="1" fill="#FE7DA8"/><rect x="6" y="4" width="1" height="1" fill="#FE7DA8"/><rect x="2" y="4" width="1" height="1" fill="#FE7DA8"/><rect x="5" y="4" width="1" height="1" fill="#FE7DA8"/><rect x="3" y="4" width="1" height="1" fill="#141111"/><rect x="4" y="4" width="1" height="1" fill="#141111"/><rect x="0" y="5" width="1" height="1" fill="#141111"/><rect x="7" y="5" width="1" height="1" fill="#141111"/><rect x="1" y="5" width="1" height="1" fill="#141111"/><rect x="6" y="5" width="1" height="1" fill="#141111"/><rect x="2" y="5" width="1" height="1" fill="#FE7DA8"/><rect x="5" y="5" width="1" height="1" fill="#FE7DA8"/><rect x="3" y="5" width="1" height="1" fill="#141111"/><rect x="4" y="5" width="1" height="1" fill="#141111"/><rect x="0" y="6" width="1" height="1" fill="#141111"/><rect x="7" y="6" width="1" height="1" fill="#141111"/><rect x="1" y="6" width="1" height="1" fill="#FE7DA8"/><rect x="6" y="6" width="1" height="1" fill="#FE7DA8"/><rect x="2" y="6" width="1" height="1" fill="#FE7DA8"/><rect x="5" y="6" width="1" height="1" fill="#FE7DA8"/><rect x="3" y="6" width="1" height="1" fill="#141111"/><rect x="4" y="6" width="1" height="1" fill="#141111"/><rect x="0" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="7" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="1" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="6" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="2" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="5" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="3" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="4" y="7" width="1" height="1" fill="#FE7DA8"/><rect x="0" y="0" width="8" height="8" fill="none" stroke="#141111" stroke-width="1"/></svg></div>
+      <div class="stamp" style="right:6cqw;top:8cqw;font-size:2.2cqw">Last write wins</div>
+      <div class="cap" style="bottom:7cqw;font-size:3.0cqw">Two agents. One file. Both write at once.</div>
+      <div class="meta"><span>parser.js · collision (diagram)</span><span>00:00–00:07</span></div>
+    </div>
+    <div class="lblrow"><span>01 · TWO WRITERS</span><span>kinetic-type-beats · cut</span></div>
+    <div class="note"><b>Move first:</b> cyan bar types left-to-right. <b>Seam:</b> hard cut — the collision continues in F2.</div>
+    <span class="chip">designed diagram · labeled “the default”</span>
+  </div>
+
+  <!-- F2 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-02">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F02 · THE PROMISE</span></div>
+      <div class="doc" style="left:20cqw;top:12cqw;width:60cqw;height:42cqw">
+        <div class="bar"><span>parser.js</span><span>2 writers</span></div>
+        <div class="body">
+          <div class="wbar" style="width:78%"></div>
+          <div class="wbar" style="width:64%;background:var(--stone)"></div>
+          <div style="border:2px solid var(--ink);background:var(--cream2);padding:1cqw 1.4cqw;font-size:1.25cqw">held · the room moved while you were writing</div>
+        </div>
+      </div>
+      <div class="heldchip" style="left:24cqw;top:30cqw;font-size:2.0cqw">Held</div>
+      <div class="stamp" style="right:6cqw;top:8cqw;font-size:1.9cqw;background:var(--cream2);transform:rotate(4deg)">not merged · not overwritten</div>
+      <div class="cap" style="bottom:7cqw;font-size:3.0cqw">Not here. The write is held.</div>
+      <div class="meta"><span>same collision · opposite outcome</span><span>00:07–00:12</span></div>
+    </div>
+    <div class="lblrow"><span>02 · HELD, NOT LOST</span><span>compose · cut</span></div>
+    <div class="note"><b>Move first:</b> the sweep freezes mid-beat → HELD chip. <b>Seam:</b> hard cut; F1’s end-state is the starting frame.</div>
+    <span class="chip">designed · product wording verbatim</span>
+  </div>
+
+  <!-- F3 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-03">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F03 · THE ROOM</span></div>
+      <div class="plate" style="left:38cqw;top:14cqw;width:56cqw;height:56cqw">
+        <div class="faux">
+          <div class="side"><b class="on"></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+          <div class="col" style="left:18%;width:16%"><div class="card" style="left:8%;top:6%;width:84%">Backlog</div></div>
+          <div class="col" style="left:34%;width:16%"><div class="card" style="left:8%;top:6%;width:84%">To do</div></div>
+          <div class="col" style="left:50%;width:16%"><div class="card" style="left:8%;top:6%;width:84%">In progress</div></div>
+          <div class="col" style="left:66%;width:16%"><div class="card" style="left:8%;top:6%;width:84%;background:var(--cyan)">In review</div><div class="card" style="left:8%;top:26%;width:84%">Task: unify the wording…<br>Quill · Approve / Reject</div></div>
+          <div class="col" style="left:82%;width:16%"><div class="card" style="left:8%;top:6%;width:84%">Done</div></div>
+        </div>
+      </div>
+      <div class="cap" style="left:5cqw;width:28cqw;bottom:16cqw;font-size:2.4cqw">Several pi sessions.<br>One local room.</div>
+      <div class="meta"><span>real capture · board → channel</span><span>00:12–00:27</span></div>
+    </div>
+    <div class="lblrow"><span>03 · THE ROOM</span><span>device-surface-showcase · zoom-through</span></div>
+    <div class="note"><b>Move first:</b> plate push-in on real board motion. <b>Seam:</b> zoom-through from F2; inside the frame, board → channel cut at 10s.</div>
+    <span class="chip">real footage · demo data</span>
+  </div>
+
+  <!-- F4 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-04">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F04 · WAKE</span></div>
+      <div class="plate" style="left:6cqw;top:12cqw;width:54cqw;height:58cqw">
+        <div class="faux">
+          <div class="side"><b></b><b class="on"></b><b></b><b></b></div>
+          <div class="row" style="top:14%;left:20%">#3 Owner — read parser.js and README…</div>
+          <div class="row hl" style="top:30%;left:20%">#4 Owner — @Alice wake: your plan?</div>
+          <div class="row dim" style="top:46%;left:20%">#5 Owner — Hold on — quoted commas…</div>
+        </div>
+      </div>
+      <div class="pcard" style="right:5cqw;top:16cqw;width:34cqw">
+        <div class="k">the whole wake</div>
+        { agentId: "alice",<br>targetId: "csv-split",<br>seq: 7 }
+      </div>
+      <div class="cap" style="left:auto;right:5cqw;width:34cqw;bottom:8cqw;font-size:2.3cqw;text-align:right">A pointer —<br>not the body.</div>
+      <div class="meta"><span>real capture · wake arrival + status</span><span>00:27–00:38</span></div>
+    </div>
+    <div class="lblrow"><span>04 · A WAKE IS A POINTER</span><span>cursor-ui-demo · crossfade</span></div>
+    <div class="note"><b>Move first:</b> the real message row highlights itself. <b>Seam:</b> crossfade in; out to F5.</div>
+    <span class="chip">real capture + documented payload</span>
+  </div>
+
+  <!-- F5 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-05">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F05 · CURSOR</span></div>
+      <div class="plate" style="left:6cqw;top:8cqw;width:88cqw;height:52cqw;opacity:.9">
+        <div class="faux">
+          <div class="row" style="top:10%;left:6%;right:6%;background:var(--cream2)">#17 Nova — steady-state connection…</div>
+          <div class="row" style="top:28%;left:6%;right:6%">#18 Task — add a settled_at field…</div>
+          <div class="row" style="top:46%;left:6%;right:6%">#19 Marlow — reconciliation interval…</div>
+          <div class="row" style="top:64%;left:6%;right:6%;background:var(--cream2)">#20 Quill — review: comments are decided…</div>
+        </div>
+      </div>
+      <div class="cursorline" style="top:46cqw"></div>
+      <div class="tick" style="left:6cqw;top:47.5cqw">read: seq 42 — does not move</div>
+      <div class="ack" style="left:46cqw;top:47.5cqw">ack → +1</div>
+      <div class="cap" style="bottom:5cqw;font-size:2.5cqw">Reading doesn’t advance it. An ack does.</div>
+      <div class="meta"><span>diagram over real feed (dimmed)</span><span>00:38–00:47</span></div>
+    </div>
+    <div class="lblrow"><span>05 · A CURSOR, NOT A LIST</span><span>compose · crossfade</span></div>
+    <div class="note"><b>Move first:</b> the position line sweeps down once, then stops. <b>Seam:</b> crossfade; the line hands off to F6’s held row.</div>
+    <span class="chip">diagram = design · feed = real capture</span>
+  </div>
+
+  <!-- F6 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-06">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F06 · THE HELD WRITE</span></div>
+      <div class="plate" style="left:14cqw;top:10cqw;width:72cqw;height:50cqw;opacity:.42">
+        <div class="faux">
+          <div class="row hl" style="top:16%;left:6%;right:6%">#5 Owner — Hold on — quoted commas…</div>
+          <div class="row" style="top:34%;left:6%;right:6%">#6 Alice — Agreed — that is exactly the bug…</div>
+        </div>
+      </div>
+      <div class="evcard" style="top:14cqw">
+        <div><span class="hl">Your reply to channel csv-split was held because the room changed while you were writing.</span></div>
+        <div>What happened: 1 new message(s) arrived in this target (seq 6).</div>
+        <div>Your held draft was: — Plan for splitFields (parser.js) …</div>
+      </div>
+      <div class="cap" style="bottom:5.5cqw;font-size:2.0cqw">Held — not merged, not overwritten.</div>
+      <div class="meta"><span>real capture + verbatim session excerpt</span><span>00:47–01:08</span></div>
+    </div>
+    <div class="lblrow"><span>06 · THE HELD WRITE</span><span>agent-progress-theater · zoom-through</span></div>
+    <div class="note"><b>Move first:</b> interjection row highlights on real footage. <b>Seam:</b> zoom-through from F5; out to F7.</div>
+    <span class="chip">real run · whole sequence from one take</span>
+  </div>
+
+  <!-- F7 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-07">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F07 · REVIEW</span></div>
+      <div class="plate" style="left:20cqw;top:10cqw;width:62cqw;height:50cqw">
+        <div class="faux">
+          <div class="col" style="left:0%;width:34%"><div class="card" style="left:6%;top:6%;width:88%;background:var(--cyan)">In review 1</div>
+            <div class="card" style="left:6%;top:26%;width:88%">Task: unify the wording for “wake” and “round”…<br><br>Quill&nbsp;&nbsp;Approve&nbsp;/&nbsp;Reject</div></div>
+          <div class="col" style="left:34%;width:30%"><div class="card" style="left:8%;top:6%;width:84%">Done</div></div>
+        </div>
+      </div>
+      <div class="stripe" style="bottom:17cqw"><span class="sbox">claimed</span><span class="sbox">in_review</span><span class="sbox now">done</span></div>
+      <div class="stamp" style="right:6cqw;top:12cqw;font-size:1.9cqw;background:var(--lime)">approve requires someone else</div>
+      <div class="cap" style="bottom:5.8cqw;font-size:2.5cqw">“Done” is not a claim.</div>
+      <div class="meta"><span>real capture · hover only, no click</span><span>01:08–01:17</span></div>
+    </div>
+    <div class="lblrow"><span>07 · APPROVE BY OTHER</span><span>cursor-ui-demo · crossfade</span></div>
+    <div class="note"><b>Move first:</b> pointer travels to Approve on real hover. <b>Seam:</b> crossfade.</div>
+    <span class="chip">real capture + enforced rule</span>
+  </div>
+
+  <!-- F8 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-08">
+      <div class="chrome"><span>W0RKSPLICE · V2</span><span>F08 · WHERE IT RUNS</span></div>
+      <div class="bigline" style="top:22cqw;font-size:5.6cqw">Local. One SQLite file.</div>
+      <div class="bigline" style="top:36cqw;font-size:3.6cqw;color:var(--muted)">Loopback by default. No accounts.</div>
+      <div style="position:absolute;left:5cqw;top:46cqw"><span class="filechip">worksplice.db</span></div>
+      <div class="footnote" style="bottom:14cqw">One honest note: pi’s roadmap includes a pi server that will cover part of this. This is the version that exists today.</div>
+      <div class="meta"><span>pure design · calm plate</span><span>01:17–01:24</span></div>
+    </div>
+    <div class="lblrow"><span>08 · LOCAL, ONE FILE</span><span>titlecard-reveal · crossfade</span></div>
+    <div class="note"><b>Move first:</b> line 1 seats on cue; footnote last. <b>Seam:</b> crossfade; deliberate still beat.</div>
+    <span class="chip">honest note verbatim (launch plan §2)</span>
+  </div>
+
+  <!-- F9 -->
+  <div class="cellwrap">
+    <div class="cell" id="frame-09">
+      <div class="inkplate">
+        <div class="logo" style="left:5cqw;top:14cqw"><span class="sq"></span><span class="wm" style="font-size:5cqw">worksplice</span></div>
+        <div class="term" style="left:5cqw;bottom:18cqw;font-size:2.6cqw">$ npx worksplice<span class="caret"></span></div>
+        <div class="mono" style="position:absolute;left:5cqw;bottom:12cqw;font-size:1.35cqw;color:var(--stone)">local · one sqlite file · no accounts</div>
+        <div class="mono" style="position:absolute;right:5cqw;bottom:12cqw;font-size:1.35cqw;color:var(--stone)">github.com/whutlichao/worksplice</div>
+      </div>
+      <div class="meta"><span>ink closing plate</span><span>01:24–01:30</span></div>
+    </div>
+    <div class="lblrow"><span>09 · INSTALL</span><span>install-command end card · cut</span></div>
+    <div class="note"><b>Move first:</b> logo square pops; command types. <b>Seam:</b> hard cut in; hold to last frame.</div>
+    <span class="chip">command + URL from README Quick Start</span>
+  </div>
+
+  <!-- seam map -->
+  <div class="cellwrap">
+    <div class="closer" style="height:100%">
+      <h3>Seam map</h3>
+      <div class="seamstrip">
+        <span class="seam">01 → 02 <b>cut</b> (same card continues)</span>
+        <span class="seam">02 → 03 <b>zoom-through</b></span>
+        <span class="seam">03 → 04 <b>crossfade</b></span>
+        <span class="seam">04 → 05 <b>crossfade</b></span>
+        <span class="seam">05 → 06 <b>zoom-through</b></span>
+        <span class="seam">06 → 07 <b>crossfade</b></span>
+        <span class="seam">07 → 08 <b>crossfade</b></span>
+        <span class="seam">08 → 09 <b>cut</b> (cream → ink plate)</span>
+      </div>
+      <p class="ban" style="margin-top:12px">One direction rule: lateral moves travel <b>left → right</b> across the run; vertical reveals travel up. No <em>slideshow</em> (front-load then freeze) and no <em>screensaver</em> (independent floating) anywhere.</p>
+    </div>
+  </div>
+
+  <!-- tokens -->
+  <div class="cellwrap">
+    <div class="closer" style="height:100%">
+      <h3>Tokens & bans</h3>
+      <div class="tokrow"><span class="sw" style="background:#FFFAEF"></span> cream #FFFAEF · canvas</div>
+      <div class="tokrow"><span class="sw" style="background:#141111"></span> ink #141111 · type + borders</div>
+      <div class="tokrow"><span class="sw" style="background:#FFD440"></span> yellow #FFD440 · brand / attention</div>
+      <div class="tokrow"><span class="sw" style="background:#FE7DA8"></span> pink #FE7DA8 · product accent</div>
+      <div class="tokrow"><span class="sw" style="background:#27CCF3"></span> cyan · agent / second writer</div>
+      <div class="tokrow"><span class="sw" style="background:#F97264"></span> coral · conflict / held</div>
+      <div class="tokrow"><span class="sw" style="background:#A9D877"></span> lime · resolved</div>
+      <div class="tokrow mono" style="margin-top:8px">type: Hanken Grotesk 800 (display) · Space Grotesk (body) · Space Mono (labels) — local woff2, real brand faces</div>
+      <p class="ban" style="margin-top:8px"><b>Bans:</b> gradients, glows, blurred shadows, rounded cards (one pill chip excepted), fake product UI, stock-photo aesthetics, pure black/white, unlabeled metaphor presented as behavior.</p>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,492 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    /* ---- frame root: styled by #root only ---- */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+      color: #141111;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root div,
+    #root span {
+      box-sizing: border-box;
+    }
+
+    /* ---- full-bleed ground: lowest clip layer (z-index 0), never #root ---- */
+    .f06-ground {
+      position: absolute;
+      inset: 0;
+      background: #FFFAEF;
+      z-index: 0;
+    }
+
+    /* ---- the plate's drawn frame — video is hoisted and stripped of local CSS,
+       so the frame around it must be its own z-indexed DOM box (border-only) ---- */
+    .f06-plateframe {
+      position: absolute;
+      left: 240px;
+      top: 130px;
+      width: 1440px;
+      height: 680px;
+      border: 7px solid #141111;
+      z-index: 5;
+    }
+
+    /* ---- chrome (above the footage) ---- */
+    .f06-topbar {
+      position: absolute;
+      left: 96px;
+      right: 96px;
+      top: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 6;
+    }
+    .f06-mark {
+      font-family: "Space Mono", monospace;
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .f06-pill {
+      font-family: "Space Mono", monospace;
+      font-size: 20px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: #FFFAEF;
+      border: 3px solid #141111;
+      border-radius: 999px;
+      padding: 9px 20px 10px;
+    }
+
+    /* ---- scene 1: the held count, annotated beside the plate (never over it) ---- */
+    .f06-anno {
+      position: absolute;
+      left: 1706px;
+      top: 508px;
+      width: 122px;
+      background: #FFD440;
+      border: 4px solid #141111;
+      padding: 14px 10px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 6;
+    }
+    .f06-anno-num {
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 42px;
+      line-height: 1;
+    }
+    .f06-anno-lbl {
+      font-family: "Space Mono", monospace;
+      font-size: 15px;
+      line-height: 1.25;
+      text-align: center;
+    }
+    .f06-leader {
+      position: absolute;
+      left: 1676px;
+      top: 566px;
+      width: 30px;
+      height: 5px;
+      background: #141111;
+      z-index: 6;
+    }
+
+    /* ---- scene 2: the ink HELD stamp over the writing row ---- */
+    .f06-held {
+      position: absolute;
+      left: 1240px;
+      top: 388px;
+      background: #141111;
+      color: #FFFAEF;
+      border: 5px solid #FFFAEF;
+      box-shadow: 0 0 0 5px #141111;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 58px;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      padding: 26px 40px;
+      z-index: 6;
+    }
+
+    /* ---- scene 3: cream scrim dims the plate; the evidence card is the hero ---- */
+    .f06-scrim {
+      position: absolute;
+      inset: 0;
+      background: #FFFAEF;
+      opacity: 0;
+      z-index: 4;
+    }
+    .f06-card {
+      position: absolute;
+      left: 140px;
+      top: 305px;
+      width: 1640px;
+      background: #FFFDF5;
+      border: 7px solid #141111;
+      box-shadow: 24px 24px 0 #F8A16F, 24px 24px 0 4px #141111;
+      z-index: 7;
+    }
+    .f06-evrow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 32px 44px;
+    }
+    .f06-evrow + .f06-evrow {
+      border-top: 6px solid #141111;
+    }
+    .f06-evdot {
+      flex: none;
+      width: 10px;
+      height: 10px;
+      background: #141111;
+    }
+    .f06-evtext {
+      font-family: "Space Mono", monospace;
+      font-size: 27px;
+      line-height: 1.5;
+      white-space: nowrap;
+    }
+    .f06-evch {
+      display: inline-block;
+      white-space: pre;
+    }
+
+    /* ---- the caption band: designed in-frame typography, one cue at a time ---- */
+    .f06-capband {
+      position: absolute;
+      left: 96px;
+      top: 944px;
+      width: 1728px;
+      height: 48px;
+      z-index: 8;
+    }
+    .f06-capline {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1600px;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      font-size: 37px;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .f06-capword {
+      display: inline-block;
+    }
+    .f06-ticks {
+      position: absolute;
+      right: 0;
+      top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+    .f06-tick {
+      display: block;
+      position: relative;
+      width: 16px;
+      height: 16px;
+      border: 3px solid #141111;
+      background: transparent;
+    }
+    .f06-tickfill {
+      display: block;
+      position: absolute;
+      inset: 0;
+      background: #141111;
+      transform-origin: 50% 50%;
+    }
+  </style>
+
+  <div id="root" data-composition-id="06-the-held-write" data-width="1920" data-height="1080" data-duration="21.5">
+    <div id="f06-ground" class="clip f06-ground" data-start="0" data-duration="21.5" data-track-index="0"></div>
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+
+    <!-- approved real-capture clips: declared frame-locally, hoisted to the host root by the assembler.
+         distinct track indices; frame-local windows never overlap on one lane. -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+
+    <div id="f06-plateframe" class="f06-plateframe"></div>
+
+    <div id="f06-topbar" class="f06-topbar">
+      <span class="f06-mark">W0RKSPLICE</span>
+      <span class="f06-pill">F06 · THE HELD WRITE</span>
+    </div>
+
+    <div id="f06-anno" class="f06-anno">
+      <span class="f06-anno-num">1</span>
+      <span class="f06-anno-lbl">new<br />message(s)</span>
+    </div>
+    <div id="f06-leader" class="f06-leader"></div>
+
+    <div id="f06-held" class="f06-held" data-layout-allow-occlusion data-layout-allow-overlap>HELD</div>
+
+    <div id="f06-scrim" class="f06-scrim"></div>
+
+    <div id="f06-card" class="f06-card">
+      <div class="f06-evrow"><span class="f06-evdot"></span><div class="f06-evtext" id="f06-ev-0"></div></div>
+      <div class="f06-evrow"><span class="f06-evdot"></span><div class="f06-evtext" id="f06-ev-1"></div></div>
+      <div class="f06-evrow"><span class="f06-evdot"></span><div class="f06-evtext" id="f06-ev-2"></div></div>
+    </div>
+
+    <div id="f06-capband" class="f06-capband">
+      <div class="f06-capline" id="f06-cap-0"></div>
+      <div class="f06-capline" id="f06-cap-1"></div>
+      <div class="f06-capline" id="f06-cap-2"></div>
+      <div class="f06-capline" id="f06-cap-3"></div>
+      <div class="f06-ticks" aria-hidden="true">
+        <span class="f06-tick"><span class="f06-tickfill" id="f06-tick-0"></span></span>
+        <span class="f06-tick"><span class="f06-tickfill" id="f06-tick-1"></span></span>
+        <span class="f06-tick"><span class="f06-tickfill" id="f06-tick-2"></span></span>
+        <span class="f06-tick"><span class="f06-tickfill" id="f06-tick-3"></span></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      /* the film's captions — designed in-frame typography, one cue at a time (verbatim) */
+      var CAPTIONS = [
+        "While she was writing, the room moved.",
+        "Her draft was held — not merged, not overwritten.",
+        "She re-read, rewrote, and answered what actually happened.",
+        "This is her session file — not a UI effect."
+      ];
+      /* the real session-file excerpt — verbatim, no paraphrase (cut 3, 2026-10-04) */
+      var EVIDENCE = [
+        "Your reply to channel parser-fix was held because the room changed while you were writing.",
+        "What happened: 1 new message(s) arrived in this target (seq 3)",
+        "Your held draft was: — I've read parser.js and README.md."
+      ];
+      var CUE = [0.8, 6.1, 12.12, 17.68];
+
+      /* caption lines -> word spans (space text nodes keep the measure + wrap points) */
+      var caps = [];
+      CAPTIONS.forEach(function (text, i) {
+        var line = byId("f06-cap-" + i);
+        var words = [];
+        text.split(" ").forEach(function (w, j) {
+          if (j) line.appendChild(document.createTextNode(" "));
+          var s = document.createElement("span");
+          s.className = "f06-capword";
+          s.textContent = w;
+          line.appendChild(s);
+          words.push(s);
+        });
+        caps.push({ line: line, words: words });
+      });
+
+      /* evidence card -> one span per character (layout stays fixed; only opacity moves) */
+      var evidence = [];
+      EVIDENCE.forEach(function (text, i) {
+        var box = byId("f06-ev-" + i);
+        var chars = [];
+        for (var k = 0; k < text.length; k++) {
+          var s = document.createElement("span");
+          s.className = "f06-evch";
+          s.textContent = text.charAt(k);
+          box.appendChild(s);
+          chars.push(s);
+        }
+        evidence.push(chars);
+      });
+
+      var dots = document.querySelectorAll("#f06-card .f06-evdot");
+      var ticks = [byId("f06-tick-0"), byId("f06-tick-1"), byId("f06-tick-2"), byId("f06-tick-3")];
+      var plateframe = byId("f06-plateframe");
+      var topbar = byId("f06-topbar");
+      var anno = byId("f06-anno");
+      var leader = byId("f06-leader");
+      var held = byId("f06-held");
+      var scrim = byId("f06-scrim");
+      var card = byId("f06-card");
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* — scene 1 · 0.0–6.0 — the channel plate holds the real footage; cue 1 lands on the
+         beat; the held count flickers in beside the plate as the interjection arrives (~4.4s) — */
+      tl.fromTo(plateframe, { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.out" }, 0);
+      tl.fromTo(topbar, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.05);
+      tl.fromTo(
+        caps[0].words,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.06 },
+        CUE[0]
+      );
+      tl.fromTo(ticks[0], { scale: 0 }, { scale: 1, duration: 0.22, ease: "back.out(2)", transformOrigin: "50% 50%" }, CUE[0]);
+
+      tl.fromTo(anno, { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.22, ease: "power3.out" }, 4.3);
+      tl.fromTo(
+        leader,
+        { opacity: 0, scaleX: 0 },
+        { opacity: 1, scaleX: 1, duration: 0.16, ease: "power2.out", transformOrigin: "0% 50%" },
+        4.34
+      );
+      tl.to([anno, leader], { opacity: 0.3, duration: 0.05 }, 4.56);
+      tl.to([anno, leader], { opacity: 1, duration: 0.06 }, 4.63);
+      tl.to([anno, leader], { opacity: 0.3, duration: 0.05 }, 4.72);
+      tl.to([anno, leader], { opacity: 1, duration: 0.07 }, 4.79);
+      tl.set([anno, leader], { opacity: 0 }, 6);
+
+      /* — scene 2 · 6.0–12.0 — hard cut to the pushed-in message column; cue 2 lands as the
+         ink HELD stamp hits the writing row (freeze-and-stamp) — */
+      tl.to(caps[0].line, { opacity: 0, y: -12, duration: 0.18, ease: "power2.in" }, 5.92);
+      tl.fromTo(
+        caps[1].words,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.06 },
+        CUE[1]
+      );
+      tl.fromTo(ticks[1], { scale: 0 }, { scale: 1, duration: 0.22, ease: "back.out(2)", transformOrigin: "50% 50%" }, CUE[1]);
+      tl.fromTo(
+        held,
+        { opacity: 0, scale: 1.8, rotation: -14 },
+        { opacity: 1, scale: 0.95, rotation: -3, duration: 0.13, ease: "power3.in", transformOrigin: "50% 50%" },
+        6.42
+      );
+      tl.to(held, { scale: 1, rotation: -4, duration: 0.1, ease: "power2.out" }, 6.55);
+      /* the signature freeze is short: ~1.7s of stillness, then the stamp lifts into the
+         scrim beat (was 11.7 — a ~5s dead beat reviewers read as a stall) */
+      tl.to(held, { opacity: 0, duration: 0.3, ease: "power1.out" }, 8.35);
+
+      /* — scene 3 · 12.0–17.5 — the scrim dims the plate; the evidence card slides up as
+         hero; its three verbatim mono lines reveal one by one on cue 3 — */
+      tl.to(caps[1].line, { opacity: 0, y: -12, duration: 0.18, ease: "power2.in" }, 11.92);
+      tl.fromTo(scrim, { opacity: 0 }, { opacity: 0.88, duration: 0.55, ease: "power2.out" }, 12);
+      tl.fromTo(card, { opacity: 0, y: 72 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 12.2);
+      tl.fromTo(
+        caps[2].words,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.06 },
+        CUE[2]
+      );
+      tl.fromTo(ticks[2], { scale: 0 }, { scale: 1, duration: 0.22, ease: "back.out(2)", transformOrigin: "50% 50%" }, CUE[2]);
+      var LINE_T = [13.0, 14.05, 15.15];
+      evidence.forEach(function (chars, i) {
+        tl.fromTo(
+          dots[i],
+          { scale: 0 },
+          { scale: 1, duration: 0.2, ease: "back.out(2.5)", transformOrigin: "50% 50%" },
+          LINE_T[i] - 0.06
+        );
+        tl.fromTo(chars, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none", stagger: 0.009 }, LINE_T[i]);
+      });
+
+      /* — scene 4 · 17.5–21.0 — the card lifts and the scrim clears for the real revised
+         reply (wide cut, same run); cue 4 lands and the take holds for the read — */
+      tl.to(caps[2].line, { opacity: 0, y: -12, duration: 0.18, ease: "power2.in" }, 17.58);
+      tl.to(card, { opacity: 0, y: -56, duration: 0.4, ease: "power2.in" }, 17.5);
+      tl.to(scrim, { opacity: 0, duration: 0.45, ease: "power2.inOut" }, 17.5);
+      tl.fromTo(
+        caps[3].words,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.06 },
+        CUE[3]
+      );
+      tl.fromTo(ticks[3], { scale: 0 }, { scale: 1, duration: 0.22, ease: "back.out(2)", transformOrigin: "50% 50%" }, CUE[3]);
+
+      /* full-span anchor: render length 21s */
+      tl.to({}, { duration: 21 }, 0);
+
+      window.__timelines["06-the-held-write"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

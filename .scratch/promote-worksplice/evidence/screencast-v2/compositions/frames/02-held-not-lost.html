@@ -1,0 +1,467 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      container-type: size;
+      --f02-cream: #fffaef;
+      --f02-cream2: #f5edd9;
+      --f02-panel: #fffdf5;
+      --f02-ink: #141111;
+      --f02-stone: #c9c7c2;
+      --f02-muted: #6f6a5e;
+      --f02-coral: #f97264;
+      --f02-cyan: #27ccf3;
+      color: var(--f02-ink);
+    }
+    #root * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ——— ground (full-bleed paint lives on a clip layer, never on #root) ——— */
+    #root #f02-ground {
+      position: absolute;
+      inset: 0;
+      background: var(--f02-cream);
+    }
+    #root #f02-stage {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* ——— frame chrome ——— */
+    #root #f02-topbar {
+      position: absolute;
+      top: 2.5cqw;
+      left: 3.3cqw;
+      right: 3.3cqw;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 6;
+    }
+    #root #f02-brand {
+      font-family: "Space Mono", monospace;
+      font-size: 1.25cqw;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--f02-ink);
+    }
+    #root #f02-pill {
+      font-family: "Space Mono", monospace;
+      font-size: 1.15cqw;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--f02-ink);
+      background: var(--f02-cream);
+      border: 0.2cqw solid var(--f02-ink);
+      border-radius: 999px;
+      padding: 0.5cqw 1.1cqw;
+    }
+
+    /* ——— the document card (hero) ——— */
+    #root #f02-card {
+      position: absolute;
+      left: 20cqw;
+      top: 11.5cqw;
+      width: 60cqw;
+      height: 33cqw;
+      background: var(--f02-panel);
+      border: 0.4cqw solid var(--f02-ink);
+      box-shadow: 0.95cqw 0.95cqw 0 var(--f02-ink);
+      z-index: 1;
+    }
+    #root #f02-cardbar {
+      height: 5.2cqw;
+      display: flex;
+      align-items: center;
+      /* number then column, left-seated — the same header Frame 1 shows */
+      justify-content: flex-start;
+      gap: 2.2cqw;
+      padding: 0 2.4cqw;
+      background: var(--f02-cream2);
+      border-bottom: 0.3cqw solid var(--f02-ink);
+    }
+    #root #f02-taskno {
+      font-family: "Space Mono", monospace;
+      font-size: 1.5cqw;
+      letter-spacing: 0.02em;
+      color: var(--f02-ink);
+    }
+    /* the same board column Frame 1 shows — same task, same field values */
+    #root #f02-status {
+      font-family: "Space Mono", monospace;
+      font-size: 1.25cqw;
+      letter-spacing: 0.08em;
+      color: var(--f02-ink);
+      background: var(--f02-panel);
+      border: 0.16cqw solid var(--f02-ink);
+      border-radius: 999px;
+      padding: 0.34cqw 0.9cqw;
+    }
+    #root #f02-writers {
+      font-family: "Space Mono", monospace;
+      font-size: 1.25cqw;
+      letter-spacing: 0.06em;
+      color: var(--f02-muted);
+      margin-left: auto;
+    }
+    #root #f02-cardbody {
+      padding: 2.4cqw 2.6cqw;
+    }
+    /* the same task title Frame 1 collides on — this replay keeps the card's fields */
+    #root #f02-taskfield {
+      margin-bottom: 1.62cqw;
+    }
+    #root #f02-fieldlabel {
+      font-family: "Space Mono", monospace;
+      font-size: 1.1cqw;
+      line-height: 1;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--f02-muted);
+      margin-bottom: 0.9cqw;
+    }
+    #root #f02-titletext {
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 1.58cqw;
+      line-height: 1;
+      letter-spacing: -0.005em;
+      color: var(--f02-ink);
+      white-space: nowrap;
+    }
+    #root #f02-wbar-a {
+      width: 78%;
+      height: 1.5cqw;
+      background: var(--f02-cyan);
+      border: 0.15cqw solid var(--f02-ink);
+      margin-bottom: 1.1cqw;
+    }
+    /* the sweeping write: a bar inside a same-size mask, wiped in from the left so
+       the frozen edge keeps its hard cut (transform-only, no width animation) */
+    #root #f02-wbarmask {
+      position: relative;
+      width: 86%;
+      height: 1.5cqw;
+      overflow: hidden;
+      margin-bottom: 2.4cqw;
+    }
+    #root #f02-wbar-b {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--f02-coral);
+      border: 0.15cqw solid var(--f02-ink);
+    }
+    /* the what-changed panel, seated under the write bars */
+    #root #f02-panelmask {
+      position: relative;
+      height: 3.5cqw;
+      overflow: hidden;
+    }
+    #root #f02-panel {
+      position: absolute;
+      inset: 0;
+      background: var(--f02-cream2);
+      border: 0.3cqw solid var(--f02-ink);
+    }
+    /* the held line, typed onto the card at the panel's seat (sits one task-field block
+       lower than before, so it still rides the what-changed panel) */
+    #root #f02-typedrow {
+      position: absolute;
+      left: 3cqw;
+      top: 20cqw;
+      width: 54cqw;
+      height: 3.5cqw;
+      display: flex;
+      align-items: center;
+      padding-left: 1.4cqw;
+      z-index: 3;
+    }
+    #root #f02-typedline {
+      font-family: "Space Mono", monospace;
+      font-size: 1.25cqw;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      color: var(--f02-ink);
+      white-space: pre;
+    }
+    #root [class~="f02-ch"] {
+      display: inline-block;
+      white-space: pre;
+    }
+
+    /* ——— the verdict: coral stamp (carried in from frame 1) → honest badge ——— */
+    #root #f02-stamp {
+      position: absolute;
+      right: 6cqw;
+      top: 8cqw;
+      z-index: 5;
+      background: var(--f02-coral);
+      color: var(--f02-ink);
+      border: 0.4cqw solid var(--f02-ink);
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 2.2cqw;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      padding: 1.2cqw 2.2cqw;
+      transform: rotate(-6deg);
+    }
+    #root #f02-badge {
+      position: absolute;
+      right: 6cqw;
+      top: 8cqw;
+      z-index: 5;
+      background: var(--f02-cream2);
+      color: var(--f02-ink);
+      border: 0.4cqw solid var(--f02-ink);
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 1.9cqw;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      padding: 1cqw 1.6cqw;
+      transform: rotate(-4deg);
+    }
+    #root #f02-chip {
+      position: absolute;
+      left: 24cqw;
+      /* rides the what-changed panel's seat, which the task-title field pushed down */
+      top: 35.2cqw;
+      z-index: 5;
+      background: var(--f02-ink);
+      color: var(--f02-cream);
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 1.9cqw;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      padding: 1cqw 2cqw;
+      transform: rotate(-4deg);
+    }
+
+    /* ——— the designed caption band (cue 1 → cue 2), below the content area ——— */
+    #root #f02-band {
+      position: absolute;
+      left: 5cqw;
+      right: 5cqw;
+      top: 47.92cqw;
+      height: 8.33cqw;
+      z-index: 4;
+    }
+    #root #f02-bandrule {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 0.2cqw;
+      background: var(--f02-ink);
+    }
+    #root #f02-cap {
+      position: absolute;
+      left: 5cqw;
+      right: 5cqw;
+      bottom: 2.2cqw;
+      height: 12cqw;
+    }
+    #root #f02-cue1 {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 4.6cqw;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      color: var(--f02-ink);
+      white-space: nowrap;
+    }
+    #root #f02-cue2 {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 3.1cqw;
+      line-height: 0.96;
+      letter-spacing: -0.01em;
+      color: var(--f02-ink);
+    }
+    #root #f02-cue2a, #root #f02-cue2b { line-height: 1.04; }
+    #root #f02-colophon {
+      position: absolute;
+      right: 0;
+      bottom: 2.2cqw;
+      text-align: right;
+      font-family: "Space Mono", monospace;
+      font-size: 1.15cqw;
+      line-height: 1.55;
+      letter-spacing: 0.05em;
+      color: var(--f02-muted);
+    }
+    #root #f02-dot {
+      display: inline-block;
+      width: 0.4cqw;
+      height: 0.4cqw;
+      border-radius: 50%;
+      background: var(--f02-ink);
+      margin-right: 0.5cqw;
+      vertical-align: 0.05cqw;
+    }
+  </style>
+
+  <div id="root" data-composition-id="02-held-not-lost" data-width="1920" data-height="1080" data-duration="5.4">
+    <div id="f02-ground" class="clip" data-start="0" data-duration="5.4" data-track-index="0"></div>
+
+    <div id="f02-stage" class="clip" data-start="0" data-duration="5.4" data-track-index="1">
+      <div id="f02-topbar">
+        <span id="f02-brand">W0RKSPLICE</span>
+        <span id="f02-pill">F02 · THE PROMISE</span>
+      </div>
+
+      <div id="f02-card">
+        <div id="f02-cardbar">
+          <span id="f02-taskno">#7</span>
+          <span id="f02-status">In progress</span>
+          <span id="f02-writers">2 writers</span>
+        </div>
+        <div id="f02-cardbody">
+          <div id="f02-taskfield">
+            <div id="f02-fieldlabel">Task title</div>
+            <div id="f02-titletext">Fix the held-write banner copy</div>
+          </div>
+          <div id="f02-wbar-a"></div>
+          <div id="f02-wbarmask"><div id="f02-wbar-b"></div></div>
+          <div id="f02-panelmask"><div id="f02-panel"></div></div>
+        </div>
+        <div id="f02-typedrow">
+          <span id="f02-typedline">held · the room moved while you were writing</span>
+        </div>
+      </div>
+
+      <div id="f02-stamp">Last write wins</div>
+      <div id="f02-badge">not merged · not overwritten</div>
+      <div id="f02-chip">Held</div>
+
+      <div id="f02-band" data-layout-allow-caption-zone>
+        <div id="f02-bandrule"></div>
+        <div id="f02-cap">
+          <div id="f02-cue1">Not here.</div>
+          <div id="f02-cue2">
+            <div id="f02-cue2a" data-layout-allow-overlap>The write is held —</div>
+            <div id="f02-cue2b" data-layout-allow-overlap>not merged, not overwritten.</div>
+          </div>
+        </div>
+        <div id="f02-colophon">
+          <div id="f02-col1">same collision · opposite outcome</div>
+          <div id="f02-col2"><i id="f02-dot"></i>00:07–00:12</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      var card = byId("f02-card");
+      var barB = byId("f02-wbar-b");
+      var panel = byId("f02-panel");
+      var stamp = byId("f02-stamp");
+      var badge = byId("f02-badge");
+      var chip = byId("f02-chip");
+      var cue1 = byId("f02-cue1");
+      var cue2a = byId("f02-cue2a");
+      var cue2b = byId("f02-cue2b");
+
+      // the card's mono line is authored in the markup; wrap its characters so it can type in
+      var typed = byId("f02-typedline");
+      var text = typed.textContent;
+      var chars = [];
+      typed.textContent = "";
+      for (var i = 0; i < text.length; i++) {
+        var ch = document.createElement("span");
+        ch.className = "f02-ch";
+        ch.textContent = text.charAt(i);
+        typed.appendChild(ch);
+        chars.push(ch);
+      }
+
+      var INK = "#141111";
+      var STONE = "#c9c7c2";
+
+      var tl = gsap.timeline({ paused: true });
+
+      /* — scene 1 · 0.0–1.6 — the write sweeps on, freezes mid-sweep, turns ink;
+         the card re-seats as a HELD card — */
+      tl.fromTo(barB, { xPercent: -55 }, { xPercent: -25.6, duration: 1.05, ease: "none" }, 0);
+      tl.set(barB, { backgroundColor: INK }, 1.05);
+      tl.fromTo(card, { y: 0 }, { y: 7, duration: 0.09, ease: "power2.out", immediateRender: false }, 1.05);
+      tl.fromTo(card, { y: 7 }, { y: 0, duration: 0.55, ease: "elastic.out(1, 0.55)", immediateRender: false }, 1.14);
+      tl.set(barB, { backgroundColor: STONE }, 1.3);
+      tl.fromTo(cue1, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 1.34);
+
+      /* — scene 2 · 1.6–3.4 — the coral verdict is replaced in place by the ink HELD chip;
+         the mono line types in beneath it on the card — */
+      tl.set(stamp, { opacity: 0 }, 1.88);
+      tl.fromTo(
+        badge,
+        { opacity: 0, scale: 1.6, rotation: -13, y: -16 },
+        { opacity: 1, scale: 1, rotation: -4, y: 0, duration: 0.3, ease: "power3.out" },
+        1.88
+      );
+      tl.fromTo(
+        chip,
+        { opacity: 0, scale: 1.75, rotation: -10 },
+        { opacity: 1, scale: 1, rotation: -4, duration: 0.34, ease: "back.out(2.2)" },
+        2.1
+      );
+      tl.fromTo(chars, { opacity: 0 }, { opacity: 1, duration: 0.012, ease: "none", stagger: 0.012 }, 2.3);
+
+      /* — scene 3 · 3.4–5.0 — the cream-and-ink what-changed panel slides up under the
+         card carrying the mono line; the promise lands; the frame holds still — */
+      tl.fromTo(panel, { yPercent: 100 }, { yPercent: 0, duration: 0.42, ease: "power3.out" }, 3.34);
+      tl.set(cue1, { opacity: 0 }, 3.55);
+      tl.fromTo(cue2a, { opacity: 0, x: 26 }, { opacity: 1, x: 0, duration: 0.34, ease: "power3.out" }, 3.58);
+      tl.fromTo(cue2b, { opacity: 0, x: 26 }, { opacity: 1, x: 0, duration: 0.32, ease: "power3.out" }, 3.64);
+
+      // full-span anchor so the sub-composition timeline covers the whole slot
+      tl.to({}, { duration: 5 }, 0);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["02-held-not-lost"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

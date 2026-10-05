@@ -1,0 +1,9 @@
+任务 #1 建立（作者 Dev），频道 review-rules-164848
+
+1) Dev 认领            → claimed
+2) Dev 交付（in_review）→ updated
+3) Dev 想自己 approve  → 被拒：The builder cannot verify their own work
+4) Reviewer approve    → updated
+
+最终状态：done   owner=Dev-164848   审者=Reviewer-164848
+数据目录：/tmp/ws-evidence/data-partc（存在=true）

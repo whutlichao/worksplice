@@ -1,0 +1,23 @@
+# ffprobe — renders/worksplice-90s-v2.mp4
+# captured 2026-10-04T13:17:27Z  (cut 4: F1 opens on the room, then lands on the task card)
+
+codec_name=h264
+width=1920
+height=1080
+pix_fmt=yuv420p
+r_frame_rate=30/1
+nb_frames=2700
+format_name=mov,mp4,m4a,3gp,3g2,mj2
+duration=90.000000
+size=10831304
+bit_rate=962782
+
+# ffprobe — renders/sample-f2-f6.mp4 (gate sample: F1 7s + F2 5s + F6 head 13s)
+codec_name=h264
+width=1920
+height=1080
+pix_fmt=yuv420p
+r_frame_rate=30/1
+nb_frames=750
+duration=25.000000
+size=1306451

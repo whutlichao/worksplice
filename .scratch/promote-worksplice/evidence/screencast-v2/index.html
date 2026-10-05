@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js" integrity="sha384-sG0Hv1tP1lZCk9KQmrIbY/XNwi+OY84GQqhMscbnsoBFqAz8KNCil1kvfL3Hbbk2" crossorigin="anonymous"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #FFFAEF;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="90"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div
+        id="el-01-two-writers"
+        class="scene"
+        data-composition-id="01-two-writers"
+        data-composition-src="compositions/frames/01-two-writers.html"
+        data-start="0"
+        data-duration="7"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-02-held-not-lost"
+        class="scene"
+        data-composition-id="02-held-not-lost"
+        data-composition-src="compositions/frames/02-held-not-lost.html"
+        data-start="7"
+        data-duration="5.4"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-03-the-room"
+        class="scene"
+        data-composition-id="03-the-room"
+        data-composition-src="compositions/frames/03-the-room.html"
+        data-start="12"
+        data-duration="15.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-04-wake-is-a-pointer"
+        class="scene"
+        data-composition-id="04-wake-is-a-pointer"
+        data-composition-src="compositions/frames/04-wake-is-a-pointer.html"
+        data-start="27"
+        data-duration="11.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-05-cursor-not-a-list"
+        class="scene"
+        data-composition-id="05-cursor-not-a-list"
+        data-composition-src="compositions/frames/05-cursor-not-a-list.html"
+        data-start="38"
+        data-duration="9.4"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-06-the-held-write"
+        class="scene"
+        data-composition-id="06-the-held-write"
+        data-composition-src="compositions/frames/06-the-held-write.html"
+        data-start="47"
+        data-duration="21.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-07-approve-by-other"
+        class="scene"
+        data-composition-id="07-approve-by-other"
+        data-composition-src="compositions/frames/07-approve-by-other.html"
+        data-start="68"
+        data-duration="9.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-08-local-one-file"
+        class="scene"
+        data-composition-id="08-local-one-file"
+        data-composition-src="compositions/frames/08-local-one-file.html"
+        data-start="77"
+        data-duration="7"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-09-install"
+        class="scene"
+        data-composition-id="09-install"
+        data-composition-src="compositions/frames/09-install.html"
+        data-start="84"
+        data-duration="6"
+        data-track-index="0"
+      ></div>
+
+      <video id="f03-plate-board" src="assets/board.mp4" data-media-start="0" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="12"
+        data-duration="8"
+        data-track-index="3003"
+      ></video>
+
+      <video id="f03-plate-channel" src="assets/channel.mp4" data-media-start="0" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="20"
+        data-duration="7"
+        data-track-index="3004"
+      ></video>
+
+      <video id="f04-plate-wide" src="assets/hold-wake.mp4" data-media-start="0" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="27"
+        data-duration="5"
+        data-track-index="4003"
+      ></video>
+
+      <video id="f04-plate-story" src="assets/hold-wake-story.mp4" data-media-start="2" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="32"
+        data-duration="6"
+        data-track-index="4004"
+      ></video>
+
+      <video id="f05-feed" src="assets/messages.mp4" muted playsinline
+        class="clip"
+        style="position:absolute;left:0px;top:0px;width:1920px;height:1080px;object-fit:cover"
+        data-start="38"
+        data-duration="9"
+        data-track-index="5003"
+      ></video>
+
+      <video id="f06-plate-wake" src="assets/hold-wake.mp4" data-media-start="0" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="47"
+        data-duration="6"
+        data-track-index="6003"
+      ></video>
+
+      <video id="f06-plate-close" src="assets/hold-wake-story.mp4" data-media-start="5" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="53"
+        data-duration="11.5"
+        data-track-index="6004"
+      ></video>
+
+      <video id="f06-plate-reply" src="assets/hold-reply-story.mp4" data-media-start="6" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="64.5"
+        data-duration="3.5"
+        data-track-index="6005"
+      ></video>
+
+      <video id="f07-plate" src="assets/review.mp4" muted playsinline
+        class="clip"
+        style="position:absolute;left:240px;top:130px;width:1440px;height:680px;object-fit:cover"
+        data-start="68"
+        data-duration="9"
+        data-track-index="7003"
+      ></video>
+
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      /* __stacking-cleared__ */
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-02-held-not-lost", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 12);
+        tl.fromTo("#el-03-the-room", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 12);
+        tl.set("#el-03-the-room", { clearProps: "transform,filter" }, 12.45);
+        tl.to("#el-03-the-room", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 27);
+        tl.fromTo("#el-04-wake-is-a-pointer", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 27);
+        tl.set("#el-04-wake-is-a-pointer", { clearProps: "transform,filter" }, 27.55);
+        tl.to("#el-04-wake-is-a-pointer", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 38);
+        tl.fromTo("#el-05-cursor-not-a-list", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 38);
+        tl.set("#el-05-cursor-not-a-list", { clearProps: "transform,filter" }, 38.55);
+        tl.to("#el-05-cursor-not-a-list", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 47);
+        tl.fromTo("#el-06-the-held-write", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 47);
+        tl.set("#el-06-the-held-write", { clearProps: "transform,filter" }, 47.45);
+        tl.to("#el-06-the-held-write", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 68);
+        tl.fromTo("#el-07-approve-by-other", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 68);
+        tl.set("#el-07-approve-by-other", { clearProps: "transform,filter" }, 68.55);
+        tl.to("#el-07-approve-by-other", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 77);
+        tl.fromTo("#el-08-local-one-file", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 77);
+        tl.set("#el-08-local-one-file", { clearProps: "transform,filter" }, 77.55);
+        tl.to({}, { duration: 90 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
+    </script>
+  </body>
+</html>

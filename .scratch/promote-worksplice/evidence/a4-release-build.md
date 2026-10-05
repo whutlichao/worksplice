@@ -1,0 +1,40 @@
+# A4：Release 构建里重跑证据 B（2026-10-03）
+
+构建来源：Release 资产 https://github.com/whutlichao/worksplice/releases/download/v0.1.0/worksplice-0.1.0.tgz 装到 /tmp/relcheck
+pi 环境：PI_CODING_AGENT_DIR=/tmp/a4b/pi-agent（最小 settings.json + 符号链接真实 models.json，密钥未复制）
+
+## 结果
+- 4 次运行，4 次出现 [worksplice:revision]（revise prompt 2244/2401/2248/2244 字节）
+- 3 次确认该轮 round_logs = replied（base_seq=2）；第 3 次是 runner 在轮次收口前杀掉服务，故无记录
+- 房间记录：#1 请求 → #2 插话（房间 seq 1→2）→ #3 改稿回复（承认插话、改为先讲方案）
+- 被 hold 的草稿未落库（房间只有 3 条消息）
+
+## 原始 revise prompt（本次干净运行）
+Your reply to channel hold-run-151043 was held because the room changed while you were writing.
+What happened: 1 new message(s) arrived in this target (seq 2)
+The room is now at seq 2.
+
+Messages that arrived while you were writing:
+#2 @Owner: 等一下——按逗号切分在引号里的逗号上会出错。先说方案，别直接改。
+
+Your held draft was:
+---
+读完了。现状：
+
+- `parser.js` 只有 `splitFields(line)`，用 `line.split(",")` + trim，空行会返回 `[""]`，引号内的逗号会被误切，没有引号/转义处理，也没有空输入的约定。
+- `README.md` 只有项目一句话说明，没有写 `splitFields` 的契约（引号语义、转义、空白、返回形状），所以行为边界目前靠猜。
+
+我打算怎么改 split（还没动代码，等你点头）：
+
+1. 先在 README 里写清契约，而不是先改实现：空串/空行 → `[]`；连续分隔符合并（`"a,,b"` → `["a","b"]`）；首尾空白忽略；引号内分隔符保留（`'a,"b,c",d'` → `["a","b,c","d"]`）；`""` 表示空字段；`\"` / `\\` 转义。改哪个字段是破坏性变更，我会单独标出来。
+2. 把 `splitFields` 改成一次线性扫描的 char-by-char 状态机（有引号 in-quotes 状态 + 转义状态），保持 O(n) 且不用正则回溯。普通路径的输出与现在的 `split(",")+trim` 逐字符一致，只在引号/转义/空字段这三类新行为上不同。
+3. 签名保持 `splitFields(line)` 不变，内部加一个可选 options（`{ quote: '"' }`），避免为换引号再加一个函数。不引入新依赖。
+4. 用 node:test 加一组表驱动用例覆盖上面每条契约，包括 `a,"b,c"`、空行、`\"`、`""`、只有空白，以及一条「引号未闭合」的行为（我倾向抛错而不是静默吞掉——这点想听你的意见）。
+5. 顺带补一个 README 的用法小例。
+
+要我开始的话，请确认两点：未闭合引号是抛错还是当作字面量；以及是否需要保留旧的“空行返回 `['']`”行为。我不会在你确认前改代码，也不会认领任务。
+---
+Decide one of: rewrite the reply and resend (reply JSON again with your new content); resend the draft as-is ({"action":"reply","content":"<draft>","onConflict":"resend"}); stay silent ({"action":"ignore"}); or send anyway without the freshness check ({"action":"reply","content":"<draft>","onConflict":"anyway"}).
+Reply with JSON only: {"action":"reply"|"ignore","content":"...","onConflict":"revise"|"resend"|"silent"|"anyway"}
+[worksplice:revision]
+[worksplice:target=954d5aee-114b-4322-b86f-279709f2cb9d seq=2]

@@ -1,0 +1,433 @@
+<template>
+  <style>
+    /* brand faces ship with the project — local woff2, no network fetch */
+    @font-face {
+      font-family: "Hanken Grotesk";
+      font-style: normal;
+      font-weight: 100 900;
+      src: url("assets/fonts/313510e2713fb214-s.p.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Space Mono";
+      font-style: normal;
+      font-weight: 400;
+      src: url("assets/fonts/fc727f226c737876-s.p.woff2") format("woff2");
+    }
+  </style>
+
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      container-type: size;
+      color: #141111;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root div,
+    #root span {
+      box-sizing: border-box;
+    }
+
+    /* ——— full-bleed layers over the hoisted capture ————————————————————
+       the real message feed is hoisted to the host root and paints above the
+       frame, so every authored layer carries an explicit z-index >= 2      */
+    #root #f05-scrim {
+      position: absolute;
+      inset: 0;
+      background: #FFFAEF;
+      opacity: 0.42; /* capture reads at ~58% — a backdrop, still legibly a real feed */
+      z-index: 4;
+    }
+
+    /* ——— frame chrome ——— */
+    #root #f05-topbar {
+      position: absolute;
+      left: 3.3cqw;
+      right: 3.3cqw;
+      top: 2.5cqw;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 8;
+    }
+    #root #f05-mark {
+      font-family: "Space Mono", monospace;
+      font-size: 1.25cqw;
+      line-height: 1;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    #root #f05-pill {
+      font-family: "Space Mono", monospace;
+      font-size: 1.15cqw;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: #FFFAEF;
+      border: 0.2cqw solid #141111;
+      border-radius: 999px;
+      padding: 0.5cqw 1.1cqw 0.55cqw;
+    }
+
+    /* ——— the designed layer: one read-position line across the feed ———
+       the seat is the line's seat; everything labelled on it rides the
+       position, so the whole assembly moves as one when the ack lands     */
+    #root #f05-seat {
+      position: absolute;
+      left: 5cqw;
+      right: 5cqw;
+      /* the line rests in the real gap between two messages of the captured feed, so it
+         reads as a mark inside the conversation instead of a progress bar under it:
+         the last message above the line is #11, the next below it is #12 */
+      top: 37.4cqw;
+      height: 0.52cqw;
+      z-index: 6;
+    }
+    #root #f05-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 0.52cqw;
+      background: #141111;
+      transform-origin: 50% 100%;
+    }
+    #root .f05-endtick {
+      position: absolute;
+      top: -0.54cqw;
+      width: 0.52cqw;
+      height: 1.6cqw;
+      background: #141111;
+    }
+    #root #f05-endL {
+      left: 0;
+    }
+    #root #f05-endR {
+      right: 0;
+    }
+    /* the read head: it travels along the line while reading; the position does not */
+    #root #f05-sweep {
+      position: absolute;
+      left: 0;
+      top: -0.11cqw;
+      width: 4.6cqw;
+      height: 0.74cqw;
+      background: #6F6A5E;
+      opacity: 0;
+    }
+
+    /* the position readout, seated on the line */
+    #root #f05-tick {
+      position: absolute;
+      left: 1.1cqw;
+      top: -2.8cqw;
+      height: 2.8cqw;
+      display: flex;
+      align-items: center;
+      padding: 0 1.1cqw;
+      background: #F97264;
+      border: 0.2cqw solid #141111;
+      font-family: "Space Mono", monospace;
+      font-size: 1.15cqw;
+      line-height: 1;
+      letter-spacing: 0.04em;
+      opacity: 0;
+    }
+    #root #f05-ticklabel {
+      margin-right: 0.5cqw;
+      white-space: pre;
+    }
+    #root #f05-numwin {
+      position: relative;
+      display: inline-block;
+      width: 1.5cqw;
+      height: 1.2cqw;
+      overflow: hidden;
+    }
+    #root #f05-numfrom,
+    #root #f05-numto {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      text-align: center;
+    }
+    #root #f05-numto {
+      opacity: 0;
+    }
+
+    /* the ack, resting on the line once it lands */
+    #root #f05-ack {
+      position: absolute;
+      left: 22cqw;
+      top: -2.8cqw;
+      height: 2.8cqw;
+      display: flex;
+      align-items: center;
+      padding: 0 1.1cqw;
+      background: #A9D877;
+      border: 0.2cqw solid #141111;
+      font-family: "Space Mono", monospace;
+      font-size: 1.15cqw;
+      line-height: 1;
+      letter-spacing: 0.04em;
+      opacity: 0;
+    }
+    /* the ack arrow is drawn, not typed: U+2192 is absent from the shipped faces */
+    #root #f05-arrow {
+      position: relative;
+      display: inline-block;
+      width: 1.15cqw;
+      height: 0.62cqw;
+      margin: 0 0.42cqw;
+    }
+    #root .f05-arrow-shaft {
+      position: absolute;
+      left: 0;
+      top: 0.22cqw;
+      width: 0.68cqw;
+      height: 0.18cqw;
+      background: #141111;
+    }
+    #root .f05-arrow-head {
+      position: absolute;
+      left: 0.6cqw;
+      top: 0;
+      width: 0;
+      height: 0;
+      border-left: 0.46cqw solid #141111;
+      border-top: 0.31cqw solid transparent;
+      border-bottom: 0.31cqw solid transparent;
+    }
+
+    /* ——— annotations under the line ——— */
+    #root #f05-note {
+      position: absolute;
+      left: 6cqw;
+      top: 41.6cqw;
+      display: flex;
+      align-items: center;
+      font-family: "Space Mono", monospace;
+      font-size: 1.2cqw;
+      line-height: 1;
+      letter-spacing: 0.04em;
+      z-index: 7;
+      opacity: 0;
+    }
+    #root #f05-notemark {
+      display: inline-block;
+      width: 0.55cqw;
+      height: 0.55cqw;
+      margin-right: 0.75cqw;
+      background: #141111;
+    }
+    #root #f05-honest {
+      position: absolute;
+      right: 5cqw;
+      top: 43.6cqw;
+      font-family: "Space Mono", monospace;
+      font-size: 1.05cqw;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6F6A5E;
+      z-index: 7;
+      opacity: 0;
+    }
+
+    /* ——— the caption band: designed in-frame type, one cue at a time ———
+       band top edge sits at y=920; all other content stays above y=900      */
+    #root #f05-capband {
+      position: absolute;
+      left: 5cqw;
+      right: 5cqw;
+      top: 47.92cqw;
+      height: 4.2cqw;
+      z-index: 9;
+    }
+    #root #f05-bandrule {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 0.18cqw;
+      background: #141111;
+    }
+    #root .f05-capline {
+      position: absolute;
+      left: 0;
+      top: 1.15cqw;
+      width: 100%;
+      font-family: "Hanken Grotesk", sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 2.4cqw;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+    #root .f05-capword {
+      display: inline-block;
+    }
+  </style>
+
+  <div id="root" data-composition-id="05-cursor-not-a-list" data-width="1920" data-height="1080" data-duration="9.4">
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+    <!-- approved frame video hoisted by assemble-index -->
+
+    <div id="f05-scrim"></div>
+
+    <div id="f05-seat">
+      <div id="f05-line"></div>
+      <div id="f05-endL" class="f05-endtick"></div>
+      <div id="f05-endR" class="f05-endtick"></div>
+      <div id="f05-sweep"></div>
+      <div id="f05-tick">
+        <span id="f05-ticklabel">read: seq</span>
+        <span id="f05-numwin"><span id="f05-numfrom">11</span><span id="f05-numto">12</span></span>
+      </div>
+      <div id="f05-ack">
+        <span>ack</span>
+        <span id="f05-arrow" aria-hidden="true"><span class="f05-arrow-shaft"></span><span class="f05-arrow-head"></span></span>
+        <span>+1</span>
+      </div>
+    </div>
+
+    <div id="f05-note"><span id="f05-notemark"></span>survives a restart</div>
+    <div id="f05-honest">diagram = design &middot; feed = real capture</div>
+
+    <div id="f05-capband">
+      <div id="f05-bandrule"></div>
+      <div id="f05-cap-0" class="f05-capline"></div>
+      <div id="f05-cap-1" class="f05-capline"></div>
+      <div id="f05-cap-2" class="f05-capline"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var byId = function (id) {
+        return document.getElementById(id);
+      };
+
+      /* the shot's captions — designed in-frame typography (no caption track exists) */
+      var CAPTIONS = [
+        "What an agent has read survives a restart.",
+        "Reading doesn\u2019t advance the cursor.",
+        "An ack does \u2014 one durable position."
+      ];
+      var CUE = [0.6, 3.4, 6.2];
+
+      /* caption lines -> word spans (space text nodes keep the measure) */
+      var caps = [];
+      CAPTIONS.forEach(function (text, i) {
+        var line = byId("f05-cap-" + i);
+        var words = [];
+        text.split(" ").forEach(function (w, j) {
+          if (j) line.appendChild(document.createTextNode(" "));
+          var s = document.createElement("span");
+          s.className = "f05-capword";
+          s.textContent = w;
+          line.appendChild(s);
+          words.push(s);
+        });
+        caps.push({ line: line, words: words });
+      });
+
+      var seat = byId("f05-seat");
+      var sweep = byId("f05-sweep");
+      var tick = byId("f05-tick");
+      var ack = byId("f05-ack");
+      var num42 = byId("f05-numfrom");
+      var num43 = byId("f05-numto");
+      var note = byId("f05-note");
+      var notemark = byId("f05-notemark");
+      var honest = byId("f05-honest");
+
+      var tl = gsap.timeline({ paused: true });
+
+      /* — scene 1 · 0.0–3.0 — the real feed holds, dimmed, under the designed layer;
+           the read line sweeps down the feed once, stops, and reads seq 42 — */
+      tl.fromTo(seat, { y: -820 }, { y: 0, duration: 1.05, ease: "power3.out" }, 0.35);
+      tl.fromTo(
+        caps[0].words,
+        { y: 22, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.055 },
+        CUE[0]
+      );
+      tl.fromTo(tick, { y: -18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "back.out(2.1)" }, 1.32);
+      tl.fromTo(honest, { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 1.62);
+
+      /* — scene 2 · 3.0–6.0 — the line holds; a read head passes along it three times
+           while the capture keeps scrolling, and the position does not move — */
+      tl.to(caps[0].line, { y: -14, opacity: 0, duration: 0.2, ease: "power2.in" }, 3.12);
+      tl.fromTo(
+        caps[1].words,
+        { y: 22, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.055 },
+        CUE[1]
+      );
+      [3.42, 4.42, 5.42].forEach(function (t) {
+        tl.fromTo(sweep, { x: 0 }, { x: 1640, duration: 1, ease: "none", immediateRender: false }, t);
+        tl.fromTo(
+          sweep,
+          { opacity: 0 },
+          { opacity: 0.85, duration: 0.16, ease: "power2.out", immediateRender: false },
+          t
+        );
+        tl.to(sweep, { opacity: 0, duration: 0.22, ease: "power2.in" }, t + 0.78);
+      });
+
+      /* — scene 3 · 6.0–9.0 — the ack drops onto the line; the position steps forward
+           exactly once and the readout rolls 42 → 43; the durable note lands — */
+      tl.to(caps[1].line, { y: -14, opacity: 0, duration: 0.2, ease: "power2.in" }, 5.94);
+      tl.fromTo(
+        caps[2].words,
+        { y: 22, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out", stagger: 0.055 },
+        CUE[2]
+      );
+      tl.fromTo(
+        ack,
+        { y: -120, opacity: 0, scale: 1.12 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: "back.out(1.7)", transformOrigin: "50% 100%" },
+        6.28
+      );
+      tl.fromTo(seat, { y: 0 }, { y: 64, duration: 0.22, ease: "power3.in", immediateRender: false }, 6.95);
+      tl.fromTo(seat, { y: 64 }, { y: 61, duration: 0.05, ease: "power1.out", immediateRender: false }, 7.17);
+      tl.fromTo(seat, { y: 61 }, { y: 64, duration: 0.16, ease: "power1.inOut", immediateRender: false }, 7.23);
+      tl.fromTo(num42, { yPercent: 0, opacity: 1 }, { yPercent: 100, opacity: 0, duration: 0.18, ease: "power2.in" }, 7);
+      tl.fromTo(num43, { yPercent: -100, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.22, ease: "power3.out" }, 7);
+      tl.fromTo(note, { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 7.5);
+      tl.fromTo(
+        notemark,
+        { scale: 1 },
+        { scale: 1.6, duration: 0.12, ease: "power2.out", immediateRender: false },
+        8.2
+      );
+      tl.to(notemark, { scale: 1, duration: 0.22, ease: "power2.inOut" }, 8.34);
+
+      /* full-span anchor: render length 9s */
+      tl.to({}, { duration: 9 }, 0);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["05-cursor-not-a-list"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>
