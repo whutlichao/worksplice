@@ -162,6 +162,26 @@ test("MessageRow keeps the convert-to-task key out of the action bar without con
     assert.equal(html.split('title="Convert to task"').length - 1, 0);
 });
 
+// 接线守卫（code-review Standards 轴发现 2）：上面四条正例都落在 MessageRow seam，
+// 频道调用点少传 convertInActionBar / onConvertToTask 字面量时它们会全绿而产品面静默失效。
+// 本仓既有源码扫描惯用形（见「票瘦身」用例）锁住频道列表这一处接线。
+test("ChannelView wires convertInActionBar and onConvertToTask into the channel message list", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    const start = source.indexOf("<MessageRow");
+    const end = source.indexOf("/>", start);
+    assert.ok(
+        start !== -1 && end > start,
+        "ChannelView 应当渲染一处 MessageRow（频道消息列表）",
+    );
+    const channelCall = source.slice(start, end);
+    assert.match(channelCall, /convertInActionBar/);
+    assert.match(channelCall, /onConvertToTask=\{handleConvertToTask\}/);
+    assert.match(channelCall, /canConvertToTask=\{!taskMessageIds\.has\(m\.id\)\}/);
+});
+
 test("MessageRow renders the ⏰ reminder action when onSetReminder is provided (§5.6)", () => {
     const calls = { reminder: null };
     const html = renderI18n(
