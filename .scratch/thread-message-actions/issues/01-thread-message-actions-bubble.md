@@ -125,7 +125,7 @@
 2. `spec.md` 头部在「性质」那行后补一句位置说明（正本 + 位置依 `docs/agents/issue-tracker.md`）；**正文逐字未动**：`git diff -M` = `similarity index 99%`、`numstat` 为 `1 0`，唯一内容差异就是那一行。
 3. 本票据三处失效表述：`What to build` 的产出路径改指 `.scratch/thread-message-actions/spec.md`；「产出物」条目同步新位置并写明旧理由失效的新事实；「门禁自检」「命令结果」两节**加标注而不改写**（其中的 `docs/design-notes/...` 路径、`git status` / `git diff --numstat` 结果、`.gitignore:50` 描述是当时的历史事实，按当时原样保留，并已标明为 #86 之前）。
 
-**门禁**：G-docs —— 文件到位（旧路径已不存在、新路径七节齐全）、裁决逐字未丢（grep 复核 D1 / D3 / D4 原文与两张按钮清单仍在）、失效表述已处理、design tree frontier 仍为空。本票**不跑测试、不做双轴 code-review、不跑 typecheck / lint**（设计票门禁，无被测对象）；源码面为空：`git diff afc9a11 HEAD --name-only | grep -v '^\.scratch/\|^docs/'` 无输出。除本票的两个文档外无其他改动；`.pi-lens.json` 按 BEHAVIOR RULE 6 写在本仓并本地 exclude，未入库。
+**门禁**：G-docs —— 文件到位（旧路径已不存在、新路径七节齐全）、裁决逐字未丢（grep 复核 D1 / D3 / D4 原文与两张按钮清单仍在）、失效表述已处理、design tree frontier 仍为空。本票**不跑测试、不做双轴 code-review、不跑 typecheck / lint**（设计票门禁，无被测对象）；源码面为空：`git diff 5df3501 HEAD --name-only | grep -v '^\.scratch/\|^docs/'` 无输出（本分支 base = `origin/main` tip `5df3501`，已把本地 `afc9a11` 重放到 main 上，故 PR diff 恰为本票两个文件）。除本票的两个文档外无其他改动；`.pi-lens.json` 按 BEHAVIOR RULE 6 写在本仓并本地 exclude，未入库。
 
 **判据 4 收窄与全仓残留分类**（`ask` 里问回、coordinator 代答：判据是 spec 写错，不是 worker 越界）——grep `不进版本库|不被 git 跟踪|gitignore:50|必须落 docs/` 的残留分三类：
 
