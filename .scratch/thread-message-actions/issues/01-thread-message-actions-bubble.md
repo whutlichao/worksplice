@@ -84,6 +84,7 @@
 
 ### 门禁自检（G-docs）
 
+> **判据 4 已由 coordinator 修正**（原写「**全仓** grep `不进版本库|不被 git 跟踪|gitignore:50|必须落 docs/` → 命中为零，或全部位于标注为『#86 之前的历史事实』的那一节内」，与同票 Ownership「不许碰其他 effort 的任何文件」自相矛盾）：现收窄为**只管本票自己的两个文件**（本 spec.md + 本票据）。全仓残留按 (a)/(b)/(c) 三类逐条分类记在末尾「归位记录」，判据是**被修正过的**，不是漏检。
 > **本节后半的 git 命令结果、`docs/design-notes/...` 路径与 `.gitignore:50` 描述，均为 #86 之前的历史事实**，按当时原样保留、不回填成现在（`.scratch/` 自 PR #86 commit `223a4af` 起已入库）。归位后的现状见末尾「归位记录」。
 
 - 七节齐全：Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes；`## ` 顶层无自由章节（两张按钮清单等均为既有章节内的 `###` 子节）。
@@ -124,6 +125,12 @@
 2. `spec.md` 头部在「性质」那行后补一句位置说明（正本 + 位置依 `docs/agents/issue-tracker.md`）；**正文逐字未动**：`git diff -M` = `similarity index 99%`、`numstat` 为 `1 0`，唯一内容差异就是那一行。
 3. 本票据三处失效表述：`What to build` 的产出路径改指 `.scratch/thread-message-actions/spec.md`；「产出物」条目同步新位置并写明旧理由失效的新事实；「门禁自检」「命令结果」两节**加标注而不改写**（其中的 `docs/design-notes/...` 路径、`git status` / `git diff --numstat` 结果、`.gitignore:50` 描述是当时的历史事实，按当时原样保留，并已标明为 #86 之前）。
 
-**门禁**：G-docs —— 文件到位（旧路径已不存在、新路径七节齐全）、裁决逐字未丢（grep 复核 D1 / D3 / D4 原文与两张按钮清单仍在）、失效表述已处理、design tree frontier 仍为空。本票**不跑测试、不做双轴 code-review、不跑 typecheck / lint**；源码面为空：`git diff afc9a11 HEAD --name-only | grep -v '^\.scratch/\|^docs/'` 无输出。除本票的两个文档外无其他改动；`.pi-lens.json` 按 BEHAVIOR RULE 6 写在本仓并本地 exclude，未入库。
+**门禁**：G-docs —— 文件到位（旧路径已不存在、新路径七节齐全）、裁决逐字未丢（grep 复核 D1 / D3 / D4 原文与两张按钮清单仍在）、失效表述已处理、design tree frontier 仍为空。本票**不跑测试、不做双轴 code-review、不跑 typecheck / lint**（设计票门禁，无被测对象）；源码面为空：`git diff afc9a11 HEAD --name-only | grep -v '^\.scratch/\|^docs/'` 无输出。除本票的两个文档外无其他改动；`.pi-lens.json` 按 BEHAVIOR RULE 6 写在本仓并本地 exclude，未入库。
+
+**判据 4 收窄与全仓残留分类**（`ask` 里问回、coordinator 代答：判据是 spec 写错，不是 worker 越界）——grep `不进版本库|不被 git 跟踪|gitignore:50|必须落 docs/` 的残留分三类：
+
+- **(a) 本 effort 两个文件内**：`门禁自检` 节的两条标注 + 该节保留的旧路径 / `.gitignore:50` 描述 + `归位记录` 节的元描述，**全部在已标注为「#86 之前的历史事实」的范围内** ✅ 不需处理。
+- **(b) 语义无关，不算残留**：`.gitignore:55`、`bin/demo-data.js`、`scripts/build-demo-db.mjs` 的「不进版本库」说的是**打包期生成的演示库**，不是 `.scratch/`。
+- **(c) 别的 effort 的文件，本票一律不碰**（与 Ownership 一致）：`.scratch/promote-worksplice/{map.md,plan-private.md,issues/10-plan-assembly.md}`（私有计划）；另有 `docs/spike-systemprompt-fix.md:868`「（`.scratch/` 已在 `.gitignore:50`，不进 PR）」是 **#86 之后真的失效的表述**，但属另一个 effort，**本票不碰**——作为**遗留项**记入此处，是否另开清理票由人另行决定。
 
 **PR**：#87 — https://github.com/whutlichao/worksplice/pull/87 （分支 `whutlichao/thread-message-actions-spec-home` → `main`，纯文档移动 + 几处表述；diff = 1 个高相似度 rename（相似度 99%）+ 少量行改动，源码面为空）
