@@ -20,6 +20,7 @@ import {
   Kanban,
   Link,
   List,
+  ListPlus,
   Paperclip,
   Pin,
   Quote,
@@ -574,7 +575,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
   );
 }
 
-/** 消息动作栏（§3.2/§3.3）：hover 浮出；回复 / 引用 / 复制链接 / 设提醒（§5.6）/ Pin / emoji+（点开展开二级快捷 bar，再点开完整选择器）。
+/** 消息动作栏（§3.2/§3.3）：hover 浮出；回复 / 引用 / 复制链接 / 设提醒（§5.6）/ Pin / 转为任务（§3.7，仅频道面）/ emoji+（点开展开二级快捷 bar，再点开完整选择器）。
  *  每个键都按 prop 门控：频道面全给，线程面只给 表情 / 引用 / 复制链接 / ⏰（仅锚点）——收窄靠「不传 prop」，不是「传空函数」。 */
 function MessageActions({
   message,
@@ -584,6 +585,7 @@ function MessageActions({
   onReminder,
   onToggleReaction,
   onTogglePin,
+  onConvertToTask,
   pinned,
   reactOpen,
   onToggleReactOpen,
@@ -595,6 +597,7 @@ function MessageActions({
   onReminder?: (message: ChannelMessage) => void;
   onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
   onTogglePin?: (message: ChannelMessage) => void;
+  onConvertToTask?: (message: ChannelMessage) => void;
   pinned?: boolean;
   reactOpen?: boolean;
   onToggleReactOpen?: () => void;
@@ -676,6 +679,16 @@ function MessageActions({
           onClick={() => onTogglePin(message)}
         >
           <Pin size={13} />
+        </button>
+      )}
+      {onConvertToTask && (
+        <button
+          type="button"
+          title={t("tasks.convert")}
+          style={actionButtonStyle}
+          onClick={() => onConvertToTask(message)}
+        >
+          <ListPlus size={13} />
         </button>
       )}
       {reactOpen && (
@@ -810,6 +823,7 @@ export const MessageRow = memo(function MessageRow({
   message,
   isAnchor,
   canConvertToTask,
+  convertInActionBar,
   currentMemberId,
   pinned,
   mentionMembers,
@@ -827,6 +841,8 @@ export const MessageRow = memo(function MessageRow({
   message: ChannelMessage;
   isAnchor?: boolean;
   canConvertToTask?: boolean;
+  /** §3.7 创建途径 4：动作栏「转为任务」键——只有频道调用点传 true（线程面不传 ⇒ 键根本不存在）。 */
+  convertInActionBar?: boolean;
   currentMemberId?: string;
   pinned?: boolean;
   mentionMembers?: Array<{ id: string; name: string; type: "agent" | "human" }>;
@@ -1024,6 +1040,11 @@ export const MessageRow = memo(function MessageRow({
             onReminder={onSetReminder}
             onToggleReaction={onToggleReaction}
             onTogglePin={onTogglePin}
+            onConvertToTask={
+              convertInActionBar && canConvertToTask && onConvertToTask
+                ? onConvertToTask
+                : undefined
+            }
             pinned={pinned}
             reactOpen={reactOpen}
             onToggleReactOpen={() => setReactOpen((open) => !open)}
@@ -3632,6 +3653,7 @@ export function ChannelView({
                     currentMemberId={currentMemberId}
                     pinned={pinnedSet.has(m.id)}
                     canConvertToTask={!taskMessageIds.has(m.id)}
+                    convertInActionBar
                     mentionMembers={mentionMembers}
                     onOpenMention={openMention}
                     onOpenMember={openMemberPanel}

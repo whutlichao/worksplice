@@ -98,6 +98,90 @@ test("MessageRow omits the pin action when onTogglePin is absent, even when pinn
     assert.doesNotMatch(html, /title="Pin to channel"/);
 });
 
+// 动作栏「转为任务」键（§3.7 创建途径）：与右键项同权，仅频道调用点传 convertInActionBar 才渲染。
+// 断言落在无障碍名上（title = t("tasks.convert")，与右键菜单项逐字同名），并数次数防重复入口。
+test("MessageRow renders the convert-to-task action bar key on the channel surface", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+            canConvertToTask: true,
+            onConvertToTask: () => undefined,
+            convertInActionBar: true,
+        }),
+    );
+
+    assert.equal(html.split('title="Convert to task"').length - 1, 1);
+});
+
+// 已是任务 ⇒ 键不渲染（与右键项同一门槛 canConvertToTask）。
+test("MessageRow omits the convert-to-task action bar key when the message is already a task", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+            canConvertToTask: false,
+            onConvertToTask: () => undefined,
+            convertInActionBar: true,
+        }),
+    );
+
+    assert.equal(html.split('title="Convert to task"').length - 1, 0);
+});
+
+// 无 handler ⇒ 键不渲染（动作栏既有形制：传了 handler prop 才渲染）。
+test("MessageRow omits the convert-to-task action bar key when onConvertToTask is absent", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+            canConvertToTask: true,
+            convertInActionBar: true,
+        }),
+    );
+
+    assert.equal(html.split('title="Convert to task"').length - 1, 0);
+});
+
+// 线程锚点形制：canConvertToTask + onConvertToTask 都在（右键项仍可弹），但不传 convertInActionBar
+// ⇒ 键根本不存在（#88 门控形制：不传 prop，而不是传空函数）。
+test("MessageRow keeps the convert-to-task key out of the action bar without convertInActionBar", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+            canConvertToTask: true,
+            onConvertToTask: () => undefined,
+        }),
+    );
+
+    assert.equal(html.split('title="Convert to task"').length - 1, 0);
+});
+
+// 接线守卫（code-review Standards 轴发现 2）：上面四条正例都落在 MessageRow seam，
+// 频道调用点少传 convertInActionBar / onConvertToTask 字面量时它们会全绿而产品面静默失效。
+// 本仓既有源码扫描惯用形（见「票瘦身」用例）锁住频道列表这一处接线。
+test("ChannelView wires convertInActionBar and onConvertToTask into the channel message list", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    const start = source.indexOf("<MessageRow");
+    const end = source.indexOf("/>", start);
+    assert.ok(
+        start !== -1 && end > start,
+        "ChannelView 应当渲染一处 MessageRow（频道消息列表）",
+    );
+    const channelCall = source.slice(start, end);
+    assert.match(channelCall, /convertInActionBar/);
+    assert.match(channelCall, /onConvertToTask=\{handleConvertToTask\}/);
+    assert.match(channelCall, /canConvertToTask=\{!taskMessageIds\.has\(m\.id\)\}/);
+});
+
 test("MessageRow renders the ⏰ reminder action when onSetReminder is provided (§5.6)", () => {
     const calls = { reminder: null };
     const html = renderI18n(

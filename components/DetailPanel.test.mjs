@@ -143,6 +143,9 @@ test("DetailPanel thread 变体渲染锚点与消息（测试注入 initialAncho
     assert.match(html, /thread reply/);
     assert.match(html, /aria-label="Close panel"/);
     assert.match(html, /textarea/);
+    // 真实 ThreadPanel 锚点行不传 convertInActionBar ⇒ 动作栏没有「转为任务」键
+    // （锚点的右键菜单项不受影响：它由 canConvertToTask + onConvertToTask 组装，与动作栏门控无关）。
+    assert.equal(html.split('title="Convert to task"').length - 1, 0);
 });
 
 test("DetailPanel thread 变体：无锚点时渲染加载态", () => {
