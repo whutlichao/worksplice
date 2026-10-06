@@ -96,7 +96,7 @@ eslint-plugin-react-hooks 7.0.1 / react 19.2.4 / eslint 9.39.4     # 与 main �
 
 ## Answer
 
-**PR:** #PR_NUMBER_PLACEHOLDER　**分支:** `whutlichao/bun-install-guard`　**提交:** `7fabb02`（守卫 + 文档 + 首版用例）、`9c14814`（review 后补入口缝隙用例）
+**PR:** #91　**分支:** `whutlichao/bun-install-guard`　**提交:** `7fabb02`（守卫 + 文档 + 首版用例）、`9c14814`（review 后补入口缝隙用例）
 
 ### 1. 结论
 
