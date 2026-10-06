@@ -61,20 +61,27 @@ export interface PathGuardDecision {
  */
 export function allowedRootsFor(member: MemberRow, dataDir: string): string[] {
   const homeDir = agentHomeDir(dataDir, member.id, member.name);
-  const roots: string[] = [homeDir];
-  const bound = member.workspace_path;
-  if (bound && path.isAbsolute(bound) && !samePath(bound, homeDir)) {
-    roots.push(bound);
-  }
-  return roots;
+  return [homeDir, ...boundProjectRoots(member, homeDir)];
 }
 
-/** 会话级判定域：根的构成 + 数据目录不变式所需的两个锚点。 */
+/** 显式绑定的项目目录（若有）：家目录派生绑定已被数据层重推成家目录本身，这里去重。 */
+function boundProjectRoots(member: MemberRow, homeDir: string): string[] {
+  const bound = member.workspace_path;
+  if (!bound || !path.isAbsolute(bound) || samePath(bound, homeDir)) return [];
+  return [bound];
+}
+
+/**
+ * 会话级判定域：根的构成 + 数据目录不变式所需的两个锚点。
+ * `homeDir` 与 `allowedRoots[0]` 在构造上恒等（`allowedRootsFor` 必以家目录打头），
+ * 但仍然分开表达：判定读的是「本成员自己的家目录」这个概念，而不是「根列表的第一条」。
+ */
 export function pathGuardScopeFor(member: MemberRow, dataDir: string): PathGuardScope {
+  const homeDir = agentHomeDir(dataDir, member.id, member.name);
   return {
-    allowedRoots: allowedRootsFor(member, dataDir),
+    allowedRoots: [homeDir, ...boundProjectRoots(member, homeDir)],
     dataDir,
-    homeDir: agentHomeDir(dataDir, member.id, member.name),
+    homeDir,
     ...(member.name ? { memberName: member.name } : {}),
   };
 }
@@ -141,8 +148,9 @@ export function assertWithinAllowedRoots(absolutePath: string, scope: PathGuardS
  *
  * 这里拿到的还是模型给的原始字符串（绝对/相对/`~`/`@`/`file://`），所以要按 pi 的
  * `resolveToCwd` 同源形态解析一次再判：`~` 与 `file://` 用同一个 node 原语、开头的 `@` 与 pi 的
- * `stripAtPrefix` 同款裁掉、相对路径用同一个 `path.resolve(cwd, ...)` 语义。绝对形态的原文也会
- * 一并判一次（两者都在根内才放行），这样归一化差异不会变成「我只判了归一化后的那一侧」。
+ * `stripAtPrefix` 同款裁掉且顺序一致（`@` → `~` → `file://`）、相对路径用同一个
+ * `path.resolve(cwd, ...)` 语义。绝对形态的原文也会一并判一次（两者都在根内才放行），这样归一化
+ * 差异不会变成「我只判了归一化后的那一侧」。
  */
 export function assertSearchRootWithinAllowedRoots(
   rawSearchRoot: unknown,
@@ -174,7 +182,10 @@ export function assertSearchRootWithinAllowedRoots(
  * 连这层差异也不影响结论。
  */
 export function resolvePathForGuard(rawPath: string, cwd: string): string {
-  const expanded = stripAtPrefix(expandHome(rawPath));
+  // 归一步骤的顺序必须与 pi 的 `normalizePath` 一致：先裁 `@`、再展开 `~`、最后转 `file://`。
+  // `@~` 就是个反例：先展开的话 `@~` 不是 `~` 开头，裁完 `@` 剩下 `~` 会被当成 cwd 下的相对名
+  // 而放行，pi 却会展开成用户家目录（通常在允许根外）。
+  const expanded = expandHome(stripAtPrefix(rawPath));
   const fromUrl = expanded.startsWith("file://") ? fileURLToPath(expanded) : expanded;
   return path.isAbsolute(fromUrl) ? path.resolve(fromUrl) : path.resolve(cwd, fromUrl);
 }

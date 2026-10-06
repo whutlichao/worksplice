@@ -1,0 +1,22 @@
+# 取证：lib/rpc/session.ts 的 19 条 lens 发现全部是改动前既有行
+# 方法：把当前文件里被标记的行逐条拿到 HEAD~1（本票改动前的提交）里比对
+cur L443 -> base L437: (manager as unknown as { flushed: boolean }).flushed = true;
+cur L340 -> base L334: shutdownHandler: () => this.emit({
+cur L858 -> base L852: const event = {
+cur L879 -> base L487: this.emit({
+cur L1048 -> base L487: this.emit({
+cur L1060 -> base L487: this.emit({
+cur L1083 -> base L487: this.emit({
+cur L1095 -> base L487: this.emit({
+cur L1104 -> base L487: this.emit({
+cur L1112 -> base L487: this.emit({
+
+被标记行中被 base 逐字包含的：10/10
+
+# 本票对该文件的改动（git diff HEAD~1 -- lib/rpc/session.ts）：
+  +import type { PathGuardScope } from "../tool-path-guard.ts";
+  +  /**
+  +   * 路径守卫的判定域（ADR-0011）：传了就在该会话注册六个同名覆盖的文件工具定义，
+  +   * 落点被限制在允许根内；未传 = 不装守卫（人类会话走 pi 的默认实现）。
+  +   */
+  +  pathGuard?: PathGuardScope;

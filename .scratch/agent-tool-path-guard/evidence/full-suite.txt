@@ -1,11 +1,10 @@
-# npm test（全量档）——尾部汇总（完整日志体量太大，只留汇总；跑法：npm test）
-# 基线：941 用例（票面记录）；本次新增 28 个（20 纯函数 + 8 集成）= 969
-✔ supports WORKSPLICE_HOSTNAME without trusting the ambient system HOSTNAME (0.100208ms)
-ℹ tests 969
+# npm test（全量档）——尾部汇总（本次为 code-review 修复后重跑；跑法：npm test）
+# 基线：941 用例（票面记录）；本次新增 29 个（21 纯函数 + 8 集成）= 970
+ℹ tests 970
 ℹ suites 0
-ℹ pass 969
+ℹ pass 970
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 7340.638542
+ℹ duration_ms 7580.341875

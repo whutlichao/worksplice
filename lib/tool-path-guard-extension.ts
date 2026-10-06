@@ -24,7 +24,6 @@ import {
   type EditOperations,
   type ExtensionAPI,
   type ExtensionFactory,
-  type FindOperations,
   type GrepOperations,
   type LsOperations,
   type ReadOperations,
@@ -38,7 +37,6 @@ export interface GuardedFileOperations {
   write: WriteOperations;
   edit: EditOperations;
   grep: GrepOperations;
-  find: FindOperations;
   ls: LsOperations;
 }
 
@@ -74,8 +72,11 @@ const GUARDED_REGISTRARS: Record<
     };
     pi.registerTool(presetSafeActivation(guarded));
   },
-  find: ({ cwd, scope, operations }) => (pi) => {
-    const definition = createFindToolDefinition(cwd, { operations: operations.find });
+  find: ({ cwd, scope }) => (pi) => {
+    // 不传 operations：pi 的 find 只在 `customOps?.glob` 为真时才用自定义 ops，否则一律走
+    // `spawn(fd)` 的真实遍历（`find.js`）——传一个只有 `exists` 的 ops 等于给一个永远不会
+    // 被调用的死参数（搜索根由上面那层定义级判定拉）。遍历语义全部是 pi 的。
+    const definition = createFindToolDefinition(cwd);
     const execute = definition.execute.bind(definition);
     const guarded: typeof definition = {
       ...definition,
@@ -138,9 +139,9 @@ export const GUARDED_TOOL_NAMES: readonly string[] = CODING_TOOL_NAMES.filter(
  * `resolveReadPathAsync`、其余四个的 `resolveToCwd`），所以判定点与副作用点相邻，不存在
  * 「判过了但写到别处」的缝。
  *
- * `find.glob` 刻意**不提供**：pi 的 find 在 `customOps?.glob` 存在时才用它，否则走 fd 的
- * 真实遍历（`find.js`）——给 glob 就等于自己重写一遍 glob 语义（含 gitignore 与 fd 回退），
- * 那是设计里明确不做的。因此 find / grep 的搜索根另有一层定义级判定，见 `guardSearchRootCall`。
+ * `find.glob` 刻意**不提供**（也不传任何 find ops）：pi 的 find 在 `customOps?.glob` 存在时才用它，
+ * 否则走 fd 的真实遍历（`find.js`），所以给 glob 等于自己重写一遍 glob 语义（含 gitignore 与 fd
+ * 回退）——那是设计里明确不做的。find / grep 的搜索根另有一层定义级判定，见 `guardSearchRootCall`。
  */
 export function guardFileOperations(scope: PathGuardScope): GuardedFileOperations {
   const admit = (absolutePath: string) => assertWithinAllowedRoots(absolutePath, scope);
@@ -159,10 +160,6 @@ export function guardFileOperations(scope: PathGuardScope): GuardedFileOperation
       return false;
     }
   });
-
-  // SAFETY: 断言的是「少提供一个方法」而不是伪造实现：`FindOperations.glob` 在 pi 的 find
-  // 里是可省略的行为缺口——`customOps?.glob` 为真才走自定义 glob，否则回落 fd 的真实遍历。
-  const findOperations = { exists } as unknown as FindOperations;
 
   return {
     read: {
@@ -194,7 +191,6 @@ export function guardFileOperations(scope: PathGuardScope): GuardedFileOperation
       }),
       readFile: guarded((absolutePath: string) => fsp.readFile(absolutePath, "utf-8")),
     },
-    find: findOperations,
     ls: {
       exists,
       stat: guarded((absolutePath: string) => fsp.stat(absolutePath)),
