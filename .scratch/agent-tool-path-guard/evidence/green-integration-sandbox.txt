@@ -1,0 +1,10 @@
+# 集成层（lib/bash-containment-extension.test.mjs）绿：15 例（真沙箱 + 真实会话）
+# 跑法：node --test lib/bash-containment-extension.test.mjs
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2653.50125

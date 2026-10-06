@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
-import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
+import type { BashContainmentNotice, BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
+import type { TranslationParams } from "@/lib/i18n/types";
 import type { SkillsResponse } from "@/lib/api-types";
 import { clearDraft, getDraft, setDraft, type ChatDraftImage } from "@/lib/draft-store";
 import {
@@ -51,6 +52,11 @@ interface Props {
   compactResult?: CompactResultInfo | null;
   toolPreset?: "none" | "default" | "full";
   onToolPresetChange?: (preset: "none" | "default" | "full") => void;
+  /**
+   * 沙箱状态（ADR-0012 决策五）：`available === false` 时档位描述里要写出
+   * 「本平台无沙箱 ⇒ 该档位实际不含 bash」，不允许档位看着有 bash、实际没有也说不出原因。
+   */
+  bashContainment?: BashContainmentNotice | null;
   thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
   availableThinkingLevels?: string[] | null;
@@ -80,6 +86,30 @@ export interface ChatInputHandle {
 
 const TOOL_PRESETS = ["off", "default", "full"] as const;
 const TOOL_PRESET_MAP: Record<"off" | "default" | "full", "none" | "default" | "full"> = { off: "none", default: "default", full: "full" };
+
+/**
+ * 一个档位在菜单里的一句话说明。
+ *
+ * 沙箱不可用时（ADR-0012 决策五：拿不到沙箱就不激活 bash），`default` / `full` 两个档位要
+ * **解释**「名义上有 bash、实际没有」——档位构成本身不变（`PRESET_*` 仍含 bash），变的是
+ * 这个平台能不能真把它跑起来。抽成纯函数是为了让这条解释能被直接断言。
+ *
+ * 带解释的那句整句在语言包里（`{preset}` 是参数）——分隔符与语序由翻译决定，
+ * 组件不拼翻译片段（docs/i18n.md「Use parameters … instead of concatenating translated fragments」）。
+ */
+export function toolPresetDescription(
+  lvl: (typeof TOOL_PRESETS)[number],
+  t: (key: string, params?: TranslationParams) => string,
+  bashContainment?: BashContainmentNotice | null,
+): string {
+  const base = lvl === "off"
+    ? t("chat.noTools")
+    : lvl === "default"
+      ? t("chat.builtInTools", { count: 4 })
+      : t("chat.allBuiltInTools");
+  if (lvl === "off" || bashContainment?.available !== false) return base;
+  return t("chat.toolPresetWithBashNote", { preset: base });
+}
 const COMPOSITION_END_ENTER_GRACE_MS = 100;
 const MODEL_FILTER_THRESHOLD = 8;
 const MODEL_OPTION_COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -315,7 +345,7 @@ export function ModelScopeWarningBanner({ warnings }: { warnings?: string[] }) {
 
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
   onSend, onAbort, onSteer, onFollowUp, isStreaming, model, isAutoModelSelection, modelNames, modelList, modelError, modelScopeWarnings, onModelChange,
-  onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange,
+  onCompact, onAbortCompaction, isCompacting, compactError, compactResult, toolPreset, onToolPresetChange, bashContainment,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
@@ -1079,6 +1109,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
     return thinkingLevelMap[lvl] ?? lvl;
   })();
   const toolPresetLabel = Object.entries(TOOL_PRESET_MAP).find(([, v]) => v === (toolPreset ?? "default"))?.[0] ?? "default";
+  // fail-closed 平台上档位名不变（PRESET_* 仍含 bash），但必须说得出「实际不含 bash」的原因（ADR-0012 决策五）。
+  const toolPresetTitle = bashContainment?.available === false
+    ? t("chat.toolPresetWithBashNote", { preset: `${t("chat.changeToolPreset")}: ${toolPresetLabel}` })
+    : null;
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -2139,7 +2173,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 <button
                   onClick={() => !isStreaming && setToolDropdownOpen((v) => !v)}
                   disabled={isStreaming}
-                   title={t("chat.changeToolPreset") + `: ${toolPresetLabel}`}
+                   title={toolPresetTitle ?? t("chat.changeToolPreset") + `: ${toolPresetLabel}`}
                    aria-label={t("chat.changeToolPreset")}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
@@ -2180,7 +2214,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     {TOOL_PRESETS.map((lvl) => {
                       const preset = TOOL_PRESET_MAP[lvl];
                       const isActive = (toolPreset ?? "default") === preset;
-                       const desc = lvl === "off" ? t("chat.noTools") : lvl === "default" ? t("chat.builtInTools", { count: 4 }) : t("chat.allBuiltInTools");
+                       const desc = toolPresetDescription(lvl, t, bashContainment);
                       return (
                         <button
                           key={lvl}

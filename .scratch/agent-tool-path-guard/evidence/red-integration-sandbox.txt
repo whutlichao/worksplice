@@ -1,0 +1,23 @@
+# 红证据（集成层）：把接线（lib/rpc/caller.ts / lib/rpc/session.ts / lib/pi-types.ts）git stash 回退到改动前，
+# 再跑 lib/bash-containment-extension.test.mjs —— 21 条断言变红，证明这一层测的是接线后的外部行为。
+# 跑法：git stash push -- lib/rpc/caller.ts lib/rpc/session.ts lib/pi-types.ts && node --test lib/bash-containment-extension.test.mjs
+✖ 命令文本判据的三条逃逸在沙箱里全部失效 (51.706875ms)
+✖ 成员 shell 里 WORKSPLICE_* 全部剥除、五个 PI_* 全部保留 (32.601875ms)
+✖ 越界读/写被内核拒，且失败被归因成带允许根的可读错误 (36.043417ms)
+✖ 用户级凭证面不可达：~/.ssh 与 ~/.config/gh 都在清单外 (152.156875ms)
+✖ bash 的覆盖定义由 pi 自己造：描述与准则不退化，边界与允许根在注册期就带着 (72.634958ms)
+✖ 拿不到沙箱的平台：bash 拒绝执行（不裸跑），原因说得出、工具面与 RPC 面一致 (40.054167ms)
+✖ exit 134（SIGABRT）被归因：不是裸码，也不冒充普通失败 (28.78775ms)
+✖ failing tests:
+✖ get_state 暴露沙箱状态：成员会话给机制、无人归属会话给 null (30.510334ms)
+✖ 冒烟清单：node / npm / git / bun 各跑一条只读命令（清单够用），gh 是已知代价 (370.436875ms)
+✖ RPC 面（人类 !bash 走的那条路）同样进沙箱，与工具面同一份判定 (206.136875ms)
+# 失败的断言（抽样：越界可达 ⇒ 沙箱没装上）
+[worksplice] session_start dispatched to extensions for session 01a111d0-2961-70c0-9dbe-45ff66c3969c
+[worksplice] session_start dispatched to extensions for session 01a111d0-2985-70c0-9dbe-46004fb3c4da
+[worksplice] session_start dispatched to extensions for session 01a111d0-29b8-70c0-9dbe-46025a89b884
+--
+test at lib/bash-containment-extension.test.mjs:215:1
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  + undefined

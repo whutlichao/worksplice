@@ -1,0 +1,10 @@
+# 纯函数层（lib/bash-containment.test.mjs）绿：13 例
+# 跑法：node --test lib/bash-containment.test.mjs
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 97.551042

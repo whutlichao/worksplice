@@ -1,0 +1,14 @@
+# 红证据（纯函数层）：lib/bash-containment.ts 尚不存在时跑 lib/bash-containment.test.mjs
+# 跑法：node --test lib/bash-containment.test.mjs
+node:internal/modules/cjs/loader:1419
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module './bash-containment.ts'
+Require stack:
+- /Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment.test.mjs
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1419:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at jitiResolve (/Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/node_modules/jiti/dist/jiti.cjs:1:176713)
+    at jitiRequire (/Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/node_modules/jiti/dist/jiti.cjs:1:178658)
+    at Function.import (/Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/node_modules/jiti/dist/jiti.cjs:1:187724)

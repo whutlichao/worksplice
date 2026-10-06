@@ -1,0 +1,5 @@
+# npm run lint（= eslint .，只报告不修）：0 error / 1 warning（在未改动的 hooks/useI18n.tsx）
+  61:6  warning  React Hook useEffect has a missing dependency: 'locale'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+

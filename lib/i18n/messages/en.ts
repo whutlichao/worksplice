@@ -165,6 +165,7 @@ export const enLocale: LocalePlugin = {
     "chat.noTools": "No tools, read-only",
     "chat.builtInTools": "{count} built-in tools",
     "chat.allBuiltInTools": "All built-in tools",
+    "chat.toolPresetWithBashNote": "{preset} — no OS-level sandbox on this platform, so bash is not activated here",
     "chat.changeReasoning": "Change reasoning level: {level}",
     "chat.changeReasoningLabel": "Change reasoning level",
     "chat.changeToolPreset": "Change tool preset",
