@@ -4,11 +4,12 @@
  *
  * 判据（ADR-0013 决策一原话）：**默认拒绝，逐条开口；开口的判据是「该动作不提升调用者的
  * 权限，只扩大协作面」**。
- * - 开口的八条（七条能力 + 协议既有 op）都不给调用者任何它本来没有的东西：读类只读它自己
- *   频道内的内容（search 的调用者作用域在 lib/domain/collab/search.ts 落地），写类要么以它
- *   自己的名义落库（react / pin / remind / post / reply），要么创建的新对象受**同一套**约束
- *   （createAgent 造出的新身份跟它一样：无凭证、路径守卫 + 沙箱同一套；createChannel 只多一个
- *   协作面）。成本面（建 agent 的开销）归 docs/cost-monitoring-baseline.md，与本层无关。
+ * 开口的九项（`OPS_ARRAY_NAMES` 的七条 op + 协议既有的 `reply`/`task`）都不给调用者任何它本来
+ * 没有的东西：读类只读它自己频道内的内容（频道列表注入也只给公开频道与它已加入的；search 的调用者
+ * 作用域在 lib/domain/collab/search.ts 落地），写类要么以它自己的名义落库（react / pin /
+ * remind / post / reply），要么创建的新对象受**同一套**约束（createAgent 造出的新身份跟它一样：
+ * 无凭证、路径守卫 + 沙箱同一套；createChannel 只多一个协作面）。成本面（建 agent 的开销）
+ * 归 docs/cost-monitoring-baseline.md，与本层无关。
  * - 人类专属操作（归档 / 删除身份 / 三种 reset / 改 runtime / 改 workspace）一律不开：
  *   它们改变的是别人的身份与运行形态，不是扩大协作面。
  * - 不在任何一张表里的名字**默认拒绝**——不靠「恰好没写」这种脆弱形态（fail-closed，
@@ -20,17 +21,28 @@
 
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 
-/** 成员经结构化回复协议可请求的动作名（op 名，见 lib/agent-loop/member-ops.ts 的协议）。 */
-export type MemberOpName =
-  | "reply" // 发消息（本轮 target）
-  | "task" // 任务操作（claim / complete / unclaim）
-  | "post" // 跨 target 指针消息
-  | "react" // reaction toggle
-  | "pin" // 个性化 pinned
-  | "remind" // 设提醒
-  | "createChannel" // 建频道
-  | "createAgent" // 建 agent
-  | "search"; // 全文搜索（调用者频道作用域）
+/**
+ * `ops` 数组词表（协议层，见 lib/agent-loop/member-ops.ts）：开口表从它派生，两边不会漂移。
+ */
+export const OPS_ARRAY_NAMES = [
+  "post", // 跨 target 指针消息
+  "react", // reaction toggle
+  "pin", // 个性化 pinned
+  "remind", // 设提醒
+  "createChannel", // 建频道
+  "createAgent", // 建 agent
+  "search", // 全文搜索（调用者频道作用域）
+] as const;
+
+export type OpsArrayName = (typeof OPS_ARRAY_NAMES)[number];
+
+/** 协议自己的字段（**不是** `ops` 数组条目）：`reply` = action，`task` = 任务操作。 */
+export const PROTOCOL_FIELD_NAMES = ["reply", "task"] as const;
+
+export type ProtocolFieldName = (typeof PROTOCOL_FIELD_NAMES)[number];
+
+/** 成员经结构化回复协议可请求的全部动作名 = ops 数组词表 + 协议字段。 */
+export type MemberOpName = OpsArrayName | ProtocolFieldName;
 
 export type MemberActorType = "human" | "agent";
 
@@ -41,19 +53,15 @@ export interface CapabilityVerdict {
 }
 
 /**
- * 逐条开口的清单（顺序即 prompt 里的教学顺序）。每一条的开口理由见文件头注释；
- * reply/task 是协议既有 op，列出是为了让「成员面词表」在一处完整（本票不改其行为）。
+ * 逐条开口的清单 = `ops` 数组词表 + 协议字段（从两处唯一来源拼出，不再手抄——
+ * 新增 op 时只需改 `OPS_ARRAY_NAMES`，这张表与协议里的 switch 都会在编译期报错直到同步）。
+ * 注：七条能力里落在 op 面的只有六条（发消息 = reply、跨 target = post、建频道 / 建 agent /
+ * 搜索 / 设提醒），另两条（频道列表 / 成员列表）走每轮语境注入，不占 op。
+ * 每条的开口理由见文件头注释；reply/task 列为开口是为了让「成员面词表」在一处完整。
  */
 export const MEMBER_OPEN_OPS: readonly MemberOpName[] = [
-  "reply",
-  "post",
-  "react",
-  "pin",
-  "remind",
-  "createChannel",
-  "createAgent",
-  "search",
-  "task",
+  ...OPS_ARRAY_NAMES,
+  ...PROTOCOL_FIELD_NAMES,
 ];
 
 /**

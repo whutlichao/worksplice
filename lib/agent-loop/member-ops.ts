@@ -30,9 +30,10 @@ import {
   sendMessage,
   toggleReaction,
   type DefaultModelConfig,
+  type MemberOpName,
   type MessageSearchHit,
 } from "../domain/collab/index.ts";
-import type { ChannelRow, MemberRow } from "../data/types.ts";
+import type { MemberRow } from "../data/types.ts";
 
 // ---------------------------------------------------------------------------
 // 协议形状
@@ -141,7 +142,10 @@ function messageRefFrom(fields: Record<string, unknown>): MessageRef | null {
 }
 
 function planForOp(name: string, fields: Record<string, unknown>): MemberOpPlan {
-  switch (name) {
+  // 以能力表的并集为判别对象：少写一条 op 的 case 会让 default 的 `never` 报错
+  // （表与 switch 不再能静默漂流——第一轮 review 的 Repeated Switches 项）。
+  const opName = name as MemberOpName;
+  switch (opName) {
     case "react": {
       const emoji = nonEmptyString(fields.emoji);
       if (!emoji) return { kind: "rejected", name, reason: '"emoji" is required' };
@@ -255,15 +259,27 @@ function planForOp(name: string, fields: Record<string, unknown>): MemberOpPlan 
       const limit = optionalPositiveInt(fields.limit, 50);
       return { kind: "planned", action: { op: "search", query, limit } };
     }
-    default:
-      // 能走到这里说明名字在能力表里判为开口，但不是 `ops` 数组里的条目——
-      // `reply` / `task` 是这一轮自己的字段（action / task），不是 op。理由要说准，
+    case "reply":
+    case "task":
+      // 这两个是协议自己的字段（action / task），不是 `ops` 条目。理由要说准，
       // 不能对刚判为开口的名字回一句「default deny」（报边界要准确，ADR-0011 D7）。
       return {
         kind: "rejected",
         name,
         reason: `"${name}" is not an "ops" entry — it is the round's own action/task field`,
       };
+    default: {
+      // 编译期兜底：开口表新增成员而未补 case 时，这里的 opName 不再是 never（编译失败）。
+      const exhaustive: never = opName;
+      void exhaustive;
+      // 运行时兜底：planMemberOps 的裁决先一步拒掉未知 / 人类专属名字，这里只是防御。
+      const unknown = name as string;
+      return {
+        kind: "rejected",
+        name: unknown,
+        reason: `"${unknown}" is not a member op — default deny`,
+      };
+    }
   }
 }
 
@@ -369,7 +385,6 @@ function resolveMemberIds(refs: string[]): string[] {
 
 export interface ExecuteMemberOpsInput {
   agent: MemberRow;
-  channel: ChannelRow;
   targetId: string;
   plans: MemberOpPlan[];
   /** 建 agent 的默认模型解析器（测试注入）；缺省读 settings.json。 */
@@ -410,7 +425,6 @@ export function executeMemberOps(input: ExecuteMemberOpsInput): MemberOpsOutcome
     try {
       const outcome = runAction(action, {
         agent: input.agent,
-        channel: input.channel,
         targetId: input.targetId,
         now,
         resolveDefaultModel: input.resolveDefaultModel,
@@ -442,7 +456,6 @@ export function executeMemberOps(input: ExecuteMemberOpsInput): MemberOpsOutcome
 
 interface ActionContext {
   agent: MemberRow;
-  channel: ChannelRow;
   targetId: string;
   now: () => Date;
   resolveDefaultModel?: () => DefaultModelConfig | null;

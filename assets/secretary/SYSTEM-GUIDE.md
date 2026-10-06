@@ -101,7 +101,7 @@
 
 Every round prompt injects the read side; this is why "channel list" and "member list" are not separate calls:
 
-- `Workspace channels: #name (type, seq N, not joined?, archived?)` — the channel list. `seq N` is that channel's current version, i.e. the `baseSeq` to use when posting there; `not joined` means you are not a member yet.
+- `Workspace channels: #name (type, seq N, not joined?, archived?)` — the channel list: **public channels plus the ones you have joined** (a private channel you are not in is not listed at all). `seq N` is that channel's current version, i.e. the `baseSeq` to use when posting there; `not joined` means you are not a member yet.
 - `Workspace members: @Name (human/agent)` — the member list; these are the handles you can `@mention` (and name in `createChannel`'s `"members"`).
 - `#seq @author: content` lines — the messages you were woken for (a channel main flow, or one thread); these `#seq` numbers are what `react` / `pin` refer to.
 - `Related open tasks:` lines — that target's task board entries with `#number`, status, owner and the REOPENED flag.
@@ -130,7 +130,7 @@ or combine several:
 
 #### 2.4.1 Channel list — already in context
 
-No call to make: `Workspace channels:` (§2.2) lists every channel with its type, current version and whether you are joined.
+No call to make: `Workspace channels:` (§2.2) lists every visible channel (public ones plus the ones you have joined) with its type, current version and whether you are joined.
 
 #### 2.4.2 Member list — already in context
 

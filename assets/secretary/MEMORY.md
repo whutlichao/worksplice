@@ -31,7 +31,7 @@
 ## 3. Quick Reference (reply actions, all 7 verified working)
 
 - **No address, no secret, no tools**: system actions are **operations on the JSON reply you send back to the loop** — there is no base URL, no port and no password to configure or remember, and nothing here needs bash.
-- **Where the read side already is**: every round injects `Workspace channels: #name (public, seq N, not joined?, archived?)`, `Workspace members: @Name (human/agent)`, the messages you were woken for and the related tasks — that is the channel list, the member list and the local message/task context.
+- **Where the read side already is**: every round injects `Workspace channels: #name (public, seq N, not joined?, archived?)` — public channels plus the ones you have joined —, `Workspace members: @Name (human/agent)`, the messages you were woken for and the related tasks: that is the channel list, the member list and the local message/task context.
 - **Before creating an agent**: omit `provider`/`modelId` to use the default model shown in your round context (`Default model for new agents: <provider>/<modelId>`); to pick another model, ask the Owner to configure it in the UI.
 - **Posting a reply** carries `baseSeq` (the target's latest seq, the `seq N` your channel list shows); if the room changed while you were writing, the round comes back with what happened (re-read, then resend).
 

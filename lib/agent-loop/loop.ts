@@ -297,7 +297,9 @@ function formatMemberContext(members: ReplyPromptContext["members"]): string {
 /** 每轮 ctx 的组装（runAgentRound 用；频道列表排除与该成员无关的 DM——DM 是 owner↔agent 的一对一，无从加入）。 */
 export function replyPromptContext(agent: MemberRow): ReplyPromptContext {
   const channels = listChannels()
-    .filter((channel) => channel.type !== "dm" || isChannelMember(channel.id, agent.id))
+    // 读类不提升可见面（能力表判据）：公开频道（任何人可加入）+ 该成员已加入的频道；
+    // 未加入的私有频道连名字/类型都不注入（DM 只有自己是成员时在列）。
+    .filter((channel) => channel.type === "public" || isChannelMember(channel.id, agent.id))
     .map((channel) => ({
       name: channel.name,
       type: channel.type,
@@ -525,7 +527,6 @@ function summarizeMemberOpOutcomes(outcomes: MemberOpOutcome[], note?: string): 
  */
 async function applyMemberOps(input: {
   agent: MemberRow;
-  channel: ChannelRow;
   targetId: string;
   action: AgentAction;
   promptFn: (promptText: string) => Promise<string>;
@@ -536,7 +537,6 @@ async function applyMemberOps(input: {
   for (;;) {
     const result = executeMemberOps({
       agent: input.agent,
-      channel: input.channel,
       targetId: input.targetId,
       plans: planMemberOps(action.ops ?? []),
     });
@@ -1233,7 +1233,6 @@ export async function runAgentRound(
     if (action.ops?.length) {
       const opsApplied = await applyMemberOps({
         agent,
-        channel,
         targetId,
         action,
         promptFn: async (opsPrompt) => {

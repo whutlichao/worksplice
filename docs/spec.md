@@ -331,6 +331,7 @@ flowchart TB
 2. **drain**：按 `consumed_seqs` 拉取增量，组装为该 agent 可读的上下文（channel/thread 语境 + 新消息 + 相关任务状态）。
 3. **decide**：把选项空间显式交给 agent——按 AX 原则，输出 = "能直接用的信息 + 一个明确的 next action"（如：处理该 mention 并回复 / 认领任务 / 忽略）。
 4. **act**：通过 协作服务层执行动作（回复、claim、updateStatus、schedule reminder、react、pin），全部带 freshness 校验；held 时把"期间发生了什么"摘要交回 agent 四选一。
+   - **2026-10-06（ADR-0013 决策一 + 票 06 的 7 条能力 1:1 裁定）**：成员面的动作面扩为结构化回复协议的 `ops` 数组——本条清单之外另有 `post`（跨 target 指针）/ `createChannel` / `createAgent` / `search` 四条 op，与既有 `task` 同一条缝、同一套 freshness 纪律；身份取结构身份，权限由成员能力表裁决（默认拒绝、逐条开口），HTTP 面不再服务成员面；`lib/tool-presets.ts` 不动。
 5. **reply 收口**：回复走双写流（§5.3），推进 `consumed_seqs`。
 
 - **任务讨论归属频道**（2026-10-05 约定）：任务的讨论、路由、认领、状态更新只在其锚定频道内进行；在其他频道（如 `#all`）提及某任务只允许一句**指针消息**（"@X 有个任务在 #channel，请到那里认领"），不含任务细节、不做指派协商。mention 穿透仅用于送达指针，不构成跨频道讨论任务的许可。

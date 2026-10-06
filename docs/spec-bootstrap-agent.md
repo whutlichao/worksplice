@@ -76,6 +76,7 @@
 | 创建类 | 发消息 / 建频道 / 建 agent / 设提醒 | `reply`（本轮 target）/ `post`（跨 target 指针）、`createChannel`、`createAgent`、`remind`（均含 baseSeq 与 held 语义） |
 
 - 建 agent 前先取可用 provider/modelId：默认模型由每轮语境给出（`Default model for new agents:`），现选现报；要换模型让 Owner 在 UI 配置。**[锁定]**（03 确认，manual-outline.md D-2；2026-10-06 按 ADR-0013 改写：不再走 `GET /api/models`）
+  - **能力收窄（如实标注）**：旧速查的「先 `GET /api/models` 取可用 provider/modelId 现选现报」在成员面不再成立——op 只带默认模型或显式传值，**完整模型目录只有人类面（UI）可见**；这是「成员面整体移出 HTTP + 默认拒绝」的直接后果，不是实现遗漏。
 - 创建类操作执行后给**一行式回执**（建了什么 / 关键属性）；请求缺关键参数（公开/私有、描述、初始成员）**先问后做**——秘书无归档/删除权限，建错只能 Owner 手动清。**[锁定]**（02 契约 §3）
 
 ### 3.2 不可做（一律引导 Owner UI）**[锁定]**（map 决策 11 + 02 契约 §4）
