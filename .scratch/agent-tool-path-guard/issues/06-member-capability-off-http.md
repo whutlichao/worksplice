@@ -74,7 +74,7 @@ ADR: `docs/adr/0013-http-corridor-caller-identity.md`（决策一、二、四、
 | `assets/secretary/MEMORY.md`、`SYSTEM-GUIDE.md` | 两本手册改写为回复动作（删 base URL / 密码 / curl） |
 | `.github/SECURITY.md`、`docs/spec-bootstrap-agent.md`、`CONTEXT.md` | 暴露面口径 / 秘书 spec / 新术语（回复动作、观察相）同步 |
 | `.scratch/agent-tool-path-guard/issues/06-…md` + `evidence/` | 本票据正本与红绿/取证记录 |
-| 本文件 | Status 走 claimed → resolved |
+| 本文件 | Status 走 claimed → resolved；PR **#98** |
 
 ### outcome
 
@@ -178,13 +178,23 @@ Merge verdict：OK with notes（唯一 P1：机械判据末轮收口）。
 | 18 | Spec P2 | 决策五票据正文与 Q3 裁定不一致 | **fixed**：票据 What to build 注明交付边界 |
 | 19 | Spec P2 | `docs/spec.md §5.4` act 清单未同步 | **fixed**：§5.4 加注（ADR-0013 + 7 条 1:1 裁定） |
 | 20 | Spec note | `sendMessage` 顺带接受频道名（input 面放宽） | **记录**：残留 #9（授权语义未变；为免两处「不可嵌套」规则择共用） |
-| 21 | Spec P1（机械判据） | Status / AC / PR 号未收口 | **fixed**：Status `resolved`、AC 全勾、PR 号回填于本次收口提交 |
+| 21 | Spec P1（机械判据） | Status / AC / PR 号未收口 | **fixed**：Status `resolved`、AC 全勾、PR 号回填（**#98**） |
 
 ### 测试数字（宽档 = 全量）
 
 - 基线：`npm test` **970/970 通过**（9.8s）。交付时：**1013/1013 通过**（本次 +43：能力表 7、op 解析 6、op 集成 12、准入闸 11、prompt 语境 3、搜索作用域 2、工具面钉子 1、其余随轮次并计）。
 - `tsc --noEmit`：**0 错误**。`npm run lint`：**0 error**（仅 1 条既有 warning：`hooks/useI18n.tsx:61`，与本 diff 无关；**未跑任何 `--fix`**）。
 - 全量输出：`evidence/full-suite-ops.txt`；红绿证据：`evidence/red-member-capabilities.txt`、`red-member-ops.txt`、`red-loop-ops.txt` → `evidence/green-member-ops.txt`；准入闸取证：`evidence/access-gate.txt`。
+
+### 机械判据（交付时）
+
+```bash
+git status --porcelain                              # 空
+gh pr list --head whutlichao/member-capability-off-http --json number,state
+# → [{"number":98,"state":"OPEN"}]
+```
+
+PR：**#98** https://github.com/whutlichao/worksplice/pull/98
 
 ### 残留与依赖（本票不声称 bash 收口完成）
 
