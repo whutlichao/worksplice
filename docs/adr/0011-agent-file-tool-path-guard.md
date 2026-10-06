@@ -15,6 +15,10 @@
 
 **决策四（注入点）**：守卫落在 pi 六个文件工具的 `operations` 接缝上（`read`/`write`/`edit`/`grep`/`find`/`ls` 各自在触碰 `ops.*` 之前已把参数解析为绝对路径），由一个 worksplice 自己的 pi 扩展工厂经既有的 `resourceLoaderOptions.extensionFactories` 接缝注册（`lib/rpc/caller.ts:103`，`forcedEmptySystemPromptExtension` 已是该接缝住户），在加载期对六个工具各注册一个**同名**定义覆盖内置实现；`lib/rpc/session.ts` 主流程零改动。覆盖用的定义**必须由 pi 自己造**（`createReadToolDefinition(cwd, { operations })` 一类，全部从包根公开导出），不得手写——同名覆盖是整条定义替换，手写会静默丢掉 `read`/`edit`/`write` 的 system prompt snippet 与 guideline、以及 `edit` 的 diff 渲染。
 
+> **更正（2026-10-06，实施票 02 实测推翻「六个工具同构」的部分前提）**：`find` 不满足上述同构——`find.js` 只在 `customOps?.glob` 为真时才走 operations 分支，否则退回 `spawn(fd)` 真实遍历、`ops` 一次不碰；只做 operations 守卫时 `find "*" <dataDir>` 仍能枚举出 `agents/… attachments/… worksplice.db`。`grep` 部分不满足：它把自己的 `ops.isDirectory` 异常改写成 `Path not found`，调用被拒但允许根清单到不了模型。因此实施票为 find 与 grep 补了**定义级搜索根前置判定**（判定发生在进入 fs 之前，所以 grep 的文案问题一并闭合），取保守形态：不复刻 pi 的完整路径解析，拿不准就拒绝。
+>
+> 这条更正**不动决策四的结论**（注入点仍是同名覆盖，仍走 `extensionFactories`，主流程仍零改动），也不推翻否决 `tool_call` 钩子与 `baseToolsOverride` 的理由——那两条的理由是「拿不到绝对路径」与「需退回更低层会话组装」，与覆盖面无关。要改的是一句话的强度：`operations` 是**主要的** fs 出口，不是**唯一**的；下一个读本 ADR 的人不要再拿「operations 无洞」去论证别的路线。
+
 **为什么不是另外两条路**：`baseToolsOverride` 虽写在 `AgentSessionConfig` 上，但 worksplice 走的 `createAgentSessionFromServices` 未暴露它，要用就得退回更低层的 `createAgentSession` 自行组装 `agent`/`settingsManager`/`modelRuntime`，那是 ADR-0007 判给 pi 的地盘；`tool_call` 钩子虽可 `{ block: true }`，但它拿到的是模型给的**原始字符串**路径而非绝对路径（pi 的 `resolveToCwd` / `resolveReadPathAsync` 不在包的公开导出面上，自写一份必然与上游的 macOS 文件名变体回退漂移），且 `grep` 的 `ops.readFile` 发生在遍历途中、钩子只能看到搜索根看不到实际读了哪些文件——守卫要判的不只是参数，还有副作用。
 
 **决策五（越界处置）**：越界 = 工具报错，且错误文本**列出该成员当前允许的根**。只报错会让模型反复换路径重试、烧轮次，而 `MUST_RESPOND_FAILURE_CAP = 2`（ADR-0005）在连续失败后 cap-ack 推进游标——一次注入就能作废一个正常成员的这一轮；给出清单等于让模型一次就自我纠正。**不清静改写**（重定向到工作区内的同名相对路径，会让模型以为自己读到了目标文件，是比拒绝更坏的失效形态），**不静默截断**（同样让模型拿到「看起来能用」的错误内容）。

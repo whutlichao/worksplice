@@ -76,7 +76,19 @@ pi 侧六个工具的形状已逐个核对（行号为 `@earendil-works/pi-codin
 | `find` | `find.js:65` `resolveToCwd(searchDir \|\| ".", cwd)` | `:70` `ops.exists`、`:78` `ops.glob` |
 | `ls` | `ls.js:40` `resolveToCwd(path \|\| ".", cwd)` | `:43` `ops.exists`、`:48` `ops.stat`、`:56` `ops.readdir` |
 
-结论：**`operations` 是每个工具唯一的本地 fs 出口，且它拿到的已经是绝对路径**。守卫包在这里有三个好处：①不需要自己复刻 pi 的路径解析（`~` 展开、`@` 前缀裁剪、macOS AM/PM / NFD / 花引号变体回退全在 `path-utils.js` 里，那些变体回退是给截图文件名用的，自己写一份必然漂移）；②判定点与副作用点相邻，不存在「判过了但写到别处」的缝；③六个工具同一个模式，代码增量近乎为零。
+> **更正（2026-10-06，实施票 02 实测推翻）**：本结论对 pi 0.99.2 的 **find 不成立**，
+> 且对 **grep 只部分成立**。`find.js` 只在 `customOps?.glob` 为真时才走 operations 分支，
+> 否则退回 `spawn(fd)` 做真实遍历，`ops` 一次都不碰；实测只做 operations 守卫时
+> `find "*" <dataDir>` 仍能列出 `agents/… attachments/… worksplice.db`。grep 则是把自己
+> 的 `ops.isDirectory` 异常改写成 `Path not found`，调用确实被拒、绝对路径也在，但
+> **允许根清单到不了模型**。
+> 因此实施票给 find 与 grep 补了**定义级搜索根前置判定**，判定发生在进入 fs 之前
+> （所以 grep 的文案问题也随之闭合）。该实现取保守形态：不追求与 pi 完全一致的路径解析，
+> 拿不准就拒绝，漂移方向被钉成「只能多拒、不会误放」。
+> 注入路线因此**不变**——变的只是「operations 覆盖全部工具」这个实现细节假设。
+> 下面第 104 行的论证随之修正，见该处。
+
+结论：**`operations` 是每个工具主要的本地 fs 出口，且它拿到的已经是绝对路径**（不是「唯一」，见上方更正）。守卫包在这里有三个好处：①不需要自己复刻 pi 的路径解析（`~` 展开、`@` 前缀裁剪、macOS AM/PM / NFD / 花引号变体回退全在 `path-utils.js` 里，那些变体回退是给截图文件名用的，自己写一份必然漂移）；②判定点与副作用点相邻，不存在「判过了但写到别处」的缝；③六个工具同一个模式，代码增量近乎为零。
 
 ### D2 · 核心分叉：三条注入路线的取舍
 
@@ -101,7 +113,7 @@ pi 侧六个工具的形状已逐个核对（行号为 `@earendil-works/pi-codin
 
 1. **它要求自己复刻路径解析。** `ToolCallEvent.input.path` 是**模型给的原始字符串**（`ReadToolCallEvent.input: ReadToolInput`），钩子拿到的不是绝对路径。pi 的 `resolveToCwd` / `resolveReadPathAsync` **不在包的公开导出面上**（`package.json` 只导出 `.` / `./rpc-entry` / `./client` / `./experimental/plugin`；根 `index.d.ts` 未导出 `path-utils`），worksplice 要么深引内部路径（上游一改就碎），要么自己写一份——而 D1 已经说明自写解析必然漂移（macOS 的 NFD / 花引号变体）。
 2. **六个工具要各判一次，且判据不同。** `grep` / `find` / `ls` 的 `path` 是**可选**的搜索根（`grep.js:57` 的 `searchDir || "."`），且 `grep` 的 `ops.readFile` 是在**遍历过程中**对每个命中文件调的——钩子只能看到搜索根，看不到实际读了哪些文件。守卫要判的不止是「参数」，而是「副作用」。
-3. **它是事件钩子，不是旁路收口。** `operations` 是实现细节里唯一的 fs 出口，`tool_call` 是调用链上的一个通知点；将来若 pi 给某个工具开一条不经过 `emitToolCall` 的路径（例如某些 `executeTool` 快捷路径），钩子会漏而 `operations` 不会。
+3. **它是事件钩子，不是旁路收口。** `operations` 是实现细节里**主要的** fs 出口（更正：不是**唯一**——find 无 `customOps.glob` 时走 `spawn(fd)`），`tool_call` 是调用链上的一个通知点；将来若 pi 给某个工具开一条不经过 `emitToolCall` 的路径（例如某些 `executeTool` 快捷路径），钩子会漏。**这条论据现在只能支撑「operations 覆盖面比钩子广」，不能支撑「operations 无洞」**——后者已被上面的 find 反例推翻。这不影响决策四的结论：否决钩子的主因是它拿不到绝对路径且看不见遍历途中的实际读取，而不只是覆盖面。
 
 #### 结论
 
