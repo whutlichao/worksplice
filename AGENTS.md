@@ -233,6 +233,12 @@ lib/
   tool-path-guard-extension.ts
                       六个文件工具的同名覆盖定义（全部由 pi 的 factory 造，守卫只换 operations）
                       + `extensionFactories` 接缝外壳（与 forced-empty-system-prompt 同一条缝）
+  bash-containment.ts 沙箱的判定层（ADR-0012）：平台适配（macOS sandbox-exec / Linux bwrap /
+                      其余 fail-closed）、allow-only profile 与 bwrap bind 清单（由允许根派生，
+                      与路径守卫同一份判定）、`WORKSPLICE_*` env 收口、EPERM/exit 134 可读归因
+  bash-containment-extension.ts
+                      pi 侧装配：bash 同名覆盖定义（描述带允许根）＋ 工具面与 RPC 面共用的 sandboxed
+                      operations（自建 spawn，镜像 pi 的进程监督语义）
   types.ts            shared TypeScript types
   normalize.ts        normalizeToolCalls() — field name mismatch between file format and our types
   worktree.ts         project/worktree resolution and git worktree operations
@@ -376,6 +382,29 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 ### Exported session HTML
 
 - `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
+
+### 成员 bash 的沙箱（ticket 05，ADR-0012）
+
+- **形态**：判据落到**进程**，不落到命令文本。允许面由与路径守卫**同一份**允许根判定派生
+  （`planBashSandbox(scope)` 吃 `pathGuardScopeFor` 的产物，不新造目录解析）。profile 是
+  **allow-only**：清单 = 成员允许根 + 系统只读面 + 进程自己的 `TMPDIR` + 只读工具链缓存；
+  数据目录是**显式不变式**（allow 之后 deny，再把成员自己家目录这条更窄的条目 reopen）。
+- **覆盖范围 = 会话归属的成员**：`pathGuard` 在场 ⇒ `caller.ts` 装配沙箱 —— 工具面（同名 `bash`
+  覆盖定义）与 RPC 面（`session.ts` 的 `{type:"bash"}` 下面的 `executeBash`）共用同一份 operations；
+  无人归属的会话（人类自己的会话）不沙箱。人类在成员会话里敲 `!bash` 也进沙箱（会话属性）。
+- **env 收口**（ADR-0013 决策三）与沙箱落在**同一个 operations 包装**上（RPC 面没有 spawnHook，
+  唯一杠杆是 operations）：包装**总是显式构造 env**（`options.env ?? process.env` 再按命名空间剥
+  `WORKSPLICE_*`），不写成「上游给了就转交」。pi 故意暴露的五个 `PI_*` 保留。
+- **越界处置**：机制换成内核的 `Operation not permitted` / exit 134，包装把它们归因成带允许根的
+  可读文本注进输出流；允许根另写进**注册期的工具描述**（边界先于撞墙）。不静默改写、不静默截断。
+- **平台 fail-closed**：macOS `sandbox-exec`（实测）；Linux `bwrap`（生成有实现、**本机未验证**）；
+  Windows 无对应物 → bash 拒绝执行且描述说明原因。
+- **⚠️ 实测代价（比 ADR 预估更强）**：`gh` 整条命令在沙箱里不可用（它启动就要读 `hosts.yml`，
+  那是 token 落点，凭证不进清单）；`git push` 同理。成员要自带凭证是后续票（ADR-0012 决策二的正解）。
+- **自建 spawn 的理由**：pi 的 `createLocalBashOperations` 把「可执行文件 + 前缀参数」硬编码在
+  `resolveShellConfig` 里，没有接缝可注入沙箱；`BashOperations` 是 pi 文档化的可替换执行后端。
+  镜像了 pi 的 `killProcessTree` 与 `waitForChildProcess`（含 pi#5303 的 stdio 空闲宽限），
+  逐条注明出处。
 
 ### Collaboration message domain (`lib/domain/collab/`)
 

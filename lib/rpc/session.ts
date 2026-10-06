@@ -18,6 +18,8 @@ import { cacheSessionPath, invalidateSessionListCache } from "../session-reader"
 import { getProjectTrustStatus } from "../project-trust";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "../custom-ui-terminal";
 import { notifyRunningChange } from "./broadcaster.ts";
+import { containmentStatus } from "../bash-containment-extension.ts";
+import type { BashContainmentDeps, ContainedBash } from "../bash-containment-extension.ts";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "../pi-types";
 import type { ForcedEmptySystemPromptSwitch } from "./forced-empty-system-prompt";
 import { CODING_TOOL_NAMES } from "../tool-presets";
@@ -99,6 +101,13 @@ export interface RpcSessionStartOptions {
    * 落点被限制在允许根内；未传 = 不装守卫（人类会话走 pi 的默认实现）。
    */
   pathGuard?: PathGuardScope;
+  /**
+   * 沙箱的装配参数（ADR-0012）：只要 `pathGuard` 在场就是「会话归属的成员」（决策三），
+   * caller 会据此装配沙箱（工具面同名覆盖定义 + RPC 面 operations 共用一份）。
+   * 这一项只用于**覆盖探测输入**（集成测试注入平台 / 可执行文件探测以穷举 fail-closed 姿态），
+   * 生产路径（`agent-runtime.startSession`）不传。
+   */
+  bashContainment?: BashContainmentDeps;
 }
 
 // Every colour token the SDK's own `theme-schema.json` marks required, minus the five it
@@ -261,10 +270,14 @@ export class AgentSessionWrapper {
   constructor(
     public readonly inner: AgentSessionLike,
     forcedEmptySystemPromptSwitch: ForcedEmptySystemPromptSwitch = { enabled: false },
+    /**
+     * 该会话的沙箱装配（ADR-0012 决策三：规则是**会话属性**）：RPC 面的 `{type:"bash"}`
+     * 与工具面的同名覆盖定义用同一份 operations；未传 = 无人归属的会话（人类自己的会话）不沙箱。
+     */
+    private readonly bashContainment?: ContainedBash,
   ) {
     this.forcedEmptySystemPromptSwitch = forcedEmptySystemPromptSwitch;
   }
-
   get sessionId(): string {
     return this.inner.sessionId;
   }
@@ -530,6 +543,9 @@ export class AgentSessionWrapper {
           thinkingLevel: this.inner.agent.state?.thinkingLevel ?? "off",
           extensionStatuses: this.getExtensionStatuses(),
           extensionWidgets: this.getExtensionWidgets(),
+          // 沙箱状态（ADR-0012 决策五）：`null` = 无人归属的会话（不沙箱）；
+          // `available: false` 时档位展示要能解释「本平台无沙箱 ⇒ 该档位实际不含 bash」。
+          bashContainment: this.bashContainment ? containmentStatus(this.bashContainment) : null,
         };
       }
 
@@ -756,7 +772,12 @@ export class AgentSessionWrapper {
         const execution = this.inner.executeBash(
           command.command as string,
           undefined,
-          { excludeFromContext: command.excludeFromContext as boolean | undefined },
+          {
+            excludeFromContext: command.excludeFromContext as boolean | undefined,
+            // 人类 `!bash` 在**成员会话**里同样进沙箱（ADR-0012 决策三：规则是会话属性）；
+            // 无人归属的会话没有这份装配，走 pi 的默认本地实现。
+            ...(this.bashContainment ? { operations: this.bashContainment.operations } : {}),
+          },
         );
         notifyRunningChange();
         try {

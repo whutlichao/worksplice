@@ -163,6 +163,7 @@ export const zhCNLocale: LocalePlugin = {
     "chat.noTools": "不使用工具，仅只读",
     "chat.builtInTools": "{count} 个内置工具",
     "chat.allBuiltInTools": "全部内置工具",
+    "chat.bashUnavailableNote": "本平台没有 OS 级沙箱，bash 在这里不会激活",
     "chat.changeReasoning": "更改推理级别：{level}",
     "chat.changeReasoningLabel": "更改推理级别",
     "chat.changeToolPreset": "更改工具预设",

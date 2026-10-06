@@ -12,6 +12,7 @@ import {
   getAgentDir,
   initTheme,
   SessionManager,
+  SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { invalidateModelsCache } from "../models-cache";
 import { resolveVisibleModels, selectInitialModelScope } from "../model-scope";
@@ -22,6 +23,7 @@ import { AgentSessionWrapper, withExtensionTools } from "./session.ts";
 import type { RpcSessionStartOptions } from "./session.ts";
 import { forcedEmptySystemPromptExtension } from "./forced-empty-system-prompt";
 import { toolPathGuardExtension } from "../tool-path-guard-extension.ts";
+import { bashContainmentExtension, createContainedBash } from "../bash-containment-extension.ts";
 import { getRpcRegistry } from "./registry.ts";
 import { trackStarting } from "../cwd-mutex.ts";
 
@@ -49,8 +51,7 @@ export class RpcCaller {
     options: RpcSessionStartOptions = {},
   ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
     const { toolNames, initialModel, thinkingLevel, pathGuard } = options;
-    const registry = getRpcRegistry();
-    const locks = getLocks();
+    const registry = getRpcRegistry();    const locks = getLocks();
 
     const existing = registry.get(sessionId);
     if (existing?.isAlive()) return { session: existing, realSessionId: sessionId };
@@ -97,15 +98,34 @@ export class RpcCaller {
       // switch is created before the session so the extension and the wrapper built below
       // share one object; `applyForcedEmptySystemPrompt()` keeps it current.
       const forcedEmptySystemPromptSwitch = { enabled: false };
+      // 沙箱装配（ADR-0012 决策三）：与 `pathGuard` 同源——传了就是「会话归属的成员」，
+      // 工具面与 RPC 面共用同一份 operations；无人归属的会话（人类）不沙箱。
+      //
+      // 必须在 `createAgentSessionServices` **之前**定稿：工具面的同名 `bash` 覆盖定义在扩展工厂
+      // 执行时就固定下来（description 要带该成员的允许根），而工厂在 services 创建期间就跑。
+      // 用户 settings 的两项按 pi 自己的读法取（`agent-session.js` 的 `_buildRuntime`：
+      // `settingsManager.getShellPath()` / `getShellCommandPrefix()`），否则工具面会静默丢掉
+      // 用户配置的 shell 与命令前缀（同名覆盖是整条定义替换）。
+      const bashSettings = SettingsManager.create(sessionCwd, agentDir);
+      const containedBash = pathGuard
+        ? createContainedBash(pathGuard, {
+            shellPath: bashSettings.getShellPath(),
+            commandPrefix: bashSettings.getShellCommandPrefix(),
+            // 探测输入可被调用方覆盖（集成测试注入平台/存在性以穷举 fail-closed 姿态）。
+            ...(options.bashContainment ?? {}),
+          })
+        : undefined;
       const services = await createAgentSessionServices({
         cwd: sessionCwd,
         agentDir,
         resourceLoaderOptions: {
-          // 路径守卫与 forced-empty 扩展住同一条接缝（ADR-0011 决策四）：成员会话把六个文件工具
-          // 注册成同名覆盖的守卫版；未传 pathGuard 的会话（人类）保持 pi 的默认实现。
+          // 路径守卫、沙箱与 forced-empty 三个扩展住同一条接缝（ADR-0011 决策四 / ADR-0012 决策一）：
+          // 成员会话把六个文件工具与 `bash` 注册成同名覆盖的守卫／沙箱版；未传 pathGuard 的会话
+          // （人类）保持 pi 的默认实现。
           extensionFactories: [
             forcedEmptySystemPromptExtension(forcedEmptySystemPromptSwitch),
             ...(pathGuard ? [toolPathGuardExtension({ cwd: sessionCwd, scope: pathGuard })] : []),
+            ...(containedBash ? [bashContainmentExtension({ cwd: sessionCwd, contained: containedBash })] : []),
           ],
         },
         ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
@@ -161,7 +181,7 @@ export class RpcCaller {
         inner.setActiveToolsByName(withExtensionTools(inner, toolNames));
       }
 
-      const wrapper = new AgentSessionWrapper(inner, forcedEmptySystemPromptSwitch);
+      const wrapper = new AgentSessionWrapper(inner, forcedEmptySystemPromptSwitch, containedBash);
       // When all tools are disabled, clear the system prompt entirely.
       // pi's buildSystemPrompt always produces a non-empty prompt even with no tools;
       // keep this forced after extension resource discovery and reloads as well.

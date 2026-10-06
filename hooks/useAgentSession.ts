@@ -66,6 +66,16 @@ interface LastAssistantTextResponse {
   text?: string;
 }
 
+/**
+ * 沙箱状态（ADR-0012 决策五）：`available: false` 时档位展示要能解释
+ * 「本平台无沙箱 ⇒ 该档位实际不含 bash」——同一句话也写在 bash 的工具描述里，两处同源。
+ */
+export interface BashContainmentNotice {
+  available: boolean;
+  mechanism: string | null;
+  reason: string | null;
+}
+
 type AgentStateResponse = {
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
   systemPrompt?: string;
@@ -74,6 +84,7 @@ type AgentStateResponse = {
   isPromptRunning?: boolean;
   isBashRunning?: boolean;
   isCompacting?: boolean;
+  bashContainment?: BashContainmentNotice | null;
   extensionStatuses?: ExtensionStatusItem[];
   extensionWidgets?: ExtensionWidgetItem[];
   queuedMessages?: { steering?: string[]; followUp?: string[] } | null;
@@ -357,6 +368,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [newSessionModel, setNewSessionModel] = useState<SelectedModel | null>(null);
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
   const [toolPreset, setToolPreset] = useState<"none" | "default" | "full">("default");
+  // 沙箱状态（ADR-0012 决策五）：`null` = 无人归属的会话或尚未拿到状态。
+  const [bashContainment, setBashContainment] = useState<BashContainmentNotice | null>(null);
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption>("auto");
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxAttempts: number; errorMessage?: string } | null>(null);
   const [contextUsage, setContextUsage] = useState<{ percent: number | null; contextWindow: number; tokens: number | null } | null>(null);
@@ -495,6 +508,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (liveState.contextUsage !== undefined) setContextUsage(liveState.contextUsage ?? null);
           if (liveState.systemPrompt !== undefined) setSystemPrompt(liveState.systemPrompt ?? null);
           if (liveState.thinkingLevel !== undefined) setThinkingLevel((liveState.thinkingLevel as ThinkingLevelOption) ?? "auto");
+          if (liveState.bashContainment !== undefined) setBashContainment(liveState.bashContainment ?? null);
           if (liveState.extensionStatuses !== undefined) setExtensionStatuses(liveState.extensionStatuses ?? []);
           if (liveState.extensionWidgets !== undefined) setExtensionWidgets(liveState.extensionWidgets ?? []);
           if (liveState.queuedMessages !== undefined) setQueuedMessages(normalizeQueuedMessages(liveState.queuedMessages));
@@ -1839,6 +1853,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // State
     data, loading, error, activeLeafId, messages, entryIds, streamState,
     agentRunning, modelNames, modelList, modelError, modelScopeWarnings, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel,
+    bashContainment,
     retryInfo, contextUsage, systemPrompt, forkingEntryId,
     isCompacting, compactError, compactResult, currentModel, displayModel, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages,
