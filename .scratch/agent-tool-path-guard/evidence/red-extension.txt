@@ -1,0 +1,35 @@
+node:internal/modules/cjs/loader:1419
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module './tool-path-guard-extension.ts'
+Require stack:
+- /Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/lib/tool-path-guard-extension.test.mjs
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1419:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at jitiResolve (/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/node_modules/jiti/dist/jiti.cjs:1:176713)
+    at jitiRequire (/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/node_modules/jiti/dist/jiti.cjs:1:178658)
+    at Function.import (/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/node_modules/jiti/dist/jiti.cjs:1:187724)
+    at file:///Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/lib/tool-path-guard-extension.test.mjs:25:22 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/lib/tool-path-guard-extension.test.mjs'
+  ]
+}
+
+Node.js v25.0.0
+✖ lib/tool-path-guard-extension.test.mjs (935.12525ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 939.458167
+
+✖ failing tests:
+
+test at lib/tool-path-guard-extension.test.mjs:1:1
+✖ lib/tool-path-guard-extension.test.mjs (935.12525ms)
+  'test failed'

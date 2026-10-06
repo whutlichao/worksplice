@@ -228,6 +228,11 @@ lib/
   session-stats.ts    §6.5 session jsonl 只读解析（token/cost/compaction，与 SDK getSessionStats 同口径，不落库）
                       + listAgentSessionFiles（pi_session_file 精确 + workspace cwd 下全部会话）+ aggregateAgentUsage
   tool-presets.ts     PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
+  tool-path-guard.ts  路径守卫的判定层（ADR-0011）：allowedRootsFor / pathGuardScopeFor / isWithinAllowedRoots
+                      + find·grep 搜索根判定；realpath + path.relative + fail-closed，零 SDK 依赖
+  tool-path-guard-extension.ts
+                      六个文件工具的同名覆盖定义（全部由 pi 的 factory 造，守卫只换 operations）
+                      + `extensionFactories` 接缝外壳（与 forced-empty-system-prompt 同一条缝）
   types.ts            shared TypeScript types
   normalize.ts        normalizeToolCalls() — field name mismatch between file format and our types
   worktree.ts         project/worktree resolution and git worktree operations

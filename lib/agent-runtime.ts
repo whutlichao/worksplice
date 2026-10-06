@@ -10,6 +10,7 @@ import {
   setAgentSessionFile,
 } from "./domain/collab/index.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
+import { pathGuardScopeFor } from "./tool-path-guard.ts";
 import type { AgentSessionWrapper } from "./rpc/index.ts";
 import { findBusySession, isCwdBusy, withCwdMutex } from "./cwd-mutex.ts";
 
@@ -278,6 +279,9 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
             ...(member.thinking_level
               ? { thinkingLevel: member.thinking_level as ThinkingLevel }
               : {}),
+            // 路径守卫（ADR-0011）：允许根 = 该成员自己的家目录 + 显式绑定的项目目录，
+            // 会话创建时算一次并随会话持有（换工作区本身就会销毁旧 cwd 的会话）。
+            pathGuard: pathGuardScopeFor(member, getDb().paths.dataDir),
           },
         );
 

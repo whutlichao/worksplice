@@ -21,6 +21,7 @@ import { notifyRunningChange } from "./broadcaster.ts";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "../pi-types";
 import type { ForcedEmptySystemPromptSwitch } from "./forced-empty-system-prompt";
 import { CODING_TOOL_NAMES } from "../tool-presets";
+import type { PathGuardScope } from "../tool-path-guard.ts";
 import type { ExtensionUiRequest, ExtensionUiResponse, ExtensionWidgetItem } from "../types";
 
 // ============================================================================
@@ -93,6 +94,11 @@ export interface RpcSessionStartOptions {
   toolNames?: string[];
   initialModel?: { provider: string; modelId: string };
   thinkingLevel?: ThinkingLevel;
+  /**
+   * 路径守卫的判定域（ADR-0011）：传了就在该会话注册六个同名覆盖的文件工具定义，
+   * 落点被限制在允许根内；未传 = 不装守卫（人类会话走 pi 的默认实现）。
+   */
+  pathGuard?: PathGuardScope;
 }
 
 // Every colour token the SDK's own `theme-schema.json` marks required, minus the five it

@@ -1,0 +1,28 @@
+# 取证：find 的默认（fd）路径绕过 operations
+
+pi 0.99.2 dist/core/tools/find.js:
+  line 69:  const ops = customOps ?? defaultFindOperations;
+  line 71:  if (customOps?.glob) {            // ← 只有提供了 glob 才走 ops 分支
+  line 72:      if (!(await ops.exists(searchPath))) { ... "Path not found" ... }
+  line 78:      const results = await ops.glob(pattern, searchPath, {...});
+  line 121: }                                  // 之后是 fd 分支：spawn(fd, ["--", pattern, searchPath])
+  line 130: for (let current = searchPath;;) { if (await pathExists(path.join(current, ".git"))) ... }   // 内部 path-utils，不走 ops
+
+即：不给 glob 时，守卫的 exists/glob 一次都不会被调用 → find 完全不受守卫。
+
+## 实测（registerGuardedTools 后直接调覆盖定义，scope 允许根 = 家目录 + 项目目录）
+
+find "*" <dataDir>       => ALLOWED: "agents/\nagents/alice-a1b2c3d4/\nagents/alice-a1b2c3d4/MEMORY.md\nagents/alice-a1b2c3d4/drafts/\nattachments/\nworksplice.db"
+find "*.md" <home>       => ALLOWED: "MEMORY.md"          （合法路径，行为正确）
+grep "x" <dataDir>       => REJECTED: "Path not found: <dataDir>"   （调用被拒，但允许根清单被 pi 的 catch 吞掉）
+ls <dataDir>             => REJECTED: "path outside this agent's allowed roots: <dataDir>\nallowed roots for Alice:\n  - ..."
+
+## 修复后（定义级搜索根判定，option A）：同一组调用的实测
+
+find "*" <dataDir>        => REJECTED: path outside this agent's allowed roots: <dataDir> / allowed roots for Alice: ... ✓
+find "*.md" <home>        => ALLOWED: "MEMORY.md"                                    ✓（合法路径零行为变化）
+find "*.ts" "src"         => ALLOWED: "file.ts"                                      ✓（相对搜索根）
+find "*.db" "../.worksplice" => REJECTED: path outside ... <dataDir>                  ✓（相对逃逸）
+find "*.db" "@/etc/passwd"   => REJECTED: path outside ... /etc/passwd                ✓（@ 前缀裁剪后按 pi 语义判）
+grep "x" <dataDir>        => REJECTED: path outside ... <dataDir> + allowed roots     ✓（允许根清单回来了）
+ls <dataDir>              => REJECTED: path outside ... <dataDir> + allowed roots     ✓（ops 层，未变）

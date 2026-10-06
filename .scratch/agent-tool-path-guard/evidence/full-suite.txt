@@ -1,0 +1,10 @@
+# npm test（全量档）——尾部汇总（本次为 code-review 修复后重跑；跑法：npm test）
+# 基线：941 用例（票面记录）；本次新增 29 个（21 纯函数 + 8 集成）= 970
+ℹ tests 970
+ℹ suites 0
+ℹ pass 970
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7580.341875
