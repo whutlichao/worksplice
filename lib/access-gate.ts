@@ -15,6 +15,7 @@
 
 import { createConnection } from "node:net";
 import { networkInterfaces } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import { isWebPasswordEnabled } from "./web-auth.ts";
 
 export type BindScope = "loopback" | "non-loopback" | "unknown";
@@ -134,7 +135,38 @@ export async function detectBindScope(
     if (result === "open") return "non-loopback";
     if (result === "unknown") inconclusive = true;
   }
-  return inconclusive ? "unknown" : "loopback";
+  if (inconclusive) return "unknown";
+  // 全部 refused 还不能下结论：服务可能根本还没开始监听（启动早期，或用户 env 里预置了 PORT），
+  // 此时非 loopback 探针同样全 refused。用 loopback 自连复核：连得上 = 服务确实在听 ⇒ 只绑了 loopback。
+  const loopback = await probe("127.0.0.1", port);
+  return loopback === "open" ? "loopback" : "unknown";
+}
+
+/**
+ * 等服务真的开始监听（loopback 自连成功）——启动门的护栏：`process.env.PORT` 可能来自用户 env
+ * （不是 Next 在 listening 事件里写的那个），此时马上探测会把「还没监听」误读成 loopback。
+ * 超时返回 false（调用方只记日志：请求门会在第一个真实请求上按同一探针判定）。
+ */
+export async function waitForServerListening(
+  options: {
+    port: string | number;
+    timeoutMs?: number;
+    probe?: (address: string, port: number) => Promise<ProbeResult>;
+    pollMs?: number;
+  },
+): Promise<boolean> {
+  const port = typeof options.port === "string" ? Number(options.port) : options.port;
+  if (!Number.isInteger(port) || port <= 0) return false;
+  const timeoutMs = options.timeoutMs ?? 3000;
+  const pollMs = options.pollMs ?? 25;
+  const probe =
+    options.probe ?? ((address: string, targetPort: number) => probeAddress(address, targetPort, DEFAULT_PROBE_TIMEOUT_MS));
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if ((await probe("127.0.0.1", port)) === "open") return true;
+    if (Date.now() >= deadline) return false;
+    await delay(pollMs);
+  }
 }
 
 declare global {

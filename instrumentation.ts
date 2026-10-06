@@ -9,7 +9,11 @@
  *    非阻塞、失败不致命，但准入闸是例外：它必须先于一切业务启动完成。
  */
 
-import { accessGateClosedMessage, getAccessPosture } from "@/lib/access-gate";
+import {
+  accessGateClosedMessage,
+  getAccessPosture,
+  waitForServerListening,
+} from "@/lib/access-gate";
 
 /** 等 Next 把实际监听端口写进 process.env.PORT（start-server 在 listening 事件里写）。 */
 async function waitForServerPort(timeoutMs: number): Promise<string | null> {
@@ -22,14 +26,24 @@ async function waitForServerPort(timeoutMs: number): Promise<string | null> {
 }
 
 /**
- * 启动门：端口未知时不探测（探针会退化成 unknown，等于没判），留给请求门按同一探针判定；
- * 判定为 closed 时拒绝启动（fail-closed 的「拿不到安全前提就不提供服务」）。
+ * 启动门：非 loopback + 无凭证 ⇒ 拒绝启动（fail-closed 的「拿不到安全前提就不提供服务」）。
+ * 两件护栏（缺一就会误判成 open）：
+ * - 端口未知（Next 还没写 process.env.PORT）→ 不探（探针会退化成 unknown），留给请求门；
+ * - 端口已知但服务还没真的 listening（用户 env 里预置了 PORT）→ 等下再探，
+ *   否则「非 loopback 全 refused」会被误读成 loopback（`detectBindScope` 的 loopback 复核也防这层）。
  */
 async function enforceAccessGateAtStartup(): Promise<void> {
   const port = await waitForServerPort(3000);
   if (!port) {
     console.warn(
       "[worksplice] access gate: server port unknown at startup; the request gate will decide per request",
+    );
+    return;
+  }
+  const listening = await waitForServerListening({ port, timeoutMs: 3000 });
+  if (!listening) {
+    console.warn(
+      "[worksplice] access gate: server not listening yet at startup; the request gate will decide per request",
     );
     return;
   }

@@ -29,8 +29,13 @@ export function searchMessages(
   if (!q) return [];
   const raw = opts.limit ?? 20;
   const limit = Number.isFinite(raw) ? Math.min(Math.max(1, Math.floor(raw)), MAX_SEARCH_LIMIT) : 20;
-  return getDb()
-    .searchMessages(q, limit)
+  // 调用者作用域在 DB 的 LIMIT 之后过滤（不可见的频道挤占名额也不能放宽可见性）。
+  // 为了不让「看不见的命中」把应得条数提前耗尽，有作用域时先取到既有上限（MAX_SEARCH_LIMIT）
+  // 再过滤、最后切片——比“多取一点”确定，且不引入新的 SQL 面（代价：非成员命中 >50 条时
+  // 成员仍可能少拿几条；宁少不泄，记在票据残留里）。
+  const fetchLimit = opts.memberId ? MAX_SEARCH_LIMIT : limit;
+  const hits = getDb()
+    .searchMessages(q, fetchLimit)
     .map((hit) => ({
       ...hit,
       channel: resolveChannelForTarget(hit.target_id) ?? null,
@@ -42,4 +47,5 @@ export function searchMessages(
         !opts.memberId ||
         (hit.channel ? isChannelMember(hit.channel.id, opts.memberId) : false),
     );
+  return hits.slice(0, limit);
 }

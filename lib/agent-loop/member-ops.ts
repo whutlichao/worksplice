@@ -21,9 +21,10 @@ import {
   createAgent,
   createChannel,
   isValidRecurrence,
-  listChannels,
   pinMessage,
   readDefaultModelFromSettings,
+  resolveChannelForTarget,
+  resolveTargetRef,
   scheduleReminder,
   searchMessages,
   sendMessage,
@@ -255,11 +256,13 @@ function planForOp(name: string, fields: Record<string, unknown>): MemberOpPlan 
       return { kind: "planned", action: { op: "search", query, limit } };
     }
     default:
-      // 能走到这里说明名字不在能力表的任何一张表里（人类专属的名字已在裁决阶段被拒）。
+      // 能走到这里说明名字在能力表里判为开口，但不是 `ops` 数组里的条目——
+      // `reply` / `task` 是这一轮自己的字段（action / task），不是 op。理由要说准，
+      // 不能对刚判为开口的名字回一句「default deny」（报边界要准确，ADR-0011 D7）。
       return {
         kind: "rejected",
         name,
-        reason: `"${name}" is not a member op — default deny`,
+        reason: `"${name}" is not an "ops" entry — it is the round's own action/task field`,
       };
   }
 }
@@ -299,8 +302,6 @@ export interface MemberOpsOutcome {
   outcomes: MemberOpOutcome[];
   /** 观察相文本（search 命中）；null = 不需要后续 prompt。 */
   observation: string | null;
-  /** 本轮是否跑过 search（调用方据此决定是否发观察相 prompt）。 */
-  searchPerformed: boolean;
 }
 
 /** 搜索观察里每条命中的摘要上限（prompt 预算）。 */
@@ -336,23 +337,8 @@ export function formatSearchObservation(query: string, hits: MessageSearchHit[])
   return lines.join("\n");
 }
 
-/** target 引用解析：`#name` / `name` / channel id / 顶层消息 id（thread 锚点）。 */
-function resolveTargetId(ref: string, defaultTargetId: string): string {
-  if (ref === "#me" || ref === "me") return defaultTargetId;
-  const name = ref.startsWith("#") ? ref.slice(1) : ref;
-  const channel = listChannels().find(
-    (candidate) => candidate.id === ref || candidate.name === ref || candidate.name === name,
-  );
-  if (channel) return channel.id;
-  const message = getDb().getMessage(ref);
-  if (message) {
-    if (getDb().getMessage(message.target_id)) {
-      throw new Error(`Cannot post into a nested thread: ${ref}`);
-    }
-    return message.id;
-  }
-  throw new Error(`Unknown target: ${ref}`);
-}
+/** target 引用解析（`#name` / id）与「不可嵌套」规则由服务层拥有：lib/domain/collab/messages.ts 的
+ *  `resolveTargetRef`——成员面 op 与 sendMessage 共用同一处归一化，不在这里第二份实现。 */
 
 function resolveMessageId(ref: MessageRef, defaultTargetId: string): string {
   if (ref.messageId) {
@@ -360,7 +346,7 @@ function resolveMessageId(ref: MessageRef, defaultTargetId: string): string {
     if (!message) throw new Error(`Message not found: ${ref.messageId}`);
     return message.id;
   }
-  const targetId = ref.targetRef ? resolveTargetId(ref.targetRef, defaultTargetId) : defaultTargetId;
+  const targetId = ref.targetRef ? resolveTargetRef(ref.targetRef) : defaultTargetId;
   const seq = ref.seq ?? 0;
   const rows = getDb().listMessagesBefore(targetId, seq + 1, 1);
   const row = rows[0];
@@ -451,7 +437,6 @@ export function executeMemberOps(input: ExecuteMemberOpsInput): MemberOpsOutcome
   return {
     outcomes,
     observation: observationParts.length > 0 ? observationParts.join("\n\n") : null,
-    searchPerformed: hasSearch,
   };
 }
 
@@ -467,7 +452,7 @@ function runAction(
   action: MemberAction,
   context: ActionContext,
 ): MemberOpOutcome & { observation?: string } {
-  const { agent, channel, targetId } = context;
+  const { agent, targetId } = context;
   switch (action.op) {
     case "react": {
       const messageId = resolveMessageId(action.messageRef, targetId);
@@ -480,11 +465,18 @@ function runAction(
     }
     case "pin": {
       const messageId = resolveMessageId(action.messageRef, targetId);
-      pinMessage({ channelId: channel.id, messageId, memberId: agent.id });
+      // 归属 channel 由消息自己决定（thread 消息经锚点归一化）——与 react 一致，
+      // 不假定它在本轮 target 的 channel 里（跨频道引用不该被误拒）。
+      const message = getDb().getMessage(messageId);
+      const owningChannel = message ? resolveChannelForTarget(message.target_id) : undefined;
+      if (!owningChannel) throw new Error(`Message not found: ${messageId}`);
+      pinMessage({ channelId: owningChannel.id, messageId, memberId: agent.id });
       return { op: "pin", status: "applied", detail: `pinned a message as @${agent.name}` };
     }
     case "remind": {
-      const targetRef = action.targetRef ? resolveTargetId(action.targetRef, targetId) : null;
+      // 缺 targetRef 时默认钉在本轮 target（§3.9：无 target 的提醒到点不投递、不唤醒作者——
+      // 那与「提醒唤醒作者本人」相悖，所以默认值必须是能投递的目标）。
+      const reminderTarget = action.targetRef ? resolveTargetRef(action.targetRef) : targetId;
       const fireAt = action.fireAt
         ? action.fireAt
         : new Date(context.now().getTime() + (action.inMinutes ?? 0) * 60_000).toISOString();
@@ -492,7 +484,7 @@ function runAction(
         title: action.title,
         fireAt,
         recurrence: action.recurrence,
-        targetId: targetRef,
+        targetId: reminderTarget,
         authorId: agent.id,
       });
       return {
@@ -502,7 +494,7 @@ function runAction(
       };
     }
     case "post": {
-      const resolved = resolveTargetId(action.targetRef, targetId);
+      const resolved = resolveTargetRef(action.targetRef);
       const baseSeq = action.baseSeq ?? getDb().maxSeq(resolved);
       const result = sendMessage({
         targetId: resolved,

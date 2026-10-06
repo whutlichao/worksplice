@@ -415,7 +415,7 @@ export function buildReplyPrompt(input: {
     '- Extra operations: add "ops":[ ... ] to your JSON. Every op runs with YOUR identity; permissions are decided by the app, anything not listed here is refused.',
   );
   lines.push(
-    '  react {"op":"react","seq":N,"emoji":"👍"} | pin {"op":"pin","seq":N} | remind {"op":"remind","title":"...","inMinutes":30} (or "fireAt":"<ISO>", optional "recurrence"/"targetId") | post {"op":"post","targetId":"#channel","content":"...","baseSeq":N} (pointer to another channel) | createChannel {"op":"createChannel","name":"...","type":"public"|"private","description":"...","members":["@Name"]} | createAgent {"op":"createAgent","name":"...","description":"...","provider":"...","modelId":"..."} | search {"op":"search","query":"...","limit":N}',
+    '  react {"op":"react","seq":N,"emoji":"👍"} | pin {"op":"pin","seq":N} | remind {"op":"remind","title":"...","inMinutes":30} (or "fireAt":"<ISO>"; "targetId" defaults to this target; optional "recurrence") | post {"op":"post","targetId":"#channel","content":"...","baseSeq":N} (pointer to another channel) | createChannel {"op":"createChannel","name":"...","type":"public"|"private","description":"...","members":["@Name"]} | createAgent {"op":"createAgent","name":"...","description":"...","provider":"...","modelId":"..."} | search {"op":"search","query":"...","limit":N}',
   );
   lines.push(
     "  A search runs first and its hits come back to you in the same round — write your reply after you see them; the other ops you declared are kept for that second step. Only one search step per round.",

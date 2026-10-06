@@ -18,6 +18,8 @@
  * 进门恒 Owner（`CURRENT_MEMBER_ID`），本表对它只作人类专属操作的正向放行。
  */
 
+import { OWNER_MEMBER_ID } from "../../data/schema.ts";
+
 /** 成员经结构化回复协议可请求的动作名（op 名，见 lib/agent-loop/member-ops.ts 的协议）。 */
 export type MemberOpName =
   | "reply" // 发消息（本轮 target）
@@ -117,7 +119,12 @@ export function canMemberPerform(
   };
 }
 
-/** 判定层之外的断言形态：协议执行器与人类专属服务层共用同一个裁决。 */
+/**
+ * 断言形态：成员面 op 执行器与人类专属服务函数共用同一个裁决。
+ * - `assertMemberMayPerform(op)`（默认 actor="agent"）：成员面用（执行器也可直查 `canMemberPerform`）；
+ * - `assertActorMayPerform(op, actorId)`：服务层用——调用者 id 已知，人类 Owner 恒为 `OWNER_MEMBER_ID`，
+ *   其余 id 一律按成员判（本地单机形态下人类只有 Owner 一个，见 §3.6）。
+ */
 export function assertMemberMayPerform(
   operation: string,
   actorType: MemberActorType = "agent",
@@ -126,4 +133,9 @@ export function assertMemberMayPerform(
   if (!verdict.allowed) {
     throw new MemberOperationDeniedError(operation, verdict.reason);
   }
+}
+
+/** 服务层入口：按调用者 id 裁决（`OWNER_MEMBER_ID` = human，其余 = agent）。 */
+export function assertActorMayPerform(operation: string, actorId: string): void {
+  assertMemberMayPerform(operation, actorId === OWNER_MEMBER_ID ? "human" : "agent");
 }
