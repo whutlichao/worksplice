@@ -1,7 +1,7 @@
 # 05-成员 bash 的沙箱与 env 收口
 
 Type: task
-Status: ready-for-agent
+Status: claimed
 Blocked by: （无；03 已 resolved，04 是文档票，本票实施 ADR-0012 的六条决策）
 
 Spec: `.scratch/agent-tool-path-guard/spec.md`
