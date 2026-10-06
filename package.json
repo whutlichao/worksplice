@@ -11,6 +11,7 @@
     "url": "https://github.com/whutlichao/worksplice/issues"
   },
   "license": "MIT",
+  "packageManager": "bun@1.3.14",
   "engines": {
     "node": ">=22.19.0"
   },
@@ -29,6 +30,7 @@
     "package.json"
   ],
   "scripts": {
+    "preinstall": "node bin/install-guard.js",
     "dev": "next dev -H 127.0.0.1 -p 30142",
     "seed:demo": "node scripts/seed-demo.mjs",
     "migrate:i18n-content": "node scripts/migrate-i18n-content.mjs",

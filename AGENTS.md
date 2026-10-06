@@ -34,6 +34,8 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 
 ## Quick Start
 
+装依赖只用 `bun install`（新 checkout 可加 `--frozen-lockfile`）；**不要 `npm install`**——它忽略 `bun.lock`，会让依赖版本漂移、门禁基线不可比（见 `.scratch/worktree-dep-drift/`）。`npm run <script>` 不受影响：脚本运行器与依赖解析无关，照常可用。
+
 ```bash
 npm run dev   # port 30142
 ```

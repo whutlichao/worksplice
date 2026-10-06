@@ -65,7 +65,7 @@ npx --yes https://github.com/whutlichao/worksplice/releases/download/v0.1.0/work
 
 ### 从源码运行
 
-前置条件：Node.js 22.19.0 或更高版本、Bun 1.3.14 或更高版本（通过 `bun --version` 检查），以及 git。本仓库跟踪 `bun.lock`，因此 `bun install` 才是可复现的安装路径；`npm install` 也能跑，但它会忽略 `bun.lock`，不保证得到可复现的依赖树。
+前置条件：Node.js 22.19.0 或更高版本、Bun 1.3.14 或更高版本（通过 `bun --version` 检查），以及 git。本仓库跟踪 `bun.lock`，因此 `bun install` 才是可复现的安装路径；源码 checkout 里 `npm install` 会被仓库的安装守卫（`preinstall`）拒绝并指引你改用 `bun install`，而脚本仍可通过 `npm run <script>` 运行。
 
 ```bash
 git clone https://github.com/whutlichao/worksplice.git

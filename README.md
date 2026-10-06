@@ -65,7 +65,7 @@ npx --yes https://github.com/whutlichao/worksplice/releases/download/v0.1.0/work
 
 ### From a source checkout
 
-Requirements: Node.js 22.19.0 or newer, Bun 1.3.14 or newer (check with `bun --version`), and git. This repository tracks `bun.lock`, so `bun install` is the reproducible path; `npm install` also works, but it ignores `bun.lock` and does not guarantee a reproducible dependency tree.
+Requirements: Node.js 22.19.0 or newer, Bun 1.3.14 or newer (check with `bun --version`), and git. This repository tracks `bun.lock`, so `bun install` is the reproducible path; `npm install` in a source checkout is refused by the repository's install guard (`preinstall`) and points you at `bun install`, while scripts still run via `npm run <script>`.
 
 ```bash
 git clone https://github.com/whutlichao/worksplice.git
