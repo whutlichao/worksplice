@@ -21,4 +21,4 @@
 - 实施票另开（本票不实施）：profile 生成器、平台适配器与 fail-closed、两个 shell 面的接线、冒烟与负例、边界可见性、env 收掉 `WORKSPLICE_*`（`getShellEnv()` 是 `{...process.env}`，`dist/utils/shell.js:117-124`）、档位展示的一致性说明。
 - 术语「沙箱 (Sandbox)」入 `CONTEXT.md`；设计全文见 `docs/agent-bash-containment-form.md`。
 
-**Status**: accepted（第 2 轮的形态内部四政策未回收人类答复，按 worker 推荐值落地，逐条待追认——见设计文档的「形态内部政策」表）
+**Status**: accepted（第 2 轮的形态内部四政策：allow-only / 用户级凭证不进清单 / 沙箱跟随会话归属成员——三条 **人类已拍板（2026-10-06）**；非 macOS 姿态 fail-closed 为 **coordinator 代答**，仍是待人类追认项——见设计文档的「形态内部政策」表）
