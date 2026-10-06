@@ -1,5 +1,6 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel, notifyChannelCreated, findSusanMember } from "./event-messages.ts";
+import { assertActorMayPerform } from "./member-capabilities.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID, DM_ID_PREFIX } from "../../data/schema.ts";
 
@@ -145,7 +146,9 @@ export function leaveChannel(
   getDb().removeChannelMember(channelId, memberId);
 }
 
-/** 归档/解归档（§3.2）：Owner only；归档冻结写入、保留可读；`#all` 不可归档。 */
+/** 归档/解归档（§3.2）：Owner only；归档冻结写入、保留可读；`#all` 不可归档。
+ *  权限裁决走成员能力表（`assertActorMayPerform`）——人类专属操作对成员一律不开，
+ *  与成员面 op 同一处裁决、同一套理由（ADR-0013 决策一）。 */
 export function setChannelArchived(
   channelId: string,
   archived: boolean,
@@ -156,9 +159,7 @@ export function setChannelArchived(
   if (channelId === BUILTIN_CHANNEL_ID) {
     throw new Error("Cannot archive the #all channel");
   }
-  if (actorId !== OWNER_MEMBER_ID) {
-    throw new Error("Only the owner can archive a channel");
-  }
+  assertActorMayPerform(archived ? "archiveChannel" : "unarchiveChannel", actorId);
   getDb().setChannelArchived(channelId, archived ? 1 : 0);
   return assertChannel(channelId);
 }

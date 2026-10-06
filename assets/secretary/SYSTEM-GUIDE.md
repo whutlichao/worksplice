@@ -1,12 +1,12 @@
-<!-- Drafted from the spec-bootstrap-agent.md draft on 2026-08-08 (§8.4-1); refreshed 2026-10-04 for the English content layer; check for updates per the "Manual update process" at the top of this file when mechanisms or APIs change (§8.4-2) -->
+<!-- Drafted from the spec-bootstrap-agent.md draft on 2026-08-08 (§8.4-1); refreshed 2026-10-04 for the English content layer; 2026-10-06 rewritten for reply actions (ADR-0013: members no longer call the app over HTTP); check for updates per the "Manual update process" at the top of this file when mechanisms or ops change (§8.4-2) -->
 
 # Susan — worksplice System Guide (read on demand)
 
 > **Purpose**: this guide is the secretary's reference book; open the matching chapter on demand (the mapping table in MEMORY.md §4 points the way). The quick reference holds only what must be known every round; every detail sinks into this file.
 >
-> **Content sources** (spec §5.4): §1 Product Concepts = condensed from the main spec (`docs/spec.md`) §1.3/§3.2–3.9/§5.4–5.7; §2 API = AGENTS.md File Map + main spec §5.7 + the real route signatures; §3 Paths = the 02 contract §2/§3; §4 Fallbacks = the 02 contract §4; §5 Glossary = extracted from main spec §1.3. Never expand beyond these sources.
+> **Content sources** (spec §5.4): §1 Product Concepts = condensed from the main spec (`docs/spec.md`) §1.3/§3.2–3.9/§5.4–5.7; §2 Reply Actions = the act list of main spec §5.4 + the ops as implemented (ADR-0013); §3 Paths = the 02 contract §2/§3; §4 Fallbacks = the 02 contract §4; §5 Glossary = extracted from main spec §1.3. Never expand beyond these sources.
 >
-> **Manual update process** (§8.4-2): on every mechanism/API change (new route, base URL change, changed mechanism semantics) → ① check the §5.4 sources (main spec / AGENTS.md / 01 research / 02 contract) → ② update the matching chapter of this guide → ③ update the date on the first line of the guide. For what to do when the guide is out of date, see §4.4 (say honestly that you are unsure; never invent).
+> **Manual update process** (§8.4-2): on every mechanism/op change (a new op, changed freshness or permission semantics, a changed channel rule) → ① check the §5.4 sources (main spec / AGENTS.md / 01 research / 02 contract) → ② update the matching chapter of this guide → ③ update the date on the first line of the guide. For what to do when the guide is out of date, see §4.4 (say honestly that you are unsure; never invent).
 
 ## 1. Product Concepts
 
@@ -39,9 +39,9 @@
 
 - **trigger = system message + waking the author**: when due, a system message is delivered to the **channel main flow** under the **author's name** (a message anchor is normalized to its owning channel, and the body carries an `(anchored on #seq)` anchor reference), with `wake:false` so no other agent is disturbed; only when the author is an agent is that author woken (`reason="reminder"`) — a human author sees the system message through UI polling.
 - **recurrence DSL**: `every:Nm/Nh/Nd` (delay semantics, the server computes the absolute time) / `daily@HH:MM` / `weekly:mon,fri@HH:MM` (case-insensitive; an unknown weekday name is rejected outright); the next fire is **strictly later than** the current time (an equal value counts as already due, otherwise a reschedule would immediately re-trigger in a loop).
-- **management operations**: schedule / list / snooze (default +15 minutes) / update / cancel / log (the lifecycle event stream: schedule/fire/reschedule/snooze/update/cancel/error). snooze/update/cancel may only be performed by the **author or the Owner**, and only while `scheduled` (fired/canceled report an error).
+- **management operations**: schedule / list / snooze (default +15 minutes) / update / cancel / log (the lifecycle event stream: schedule/fire/reschedule/snooze/update/cancel/error). You schedule with the `remind` op (§2.4.7); the management operations belong to the **author or the Owner** and only apply while `scheduled` (fired/canceled report an error).
 - **scheduling**: an in-app per-minute cron scans rows with `status=scheduled` and `fire_at<=now`; a fire is fully synchronous, the status transition and the log share one transaction, and it settles idempotently (a repeated tick does not deliver twice); a failed delivery writes an error log and settles (no infinite retry, no wake).
-- **who sets one**: an agent sets its own proactively ("an agent owns its own time"); a human can also have an agent set one; the Owner can set one on an agent's behalf (authorId).
+- **who sets one**: an agent sets its own proactively ("an agent owns its own time"); the Owner can set one on an agent's behalf (an agent cannot set one for another member).
 - **Does the secretary need this?**: yes — scheduling reminders is one of the errands; a reminder the secretary sets for itself still fires (the permissive round with reason=reminder lets the secretary see "everything is my own message" without nooping).
 
 ### 1.4 inbox and wake
@@ -59,8 +59,8 @@
 
 - **FTS5 full-text index**: a `messages_fts` virtual table kept in sync by triggers (INSERT/UPDATE/DELETE); a message is searchable as soon as it is inserted, with zero extra dependencies.
 - **two paths**: when every token is ≥3 characters → trigram FTS (ranked); when a short token is present (for example a two-character Chinese word) → LIKE fallback (AND-combined, newest insertion first).
-- **result shape**: `{id, target_id, seq, author_id, created_at, snippet}` plus belonging (channel/thread) and the author; `snippet` = the matched context excerpt (`<mark>` highlighting).
-- **query conventions**: an empty query returns 400; `limit` is clamped to [1, 50] and defaults to 20.
+- **result shape**: the matched message + its excerpt (`<mark>` highlighting) + which channel/thread it belongs to and who wrote it. In your reply action it comes back as `#seq @author in #channel: excerpt` (a thread hit also carries its `messageId`).
+- **query conventions**: an empty query is refused; `limit` is clamped to [1, 50] and defaults to 20; your search is **scoped to the channels you belong to**.
 - **locating**: opening a message in the UI uses the deep link `#c/<channelId>?m=<messageId>` (a thread message automatically expands its thread).
 - **Does the secretary need this?**: yes — the core tool for tracing a topic (path §3.4).
 
@@ -68,10 +68,10 @@
 
 - **single-file limit 50MB** (`MAX_ATTACHMENT_BYTES`); file bodies live in the app data directory under `attachments/` (**random file names**; the original name is stored only in the database).
 - **committed atomically with the message**: first the file lands on disk (size validation + random name) → inside the transaction appendMessage + insertAttachment live and die together; **held/error → cleanup**, leaving no orphan files.
-- **submit shape**: `POST /api/messages` has two forms — JSON (as is) or multipart (fields + `files[]`, the service layer validating each file at ≤50MB).
-- **download/preview**: `GET /api/attachments/[id]` (images preview inline, everything else is an `attachment` download).
+- **submit shape**: the `reply` action posts **text** — for an attachment the user attaches it from the UI (your op surface has no file upload).
+- **download/preview**: the UI downloads/previews an attachment by id (images inline, everything else as a download).
 - **embedded in the message**: the message payload carries the `attachments` rows directly (no N+1 requests).
-- **Does the secretary need this?**: rarely — the secretary's creation interfaces include the multipart form of sending a message; knowing that "attachments commit atomically with the message and never leave residue on failure" is enough.
+- **Does the secretary need this?**: rarely — knowing that "attachments commit atomically with the message and never leave residue on failure" is enough; you cannot upload files yourself, so point the user to the UI for that.
 
 ### 1.7 reactions
 
@@ -79,304 +79,160 @@
 - **check-then-write toggle**: if it exists it is removed, if not it is added (single-process serialization means no races).
 - **only a channel member can react** (a thread message resolves to its owning channel through the anchor); no notification, no inbox entry.
 - **aggregation** = count descending + memberIds ("I reacted" is decided with includes); the message payload embeds `reactions`.
-- **Does the secretary need this?**: no — reactions are outside the secretary's capability surface (a UI interaction feature, not part of the secretary API list §4.1).
+- **Does the secretary need this?**: yes (lightly) — `react` is an available op (§2.4.8) and a single emoji is a decent acknowledgement when a full reply would be noise; do not turn it into an errand.
 
 ### 1.8 pinned
 
 - **personalized**: each member keeps their own pinned area in each channel, independently of everyone else (`pinned_messages` table, partitioned by member).
 - **one of three sort orders**: Manual (manual order, the default, ascending order) / Recent (pinned_at descending, falling back to order within the same millisecond) / A-Z (content localeCompare); Manual can be reordered (`setPinnedOrder`).
 - **pinMessage**: order = max+1 append, idempotent (returns the existing row when already pinned); the message must belong to that channel (a thread message is normalized through its anchor; cross-channel is rejected).
-- **Does the secretary need this?**: no — a personalized UI feature, not part of the secretary API list (§4.1).
+- **Does the secretary need this?**: yes (lightly) — `pin` is an available op (§2.4.8); pinning a message you will need again is fine, curating pin lists is the Owner's business.
 
-## 2. System API Usage
+## 2. Reply Actions
 
-### 2.1 Where the address comes from
+### 2.1 Where the actions go
 
-- **default base URL = `http://127.0.0.1:30141`**, hard-coded consistently in four places (the four `-p 30141` package.json scripts, the `bin/worksplice-options.js` default, the README documentation).
-- **loopback is always allowed**: the request security gate only validates Host (loopback passes, **the port is not checked**); curl sends no browser headers → the Origin check is not enabled. In other words: a local curl always passes the security gate.
-- **no runtime discovery**: there is no "the port is known" environment variable such as `WORKSPLICE_PORT`; in dev mode `PORT` has no effect (the scripts hard-code `-p 30141` into the CLI flag), and only the production binary (`bin/worksplice.js`) honors `PORT`.
-- **custom port**: write the actual base URL into MEMORY.md quick reference §3; when `WORKSPLICE_PASSWORD` is set, always add `-u pi:<password>` to curl (Basic Auth, the username is always `pi`).
-- **tool set**: a secretary session activates read/bash/edit/write by default (PRESET_DEFAULT), and bash + curl work out of the box; **never** pass `toolNames: []` through any entry point (it disables every tool and clears the system prompt).
+- **Your JSON reply is the channel**: every round the agent-loop sends you a prompt with the context (channel list, member list, the messages you were woken for, related tasks) and expects **one JSON action** back. System actions are **operations on that action** — there is no base URL, no port, no password and no HTTP client anywhere in your working life.
+- **Identity is structural**: the app knows who you are because it woke *you*; every op runs under your own name and your own memberships. Nothing is authenticated by a header or a secret you hold.
+- **Anything not in the op list is refused**: the app decides per op with "refuse by default, open one by one"; the open ones are exactly the seven capabilities in §2.4 plus `react` / `pin`. Human-only operations (archive a channel, delete an identity, Restart / Session reset / Full reset, change runtime, change workspace) are refused for every member — point the user to the Owner UI (§4.2).
+- **Tool set**: your session runs the default tool set (`read` / `bash` / `edit` / `write`), but **no system action needs a tool** — bash is for work inside your own workspace, never for calling back into the app.
 
-### 2.2 General conventions
+### 2.2 The context you already have (the read side)
 
-- Every interface returns JSON; **an error is `{error: string}` plus 4xx/5xx**; a successful creation is `201`, a successful read is `200`.
-- Typical status codes: **400** missing parameter or illegal value; **404** resource does not exist; **403** not allowed (no permission); **409** conflict (freshness-hold held / task already exists).
-- **write interfaces carry baseSeq** (freshness semantics): sending a message / claim / updateStatus carry the room version as of writing (= that target's max(seq)); the server compares it inside the transaction and returns 409 held when it differs.
-- All examples below use the default port; with a custom port or a password, adjust per 2.1. Placeholders such as `<channelId>` / `<messageId>` / `<agentId>` / `<memberId>` / `<anchorMessageId>` / `<taskMessageId>` / `<provider>` / `<modelId>` / `<channelOrMessageId>` stand for real ids; `<baseSeq>` = the target's latest seq read while writing (see the `maxSeq` response in §2.3.3). `#all` can be used directly as a channel id in a JSON body; **in a URL path or query parameter it must be percent-encoded as `%23all`** (a bare `#` is truncated as a URL fragment).
+Every round prompt injects the read side; this is why "channel list" and "member list" are not separate calls:
 
-### 2.3 Read-only interfaces
+- `Workspace channels: #name (type, seq N, not joined?, archived?)` — the channel list: **public channels plus the ones you have joined** (a private channel you are not in is not listed at all). `seq N` is that channel's current version, i.e. the `baseSeq` to use when posting there; `not joined` means you are not a member yet.
+- `Workspace members: @Name (human/agent)` — the member list; these are the handles you can `@mention` (and name in `createChannel`'s `"members"`).
+- `#seq @author: content` lines — the messages you were woken for (a channel main flow, or one thread); these `#seq` numbers are what `react` / `pin` refer to.
+- `Related open tasks:` lines — that target's task board entries with `#number`, status, owner and the REOPENED flag.
+- `Default model for new agents: <provider>/<modelId>` — what `createAgent` uses when you omit the model fields.
 
-#### 2.3.1 Channel list — `GET /api/channels`
+### 2.3 Conventions
 
-```bash
-curl -s http://127.0.0.1:30141/api/channels
-```
+- **Write actions carry the room version**: a reply (and a `post` op) carries `baseSeq` = the target's latest seq as you saw it (the `seq N` in your channel list). If the room changed while you were writing, the app reports **held** with a summary of what happened; your next action picks one of four: `revise` (re-read and rewrite) / `resend` (retry as is) / `silent` (give up) / `anyway` (send without the freshness check).
+- **Only `search` talks back in the same round**: a search returns its hits in a second prompt; the other ops you declared in that same action are kept back for that second step and you restate whatever you still want. Every other op is fire-and-forget — the app records its outcome in the round log (the Owner can see it), and you confirm later through ordinary observation (the reminder fires as a system message; a created channel shows up in your channel list).
+- **Refusals are reported, never silently rewritten**: a malformed op or a human-only op is refused with a reason, and the app carries the reason into the round log. If something you asked for did not happen, say so honestly instead of reporting success.
+- **Handles**: `#name` for a channel (`"targetId":"#channel"`), `"seq":N` for a message inside the target you were woken for (or `"targetId"` to point at another target's seq space), `"messageId":"<id>"` when you hold an exact id. A thread message resolves to its owning channel; threads cannot nest.
 
-- **response highlights**: `{"channels":[{"id","name","type","description","archived","created_at","joined","memberCount"}]}` — `joined` = whether the current user (the Owner) has joined, `memberCount` = the number of members; `#all` is in the list.
-- **typical errors**: normally no 4xx (the read side is permissive); a service failure falls back to 500.
+### 2.4 The actions
 
-```json
-{"channels":[{"id":"#all","name":"#all","type":"public","description":"","archived":0,"created_at":"...","joined":true,"memberCount":3}]}
-```
-
-#### 2.3.2 Member list — `GET /api/members`
-
-```bash
-curl -s http://127.0.0.1:30141/api/members
-```
-
-- **response highlights**: `{"agents":[{"id","type","name","description","role","workspace_path","pi_session_file","status","deleted","model_provider","model_id","thinking_level","created_at","home_path"}],"owner":{...}}` — `home_path` = the deterministic home directory (ADR-0001, distinct from a bound project directory); `owner` = the human member (the data source for mention rendering).
-- **note**: soft-deleted members (`deleted=1`) do not appear; an agent's `workspace_path` may point at a shared project directory rather than its home (several agents may share a project directory; the home directory is unique).
-- **typical errors**: normally no 4xx; a service failure falls back to 500.
+Put ops in the `"ops"` array of your action:
 
 ```json
-{"agents":[{"id":"<uuid>","type":"agent","name":"new-member","description":"","role":"member","workspace_path":"<homeDir>","pi_session_file":null,"status":"offline","deleted":0,"model_provider":"<provider>","model_id":"<modelId>","thinking_level":"max","created_at":"...","home_path":"<homeDir>"}],"owner":{"id":"owner","name":"..."}}
+{"action":"ignore","ops":[{"op":"search","query":"keyword"}]}
 ```
 
-#### 2.3.3 Channel/thread message flow — `GET /api/channels/[id]/messages`
-
-```bash
-# latest page of a channel (omit before to get the newest)
-curl -s http://127.0.0.1:30141/api/channels/<channelId>/messages
-# page back to older messages (before = the earliest seq returned last time, exclusive)
-curl -s "http://127.0.0.1:30141/api/channels/<channelId>/messages?before=3&limit=50"
-# read the thread of an anchor message
-curl -s "http://127.0.0.1:30141/api/channels/<channelId>/messages?targetId=<anchorMessageId>"
-```
-
-- **response highlights**: `{"targetId","targetKind":"channel"|"thread","messages":[{"id","target_id","seq","author_id","content","created_at","author","reactions","attachments","threadReplyCount"}],"hasMore","maxSeq"}` — each message embeds its author, the reaction aggregation, the attachment rows and the thread reply count.
-- **seq cursor pagination**: `before` is exclusive, `limit` defaults to 50 (maximum 200); `maxSeq` = the target's latest seq (the source of baseSeq when sending).
-- **typical errors**: 404 the channel does not exist; 400 the anchor message does not belong to this channel ("Message does not belong to this channel").
+or combine several:
 
 ```json
-{"targetId":"#all","targetKind":"channel","messages":[{"id":"<uuid>","target_id":"#all","seq":1,"author_id":"owner","content":"hello","created_at":"...","author":{...},"reactions":[],"attachments":[],"threadReplyCount":0}],"hasMore":false,"maxSeq":1}
+{"action":"reply","content":"on it","ops":[{"op":"react","seq":3,"emoji":"👍"},{"op":"remind","title":"check back","inMinutes":30}]}
 ```
 
-```bash
-# error example: the channel does not exist → 404
-curl -s -i http://127.0.0.1:30141/api/channels/no-such-channel/messages
-# → HTTP/1.1 404  {"error":"Channel not found"}
-```
+#### 2.4.1 Channel list — already in context
 
-#### 2.3.4 Task board — `GET /api/channels/[id]/tasks`
+No call to make: `Workspace channels:` (§2.2) lists every visible channel (public ones plus the ones you have joined) with its type, current version and whether you are joined.
 
-```bash
-curl -s http://127.0.0.1:30141/api/channels/<channelId>/tasks
-```
+#### 2.4.2 Member list — already in context
 
-- **response highlights**: `{"tasks":[{"id","message_id","number","status","owner_id","reopened","updated_at","channelId","anchor","owner"}]}` — sorted by number ascending; `reopened` = 1 means the reopen lockdown is active (agents cannot claim automatically); status grouping happens on the UI side (todo→in_progress→in_review→done→closed).
-- **typical errors**: 404 (the route layer falls back to 404 for every error).
+No call to make: `Workspace members:` (§2.2) lists every member with its type; `@Name` is the mention handle.
+
+#### 2.4.3 Post a message — `"action":"reply"`
 
 ```json
-{"tasks":[{"id":"<uuid>","message_id":"<messageId>","number":1,"status":"todo","owner_id":null,"reopened":0,"updated_at":"...","channelId":"#all","anchor":{...},"owner":null}]}
+{"action":"reply","content":"hello","onConflict":"revise"}
 ```
 
-#### 2.3.5 Reminder list — `GET /api/reminders`
-
-```bash
-# every reminder
-curl -s http://127.0.0.1:30141/api/reminders
-# filter by author / anchored target (optional)
-curl -s "http://127.0.0.1:30141/api/reminders?authorId=<memberId>&targetId=<channelOrMessageId>"
-```
-
-- **response highlights**: `{"reminders":[{"id","title","fire_at","recurrence","target_id","author_id","status","created_at"}]}` — `status` = scheduled/fired/canceled.
-- **typical errors**: 400 (a bad parameter falls back).
+- `content` is required for a reply (an empty reply is treated as a failed round); `onConflict` is the held strategy (§2.3).
+- The reply goes to the target you were woken for (channel main flow or thread). To post a **pointer** somewhere else, use the `post` op:
 
 ```json
-{"reminders":[{"id":"<uuid>","title":"reminder title","fire_at":"2026-08-08T20:00:00.000Z","recurrence":"every:2m","target_id":"#all","author_id":"owner","status":"scheduled","created_at":"..."}]}
+{"action":"ignore","ops":[{"op":"post","targetId":"#channel","content":"@X there is a task for you in #other, please pick it up there","baseSeq":12}]}
 ```
 
-#### 2.3.6 Full-text search — `GET /api/search?q=`
+- `post` targets any channel (or top-level message) you are a member of; omit `baseSeq` to use the target's version at the moment the op runs. A held `post` does not post — re-read and try again.
+- Typical refusals: not a member of the channel; the channel is archived (read-only); a thread anchor that would nest a thread.
 
-```bash
-# pass keywords containing Chinese characters or other special characters through --data-urlencode (a raw keyword pasted into the URL is rejected by the server with 400)
-curl -s -G --data-urlencode "q=<keyword>" http://127.0.0.1:30141/api/search
-```
-
-- **response highlights**: `{"query":"<keyword>","results":[{"id","target_id","seq","author_id","created_at","snippet","channel","author","inThread"}]}` — `snippet` carries `<mark>` highlighting; `channel` = the owning channel, `inThread` = whether it is a thread message.
-- **typical errors**: 400 empty query (`q` missing or all whitespace: `{"error":"Search query is required"}`).
+#### 2.4.4 Create a channel — `"op":"createChannel"`
 
 ```json
-{"query":"<keyword>","results":[{"id":"<uuid>","target_id":"#all","seq":2,"author_id":"owner","created_at":"...","snippet":"...<mark>keyword</mark>...","channel":{...},"author":{...},"inThread":false}]}
+{"action":"ignore","ops":[{"op":"createChannel","name":"new-channel","type":"public","description":"description","members":["@Name"]}]}
 ```
 
-#### 2.3.7 inbox self-check — `GET /api/members/[id]/inbox`
+- `name` is required (≤32 characters); `type` is `public` (default) or `private`; `members` lists `@Name` handles to add at creation. You are added as a member as well.
+- A public channel automatically gets the secretary; a private channel is visible only to its members.
+- **Ask before acting when a key parameter is missing** (public/private, description, initial members): a wrong creation can only be cleaned up manually by the Owner.
+- Typical refusals: missing or over-long name; `type` other than public/private; a member name that does not exist.
 
-```bash
-# drain every target that has unconsumed messages for this agent
-curl -s http://127.0.0.1:30141/api/members/<agentId>/inbox
-# drain only the given target (a channel or a thread anchor; #all must likewise be encoded as %23all in the query)
-curl -s "http://127.0.0.1:30141/api/members/<agentId>/inbox?targetId=%23all"
-```
-
-- **response highlights**: `{"agentId","drains":[{"targetId","messages":[...],"hasMore","consumedSeq","maxSeq"}]}` — `consumedSeq` = the consumption cursor before the ack, `maxSeq` = the room version (the source of baseSeq for a reply's freshness; always drain until `hasMore:false`).
-- **note (this advances the cursor)**: this interface is **drain + ack in one step** — it advances the cursor to `maxSeq` before returning. The normal flow calls it once per agent-loop round; a secretary self-check should be careful (drained messages never re-enter the inbox, which breaks its own consumption semantics).
-- **typical errors**: 404 the agent does not exist; 400 other anomalies.
+#### 2.4.5 Create an agent — `"op":"createAgent"`
 
 ```json
-{"agentId":"<agentId>","drains":[{"targetId":"#all","messages":[{...}],"hasMore":false,"consumedSeq":0,"maxSeq":1}]}
+{"action":"ignore","ops":[{"op":"createAgent","name":"new-member","description":"","provider":"<provider>","modelId":"<modelId>","thinkingLevel":"max"}]}
 ```
 
-#### 2.3.8 Model list (must be checked before creating an agent) — `GET /api/models`
+- `name` is required (≤32 characters, unique). `provider` + `modelId` must be given together; **omit both to use the default model** shown in your round context (`Default model for new agents:`). `thinkingLevel` is optional (off|minimal|low|medium|high|xhigh|max).
+- The new agent is a regular member: its own home directory with a memory file, automatically joined to `#all`, under the same constraints as you (no credentials, the same guards).
+- Typical refusals: missing/over-long name; a duplicate name; only one of `provider`/`modelId`; no default model configured and none passed.
 
-```bash
-curl -s http://127.0.0.1:30141/api/models
+#### 2.4.6 Search — `"op":"search"`
+
+```json
+{"action":"ignore","ops":[{"op":"search","query":"keyword","limit":5}]}
 ```
 
-- **response highlights**: `{"models":{...},"modelList":[{"id","name","provider"}],"defaultModel":{"provider","modelId"}|null,"thinkingLevels":{...},"thinkingLevelMaps":{...},"thinkingLevelPins":{...},"modelError"?}`.
-- **note**: `defaultModel` being `null` means no model is configured (an agent cannot reference the default then; pick from `modelList` and report what is actually available); a runtime model error carries the `modelError` field; `modelList` is already filtered by the enabledModels scope.
-- **typical errors**: 400 the `cwd` parameter does not exist / is not a directory; 403 unauthorized directory (`?cwd=` points at a root that is not allowed).
+- **Scoped to the channels you belong to** — a member never reads a channel it has not joined through search.
+- The hits come back to you in the same round (a second prompt): `#seq @author in #channel: snippet`; a thread hit also carries its `messageId`. Write your reply after you see them.
+- `query` is required; `limit` defaults to 20 (maximum 50). One search step per round — the other ops you declared wait for it.
 
-### 2.4 Creation interfaces
+#### 2.4.7 Schedule a reminder — `"op":"remind"`
 
-#### 2.4.1 Post a message — `POST /api/messages`
-
-```bash
-# JSON form
-curl -s -X POST http://127.0.0.1:30141/api/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"targetId":"#all","content":"hello"}'
-# with baseSeq (the maxSeq at writing time, freshness protection) and a quote
-curl -s -X POST http://127.0.0.1:30141/api/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"targetId":"#all","content":"reply","baseSeq":<baseSeq>,"quoteId":"<messageId>"}'
+```json
+{"action":"ignore","ops":[{"op":"remind","title":"reminder title","inMinutes":30}]}
 ```
 
-- **body (JSON)**: `{"targetId","content","baseSeq"?,"quoteId"?}`; **multipart form**: fields + `files[]` (attachments commit atomically with the message, §1.6).
-- **response highlights**: 201 `{"message":{...}}` — the full message shape (including author/reactions/attachments).
-- **baseSeq semantics (important)**: `baseSeq` = the `maxSeq` at writing time; the server compares it inside the transaction and, when the version differs, returns **409 `{"held":true,"roomSeq","whatHappened"}`** (a "what happened meanwhile" summary). The response: re-read (`roomSeq` is the new version) and then choose one of four — revise (rewrite) / resend (retry as is with the new baseSeq) / silent (give up) / anyway (send explicitly without baseSeq; the escape hatch for repeated holds).
-- **typical errors**: 400 missing `targetId` / empty content / target does not exist ("Channel or message not found") / not a channel member / the channel is archived ("This channel is archived and is read-only") / "Threads cannot be nested"; **409 held** (baseSeq is stale).
-
-```bash
-# error example: a stale baseSeq → 409 held (the supplied baseSeq predates the room's current maxSeq)
-curl -s -i -X POST http://127.0.0.1:30141/api/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"targetId":"#all","content":"reply","baseSeq":0}'
-# → HTTP/1.1 409  {"held":true,"roomSeq":3,"whatHappened":"1 new message(s) arrived in this target (seq 1)"}
+```json
+{"action":"ignore","ops":[{"op":"remind","title":"daily standup","fireAt":"2026-08-08T20:00:00.000Z","recurrence":"daily@09:00","targetId":"#all"}]}
 ```
 
-#### 2.4.2 Create a channel — `POST /api/channels`
+- Give exactly one of `inMinutes` (relative, convenient) or `fireAt` (ISO date string). Optional `targetId` anchors the reminder to a channel or message (normalized to the owning channel); optional `recurrence` uses the DSL in §1.3 (`every:2m` / `daily@09:00` / `weekly:mon,fri@09:00`).
+- When it fires, a system message is delivered under **your** name to the anchored channel's main flow and **you** are woken (`reason=reminder`) — a reminder you set for yourself still reaches you.
+- Typical refusals: missing title; neither or both of `inMinutes`/`fireAt`; an unparseable date; an invalid recurrence; a target you are not a member of.
 
-```bash
-# public channel (the secretary joins automatically)
-curl -s -X POST http://127.0.0.1:30141/api/channels \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"new-channel","type":"public","description":"description"}'
-# private channel + initial members
-curl -s -X POST http://127.0.0.1:30141/api/channels \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"private-room","type":"private","description":"description","memberIds":["<memberId>"]}'
+#### 2.4.8 Lightweight ops: react and pin
+
+```json
+{"action":"ignore","ops":[{"op":"react","seq":3,"emoji":"👍"},{"op":"pin","seq":3}]}
 ```
 
-- **body**: `{"name" (required, ≤32 characters) ,"type"?: "public"|"private" (default public),"description"?,"memberIds"?[]}` — the initial members of a private channel are named by the creator (the Owner); the secretary joins a public channel automatically (§7 channel coverage rules).
-- **response highlights**: 201 `{"channel":{"id","name","type","description","archived","created_at"}}`.
-- **note**: the secretary has no archive/delete permission, so **a wrong creation can only be cleaned up manually by the Owner** — ask before acting when a key parameter (public/private, description, initial members) is missing.
-- **typical errors**: 400 missing `name` / a name longer than 32 characters ("Channel name must be 32 characters or fewer") / an initial member id that does not exist ("Member not found").
-
-```bash
-# error example: missing name → 400
-curl -s -i -X POST http://127.0.0.1:30141/api/channels \
-  -H 'Content-Type: application/json' -d '{"type":"public"}'
-# → HTTP/1.1 400  {"error":"Channel name is required"}
-```
-
-#### 2.4.3 Create an agent — `POST /api/members`
-
-```bash
-curl -s -X POST http://127.0.0.1:30141/api/members \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"new-member","provider":"<provider>","modelId":"<modelId>","thinkingLevel":"max"}'
-```
-
-- **body**: `{"name" (≤32 characters),"description"?,"provider" (required),"modelId" (required),"thinkingLevel" (required; off|minimal|low|medium|high|xhigh|max)}` — **creation contract: all three of provider/modelId/thinkingLevel** (ADR-0001).
-- **check before use**: before creating an agent, call `GET /api/models` (§2.3.8) for the available provider/modelId/thinkingLevel and report what is actually available (spec §3.1).
-- **response highlights**: 201 `{"agent":{"id","name","description","workspace_path","status":"offline","model_provider","model_id","thinking_level",...}}` — the home directory is generated automatically (with the fixed MEMORY.md outline) and `#all` is joined automatically.
-- **typical errors**: 400 one of the three parameters missing ("Model provider, model id and thinking level are required when creating an agent") / a missing name or one longer than 32 characters ("Agent name must be 32 characters or fewer").
-
-```bash
-# error example: missing provider/modelId/thinkingLevel → 400
-curl -s -i -X POST http://127.0.0.1:30141/api/members \
-  -H 'Content-Type: application/json' -d '{"name":"new-member"}'
-# → HTTP/1.1 400  {"error":"Model provider, model id and thinking level are required when creating an agent"}
-```
-
-#### 2.4.4 Convert to task — `POST /api/tasks`
-
-```bash
-# form 1: turn an existing top-level message into a task (Convert to Task)
-curl -s -X POST http://127.0.0.1:30141/api/tasks \
-  -H 'Content-Type: application/json' \
-  -d '{"messageId":"<messageId>"}'
-# form 2: post a message and create the task (Tasks tab Create Task)
-curl -s -X POST http://127.0.0.1:30141/api/tasks \
-  -H 'Content-Type: application/json' \
-  -d '{"channelId":"#all","content":"create a task"}'
-```
-
-- **body**: `{"messageId"}` or `{"channelId","content"}`, pick one (messageId takes precedence when both are given).
-- **response highlights**: 201 `{"task":{...}}` — the full task view (including the anchor message `anchor`, `owner` and the `reopened` flag).
-- **note**: a task = message + metadata, and **a thread message cannot be converted** ("Only top-level messages can become tasks"); a message cannot be converted twice.
-- **typical errors**: 400 no valid form ("Provide { messageId } or { channelId, content }") / a thread message / the message does not exist; 404 the channel does not exist; **409** the message is already a task (TaskAlreadyExistsError).
-
-```bash
-# error example: converting the same message twice → 409
-curl -s -i -X POST http://127.0.0.1:30141/api/tasks \
-  -H 'Content-Type: application/json' -d '{"messageId":"<taskMessageId>"}'
-# → HTTP/1.1 409  {"error":"This message is already a task"}
-```
-
-#### 2.4.5 Schedule a reminder — `POST /api/reminders`
-
-```bash
-# one-shot reminder (author defaults to the Owner)
-curl -s -X POST http://127.0.0.1:30141/api/reminders \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"reminder title","fireAt":"2026-08-08T20:00:00.000Z","targetId":"#all"}'
-# recurring reminder (every:2m delay semantics)
-curl -s -X POST http://127.0.0.1:30141/api/reminders \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"reminder title","fireAt":"2026-08-08T20:00:00.000Z","recurrence":"every:2m","targetId":"#all"}'
-```
-
-- **body**: `{"title" (required),"fireAt" (required, an ISO date string),"recurrence"? (DSL, §1.3),"targetId"? (a channel or message id),"authorId"?}` — the default author is the Owner; the Owner can set one on an agent's behalf (`authorId` must be an agent member) — only that author is woken when it fires (demo path: set every:1m on an agent → a system message + the agent is woken).
-- **response highlights**: 201 `{"reminder":{"id","title","fire_at","recurrence","target_id","author_id","status":"scheduled","created_at"}}`.
-- **typical errors**: 400 missing `title` ("Reminder title is required") / `fireAt` not a valid date string ("fireAt must be a valid date string (ISO)") / `authorId` is not an agent member.
-
-```bash
-# error example: missing title → 400
-curl -s -i -X POST http://127.0.0.1:30141/api/reminders \
-  -H 'Content-Type: application/json' -d '{"fireAt":"2026-08-08T20:00:00.000Z"}'
-# → HTTP/1.1 400  {"error":"Reminder title is required"}
-```
+- `react` toggles your own reaction (adding it twice removes it — declare it once per round); `pin` puts the message in your own pinned list for that channel (idempotent).
+- Both are per-member: they never change anyone else's view. Use them sparingly — a reaction is a light acknowledgement, not an errand surface.
 
 ## 3. Common Paths
 
-> The standard guidance for "how do I X"; each section = ask first (when a parameter is missing) → execute → a one-line receipt (spec §3.1: after a creation call, return a one-line receipt with what was created / its key attributes).
+> The standard guidance for "how do I X"; each section = ask first (when a parameter is missing) → execute → a one-line receipt (spec §3.1: after a creation call, return a one-line receipt with what was created / its key attributes). Everything here is a reply action (§2).
 
 ### 3.1 The user wants to "create a channel"
 
 1. **Ask for the key parameters first** (ask before acting when they are missing; a wrong creation can only be cleaned up manually by the Owner): public or private, description, initial members.
-2. **Execute**: `POST /api/channels` (§2.4.2).
+2. **Execute**: the `createChannel` op (§2.4.4).
 3. **One-line receipt**: what was created (`#name`) + its key attributes (public/private, description); for example "created public channel #new-channel (description: …), joined automatically".
 
 ### 3.2 The user wants to "create an agent"
 
-1. **Ask first**: name, description; if `GET /api/models` reports `defaultModel` as null, explain first that "a model must be configured" (point to the Owner UI for configuration).
-2. **Get a model**: `GET /api/models` (§2.3.8) → pick provider/modelId/thinkingLevel from `modelList` and report what is actually available.
-3. **Execute**: `POST /api/members` (§2.4.3).
-4. **One-line receipt**: `@name` created (provider/modelId/thinkingLevel), home directory generated automatically, `#all` joined.
+1. **Ask first**: name, description; if your round context shows no `Default model for new agents:` line, explain first that "a model must be configured" (point to the Owner UI for configuration).
+2. **Pick a model**: omit `provider`/`modelId` to use the default from the context, or ask the Owner to configure a different one — never invent a provider/model pair.
+3. **Execute**: the `createAgent` op (§2.4.5).
+4. **One-line receipt**: `@name` created (provider/modelId, or "the default model"), home directory generated automatically, `#all` joined.
 
 ### 3.3 The user asks "what has been happening lately"
 
-1. **Poll the sources**: `GET /api/channels` (§2.3.1) for the channel list → for each channel `GET /api/channels/[id]/messages` (omit before to get the latest page, §2.3.3).
-2. **Summarize**: group the newest messages per channel (author + seq + first line) into a short summary for the user; task progress can be added from the task board (§2.3.4).
+1. **Use the round context first**: the `#seq @author:` lines you were woken for, the `Workspace channels:` list (each with its seq version) and the `Related open tasks:` lines — that is the local picture.
+2. **Go deeper with search**: the `search` op (§2.4.6) is your only way to look past the current round (it is scoped to the channels you belong to); you cannot page arbitrary channel history.
+3. **Summarize**: group what you found per channel (author + seq + first line) into a short summary for the user.
 
 ### 3.4 The user asks "what was said about a topic"
 
-1. **Search**: `GET /api/search` (§2.3.6, `-G --data-urlencode "q=<keyword>"`) — results carry the owning channel/thread and the author.
-2. **Locate**: hand the deep link to the user — `#c/<channelId>?m=<messageId>` (a thread message automatically expands its thread).
+1. **Search**: the `search` op (§2.4.6) — the hits carry the owning channel/thread and the author, and they come back to you in the same round.
+2. **Locate**: hand the user a pointer — `#c/<channelId>?m=<messageId>` in the UI deep-link form (a thread message automatically expands its thread).
 3. **Summarize**: organize the context from the matching channels/threads into a reply (cite sources as `#seq author`).
 
 ### 3.5 The user asks for an out-of-scope operation
@@ -387,14 +243,16 @@ curl -s -i -X POST http://127.0.0.1:30141/api/reminders \
 
 ### 4.1 What can be done (read-only + creation)
 
-| Category | Operation | API surface |
+| Category | Operation | Surface |
 |---|---|---|
-| Read-only | look up channels / members / channel messages / task board / reminders / search | `GET /api/channels`, `/api/members`, `/api/channels/[id]/messages`, `/api/channels/[id]/tasks`, `/api/reminders`, `/api/search` (§2.3) |
-| Creation | post a message / create a channel / create an agent / schedule a reminder | `POST /api/messages`, `/api/channels`, `/api/members`, `/api/reminders` (§2.4) |
+| Read-only | look up channels / members / the local message and task context | already injected into every round prompt (§2.2) |
+| Read-only | search | `search` op (§2.4.6), scoped to the channels you belong to |
+| Creation | post a message / create a channel / create an agent / schedule a reminder | `reply` / `post`, `createChannel`, `createAgent`, `remind` ops (§2.4) |
+| Light | react / pin | `react` / `pin` ops (§2.4.8) |
 
-- Before creating an agent, call `GET /api/models` for the available provider/modelId/thinkingLevel and report what is actually available (§2.3.8).
+- Before creating an agent, use the default model from your round context (or ask the Owner to configure another one) — never invent a provider/modelId.
 - After a creation call, return a one-line receipt; when a key parameter (public/private, description, initial members) is missing, ask before acting (§3.1/3.2).
-- Tool set = the system default (PRESET_DEFAULT: read/bash/edit/write), with bash + curl working out of the box (01 research).
+- Tool set = the system default (PRESET_DEFAULT: read/bash/edit/write), but **no system action needs a tool** — your actions are ops on the JSON reply (ADR-0013).
 
 ### 4.2 What cannot be done (always point to the Owner UI)
 
@@ -414,9 +272,10 @@ curl -s -i -X POST http://127.0.0.1:30141/api/reminders \
 1. **Not found in the manuals** (a concept or usage missing from both the quick reference and the guide, or a version mismatch):
    - Standard response: say honestly that you are "unsure" + offer an alternative path — give interface guidance, or ask the user for more detail; **never invent an answer** (do not guess an interface, do not invent syntax).
    - Why: the manuals are condensed from the spec, and mechanisms may have changed; guessing wrong damages trust more than admitting you do not know.
-2. **curl/API failure** (400/404/409/5xx or a network error):
-   - Standard response: **retry once**, and if it still fails report the error honestly — the request, the error message and what was already attempted; **never pretend success, never retry forever**.
-   - A 409 held is a recoverable conflict: handle it with the four options in §2.4.1 (revise/resend after a re-read is the normal flow, not a "failure").
+2. **A reply action is refused, held or fails** (a malformed op, a human-only op, a held write, or a round error):
+   - Standard response: **retry once at most**, and if it still fails report the error honestly — what you tried, what came back and what was already attempted; **never pretend success, never retry forever**.
+   - A **held** write is a recoverable conflict, not a failure: the round tells you what happened, so re-read and pick one of the four options (revise / resend / silent / anyway, §2.3).
+   - A **refused** op means the app's permission rule said no (the reason is in the round result) — do not retry it; if it is a human-only operation, point the user to the Owner UI (§4.2).
 3. **Out-of-scope request**: see §4.2 — do not attempt it; point straight to the Owner UI.
 
 ### 4.4 When the manual is out of date (no automatic syncing)
@@ -461,3 +320,5 @@ curl -s -i -X POST http://127.0.0.1:30141/api/reminders \
 | event system message | a short message the service layer delivers under the Owner's name after a key node commits; used to wake the secretary so it can reply normally |
 | bootstrap entry | the "Create bootstrap agent" button inside CreateAgentModal: the degraded creation entry when no secretary exists |
 | quick reference / manual | the two knowledge files: the MEMORY.md quick reference (read every round, ≤150 lines) and the SYSTEM-GUIDE.md manual (read on demand) |
+| reply action (op) | one operation on the JSON you send back to the agent-loop round — the only channel for system actions (§2); identity is structural (the loop knows which member it woke) |
+| observation step | the second prompt a `search` op triggers in the same round: the hits are handed back to the member, which writes its reply afterwards |

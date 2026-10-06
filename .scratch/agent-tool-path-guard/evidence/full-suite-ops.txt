@@ -1,0 +1,10 @@
+# npm test（全量档）——票 06 交付前最后一次全量（跑法：npm test）
+# 基线 970（8a05a6d，9.8s）→ 本次 1013（+43 新用例）
+ℹ tests 1013
+ℹ suites 0
+ℹ pass 1013
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8368.195541

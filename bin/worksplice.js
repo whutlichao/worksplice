@@ -40,6 +40,16 @@ const { port, hostname, openBrowser, demo } = parseLaunchOptions();
 const loopbackHostnames = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 const passwordEnabled = Boolean(process.env.WORKSPLICE_PASSWORD);
 
+// 人类面准入闸第一道（ADR-0013 决策二）：非 loopback bind + 无凭证 ⇒ 拒绝启动。
+// 第二道在服务进程内（lib/access-gate.ts + proxy.ts），因为四条 npm 脚本直接起 `next`，绕过本包装。
+if (!loopbackHostnames.has(hostname) && !passwordEnabled) {
+  console.error(
+    `Refusing to start: worksplice would listen on ${hostname} without WORKSPLICE_PASSWORD.\n` +
+      "Set WORKSPLICE_PASSWORD to allow remote access, or bind to 127.0.0.1 (the default).",
+  );
+  process.exit(1);
+}
+
 if (!fs.existsSync(nextDir)) {
   console.error("Build artifacts not found. Please report this issue.");
   process.exit(1);
@@ -68,15 +78,9 @@ if (demo) {
 }
 
 if (!loopbackHostnames.has(hostname)) {
-  if (passwordEnabled) {
-    console.warn(
-      `Warning: worksplice is listening on ${hostname} with Basic Auth over HTTP. Use HTTPS or a trusted VPN to protect the password in transit.`,
-    );
-  } else {
-    console.warn(
-      `Warning: worksplice is listening on ${hostname} without authentication. Only use this on a trusted network.`,
-    );
-  }
+  console.warn(
+    `Warning: worksplice is listening on ${hostname} with Basic Auth over HTTP. Use HTTPS or a trusted VPN to protect the password in transit.`,
+  );
 }
 
 const nextArgs = ["start", "-p", port];

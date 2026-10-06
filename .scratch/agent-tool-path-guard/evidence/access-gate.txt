@@ -1,0 +1,95 @@
+# 取证：人类面准入闸（ADR-0013 决策二）
+
+判定点两处（服务进程内 + CLI 包装第一道）。本文件是**实测记录**，不是推测。
+环境：macOS，仓库本 worktree，`next dev`（**绝不 `next build`**），每次用独立临时数据目录。
+
+## 1. 「instrumentation.ts 抛错/退出能否真的阻止 Next 启动」——本票要求的取证项
+
+**结论：能阻止服务。** 我们在 `instrumentation.register()` 里用 `process.exit(1)`（而非只抛错）：
+
+```text
+命令：WORKSPLICE_DATA_DIR=/tmp/ws-gate-1 WORKSPLICE_DEMO=1 next dev -H 0.0.0.0 -p 30999
+（无 WORKSPLICE_PASSWORD）
+
+日志：
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://localhost:30999
+- Network:       http://0.0.0.0:30999
+✓ Ready in 317ms
+[worksplice] worksplice is listening on a non-loopback address without WORKSPLICE_PASSWORD and refuses to
+serve (fail-closed). Set WORKSPLICE_PASSWORD to allow remote access, or bind to 127.0.0.1 (the default)
+and restart.
+
+进程：pgrep -fl "next dev -H 0.0.0.0 -p 30999" → 空（进程已退出）
+请求：curl -m 3 http://127.0.0.1:30999/api/sessions → http_code=000（连接被拒）
+```
+
+即：**启动即拒是达成项**，不是「测不出」。注意写法上的选择：只 `throw` 会被 Next 记一条错误后继续启动
+（本仓 instrumentation 的其它失败路径就是这么处理「失败不致命」的），所以这里必须 `process.exit(1)`
+——「拿不到安全前提就不提供服务」不允许降级。
+
+## 2. 请求门（proxy.ts → 503）：启动门被绕过时仍然 fail-closed
+
+实验方式：**临时**注释掉 instrumentation 里的启动门（`[evidence]` 标记），跑同一条 `next dev -H 0.0.0.0`，
+测完从 `/tmp/instrumentation.ts.bak` 原样恢复（`grep -c "\[evidence\]" instrumentation.ts` = 0 复查）。
+
+```text
+GET /api/sessions（普通 loopback 请求）→ http_code=503
+  正文：worksplice is listening on a non-loopback address without WORKSPLICE_PASSWORD and refuses to serve
+        (fail-closed). Set WORKSPLICE_PASSWORD to allow remote access, or bind to 127.0.0.1 (the default)
+        and restart.
+GET /api/sessions（伪造 Host: localhost）→ http_code=503
+GET /（应用壳）→ http_code=503
+```
+
+**伪造 `Host: localhost` 也拿到 503** 是关键一条：判定基于**实际 bind**（自连接探针），
+不是基于调用者可伪造的请求头——这正是「加一道无效的门比没门更坏」要避免的形态。
+
+## 3. 两条既有姿态不变（守住承诺）
+
+```text
+loopback（-H 127.0.0.1）+ 无凭证 + GET /api/sessions → http_code=200   （零配置承诺：npx worksplice 照旧）
+非 loopback（-H 0.0.0.0）+ WORKSPLICE_PASSWORD 已设：
+  无 Basic 凭证 → http_code=401
+  带 Basic 凭证 → http_code=200                                        （今天的 Basic Auth 语义不变）
+```
+
+## 4. CLI 包装第一道（bin/worksplice.js）
+
+```text
+node bin/worksplice.js -H 0.0.0.0 -p 30995 --no-open
+→ Refusing to start: worksplice would listen on 0.0.0.0 without WORKSPLICE_PASSWORD.
+  Set WORKSPLICE_PASSWORD to allow remote access, or bind to 127.0.0.1 (the default).
+→ exit_code=1
+```
+
+## 5. 判定机制与「为什么不是 Host / 来源判定」
+
+服务进程里拿不到 Next 的 `server.address()`（server 由 Next 持有），所以 `lib/access-gate.ts` 用
+**自连接探针**：`process.env.PORT`（Next 在 listening 事件里写，`start-server.js:296`）+
+`os.networkInterfaces()` 里的非 loopback 地址集合，逐个试连：
+
+- 任一地址连得上 → `non-loopback`（监听接受非 loopback 连接）；
+- 全部 `ECONNREFUSED` → `loopback`；
+- 出现不可判定（超时等）且无一可达 → `unknown`（**不**声称 loopback）。
+
+`unknown` 不关服务（保住零配置），因为它在现实里只出现于「端口未知」或「本机防火墙连自连都拦」
+——前者不是监听面，后者 LAN 客户端同样进不来。判定为 `non-loopback` 且**无** `WORKSPLICE_PASSWORD`
+才是 `closed`。
+
+备选（已否决）：Host/来源判定——成员与人类同 uid 同 loopback，`Host`/`Origin`/`Sec-Fetch-Site`
+都是调用者可自设的头，拿它当准入闸等于把门装在请求里。
+
+## 6. 复核（fix round 1 之后：`detectBindScope` 加 loopback 自连复核 + `waitForServerListening` 护栏）
+
+```text
+非 loopback（-H 0.0.0.0 -p 30994）+ 无凭证 → 启动日志打出同一句「refuses to serve」，进程退出，
+  pgrep 无残留；curl /api/sessions → http_code=000（连接被拒）            [启动即拒仍成立]
+loopback（-H 127.0.0.1 -p 30993）+ 无凭证 → http_code=200               [零配置仍成立]
+启动门整体旁路（[evidence3] 标记，测后原样恢复、grep 复核为 0）+ 0.0.0.0 -p 30991：
+  /api/sessions → 503；伪造 Host: localhost → 503；/ → 503               [请求门仍 fail-closed]
+```
+
+护栏的作用：`process.env.PORT` 可能来自用户 env（不是 Next 在 listening 事件里写的那个），
+此时马上探测会把「还没监听」误读成 loopback；`waitForServerListening` 先等回环自连成功再判，
+`detectBindScope` 在「非 loopback 全 refused」时也要求回环自连成功才敢报 `loopback`（否则报 unknown）。

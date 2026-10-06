@@ -1,5 +1,5 @@
 import { getDb } from "../../data/db-singleton.ts";
-import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
+import { getChannel, isChannelMember, listChannels, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { notifyMessageWakes } from "./wake.ts";
 import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
@@ -56,18 +56,39 @@ export function messageWithAuthor(
 export { previewLine } from "../../preview.ts";
 
 /**
+ * target 引用解析（成员面 / 路由面共用的名称→id 归一化）：
+ * `#name` / `name` / channel id / 顶层消息 id 都接受；thread 消息（target 是另一条消息的条目）
+ * 不可当新 target（不可嵌套，§3.2）——规则只在服务层实现一处，成员面 op 与 sendMessage 共用。
+ * 未知引用抛 `Channel or message not found`（与 sendMessage 同措辞）。
+ */
+export function resolveTargetRef(ref: string): string {
+  const trimmed = ref.trim();
+  const name = trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+  const channel = listChannels().find(
+    (candidate) =>
+      candidate.id === trimmed ||
+      candidate.name === trimmed ||
+      candidate.name === name ||
+      candidate.name === `#${name}`,
+  );
+  if (channel) return channel.id;
+  const message = getDb().getMessage(trimmed);
+  if (!message) throw new Error("Channel or message not found");
+  if (getDb().getMessage(message.target_id)) throw new Error("Threads cannot be nested");
+  return message.id;
+}
+
+/**
  * 解析消息归属容器（§6.1 target 归一化约定）：
  * target_id 命中 channels 则为 channel；否则必须是顶层消息（thread 锚点）。
  * thread 消息不能作为新 target（不可嵌套，§3.2）。
  */
 function resolveTarget(targetId: string): ResolvedTarget {
-  const channel = resolveChannelForTarget(targetId);
-  if (channel) {
-    const anchor = getDb().getChannel(targetId) ? null : (getDb().getMessage(targetId) ?? null);
-    return { targetId: anchor ? anchor.id : targetId, channel, anchor };
-  }
-  if (getDb().getMessage(targetId)) throw new Error("Threads cannot be nested");
-  throw new Error("Channel or message not found");
+  const id = resolveTargetRef(targetId);
+  const channel = resolveChannelForTarget(id);
+  if (!channel) throw new Error("Channel or message not found");
+  const anchor = getDb().getChannel(id) ? null : (getDb().getMessage(id) ?? null);
+  return { targetId: id, channel, anchor };
 }
 
 /**

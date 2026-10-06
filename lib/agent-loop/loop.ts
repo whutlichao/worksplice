@@ -18,9 +18,11 @@ import {
   isDM,
   joinChannel,
   listAgents,
+  listChannels,
   listRelatedTasks,
   logRoundOutcome,
   normalizeWorkspacePath,
+  readDefaultModelFromSettings,
   resolveTargetChannel,
   sendMessage,
   subscribeWake,
@@ -46,6 +48,13 @@ import {
   scheduleBusyRetry,
   waitForSettle as waitForCwdSettle,
 } from "../cwd-mutex.ts";
+import {
+  executeMemberOps,
+  planMemberOps,
+  parseMemberOps,
+  type MemberOpOutcome,
+  type RawMemberOp,
+} from "./member-ops.ts";
 
 /**
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
@@ -132,6 +141,8 @@ export interface AgentAction {
   onConflict: ConflictChoice;
   /** 可选：本轮附带的任务操作（先 claim 再开工；claim 失败就让路）。 */
   task?: { number: number; op: TaskOp };
+  /** 可选：本轮附带的成员 op（ADR-0013 决策一；解析见 ./member-ops.ts）。 */
+  ops?: RawMemberOp[];
 }
 
 /** 崩溃恢复补拉用的房间标记（§5.3）：随 prompt 落进 session jsonl 的 user 条目。 */
@@ -222,6 +233,13 @@ export function parseAgentAction(text: string): AgentAction {
         task = { number, op: op as TaskOp };
       }
     }
+    // 成员 op（ADR-0013 决策一）：与 task 同一条缝；空数组不落字段（向后兼容既有 deepEqual 断言）
+    const ops = parseMemberOps(parsed.ops);
+    if (ops.length > 0) {
+      return task
+        ? { action, content, onConflict, task, ops }
+        : { action, content, onConflict, ops };
+    }
     return task
       ? { action, content, onConflict, task }
       : { action, content, onConflict };
@@ -239,6 +257,62 @@ export function parseAgentAction(text: string): AgentAction {
 
 const MESSAGE_CONTENT_CAP = 4000;
 
+/**
+ * 每轮语境注入（ADR-0013 §1.5 的「只读类每轮语境里本来就有」——这就是那两行）：
+ * 频道列表（含每个频道的 seq 版本，post 的 freshness 参照）与成员列表。
+ * 注入点固定在本函数的 prompt 文本里；调用方（runAgentRound）从 DB 组装（replyPromptContext）。
+ */
+export interface ReplyPromptContext {
+  channels: Array<{
+    name: string;
+    type: string;
+    seq: number;
+    joined: boolean;
+    archived: boolean;
+  }>;
+  members: Array<{ name: string; type: "human" | "agent" }>;
+  defaultModel: { provider: string; modelId: string } | null;
+}
+
+const PROMPT_CHANNEL_CAP = 100;
+const PROMPT_MEMBER_CAP = 100;
+
+function formatChannelContext(channels: ReplyPromptContext["channels"]): string {
+  const shown = channels.slice(0, PROMPT_CHANNEL_CAP);
+  const parts = shown.map(
+    (channel) =>
+      `#${channel.name} (${channel.type}, seq ${channel.seq}${channel.joined ? "" : ", not joined"}${channel.archived ? ", archived" : ""})`,
+  );
+  if (channels.length > shown.length) parts.push(`(+${channels.length - shown.length} more)`);
+  return parts.join(", ");
+}
+
+function formatMemberContext(members: ReplyPromptContext["members"]): string {
+  const shown = members.slice(0, PROMPT_MEMBER_CAP);
+  const parts = shown.map((member) => `@${member.name} (${member.type})`);
+  if (members.length > shown.length) parts.push(`(+${members.length - shown.length} more)`);
+  return parts.join(", ");
+}
+
+/** 每轮 ctx 的组装（runAgentRound 用；频道列表排除与该成员无关的 DM——DM 是 owner↔agent 的一对一，无从加入）。 */
+export function replyPromptContext(agent: MemberRow): ReplyPromptContext {
+  const channels = listChannels()
+    // 读类不提升可见面（能力表判据）：公开频道（任何人可加入）+ 该成员已加入的频道；
+    // 未加入的私有频道连名字/类型都不注入（DM 只有自己是成员时在列）。
+    .filter((channel) => channel.type === "public" || isChannelMember(channel.id, agent.id))
+    .map((channel) => ({
+      name: channel.name,
+      type: channel.type,
+      seq: getDb().maxSeq(channel.id),
+      joined: isChannelMember(channel.id, agent.id),
+      archived: channel.archived === 1,
+    }));
+  const members = getDb()
+    .listMembers()
+    .map((member) => ({ name: member.name, type: member.type as "human" | "agent" }));
+  return { channels, members, defaultModel: readDefaultModelFromSettings() };
+}
+
 /** decide 的 prompt（§5.4 AX 原则）：新消息（带 seq/作者）+ 相关任务状态 + 明确的 next action 选项。 */
 export function buildReplyPrompt(input: {
   agent: MemberRow;
@@ -254,6 +328,8 @@ export function buildReplyPrompt(input: {
   targetId: string;
   baseSeq: number;
   memoryFile?: string | null;
+  /** 语境注入（频道/成员/默认模型）；缺省不注入（直调本函数的单测保持原状）。 */
+  context?: ReplyPromptContext;
 }): string {
   const lines: string[] = [];
   lines.push(
@@ -292,6 +368,16 @@ export function buildReplyPrompt(input: {
       );
     }
   }
+  if (input.context) {
+    lines.push("");
+    lines.push(`Workspace channels: ${formatChannelContext(input.context.channels)}`);
+    lines.push(`Workspace members: ${formatMemberContext(input.context.members)}`);
+    if (input.context.defaultModel) {
+      lines.push(
+        `Default model for new agents: ${input.context.defaultModel.provider}/${input.context.defaultModel.modelId}`,
+      );
+    }
+  }
   lines.push("");
   lines.push(
     'Choose ONE next action and reply with JSON only: {"action":"reply"|"ignore","content":"your reply text","onConflict":"revise"|"resend"|"silent"|"anyway"}',
@@ -326,6 +412,18 @@ export function buildReplyPrompt(input: {
   );
   lines.push(
     '- When you finish a task you own: {"task":{"number":N,"op":"complete"}} — the task moves to in_review for someone else to verify (builders never verify their own work). To step away: {"task":{"number":N,"op":"unclaim"}}.',
+  );
+  lines.push(
+    '- Extra operations: add "ops":[ ... ] to your JSON. Every op runs with YOUR identity; permissions are decided by the app, anything not listed here is refused.',
+  );
+  lines.push(
+    '  react {"op":"react","seq":N,"emoji":"👍"} | pin {"op":"pin","seq":N} | remind {"op":"remind","title":"...","inMinutes":30} (or "fireAt":"<ISO>"; "targetId" defaults to this target; optional "recurrence") | post {"op":"post","targetId":"#channel","content":"...","baseSeq":N} (pointer to another channel) | createChannel {"op":"createChannel","name":"...","type":"public"|"private","description":"...","members":["@Name"]} | createAgent {"op":"createAgent","name":"...","description":"...","provider":"...","modelId":"..."} | search {"op":"search","query":"...","limit":N}',
+  );
+  lines.push(
+    "  A search runs first and its hits come back to you in the same round — write your reply after you see them; the other ops you declared are kept for that second step. Only one search step per round.",
+  );
+  lines.push(
+    "  Human-only (never yours to do — point the Owner to the UI instead): archive a channel, delete an identity, Restart / Session reset / Full reset, change runtime, change workspace.",
   );
   if (input.memoryFile) {
     lines.push(
@@ -376,6 +474,95 @@ export function buildRevisionPrompt(input: {
   lines.push("[worksplice:revision]");
   lines.push(roomMarker(input.targetId, input.held.roomSeq));
   return lines.join("\n");
+}
+
+// ----------------------------------------------------------------------------
+// 成员 op 的轮内执行（ADR-0013 决策一）：与 task 同一条缝，身份取结构身份
+// ----------------------------------------------------------------------------
+
+/** 一轮里最多几条观察相 prompt（search 的结果要交回模型；封顶防模型反复搜）。 */
+export const MAX_OPS_OBSERVATION_PHASES = 1;
+
+/** 观察相 prompt：把 op 结果（搜索命中 / 未执行 / 拒绝）交回模型，让它据此写回复。 */
+export function buildOpsObservationPrompt(input: {
+  observation: string;
+  targetId: string;
+  baseSeq: number;
+  keptTask?: { number: number; op: TaskOp };
+}): string {
+  const lines: string[] = [];
+  lines.push("Results of the operations you requested:");
+  lines.push(input.observation);
+  lines.push("");
+  if (input.keptTask) {
+    lines.push(
+      `Your task operation is kept for this round: ${input.keptTask.op} #${input.keptTask.number} (say so in your next action only if you want to change it).`,
+    );
+  }
+  lines.push(
+    'Now write your reply as JSON only: {"action":"reply"|"ignore","content":"your reply text","onConflict":"revise"|"resend"|"silent"|"anyway"}',
+  );
+  lines.push(
+    'Operations that already ran are not repeated — if you still want the ones marked as NOT executed, list them again in "ops":[ ... ].',
+  );
+  lines.push("[worksplice:observe]");
+  lines.push(roomMarker(input.targetId, input.baseSeq));
+  return lines.join("\n");
+}
+
+function summarizeMemberOpOutcomes(outcomes: MemberOpOutcome[], note?: string): string {
+  const parts = outcomes.map((outcome) =>
+    outcome.status === "applied"
+      ? `${outcome.op}=applied`
+      : `${outcome.op}=${outcome.status}(${outcome.detail})`,
+  );
+  if (note) parts.push(note);
+  return parts.length > 0 ? `ops: ${parts.join(", ")}` : "";
+}
+
+/**
+ * 执行本轮声明的成员 op（结构身份 = input.agent）。
+ * search 先跑一趟并把命中交回（观察相 prompt）；观察相后模型的新动作替换原动作，
+ * 但它声明的 task 操作默认保留（同一轮的意图，不应因后续 prompt 丢失）。
+ */
+async function applyMemberOps(input: {
+  agent: MemberRow;
+  targetId: string;
+  action: AgentAction;
+  promptFn: (promptText: string) => Promise<string>;
+}): Promise<{ action: AgentAction; summary: string }> {
+  let action = input.action;
+  let phases = 0;
+  const outcomes: MemberOpOutcome[] = [];
+  for (;;) {
+    const result = executeMemberOps({
+      agent: input.agent,
+      targetId: input.targetId,
+      plans: planMemberOps(action.ops ?? []),
+    });
+    outcomes.push(...result.outcomes);
+    if (!result.observation || phases >= MAX_OPS_OBSERVATION_PHASES) {
+      const note =
+        result.observation && phases >= MAX_OPS_OBSERVATION_PHASES
+          ? "further operation results were not returned (one observation phase per round)"
+          : undefined;
+      return { action, summary: summarizeMemberOpOutcomes(outcomes, note) };
+    }
+    phases += 1;
+    const text = await input.promptFn(
+      buildOpsObservationPrompt({
+        observation: result.observation,
+        targetId: input.targetId,
+        baseSeq: getDb().maxSeq(input.targetId),
+        keptTask: action.task,
+      }),
+    );
+    // 观察相 prompt 失败（模型无文本）→ 保留原动作继续投递，不把整轮打成失败。
+    if (!text) return { action, summary: summarizeMemberOpOutcomes(outcomes) };
+    const next = parseAgentAction(text);
+    // 后续动作默认继承原动作的 task（同一轮意图）；它自己声明了就用自己的。
+    action = next.task || !action.task ? next : { ...next, task: action.task };
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -1020,7 +1207,18 @@ export async function runAgentRound(
     targetId,
     baseSeq,
     memoryFile: agentMemoryFile(agent),
+    context: replyPromptContext(agent),
   });
+  // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
+  // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
+  let opsSummary = "";
+  const withOps = (outcome: RoundOutcome): RoundOutcome =>
+    opsSummary
+      ? {
+          ...outcome,
+          reason: outcome.reason ? `${outcome.reason}; ${opsSummary}` : opsSummary,
+        }
+      : outcome;
   try {
     const first = await promptSession(session, prompt);
     if (!first.ok) {
@@ -1029,22 +1227,38 @@ export async function runAgentRound(
       return { status: "error", reason: first.error, baseSeq };
     }
     const action = parseAgentAction(first.text);
+    // ADR-0013 决策一：本轮随附的成员 op（与 task 同一条缝）——以结构身份执行；
+    // search 产出观察后，用一条后续 prompt 把结果交回（观察相最多一次）。
+    let effectiveAction = action;
+    if (action.ops?.length) {
+      const opsApplied = await applyMemberOps({
+        agent,
+        targetId,
+        action,
+        promptFn: async (opsPrompt) => {
+          const revised = await promptSession(session, opsPrompt);
+          return revised.ok ? revised.text : "";
+        },
+      });
+      effectiveAction = opsApplied.action;
+      opsSummary = opsApplied.summary;
+    }
     // §3.7 任务操作：先 claim 再开工；claim 失败就让路（不回复、只收口游标）
-    if (action.task) {
+    if (effectiveAction.task) {
       // 非成员无 channel 成员资格，不做任务操作（claim 服务层会拒绝）
       if (!isMember) {
         ack(agentId, targetId, baseSeq);
-        return {
+        return withOps({
           status: "yielded",
           reason: "not a member of the channel",
           baseSeq,
-        };
+        });
       }
       const outcome = await runTaskOperation({
         agent,
         channel,
         targetId,
-        action,
+        action: effectiveAction,
         baseSeq,
         promptFn: async (revisionPrompt) => {
           const revised = await promptSession(session, revisionPrompt);
@@ -1060,9 +1274,9 @@ export async function runAgentRound(
         resetMustRespondFailures(agent.id, targetId);
         publishAgentStatus(agent.id, "online");
       }
-      return outcome;
+      return withOps(outcome);
     }
-    if (action.action === "ignore") {
+    if (effectiveAction.action === "ignore") {
       // §05 兜底：确定信号（个人 @mention / 进行中任务线程收到他人消息）下 ignore 不合法——
       // 本轮按失败处理（不 ack、error 状态点可见、触发消息保持 pending 供下次 wake 重试）。
       // 连续失败达 MUST_RESPOND_FAILURE_CAP 后 ack 并记 error：防模型系统性 ignore 造成的
@@ -1076,43 +1290,43 @@ export async function runAgentRound(
           console.error(
             `[worksplice] agent ${agent.name} ignored a must-respond signal ${MUST_RESPOND_FAILURE_CAP} times; cursor acked at ${baseSeq} (capped)`,
           );
-          return {
+          return withOps({
             status: "error",
             reason: `ignore on must-respond signal (capped at ${MUST_RESPOND_FAILURE_CAP})`,
             baseSeq,
-          };
+          });
         }
-        return {
+        return withOps({
           status: "error",
           reason: "ignore on must-respond signal",
           baseSeq,
-        };
+        });
       }
       resetMustRespondFailures(agent.id, targetId);
       ack(agentId, targetId, baseSeq);
-      return { status: "ignored", baseSeq };
+      return withOps({ status: "ignored", baseSeq });
     }
-    if (!action.content) {
+    if (!effectiveAction.content) {
       // §3.8 空内容回复（模型退化输出 {"action":"reply"} 无 content）：声明了 reply
       // 却给不出文本 = 本轮失败，与空文本同语义——不推进游标、publish error，触发消息
       // 保持 pending 供下次 wake 重试；否则消息被静默消费、agent 永不回复。
       publishAgentStatus(agent.id, "error");
-      return {
+      return withOps({
         status: "error",
         reason: "reply action without content",
         baseSeq,
-      };
+      });
     }
     // §3.2 mention 穿透的回复：agent 可自行加入公开 channel（加入 = 订阅全部消息）；
     // 私有 channel 不能自行加入——回复不可投递，收口游标后静默让路
     if (!isMember) {
       if (channel.type === "private") {
         ack(agentId, targetId, baseSeq);
-        return {
+        return withOps({
           status: "silent",
           reason: "not a member of the private channel",
           baseSeq,
-        };
+        });
       }
       joinChannel(channel.id, agent.id);
     }
@@ -1120,7 +1334,7 @@ export async function runAgentRound(
       targetId,
       agent,
       channel,
-      action,
+      action: effectiveAction,
       baseSeq,
       promptFn: async (revisionPrompt) => {
         const revised = await promptSession(session, revisionPrompt);
@@ -1131,11 +1345,11 @@ export async function runAgentRound(
       // 11-整改：revised 空内容 = error 轮——不推进游标（触发消息保持 pending 供下次 wake
       // 重试）、error 状态点；与直接空 reply 路径（reply action without content）归类一致
       publishAgentStatus(agent.id, "error");
-      return {
+      return withOps({
         status: "error",
         reason: outcome.reason,
         baseSeq: outcome.ackSeq,
-      };
+      });
     }
     // ack 到 agent 本轮实际读到/被告知的房间版本（held 后随 roomSeq 推进）
     // 11-整改（自激循环）：续工轮（任务 in_progress 线程、drain 全是自己消息）回复落库后，
@@ -1155,25 +1369,25 @@ export async function runAgentRound(
     resetMustRespondFailures(agent.id, targetId);
     publishAgentStatus(agent.id, "online");
     if (outcome.status === "silent") {
-      return {
+      return withOps({
         status: "silent",
         reason: outcome.reason,
         baseSeq: outcome.ackSeq,
-      };
+      });
     }
-    return {
+    return withOps({
       status: outcome.status,
       message: outcome.message,
       baseSeq: outcome.ackSeq,
-    };
+    });
   } catch (error) {
     publishAgentStatus(agent.id, "error");
     // 11-整改：catch 的 error 轮携带本轮 drain 的房间版本
-    return {
+    return withOps({
       status: "error",
       reason: error instanceof Error ? error.message : String(error),
       baseSeq,
-    };
+    });
   }
 }
 

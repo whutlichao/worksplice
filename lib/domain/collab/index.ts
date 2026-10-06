@@ -19,6 +19,7 @@ export * from "./attachments.ts";
 export * from "./channels.ts";
 export * from "./event-messages.ts";
 export * from "./inbox.ts";
+export * from "./member-capabilities.ts";
 export * from "./members.ts";
 export * from "./messages.ts";
 export * from "./observability.ts";
