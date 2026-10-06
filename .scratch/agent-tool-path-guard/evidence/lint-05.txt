@@ -1,3 +1,4 @@
+# npm run lint（= eslint .，只报告不修）：0 error / 1 warning（在未改动的 hooks/useI18n.tsx）
 
 > worksplice@0.1.0 lint
 > eslint .

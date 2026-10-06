@@ -1,34 +1,5 @@
-[worksplice] session_start dispatched to extensions for session 01a111d0-6bc9-7661-b5a5-ea406150b0eb
-✔ bash 的覆盖定义由 pi 自己造：描述与准则不退化，边界与允许根在注册期就带着 (83.549375ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6c1c-7661-b5a5-ea42b4b77568
-✔ 档位构成不变：bash 仍在默认激活集里（覆盖定义不得改成 defaultActive: false） (37.127375ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6c41-7661-b5a5-ea4434ed0d2f
-✔ 冒烟清单：node / npm / git / bun 各跑一条只读命令（清单够用），gh 是已知代价 (300.111125ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6d6d-7661-b5a5-ea47ccb3ea33
-✔ 允许根内合法路径零行为变化：读写、TMPDIR、相对路径照常 (144.337ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6dfe-7661-b5a5-ea487654450b
-✔ 越界读/写被内核拒，且失败被归因成带允许根的可读错误 (63.749917ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6e3e-7661-b5a5-ea4ac30895a9
-✔ 命令文本判据的三条逃逸在沙箱里全部失效 (123.695084ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6eb9-7661-b5a5-ea4d583723b5
-✔ RPC 面（人类 !bash 走的那条路）同样进沙箱，与工具面同一份判定 (66.746916ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6efc-7661-b5a5-ea4ea02b01bb
-✔ 无人归属的会话（人类自己的会话）不沙箱：同一份判定认的是会话归属 (29.968959ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6f1a-7661-b5a5-ea5103c7a254
-✔ 成员 shell 里 WORKSPLICE_* 全部剥除、五个 PI_* 全部保留 (53.517958ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6f50-7661-b5a5-ea53da594a3a
-✔ 拿不到沙箱的平台：bash 拒绝执行（不裸跑），原因说得出、工具面与 RPC 面一致 (36.068375ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6f74-7661-b5a5-ea54334055e6
-[worksplice] session_start dispatched to extensions for session 01a111d0-6f8b-7661-b5a5-ea57fde3dcde
-✔ get_state 暴露沙箱状态：成员会话给机制、无人归属会话给 null (46.3125ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-6fa2-7661-b5a5-ea59dc97ae00
-✔ timeout 契约：超时报 pi 同款错误文本，并把进程树杀掉 (334.146708ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-70f0-7661-b5a5-ea5bf38a9230
-✔ abort 契约：中止后进程被真的杀掉（不挂满整段 sleep），会话回到空闲 (232.457791ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-71d9-7661-b5a5-ea5cc6778c25
-✔ exit 134（SIGABRT）被归因：不是裸码，也不冒充普通失败 (48.019542ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-7209-7661-b5a5-ea5f6adcff62
-✔ 用户级凭证面不可达：~/.ssh 与 ~/.config/gh 都在清单外 (49.961334ms)
+# 集成层（lib/bash-containment-extension.test.mjs）绿：15 例（真沙箱 + 真实会话）
+# 跑法：node --test lib/bash-containment-extension.test.mjs
 ℹ tests 15
 ℹ suites 0
 ℹ pass 15

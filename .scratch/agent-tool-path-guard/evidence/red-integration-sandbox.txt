@@ -1,223 +1,23 @@
-[worksplice] session_start dispatched to extensions for session 01a111d0-272b-70c0-9dbe-45f60a84d8a8
-✖ bash 的覆盖定义由 pi 自己造：描述与准则不退化，边界与允许根在注册期就带着 (72.634958ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2774-70c0-9dbe-45f954e3b7d9
-✔ 档位构成不变：bash 仍在默认激活集里（覆盖定义不得改成 defaultActive: false） (30.998333ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2793-70c0-9dbe-45faad3dd483
-✖ 冒烟清单：node / npm / git / bun 各跑一条只读命令（清单够用），gh 是已知代价 (370.436875ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2905-70c0-9dbe-45fc75ae3a05
-✔ 允许根内合法路径零行为变化：读写、TMPDIR、相对路径照常 (91.509292ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2961-70c0-9dbe-45ff66c3969c
-✖ 越界读/写被内核拒，且失败被归因成带允许根的可读错误 (36.043417ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2985-70c0-9dbe-46004fb3c4da
+# 红证据（集成层）：把接线（lib/rpc/caller.ts / lib/rpc/session.ts / lib/pi-types.ts）git stash 回退到改动前，
+# 再跑 lib/bash-containment-extension.test.mjs —— 21 条断言变红，证明这一层测的是接线后的外部行为。
+# 跑法：git stash push -- lib/rpc/caller.ts lib/rpc/session.ts lib/pi-types.ts && node --test lib/bash-containment-extension.test.mjs
 ✖ 命令文本判据的三条逃逸在沙箱里全部失效 (51.706875ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-29b8-70c0-9dbe-46025a89b884
-✖ RPC 面（人类 !bash 走的那条路）同样进沙箱，与工具面同一份判定 (206.136875ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2a87-70c0-9dbe-460419ee26b9
-✔ 无人归属的会话（人类自己的会话）不沙箱：同一份判定认的是会话归属 (131.321792ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2b0a-70c0-9dbe-460785e80b93
 ✖ 成员 shell 里 WORKSPLICE_* 全部剥除、五个 PI_* 全部保留 (32.601875ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2b2b-70c0-9dbe-46084ef24d26
-✖ 拿不到沙箱的平台：bash 拒绝执行（不裸跑），原因说得出、工具面与 RPC 面一致 (40.054167ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2b53-70c0-9dbe-460a86f9cf73
-✖ get_state 暴露沙箱状态：成员会话给机制、无人归属会话给 null (30.510334ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2b71-70c0-9dbe-460dffef2f3a
-✔ timeout 契约：超时报 pi 同款错误文本，并把进程树杀掉 (332.736792ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2cbe-70c0-9dbe-460ed7848b28
-✔ abort 契约：中止后进程被真的杀掉（不挂满整段 sleep），会话回到空闲 (239.740542ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2dae-70c0-9dbe-4610ba910817
-✖ exit 134（SIGABRT）被归因：不是裸码，也不冒充普通失败 (28.78775ms)
-[worksplice] session_start dispatched to extensions for session 01a111d0-2dcb-70c0-9dbe-4613584f471d
+✖ 越界读/写被内核拒，且失败被归因成带允许根的可读错误 (36.043417ms)
 ✖ 用户级凭证面不可达：~/.ssh 与 ~/.config/gh 都在清单外 (152.156875ms)
-ℹ tests 15
-ℹ suites 0
-ℹ pass 5
-ℹ fail 10
-ℹ cancelled 0
-ℹ skipped 0
-ℹ todo 0
-ℹ duration_ms 2733.270167
-
+✖ bash 的覆盖定义由 pi 自己造：描述与准则不退化，边界与允许根在注册期就带着 (72.634958ms)
+✖ 拿不到沙箱的平台：bash 拒绝执行（不裸跑），原因说得出、工具面与 RPC 面一致 (40.054167ms)
+✖ exit 134（SIGABRT）被归因：不是裸码，也不冒充普通失败 (28.78775ms)
 ✖ failing tests:
-
-test at lib/bash-containment-extension.test.mjs:132:1
-✖ bash 的覆盖定义由 pi 自己造：描述与准则不退化，边界与允许根在注册期就带着 (72.634958ms)
-  AssertionError [ERR_ASSERTION]: 边界要在描述里
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:141:10)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
-    generatedMessage: false,
-    code: 'ERR_ASSERTION',
-    actual: 'Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.',
-    expected: /^.*Sandbox: /s,
-    operator: 'match',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:161:1
-✖ 冒烟清单：node / npm / git / bun 各跑一条只读命令（清单够用），gh 是已知代价 (370.436875ms)
-  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  + actual - expected
-  
-  + undefined
-  - true
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:179:10)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: undefined,
-    expected: true,
-    operator: 'strictEqual',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:215:1
-✖ 越界读/写被内核拒，且失败被归因成带允许根的可读错误 (36.043417ms)
-  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  + actual - expected
-  
-  + undefined
-  - true
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:219:10)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: undefined,
-    expected: true,
-    operator: 'strictEqual',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:237:1
-✖ 命令文本判据的三条逃逸在沙箱里全部失效 (51.706875ms)
-  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  + actual - expected
-  
-  + undefined
-  - true
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:243:10)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: undefined,
-    expected: true,
-    operator: 'strictEqual',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:266:1
-✖ RPC 面（人类 !bash 走的那条路）同样进沙箱，与工具面同一份判定 (206.136875ms)
-  AssertionError [ERR_ASSERTION]: RPC 面同样越界不可达
-  
-  true !== false
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:273:10)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: false,
-    code: 'ERR_ASSERTION',
-    actual: true,
-    expected: false,
-    operator: 'strictEqual',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:293:1
-✖ 成员 shell 里 WORKSPLICE_* 全部剥除、五个 PI_* 全部保留 (32.601875ms)
-  AssertionError [ERR_ASSERTION]: WORKSPLICE_* 必须全部剥掉
-  
-  true !== false
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:312:12)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: false,
-    code: 'ERR_ASSERTION',
-    actual: true,
-    expected: false,
-    operator: 'strictEqual',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:333:1
-✖ 拿不到沙箱的平台：bash 拒绝执行（不裸跑），原因说得出、工具面与 RPC 面一致 (40.054167ms)
-  AssertionError [ERR_ASSERTION]: 档位展示要能解释「本平台无沙箱 ⇒ 实际不含 bash」
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:342:10)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: false,
-    code: 'ERR_ASSERTION',
-    actual: 'Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.',
-    expected: /not activated/i,
-    operator: 'match',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:366:1
 ✖ get_state 暴露沙箱状态：成员会话给机制、无人归属会话给 null (30.510334ms)
-  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ 冒烟清单：node / npm / git / bun 各跑一条只读命令（清单够用），gh 是已知代价 (370.436875ms)
+✖ RPC 面（人类 !bash 走的那条路）同样进沙箱，与工具面同一份判定 (206.136875ms)
+# 失败的断言（抽样：越界可达 ⇒ 沙箱没装上）
+[worksplice] session_start dispatched to extensions for session 01a111d0-2961-70c0-9dbe-45ff66c3969c
+[worksplice] session_start dispatched to extensions for session 01a111d0-2985-70c0-9dbe-46004fb3c4da
+[worksplice] session_start dispatched to extensions for session 01a111d0-29b8-70c0-9dbe-46025a89b884
+--
+test at lib/bash-containment-extension.test.mjs:215:1
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   + actual - expected
-  
   + undefined
-  - {
-  -   available: true,
-  -   mechanism: 'sandbox-exec',
-  -   reason: null
-  - }
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:369:10)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: undefined,
-    expected: { available: true, mechanism: 'sandbox-exec', reason: null },
-    operator: 'deepStrictEqual',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:407:1
-✖ exit 134（SIGABRT）被归因：不是裸码，也不冒充普通失败 (28.78775ms)
-  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /\[worksplice sandbox: sandbox-exec\]/. Input:
-  
-  '(no output)\n\nCommand exited with code 134'
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:414:10)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: '(no output)\n\nCommand exited with code 134',
-    expected: /\[worksplice sandbox: sandbox-exec\]/,
-    operator: 'match',
-    diff: 'simple'
-  }
-
-test at lib/bash-containment-extension.test.mjs:428:1
-✖ 用户级凭证面不可达：~/.ssh 与 ~/.config/gh 都在清单外 (152.156875ms)
-  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /Operation not permitted/. Input:
-  
-  '/Users/apple/.config/gh:\nconfig.yml\n'
-  
-      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/sandbox-for-member-bash/lib/bash-containment-extension.test.mjs:436:10)
-      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-      at async Test.run (node:internal/test_runner/test:1113:7)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: '/Users/apple/.config/gh:\nconfig.yml\n',
-    expected: /Operation not permitted/,
-    operator: 'match',
-    diff: 'simple'
-  }

@@ -1,0 +1,1 @@
+# node_modules/.bin/tsc --noEmit：0 error（无输出即零错误）
