@@ -21,4 +21,4 @@
 - 实施票另开（本决策不实施）：env 收口（包装 `operations`）／成员能力面与协作面移出 HTTP（回复协议 op + 服务层调用者参数与授权表 + 秘书手册改写 + 7 条动作回放）／成员 → 端口关闭（两阶段）／非 loopback fail-closed／人类面 HTTP 契约的真端到端测试（今天的 `lib/domain/collab/*-route.test.mjs` 是读源码正则断言，不是真跑 HTTP）。
 - 术语「准入闸」「调用者身份」「结构身份」「人类面 / 成员面」入 `CONTEXT.md`；设计全文见 `docs/http-corridor-caller-identity.md`。
 
-**Status**: accepted（Q1 取「成员面整体移出 HTTP」、Q4 取「锁的是能力面不是通道」、Q5 取「非 loopback fail-closed」三条经 `orchestration ask` 回收裁定；Q2 的「不强制凭证、loopback 零配置」与 Q3 的重述为同一次裁定的推论。**挂账**：`dev:lan` fail-closed 的用户可观察后果，以及 fail-closed 原则与 ADR-0012 决策五的耦合，已向人类报备——若人类推翻该原则，ADR-0011 决策六第三条、ADR-0012 决策五、本决策决策二**三处都要改**）
+**Status**: accepted（Q1 取「成员面整体移出 HTTP」、Q4 取「锁的是能力面不是通道」、Q5 取「非 loopback fail-closed」三条经 `orchestration ask` 回收裁定；Q2 的「不强制凭证、loopback 零配置」与 Q3 的重述为同一次裁定的推论。**两笔挂账已于 2026-10-06 全部销案**——人类确认接受 fail-closed 原则（含 ADR-0012 决策五那条原由 coordinator 代答的政策，代答转正），并接受 `dev:lan` 未配凭证即拒绝启动这一用户可观察后果。三处引用（ADR-0011 决策六第三条 / ADR-0012 决策五 / 本决策决策二）现均为人类拍板，不再有「推翻则三处都要改」的开放风险）
