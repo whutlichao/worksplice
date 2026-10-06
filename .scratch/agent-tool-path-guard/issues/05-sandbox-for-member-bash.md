@@ -190,7 +190,7 @@ resolved。ADR-0012 六条决策逐条落地 + ADR-0013 决策三的 env 收口�
 ```bash
 git status --porcelain                              # 空
 git diff 8a05a6d...HEAD --numstat                   # 无四位数以上单文件（最大 = 集成测试 443 行；证据文件均为汇总）
-gh pr list --head whutlichao/sandbox-for-member-bash --json number,state   # 见下
+gh pr list --head whutlichao/sandbox-for-member-bash --json number,state   # [{number: 97, state: "OPEN"}]
 ```
 
-PR：**（见 PR 号）**
+PR：**#97** https://github.com/whutlichao/worksplice/pull/97
