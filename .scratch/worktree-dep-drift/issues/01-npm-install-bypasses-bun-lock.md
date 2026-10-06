@@ -105,6 +105,7 @@ eslint-plugin-react-hooks 7.0.1 / react 19.2.4 / eslint 9.39.4     # 与 main �
 ### 2. 改了什么（`git diff --name-only c88ad87..HEAD`）
 
 ```text
+.scratch/worktree-dep-drift/issues/01-npm-install-bypasses-bun-lock.md   (本票正本: Status 收敛 + Answer + Comments 范围记录)
 AGENTS.md
 README.md
 README.zh-CN.md
@@ -113,7 +114,7 @@ lib/install-guard.test.mjs  (新增, 104 行)
 package.json
 ```
 
-`git diff --numstat c88ad87..HEAD`：`2/0`、`1/1`、`1/1`、`51/0`、`104/0`、`2/0`——没有整份重写。
+`git diff --numstat c88ad87..HEAD`：`154/1`（票据正文 + Answer，`1` 行删即 Status 行）、`2/0`、`1/1`、`1/1`、`51/0`、`104/0`、`2/0`——源代码侧没有整份重写。
 
 - **A 文档纪律**：`AGENTS.md` Quick Start 首行加一条安装纪律（`bun install`（可 `--frozen-lockfile`）/ **不要 `npm install`**（忽略 `bun.lock` → 版本漂移、门禁基线不可比，指向 `.scratch/worktree-dep-drift/`）/ `npm run <script>` 不受影响）。`README.md:68` 与 `README.zh-CN.md:68` 的「`npm install` also works / 也能跑」改为「源码 checkout 里 `npm install` 会被安装守卫（`preinstall`）拒绝并指引改用 `bun install`；脚本仍可 `npm run <script>` 运行」，Bun ≥ 1.3.14 那半句原样保留，中英逐句对应。
 - **B 守卫**：`package.json` 加 `"packageManager": "bun@1.3.14"` 与 `"preinstall": "node bin/install-guard.js"`；`bin/install-guard.js` 自包含 CJS（只 `require` node 内建 `fs`/`path`，不碰 `lib/`、`scripts/`——两者都不在 `files` 白名单里），导出纯判定 `isInstallBlocked({ userAgent, initCwd, hasBunLock, packageRoot })` 与 `getBlockedInstallMessage()`，作为入口执行时打印指引并以 1 退出。四条规则全按 dispatch：只看 `npm_config_user_agent` 的 `npm/` **前缀**（bun 也设一堆 `npm_*` 变量）、无 `bun.lock` 放行（消费端 tarball）、`INIT_CWD` 存在且 ≠ 包根放行、其余拦。
