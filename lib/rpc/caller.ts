@@ -21,6 +21,7 @@ import { persistExplicitStartupPreferences } from "../startup-preferences";
 import { AgentSessionWrapper, withExtensionTools } from "./session.ts";
 import type { RpcSessionStartOptions } from "./session.ts";
 import { forcedEmptySystemPromptExtension } from "./forced-empty-system-prompt";
+import { toolPathGuardExtension } from "../tool-path-guard-extension.ts";
 import { getRpcRegistry } from "./registry.ts";
 import { trackStarting } from "../cwd-mutex.ts";
 
@@ -47,7 +48,7 @@ export class RpcCaller {
     cwd: string | undefined,
     options: RpcSessionStartOptions = {},
   ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
-    const { toolNames, initialModel, thinkingLevel } = options;
+    const { toolNames, initialModel, thinkingLevel, pathGuard } = options;
     const registry = getRpcRegistry();
     const locks = getLocks();
 
@@ -100,7 +101,12 @@ export class RpcCaller {
         cwd: sessionCwd,
         agentDir,
         resourceLoaderOptions: {
-          extensionFactories: [forcedEmptySystemPromptExtension(forcedEmptySystemPromptSwitch)],
+          // 路径守卫与 forced-empty 扩展住同一条接缝（ADR-0011 决策四）：成员会话把六个文件工具
+          // 注册成同名覆盖的守卫版；未传 pathGuard 的会话（人类）保持 pi 的默认实现。
+          extensionFactories: [
+            forcedEmptySystemPromptExtension(forcedEmptySystemPromptSwitch),
+            ...(pathGuard ? [toolPathGuardExtension({ cwd: sessionCwd, scope: pathGuard })] : []),
+          ],
         },
         ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
       });

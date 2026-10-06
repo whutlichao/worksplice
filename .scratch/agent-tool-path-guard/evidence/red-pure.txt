@@ -1,0 +1,38 @@
+node:internal/modules/cjs/loader:1419
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module './tool-path-guard.ts'
+Require stack:
+- /Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/lib/tool-path-guard.test.mjs
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1419:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at jitiResolve (/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/node_modules/jiti/dist/jiti.cjs:1:176713)
+    at jitiRequire (/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/node_modules/jiti/dist/jiti.cjs:1:178658)
+    at Function.import (/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/node_modules/jiti/dist/jiti.cjs:1:187724)
+    at file:///Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/lib/tool-path-guard.test.mjs:17:87
+    at ModuleJob.run (node:internal/modules/esm/module_job:377:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:691:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/apple/orca/workspaces/worksplice/member-file-tool-path-guard/lib/tool-path-guard.test.mjs'
+  ]
+}
+
+Node.js v25.0.0
+✖ lib/tool-path-guard.test.mjs (70.721541ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 75.252125
+
+✖ failing tests:
+
+test at lib/tool-path-guard.test.mjs:1:1
+✖ lib/tool-path-guard.test.mjs (70.721541ms)
+  'test failed'
