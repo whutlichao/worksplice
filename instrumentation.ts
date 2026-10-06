@@ -1,5 +1,49 @@
+/**
+ * 服务启动钩子（Next instrumentation）：
+ * 1. 人类面准入闸第二道（ADR-0013 决策二）：非 loopback bind + 无凭证 ⇒ 拒绝启动——
+ *    判定必须落在服务进程内，因为 `npm run dev:lan` / `start:lan` 等四条 npm 脚本
+ *    直接起 `next ... -H 0.0.0.0`，**绕过 `bin/worksplice.js`**（那里的第一道报错盖不到它们）。
+ *    取证结论（起步「抛错能否阻止 Next 启动」）见票据 06 的 Answer 与
+ *    `.scratch/agent-tool-path-guard/evidence/`；无法阻止启动时以请求门（proxy.ts 503）为准。
+ * 2. agent-loop（§5.4）与秘书自动创建（spec-bootstrap-agent §6.1）：与准入闸同款纪律——
+ *    非阻塞、失败不致命，但准入闸是例外：它必须先于一切业务启动完成。
+ */
+
+import { accessGateClosedMessage, getAccessPosture } from "@/lib/access-gate";
+
+/** 等 Next 把实际监听端口写进 process.env.PORT（start-server 在 listening 事件里写）。 */
+async function waitForServerPort(timeoutMs: number): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (process.env.PORT) return process.env.PORT;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return process.env.PORT ?? null;
+}
+
+/**
+ * 启动门：端口未知时不探测（探针会退化成 unknown，等于没判），留给请求门按同一探针判定；
+ * 判定为 closed 时拒绝启动（fail-closed 的「拿不到安全前提就不提供服务」）。
+ */
+async function enforceAccessGateAtStartup(): Promise<void> {
+  const port = await waitForServerPort(3000);
+  if (!port) {
+    console.warn(
+      "[worksplice] access gate: server port unknown at startup; the request gate will decide per request",
+    );
+    return;
+  }
+  const posture = await getAccessPosture();
+  if (posture === "closed") {
+    console.error(`[worksplice] ${accessGateClosedMessage()}`);
+    process.exit(1);
+  }
+}
+
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  await enforceAccessGateAtStartup();
 
   const { configureHttpDispatcher } = await import("@/lib/http-dispatcher");
   configureHttpDispatcher();

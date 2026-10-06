@@ -1,5 +1,5 @@
 import { getDb } from "../../data/db-singleton.ts";
-import { getChannel, resolveChannelForTarget } from "./channels.ts";
+import { getChannel, isChannelMember, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
 import type { ChannelRow, MemberRow, SearchResult } from "../../data/types.ts";
 
@@ -17,16 +17,29 @@ export interface MessageSearchHit extends SearchResult {
   inThread: boolean;
 }
 
-/** 全文搜索（§5.7 search 路由组 / §6.4）：空查询返回 []，limit 收敛到 [1, MAX_SEARCH_LIMIT]。 */
-export function searchMessages(query: string, opts: { limit?: number } = {}): MessageSearchHit[] {
+/** 全文搜索（§5.7 search 路由组 / §6.4）：空查询返回 []，limit 收敛到 [1, MAX_SEARCH_LIMIT]。
+ *  传 memberId（成员面：loop 的 search op）→ 只返回**该成员所在频道**的命中——调用者的可见面
+ *  由它的成员资格决定，不由请求头自述（ADR-0013 决策一的「不提升调用者权限」）；
+ *  不传（人类面：GET /api/search）→ Owner 语义，行为与今天一致。 */
+export function searchMessages(
+  query: string,
+  opts: { limit?: number; memberId?: string } = {},
+): MessageSearchHit[] {
   const q = query.trim();
   if (!q) return [];
   const raw = opts.limit ?? 20;
   const limit = Number.isFinite(raw) ? Math.min(Math.max(1, Math.floor(raw)), MAX_SEARCH_LIMIT) : 20;
-  return getDb().searchMessages(q, limit).map((hit) => ({
-    ...hit,
-    channel: resolveChannelForTarget(hit.target_id) ?? null,
-    author: getMember(hit.author_id) ?? null,
-    inThread: getChannel(hit.target_id) === undefined,
-  }));
+  return getDb()
+    .searchMessages(q, limit)
+    .map((hit) => ({
+      ...hit,
+      channel: resolveChannelForTarget(hit.target_id) ?? null,
+      author: getMember(hit.author_id) ?? null,
+      inThread: getChannel(hit.target_id) === undefined,
+    }))
+    .filter(
+      (hit) =>
+        !opts.memberId ||
+        (hit.channel ? isChannelMember(hit.channel.id, opts.memberId) : false),
+    );
 }

@@ -1,0 +1,54 @@
+(node:67160) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/data/sqlite.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/member-capability-off-http/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ react op toggles a reaction under the member's own identity (6.837ms)
+✔ pin op pins a message for the member, not for the Owner (2.215125ms)
+✔ remind op schedules a reminder authored by the member (2.594917ms)
+✔ search op returns hits to the member in the same round, scoped to its channels (3.695166ms)
+✔ post op posts to another target as the member (2.906834ms)
+✔ createChannel op creates the channel with the member among its members (2.446959ms)
+✔ createAgent op creates an agent with the declared model (3.917292ms)
+✔ createAgent op falls back to the configured default model seam (1.457208ms)
+✔ human-only ops are denied with no side effect (reverse assertion) (2.3505ms)
+✔ post op with a stale baseSeq is held and does not post (3.106458ms)
+(node:67161) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/member-capability-off-http/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ parseAgentAction carries the optional ops array without changing the legacy shape (0.973167ms)
+✔ parseMemberOps keeps unknown names and non-object entries for boundary reporting (0.106458ms)
+✔ valid ops plan into typed actions (0.38ms)
+✔ malformed ops are rejected with a readable reason, not silently dropped (0.457417ms)
+✔ unknown and human-only op names are denied by default (0.14775ms)
+✔ ops per round are capped so one reply cannot fan out unbounded (0.120334ms)
+(node:67162) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/domain/collab/member-capabilities.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/member-capability-off-http/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ member-open op vocabulary covers the seven capabilities plus the existing protocol ops (0.47975ms)
+✔ every member gets the same open set — no secretary exemption (0.145792ms)
+✔ human-only operations are closed to members, with the name in the reason (0.492458ms)
+✔ humans still pass the human-only gate (the Owner UI path is unchanged) (0.073417ms)
+✔ unknown op names are denied by default for every actor (0.1365ms)
+✔ assertMemberMayPerform throws a typed denial that reports the boundary (0.265125ms)
+(node:67163) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/data/sqlite.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/member-capability-off-http/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ keyword hits message body with a <mark> snippet and channel/author enrichment (§6.4) (13.657917ms)
+✔ new messages are searchable immediately (trigger sync, §6.4) (3.216042ms)
+✔ short CJK tokens (<3 chars) fall back to LIKE and still match (§6.4) (1.072291ms)
+✔ thread messages resolve to their anchor channel and report inThread (1.167416ms)
+✔ empty/whitespace queries return no hits (0.414333ms)
+✔ snippet escapes message HTML and LIKE wildcards are treated literally (0.889208ms)
+✔ limit clamps to MAX_SEARCH_LIMIT and negative/zero limits are handled (2.674ms)
+✔ caller-scoped search hides channels the caller does not belong to (§1.3 不提升调用者权限) (3.04025ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 821.203667

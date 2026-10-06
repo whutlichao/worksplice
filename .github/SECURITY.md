@@ -13,16 +13,18 @@ Useful reports let someone who should not have access reach that authority:
 
 Not vulnerabilities:
 
-- Reaching the interface while `WORKSPLICE_PASSWORD` is unset. Authentication is opt-in.
+- Reaching the interface on **loopback** while `WORKSPLICE_PASSWORD` is unset. Authentication is opt-in on loopback; a bind that accepts non-loopback connections without a credential refuses to serve (ADR-0013).
 - The agent doing what instructions from someone who already has interface access tell it to do.
 - Model or provider behaviour that belongs to pi rather than to worksplice.
 
 ## Exposure and hardening
 
-These behaviours are verified in `bin/worksplice-options.js`, `lib/web-auth.ts`, `lib/request-security.ts`, and `proxy.ts`.
+These behaviours are verified in `bin/worksplice-options.js`, `lib/web-auth.ts`, `lib/access-gate.ts`, `lib/request-security.ts`, `instrumentation.ts`, and `proxy.ts`.
 
-- **Default bind.** worksplice listens on `127.0.0.1`, so other machines cannot reach it. `npm run dev:lan`, `npm run start:lan`, `--hostname 0.0.0.0`, or `WORKSPLICE_HOSTNAME` widen the bind to `0.0.0.0`.
-- **Authentication.** Setting `WORKSPLICE_PASSWORD` enables HTTP Basic Auth on the web interface and every API endpoint. The username is always `pi`. Leaving the variable unset or empty disables authentication.
+- **Default bind.** worksplice listens on `127.0.0.1`, so other machines cannot reach it. `npm run dev:lan`, `npm run start:lan`, `--hostname 0.0.0.0`, or `WORKSPLICE_HOSTNAME` widen the bind to `0.0.0.0` — and then the server **refuses to serve unless `WORKSPLICE_PASSWORD` is set** (fail-closed, ADR-0013).
+- **Non-loopback without a credential.** The refusal lives inside the server process (`instrumentation.ts` refuses to start; `proxy.ts` answers 503 for every request), so it also covers `next dev -H 0.0.0.0` launches that bypass the `bin/worksplice.js` wrapper. The decision is based on a self-connect probe against the actual bind, not on caller-supplied headers.
+- **Authentication.** Setting `WORKSPLICE_PASSWORD` enables HTTP Basic Auth on the web interface and every API endpoint. The username is always `pi`. Leaving the variable unset or empty disables authentication — allowed on loopback, refused elsewhere. The password is an **admission gate for non-loopback access, not an identity**: the app has no caller identity and treats human-face requests as the Owner.
+- **Members do not use the HTTP face.** Workspace members (agents) receive their system capabilities through the agent-loop's reply-action protocol — in-process, with structural identity (the loop knows which member it woke) and no credential of any kind. Which member may perform which action is decided by the capability table (`lib/domain/collab/member-capabilities.ts`): refuse by default, open one by one; archive / delete identity / resets / runtime / workspace changes are human-only.
 - **Transport.** Basic Auth does not encrypt the password in transit, so do not expose plain HTTP to the internet. For remote access, use HTTPS through a trusted reverse proxy or a trusted VPN.
 - **Accepted request hosts.** A request is served only when its `Host` header resolves to a loopback name (`localhost` or `*.localhost`), an IP literal, the configured bind hostname, or an exact comma-separated name in `WORKSPLICE_ALLOWED_HOSTS`. Set that variable when a trusted reverse proxy uses a different external hostname.
 - **Cross-site requests.** API endpoints additionally reject cross-site browser requests. Clients that send neither `Origin` nor `Sec-Fetch-Site` are not browsers and are not origin-checked, so anything able to reach the port can call the API directly.

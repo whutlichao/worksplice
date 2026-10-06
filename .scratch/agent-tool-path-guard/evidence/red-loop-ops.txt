@@ -1,0 +1,172 @@
+(node:58887) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/data/sqlite.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/member-capability-off-http/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✖ react op toggles a reaction under the member's own identity (7.738084ms)
+✖ pin op pins a message for the member, not for the Owner (2.104125ms)
+✖ remind op schedules a reminder authored by the member (0.870375ms)
+✖ search op returns hits to the member in the same round, scoped to its channels (2.138083ms)
+✖ post op posts to another target as the member (1.803ms)
+✖ createChannel op creates the channel with the member among its members (1.533625ms)
+✖ createAgent op creates an agent with the declared model (1.4355ms)
+✔ createAgent op falls back to the configured default model seam (1.752917ms)
+✖ human-only ops are denied with no side effect (reverse assertion) (1.785416ms)
+✖ post op with a stale baseSeq is held and does not post (2.532625ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 1
+ℹ fail 9
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 814.577125
+
+✖ failing tests:
+
+test at lib/agent-loop/loop-ops.test.mjs:100:1
+✖ react op toggles a reaction under the member's own identity (7.738084ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:109:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:114:1
+✖ pin op pins a message for the member, not for the Owner (2.104125ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to:
+  
+  undefined
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:121:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:129:1
+✖ remind op schedules a reminder authored by the member (0.870375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:138:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:149:1
+✖ search op returns hits to the member in the same round, scoped to its channels (2.138083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'ignored'
+  - 'replied'
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:161:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ignored',
+    expected: 'replied',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:178:1
+✖ post op posts to another target as the member (1.803ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:189:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:194:1
+✖ createChannel op creates the channel with the member among its members (1.533625ms)
+  AssertionError [ERR_ASSERTION]: 频道应被创建
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:206:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:210:1
+✖ createAgent op creates an agent with the declared model (1.4355ms)
+  AssertionError [ERR_ASSERTION]: agent 应被创建
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:220:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:247:1
+✖ human-only ops are denied with no side effect (reverse assertion) (1.785416ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /human-only|default deny/i. Input:
+  
+  ''
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:258:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: /human-only|default deny/i,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at lib/agent-loop/loop-ops.test.mjs:261:1
+✖ post op with a stale baseSeq is held and does not post (2.532625ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /held/i. Input:
+  
+  ''
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/member-capability-off-http/lib/agent-loop/loop-ops.test.mjs:277:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: /held/i,
+    operator: 'match',
+    diff: 'simple'
+  }
