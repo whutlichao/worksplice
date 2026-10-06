@@ -149,7 +149,7 @@ profile 是「清单内可达、其余一律不可达」，不是「现状 + 排
 
 ### 决策五（平台：fail-closed）
 
-macOS 用 `sandbox-exec`（实测可用、deprecated、脆）；Linux 用 `bwrap`（未在本机验证，实测后才能声称覆盖）；Windows 无对应物。**拿不到沙箱就不激活 bash**，并让档位展示能解释这件事——静默 fail-open 会让隔离承诺变成平台相关且不可见。人类已拍板？**没有**：本条是 coordinator 代答，仍待人类追认（见 Solution 的表下注）。
+macOS 用 `sandbox-exec`（实测可用、deprecated、脆）；Linux 用 `bwrap`（未在本机验证，实测后才能声称覆盖）；Windows 无对应物。**拿不到沙箱就不激活 bash**，并让档位展示能解释这件事——静默 fail-open 会让隔离承诺变成平台相关且不可见。这一条**不是人类拍的**：是 coordinator 代答，仍待人类追认（见 Solution 的表下注）。
 
 ### 决策六（排序约束：HTTP 走廊是前置条件，不是并列残留）
 
