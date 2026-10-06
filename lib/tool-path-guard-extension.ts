@@ -149,7 +149,8 @@ export function guardFileOperations(scope: PathGuardScope): GuardedFileOperation
     <TArgs extends unknown[], TResult>(operation: (...args: TArgs) => TResult) =>
     async (...args: TArgs): Promise<Awaited<TResult>> => {
       admit(String(args[0]));
-      return await operation(...args);
+      const result = await operation(...args);
+      return result;
     };
 
   const exists = guarded(async (absolutePath: string) => {
