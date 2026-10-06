@@ -85,17 +85,6 @@ export interface ContainedBash {
   operations: BashOperations;
 }
 
-/**
- * 工具面与 RPC 面共用的沙箱状态（展示层用）。
- * `available: false` 时 `reason` 就是「本平台拿不到沙箱」的那句话——档位展示与拒绝文本同源，
- * 不允许两处各说各的（决策五）。
- */
-export interface BashContainmentStatus {
-  available: boolean;
-  mechanism: "sandbox-exec" | "bwrap" | null;
-  reason: string | null;
-}
-
 /** 由该成员的判定域装配沙箱（决策一：入参是 `pathGuardScopeFor` 的产物，不新造目录解析）。 */
 export function createContainedBash(scope: PathGuardScope, deps: BashContainmentDeps = {}): ContainedBash {
   const platform = deps.platform ?? process.platform;
@@ -108,26 +97,21 @@ export function createContainedBash(scope: PathGuardScope, deps: BashContainment
     tmpdir: deps.tmpdir ?? os.tmpdir(),
     userHome: deps.userHome ?? os.homedir(),
   });
+  const operations: BashOperations = {
+    exec: (command, cwd, options) => {
+      const contained: ContainedBash = { scope, resolution, plan, boundary, operations };
+      return execInSandbox({ command, cwd, options, contained });
+    },
+  };
+  const boundary = bashBoundaryText(scope, resolution);
   return {
     scope,
     resolution,
     plan,
-    boundary: bashBoundaryText(scope, resolution),
+    boundary,
     ...(deps.shellPath ? { shellPath: deps.shellPath } : {}),
     ...(deps.commandPrefix ? { commandPrefix: deps.commandPrefix } : {}),
-    operations: {
-      exec: (command, cwd, options) =>
-        execInSandbox({ command, cwd, options, scope, resolution, plan, shellPath: deps.shellPath }),
-    },
-  };
-}
-
-/** `get_state` 暴露给展示层的状态（`null` = 无人归属的会话，本就不沙箱）。 */
-export function containmentStatus(contained: ContainedBash): BashContainmentStatus {
-  return {
-    available: contained.resolution.available,
-    mechanism: contained.resolution.sandbox?.kind ?? null,
-    reason: contained.resolution.reason ?? null,
+    operations,
   };
 }
 
@@ -143,12 +127,10 @@ async function execInSandbox(input: {
   command: string;
   cwd: string;
   options: Parameters<BashOperations["exec"]>[2];
-  scope: PathGuardScope;
-  resolution: BashSandboxResolution;
-  plan: BashSandboxPlan;
-  shellPath?: string;
+  contained: ContainedBash;
 }): Promise<{ exitCode: number | null }> {
-  const { command, cwd, options, scope, resolution, plan, shellPath } = input;
+  const { command, cwd, options, contained } = input;
+  const { scope, resolution, plan, shellPath } = contained;
   const sandbox = resolution.sandbox;
   if (!resolution.available || !sandbox) {
     throw new Error(bashUnavailableMessage(resolution));

@@ -125,7 +125,7 @@ test("沙箱不可用时档位说明里带原因，可用时不带", () => {
     "chat.noTools": "No tools, read-only",
     "chat.builtInTools": `${params?.count ?? "?"} built-in tools`,
     "chat.allBuiltInTools": "All built-in tools",
-    "chat.bashUnavailableNote": "this platform has no OS-level sandbox, so bash is not activated here",
+    "chat.toolPresetWithBashNote": `${params?.preset ?? ""} \u2014 no OS-level sandbox on this platform, so bash is not activated here`,
   })[key] ?? key;
 
   const usable = { available: true, mechanism: "sandbox-exec", reason: null };
@@ -136,8 +136,9 @@ test("沙箱不可用时档位说明里带原因，可用时不带", () => {
   // 不可用：default / full 都要解释「名义上有 bash、实际没有」。
   assert.equal(
     toolPresetDescription("default", t, unusable),
-    "4 built-in tools \u00b7 this platform has no OS-level sandbox, so bash is not activated here",
+    "4 built-in tools \u2014 no OS-level sandbox on this platform, so bash is not activated here",
   );
+  assert.match(toolPresetDescription("full", t, unusable), /^All built-in tools \u2014 /, "整句来自语言包，base 只是参数");
   assert.match(toolPresetDescription("full", t, unusable), /bash is not activated here/);
   // off 档位本来就没有 bash，不需要解释。
   assert.equal(toolPresetDescription("off", t, unusable), "No tools, read-only");
@@ -159,7 +160,7 @@ test("沙箱不可用时档位按钮的 title 也解释原因（不打开菜单�
     ),
   );
 
-  assert.match(render({ available: false, mechanism: null, reason: "no OS-level sandbox on win32" }), /no OS-level sandbox, so bash is not activated/);
-  assert.equal(/no OS-level sandbox, so bash is not activated/.test(render({ available: true, mechanism: "sandbox-exec", reason: null })), false);
-  assert.equal(/no OS-level sandbox, so bash is not activated/.test(render(null)), false);
+  assert.match(render({ available: false, mechanism: null, reason: "no OS-level sandbox on win32" }), /bash is not activated here/);
+  assert.equal(/bash is not activated here/.test(render({ available: true, mechanism: "sandbox-exec", reason: null })), false);
+  assert.equal(/bash is not activated here/.test(render(null)), false);
 });

@@ -110,8 +110,10 @@ export function detectBashSandbox(): BashSandboxResolution {
 /**
  * 允许面清单（ADR-0012 决策二）。三类条目的来源分别是：
  * - 系统只读面：进程起得来（dyld、共享库、时区、`/etc`）所必需；
- * - 只读工具链缓存：`~/.bun` / `~/.npm` / `~/.npm-global` / `~/.cache` / `~/.local` 一类
- *   （只读！成员装不了全局包、也写不了 npm 的 cacache——这是 allow-only 的已知代价）；
+ * - 只读工具链缓存：`~/.bun` / `~/.npm` / `~/.npm-global` / `~/.cache` 一类
+ *   （只读！成员装不了全局包、也写不了 npm 的 cacache——这是 allow-only 的已知代价）。
+ *   `~/.local` **不收**：它不只是工具链（`~/.local/share/keyrings` 是 Linux 的密钥环落点），
+ *   一并收进去会把「keychain 类不进清单」这条报价变成空话。
  * - 可写面：成员允许根 + 进程自己的 TMPDIR。
  *
  * **用户级凭证不进清单**：`~/.ssh`、`~/.config/gh`、`~/Library/Keychains` 等一律不在册
@@ -126,7 +128,7 @@ export function bashSandboxSurfaces(
     ? ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/etc", "/opt"]
     : ["/usr", "/bin", "/sbin", "/System", "/Library", "/private/etc", "/etc", "/dev",
       "/private/var/db", "/var/db", "/usr/local", "/opt/homebrew"];
-  const toolchainCaches = [".bun", ".npm", ".npm-global", ".cache", ".local"]
+  const toolchainCaches = [".bun", ".npm", ".npm-global", ".cache"]
     .map((entry) => path.join(input.userHome, entry));
   return {
     readOnlyDirs: [...systemReadOnly, ...toolchainCaches],
@@ -158,7 +160,8 @@ export function planBashSandbox(scope: PathGuardScope, input: BashSandboxPlanInp
  * 形状（顺序是契约，逐条有理由）：
  *   1. `(deny default)` —— 清单外一律不可达，这是 allow-only 与 deny-list 的分水岭；
  *   2. 进程面：`process*`（起子进程）、`mach-lookup` / `ipc-posix-shm`（运行时服务）、
- *      `sysctl-read`、`network*`（ADR-0012 决策六：本形态**不封端口**，秘书的 curl 是锁定能力面）；
+ *      `sysctl-read`、`network*`（本形态**不封网络**：成员面封端口是 ADR-0013 决策五的后续票，
+ *      本票只登记依赖，不做它；这里写 `network*` 是为了不在无声之中把网络一并关掉）。
  *   3. 读面：`(literal "/")` + 只读目录与允许根（写面是它的子集）+ 只读单文件；
  *   4. **数据目录显式不变式**：allow 之后 `(deny file-read* (subpath <dataDir>))`，
  *      再 `(allow file-read* (subpath <homeDir>))` 把成员自己家目录这条**更窄**的条目重新开口。
@@ -213,7 +216,8 @@ export function sandboxExecProfile(input: {
  * - Linux：`bwrap` 的 bind 清单。**本机没有 bwrap、未验证**——这里生成的是形态，
  *   不是已覆盖的平台（Ticket 05 的 Answer 与集成层测试都照实标注）。语义与 SBPL 同源：
  *   先 `--unshare-all` 构造一个空的新命名空间（allow-only 由构造保证，不需要 deny 规则），
- *   再逐个 `--ro-bind`/`--bind` 把清单挂进去；`--share-net` 保持网络面不变（决策六）。
+ *   再逐个 `--ro-bind-try`/`--bind-try` 把清单挂进去（`-try`：清单里有不存在的路径
+ *   （如未安装的 `~/.bun`）时 bwrap 容忍缺失、而不是每条命令都启动失败）；
  *   数据目录用空 `--tmpfs` 遮罩，最后把成员自己家目录 bind 回来——与 SBPL 的
  *   「deny 之后 reopen」同一条不变式，`--tmpfs` 的落点必须在允许根之后。
  */
@@ -223,16 +227,16 @@ export function sandboxLaunch(sandbox: BashSandbox, plan: BashSandboxPlan): { co
   }
   const args = ["--die-with-parent", "--unshare-all", "--share-net", "--proc", "/proc", "--dev", "/dev"];
   for (const dir of expandForms(plan.surfaces.readOnlyDirs)) {
-    args.push("--ro-bind", dir, dir);
+    args.push("--ro-bind-try", dir, dir);
   }
   for (const dir of expandForms(plan.surfaces.writableDirs)) {
-    args.push("--bind", dir, dir);
+    args.push("--bind-try", dir, dir);
   }
   for (const dir of expandForms([plan.dataDir])) {
     args.push("--tmpfs", dir);
   }
   for (const dir of expandForms([plan.homeDir])) {
-    args.push("--bind", dir, dir);
+    args.push("--bind-try", dir, dir);
   }
   return { command: sandbox.command, args };
 }
@@ -296,6 +300,25 @@ export function explainBashFailure(
 }
 
 /**
+ * 工具面与 RPC 面共用的沙箱状态（展示层用）：由平台适配结论直接派生。
+ * `available: false` 时 `reason` 说出「本平台拿不到沙箱」——它同时出现在工具描述与拒绝文本里
+ * （同一事实的两处呈现），不允许两处各说各的（ADR-0012 决策五）。
+ */
+export interface BashContainmentStatus {
+  available: boolean;
+  mechanism: "sandbox-exec" | "bwrap" | null;
+  reason: string | null;
+}
+
+export function containmentStatus(resolution: BashSandboxResolution): BashContainmentStatus {
+  return {
+    available: resolution.available,
+    mechanism: resolution.sandbox?.kind ?? null,
+    reason: resolution.reason ?? null,
+  };
+}
+
+/**
  * 注册期就带在工具描述里的边界（ADR-0012 决策四「边界先于撞墙」）：
  * 模型在动手之前就知道自己的允许根与越界的失败形态；平台没有沙箱时，同一段文本说明
  * 「bash 未激活」以及原因（决策五：不允许静默不一致）。
@@ -321,7 +344,6 @@ export function bashUnavailableMessage(resolution: BashSandboxResolution): strin
   ].join(" ");
 }
 
-/** 允许根清单（与路径守卫的拒绝文本同款署名；成员名缺省时不再署名）。 */
 function boundaryListing(scope: PathGuardScope): string {
   const heading = scope.memberName ? `allowed roots for ${scope.memberName}:` : "allowed roots:";
   return [heading, ...scope.allowedRoots.map((root) => `  - ${root}`)].join("\n");
@@ -344,7 +366,7 @@ function expandForms(paths: readonly string[]): string[] {
       // 解析不到就只留原形。
     }
   }
-  return [...forms].sort();
+  return [...forms].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /** 祖先链（不含自身，含 `/`）：`file-read-metadata` 要逐级 stat 才能 realpath。 */

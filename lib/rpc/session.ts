@@ -18,7 +18,7 @@ import { cacheSessionPath, invalidateSessionListCache } from "../session-reader"
 import { getProjectTrustStatus } from "../project-trust";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "../custom-ui-terminal";
 import { notifyRunningChange } from "./broadcaster.ts";
-import { containmentStatus } from "../bash-containment-extension.ts";
+import { containmentStatus } from "../bash-containment.ts";
 import type { BashContainmentDeps, ContainedBash } from "../bash-containment-extension.ts";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "../pi-types";
 import type { ForcedEmptySystemPromptSwitch } from "./forced-empty-system-prompt";
@@ -278,6 +278,7 @@ export class AgentSessionWrapper {
   ) {
     this.forcedEmptySystemPromptSwitch = forcedEmptySystemPromptSwitch;
   }
+
   get sessionId(): string {
     return this.inner.sessionId;
   }
@@ -545,7 +546,7 @@ export class AgentSessionWrapper {
           extensionWidgets: this.getExtensionWidgets(),
           // 沙箱状态（ADR-0012 决策五）：`null` = 无人归属的会话（不沙箱）；
           // `available: false` 时档位展示要能解释「本平台无沙箱 ⇒ 该档位实际不含 bash」。
-          bashContainment: this.bashContainment ? containmentStatus(this.bashContainment) : null,
+          bashContainment: this.bashContainment ? containmentStatus(this.bashContainment.resolution) : null,
         };
       }
 

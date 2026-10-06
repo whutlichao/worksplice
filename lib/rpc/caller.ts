@@ -51,7 +51,8 @@ export class RpcCaller {
     options: RpcSessionStartOptions = {},
   ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
     const { toolNames, initialModel, thinkingLevel, pathGuard } = options;
-    const registry = getRpcRegistry();    const locks = getLocks();
+    const registry = getRpcRegistry();
+    const locks = getLocks();
 
     const existing = registry.get(sessionId);
     if (existing?.isAlive()) return { session: existing, realSessionId: sessionId };

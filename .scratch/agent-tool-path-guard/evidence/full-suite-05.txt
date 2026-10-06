@@ -1,4 +1,4 @@
-# npm test（全量档 = 宽）——尾部汇总（跑法：npm test）
+# npm test（全量档 = 宽）——尾部汇总（跑法：npm test；code-review 修复后重跑）
 # 基线：970 用例（票 02 记录）；本次新增 30 个（13 纯函数 + 15 集成 + 2 ChatInput 展示层）= 1000
 ℹ tests 1000
 ℹ suites 0
@@ -7,4 +7,4 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 10143.335375
+ℹ duration_ms 10028.66775

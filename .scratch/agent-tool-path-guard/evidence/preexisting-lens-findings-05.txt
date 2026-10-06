@@ -1,19 +1,22 @@
 # 既有 lens 发现归属取证（ticket 05）
 
-pi-lens 对 lib/rpc/session.ts 报的 10 条 ast-grep 发现，逐行核对是否存在于改动前的 HEAD。
-判定方法：取当前行内容（去缩进）在 git show HEAD:lib/rpc/session.ts 中精确匹配。
+pi-lens 对 lib/rpc/session.ts 报的 10 条 ast-grep 发现（Chained type assertion / 'x as unknown as T'），
+逐行核对是否存在于**改动前**的固定点 8a05a6d（= main，本票的 base）。
+判定方法：取当前行内容（去缩进）在 git show 8a05a6d:lib/rpc/session.ts 中精确匹配。
 
-本票对该文件的改动：23 增 / 2 删，全部是注释、接口字段与一处参数展开，零断言改动。
+本票对该文件的改动：23 增 / 1 删（一个 import + 两个类型声明 + 一段注释 + get_state 一个字段 + executeBash 一处参数展开），零断言改动。
 
-L456   HEAD_命中=1  (manager as unknown as { flushed: boolean }).flushed = true;
-L353   HEAD_命中=1  shutdownHandler: () => this.emit({
-L879   HEAD_命中=1  const event = {
-L900   HEAD_命中=14  this.emit({
-L1069  HEAD_命中=14  this.emit({
-L1081  HEAD_命中=14  this.emit({
-L1104  HEAD_命中=14  this.emit({
-L1116  HEAD_命中=14  this.emit({
-L1125  HEAD_命中=14  this.emit({
-L1133  HEAD_命中=14  this.emit({
+L354   8a05a6d_命中=1  shutdownHandler: () => this.emit({
+L457   8a05a6d_命中=1  (manager as unknown as { flushed: boolean }).flushed = true;
+L880   8a05a6d_命中=1  const event = {
+L901   8a05a6d_命中=14  this.emit({
+L1070  8a05a6d_命中=14  this.emit({
+L1082  8a05a6d_命中=14  this.emit({
+L1105  8a05a6d_命中=14  this.emit({
+L1117  8a05a6d_命中=14  this.emit({
+L1126  8a05a6d_命中=14  this.emit({
+L1134  8a05a6d_命中=14  this.emit({
 
-结论：10/10 逐字存在于 HEAD（改动前），非本票引入；仓库门禁是 tsc + oxlint/eslint（均为 0 error），改这些既有断言会把 diff 扩到与本票无关的会话生命周期代码上。
+结论：10/10 逐字存在于固定点（改动前），非本票引入。仓库门禁是 tsc --noEmit（0 error）与 npm run lint（0 error）；
+改这些既有断言会把 diff 扩到与本票无关的会话生命周期代码上（派活规则 #2 只允许编辑本票范围内的代码）。
+同一处置在票 02（同一 effort 的上一票，PR #94）已有先例：evidence/preexisting-lens-findings.txt。
