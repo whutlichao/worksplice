@@ -275,7 +275,7 @@ fail-closed 三分支与 ADR-0013 决策二一致；**「looks implemented but w
 
 ### 8. 遗留 / 技术债（未在本票修，均因授权范围）
 
-1. `lib/bash-containment.ts:145` 的注释指针已陈旧（Spec 轴 P2 #1）。
+1. ~~`lib/bash-containment.ts:145` 的注释指针已陈旧（Spec 轴 P2 #1）~~ **已于第 12 节补正**（打回 G-impl #3）。
 2. AGENTS.md 的 File Map 与构建器陷阱段待补（Standards #5，coordinator 在 main 上补）。
 3. Standards #2/#3/#4 三条 judgement（magic number / 与判定层的轮询形状重复 / 日志前缀）
    —— 均因「逐字搬运」或「判定层不许改」而豁免，建议下一票连同 #1 一起处理。
@@ -284,6 +284,14 @@ fail-closed 三分支与 ADR-0013 决策二一致；**「looks implemented but w
    同款形状的 `lib/http-dispatcher.ts`（同样只被 `await import("@/lib/…")` 引用）不被它报，
    说明是别名 + 动态 import 的解析盲区。该文件在运行期确实被执行——第 2 节 (a) 的 fail-closed
    实测就是它跑出来的。
+5. `lib/bash-containment.ts:144-146` 与 `:170-172` 是两份对「还有哪些地方读/解析 `PORT`」的枚举，
+   事实重复，再搬一次站点要两处同步（Standards 轴 P2 #1）。本轮只授权 `:145` 一行。
+6. `lib/bash-containment.ts:144` 的「共三处」字面上漏了本函数自己的 `env.PORT`（`:155`）——
+   贴上下文读作「另三处」是对的，**不是事实错误**（Standards 轴 P2 #2）。
+7. `.github/SECURITY.md:22,25` 的指针「粗但不错」（拒服仍由 `instrumentation.ts` 的 `register()` 触发，
+   读者一跳就到实现），**经 ask 裁定不动**；判断判据见第 12.4 节（死路 vs 粗）。
+
+其中第 5-7 条是第 12 节（打回补正轮）新增的债，均因授权外或非错误而未改；判据在第 12.6 节的两轴表里。
 
 ### 9. PR
 
@@ -312,3 +320,103 @@ GitHub #101 侧：仓库既有的 label 词表里**没有** `in-progress`（只�
 | `baseline-lint.txt` / `green-lint.txt` | 增量对照（逐行一致） |
 | `baseline-tsc.txt` / `green-tsc.txt` | `tsc --noEmit` 退出码 0 |
 | `full-suite.txt` | 全量套件两次摘要（1073 → 1079，0 失败） |
+
+---
+
+### 12. 本轮补正（打回门禁 = G-impl 第 3 条「搬家必须逐个清点指向它的位置」）
+
+前一轮把准入闸启动门从 `instrumentation.ts` 搬到 `lib/access-gate-startup.ts`，但**一处指向旧位置的
+注释指针没跟着更新**——本轮补上。
+
+#### 12.1 改了哪一行
+
+`lib/bash-containment.ts:145`（`resolveWorksplicePorts` 的端口推导注释块内）：
+
+```diff
+- * 正是本函数要避免的）、`instrumentation.ts` 的启动门（要轮询等待 Next 写入）、
++ * 正是本函数要避免的）、`lib/access-gate-startup.ts` 的启动门（要轮询等待 Next 写入）、
+```
+
+`git diff --numstat` = `1 1 lib/bash-containment.ts`（1 增 1 删）。**纯注释，零代码语义变化**；
+句式与宽行风格照旧（未按 80 列重排）；同段里仍然正确的 `bin/worksplice-options.js:25`
+与 `lib/access-gate.ts` 两处**一字未动**（`git diff` 可证）。
+
+#### 12.2 为什么它属于本票引入的不一致
+
+这段注释的职责是「教读者端口推导该读哪里」。它列举仓库里另外三个读 `process.env.PORT` 的地方，
+声称其中一个「要轮询等待 Next 写入」——那份轮询代码（`waitForServerPort`）**正是本票搬走的东西**。
+搬完之后 `instrumentation.ts` 里**一点端口轮询都不剩**：照这条指针去找会**扑空**。
+所以这不是历史遗留的陈旧注释，是**本次拆分制造**的指错。
+
+#### 12.3 是否还有同类遗漏
+
+清点范围：`grep -rn "instrumentation"` 覆盖 `*.ts|*.tsx|*.mjs|*.js|*.md`，排除
+`node_modules/` / `.next/` / `.scratch/`。结论：**死路指针 1 处（上面那处，已修），其余 0 处**。
+
+| 位置 | 原文要点 | 判断 |
+| --- | --- | --- |
+| `lib/bash-containment.ts:145` | 「`instrumentation.ts` 的启动门（要轮询等待 Next 写入）」 | **死路指针，已修** |
+| `.github/SECURITY.md:22, 25` | 「verified in … `instrumentation.ts` …」/「`instrumentation.ts` refuses to start」 | **粗但不错，不动**（详见 12.4） |
+| `lib/domain/collab/secretary-auto-create.ts:10,58` | 「启动路径（instrumentation…）」「调用方（instrumentation）」 | **仍为真**——`register()` 仍在 `instrumentation.ts:45` 调 `autoCreateSecretary()` |
+| `lib/domain/collab/index.ts:6`、`AGENTS.md:452` | 「…instrumentation 全部收敛到这里」「`createAgentLoop().start()`，instrumentation 调用」 | **仍为真**——这两条说的是「谁驱动 agent-loop」，起点确实还在 `instrumentation.ts:38` |
+| `README.md:274`、`README.zh-CN.md:274` | `instrumentation.ts  # initializes the server HTTP dispatcher` | **仍为真**——`configureHttpDispatcher()` 仍在 `register()`（`instrumentation.ts:24-25`） |
+| `docs/spec-bootstrap-agent.md:199` | 「服务启动路径内（instrumentation，agent-loop 启动之后）」 | **仍为真**——同上 |
+| `bin/worksplice.js:44` | 「第二道在服务进程内（`lib/access-gate.ts` + `proxy.ts`）」 | **仍为真**——它指判定层与请求门，两处都没动；它从未指向 `instrumentation.ts` |
+| `docs/adr/0013-*.md:7`、`docs/http-corridor-caller-identity.md:157,265` | 决策正文与取证项的**原始记录** | **历史记录，不该改**——ADR 追加式不改正文；且措辞是「`proxy.ts` / `instrumentation.ts` **一类位置**」（类别，不是精确指针），实施票取证项记的是当时的待办。改它等于篡改记录 |
+| `.scratch/agent-tool-path-guard/issues/06,07` | 旧票据里「`instrumentation.ts` 启动门」 | **历史票据，存档**——当时为真，现为陈迹；票据是记录不是活文档 |
+
+#### 12.4 `SECURITY.md` 为什么判「不同类」——这是本轮唯一的判断分歧，已 ask 裁定
+
+**分歧**：Spec 轴报 `.github/SECURITY.md:25`（活文档）「严格说不再指真，建议同批修」。
+
+**我的判断（并 §Constraint 3 走 ask，coordinator 裁定同意）**：**不动**。判据是「死路 vs 粗」：
+
+- `bash-containment.ts:145` 是一个**具体技术 claim** 的指针——「要轮询等待 Next 写入」。这份轮询已从
+  `instrumentation.ts` 全部搬走，照它去找**扑空**。**死路指针必须修。**
+- `SECURITY.md:25` 的**句子职责**不是「轮询代码在这个文件里」，而是「拒服发生在**服务进程内**、
+  不是 `bin/worksplice.js` 包装里，所以绕过包装的 `next dev -H 0.0.0.0` 也盖得住」。这个职责**仍然成立**：
+  `instrumentation.ts` 的 `register()` 依旧是那个**触发点**
+  （`await import("@/lib/access-gate-startup")` → `enforceAccessGateAtStartup()` → `process.exit(1)`），
+  读者从 `instrumentation.ts` **一跳就到**实现。它只是**粗**，不是**错**。
+- `:22` 的文件清单同理仍成立：`instrumentation.ts` 与 `proxy.ts` 都还是验证点。
+- 另外 `SECURITY.md` 是**面向外的英文安全威胁模型文档**，措辞改动归维护者。
+
+coordinator 已在 main 上独立核实并采纳该分类。**没有触发** Constraint 3 的「先 ask 再改」红线——
+我没有改任何授权外的文件。
+
+#### 12.5 本轮门禁结果
+
+| 门禁 | 结果 |
+| --- | --- |
+| `lib/bash-containment.ts` diff 只覆盖那一处指针 | `1 1`（1 增 1 删），纯注释 |
+| `npm run typecheck` | **退出码 0** |
+| `npx eslint lib/bash-containment.ts` | **退出码 0**（无输出） |
+| `node --test lib/access-gate-startup.test.mjs` | **6 / 6 通过**，退出码 0 |
+| 端到端必红/必绿双向对照 | **未重跑**（裁定的免跑项：纯注释改动不影响构建产物） |
+| 全量套件 | **未重跑**（同上，裁定的免跑项） |
+
+#### 12.6 本轮双轴 code-review（收尾，不合并、不重排）
+
+##### Standards 轴 — verdict: OK with notes，无成文规范违规，2 条 judgement（均 report-only，未改）
+
+| # | 严重度 | finding | 处置 |
+| --- | --- | --- | --- |
+| 1 | judgement P2 | `lib/bash-containment.ts:144-146` 与 `:170-172` 是**两份**对「还有哪些地方读/解析 PORT」的枚举（一份列三处**读取**、一份列两处**解析**），事实重复，再搬一次站点要两处同步（Shotgun Surgery 微形态） | **未改（授权外）**：本轮只授权 `:145` 一行。记为债 |
+| 2 | judgement P2 | `:144` 的「共三处」字面上漏了本函数自己的 `env.PORT`（`:155`）；贴上下文读作「另三处」是对的，**不构成事实错误** | **未改（授权外 + 非错误）**。若日后顺手，改「另三处」更无歧义 |
+
+Standards 轴同时**独立复核了「共三处」这个可证伪断言仍然成立**（我另做了一遍同样的核对，结论一致）：
+全仓生产路径读 `process.env.PORT` 的正是注释列的那三处
+（`bin/worksplice-options.js:25` 持默认 `30142`；`lib/access-gate-startup.ts:28,31` 的 25ms 轮询；
+`lib/access-gate.ts:113` 宽松解析返回 `unknown`），其余命中只在 `*.test.mjs`。
+块内其它断言也复核为真：`next/dist/server/lib/start-server.js:296` 确为 `process.env.PORT = port + ''`；
+四条 npm 脚本确是 `-p 30142`。
+
+##### Spec 轴 — verdict: OK with notes
+
+| 项 | 结论 |
+| --- | --- |
+| diff 范围 | ✅ 只 `lib/bash-containment.ts` 1 增 1 删，落在 `/** */` 内，无语义变化，无 label/标识符被动 |
+| 新指针准确性 | ✅ 启动门现落点确为 `lib/access-gate-startup.ts:41` 的 `export async function enforceAccessGateAtStartup`，由 `instrumentation.ts:21-22` 在守卫后动态 import |
+| scope creep | 无 |
+| 同类遗漏 | 报 `.github/SECURITY.md:25` 为「活文档 P2」→ 见 12.4，已 ask 裁定**不动**；报 `.scratch/agent-tool-path-guard/issues/06,07` 为历史票据（存档，非活指针）；明确判定 `docs/adr/0013`、`docs/http-corridor-caller-identity.md:157,265`「仍说得通，**不算**」；明确判定泛泛说「instrumentation 驱动 agent-loop/secretary/dispatcher」的注释**仍为真**「须与『启动门在此文件』区分」——**与我的分类完全一致** |
+| 门禁 2/3/4 | 该轴无 shell 权限未跑，已由本 worker 跑通（见 12.5，全绿） |

@@ -142,7 +142,7 @@ export interface WorksplicePortResolution {
  *
  * 仓库里读同一个变量的地方共三处，各有各的理由，**都不适合拿来当本函数的兜底**：
  * `bin/worksplice-options.js:25`（启动参数解析，持默认 `30142`——回退它等于把端口硬编码回来，
- * 正是本函数要避免的）、`instrumentation.ts` 的启动门（要轮询等待 Next 写入）、
+ * 正是本函数要避免的）、`lib/access-gate-startup.ts` 的启动门（要轮询等待 Next 写入）、
  * `lib/access-gate.ts` 的准入闸（宽松解析，未知返回 `unknown` 让请求门兜着）。
  *
  * **为什么不能硬编码**：实测教训——某成员的速查里记的 base URL 是 `30141`，实际监听 `30142`，
