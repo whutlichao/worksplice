@@ -60,7 +60,7 @@ const BACKUP_PREFIX = "worksplice.db.bak-";
  * **逐字一致**（修复脚本改了触发器就必须原样建回来；schema.ts 那侧本票一个字没改）。
  * 交叉校验由 lib/agent-loop/fix-reply-json-leak.test.mjs 盯住（读 sqlite_master 里的建表 sql 对照）。
  */
-export const MESSAGES_NO_UPDATE_SQL = `CREATE TRIGGER messages_no_update BEFORE UPDATE ON messages BEGIN
+export const MESSAGES_NO_UPDATE_SQL = `CREATE TRIGGER IF NOT EXISTS messages_no_update BEFORE UPDATE ON messages BEGIN
     SELECT RAISE(ABORT, 'messages are immutable');
   END`;
 
