@@ -18,13 +18,13 @@ bob（一个 agent）的模型输出自 2026-10-07T02:23:33Z 起发生形态突�
 
 `parseAgentAction`（`lib/agent-loop/loop.ts`）的解析链完全救不回来：整串 `JSON.parse` 失败 → `extractJsonObject` 找不到对象开头（`",` 之后没有 `{`）→ 走兜底 `content = cleaned || text.trim()`，把整段（含 JSON 碎片与字面 `\n`）当正文落库。
 
-结果：22 条消息（2026-10-07T02:23:33Z–02:41:32Z 之间落库）的 content 形如 `","action":"reply","content":"…","onConflict":"resend"}`，在 UI 里显示为 JSON 碎片 + 字面 `\n` 不换行（用户报告的「消息渲染有问题」）。
+结果：受影响消息的 content 形如 `","action":"reply","content":"…","onConflict":"resend"}`，在 UI 里显示为 JSON 碎片 + 字面 `\n` 不换行（用户报告的「消息渲染有问题」）。
 
-coordinator 已验证：这 22 条全部满足「把开头 `","` / `,"` 替换为 `{"` 后 `JSON.parse` 成功且形状合法（action=reply、content 为字符串）」，可 100% 还原。
+coordinator 用数据副本复核（2026-10-07）：形态以 `","action` 开头为主、少量 `,"action` 开头（两者都有）；**全部**满足「把开头 `","` / `,"` 替换为 `{"` 后 `JSON.parse` 成功且形状合法（action=reply|ignore、content 为字符串）」，可 100% 还原。其中存在一条 `","action":"ignore","content":"",…`（修复后 content 为空串）——按统一判据处理，不特判。存量条数随 bob 继续被唤醒而增长（修复尚未部署前每轮都可能新增），故本票只按**形态**描述，不写死条数。
 
 ## Solution
 
-owner 已拍板：**修代码防未来 + 写一次性清洗脚本，备份后修复这 22 条**。
+owner 已拍板：**修代码防未来 + 写一次性清洗脚本，备份后修复存量**。
 
 1. **A（防未来）**：在 `parseAgentAction` 的既有解析链（直接 parse → extractJsonObject）与兜底之间新增一档「序言修复」，只认 `/^"?,"/` 这两种已实证形态，parse 成功且形状合法才合流进既有 `if (parsed)` 提取逻辑。判定抽成零依赖纯函数模块 `lib/agent-loop/json-prologue.ts`。
 2. **B（存量）**：新增一次性离线清洗脚本 `scripts/fix-reply-json-leak.mjs`（CLI 契约照 `scripts/migrate-i18n-content.mjs`）：扫描 `messages` 表 content 命中形态的候选 → **同一个** `json-prologue.ts` 判定 → 只有校验通过才修，失败的跳过并进报告；`--apply` 先备份再单事务内 DROP/UPDATE/CREATE 触发器。
@@ -71,7 +71,7 @@ owner 已拍板：**修代码防未来 + 写一次性清洗脚本，备份后修
 | `lib/agent-loop/json-prologue.ts` | **新增**，零依赖纯函数模块（无 import、无 IO） | +55 |
 | `lib/agent-loop/loop.ts` | `parseAgentAction` 新增一档「序言修复」 | +8 / -0 |
 | `lib/agent-loop/loop.test.mjs` | 4 条回归用例（先红后绿） | +50 / -0 |
-| `lib/agent-loop/fix-reply-json-leak.test.mjs` | **新增**，脚本 CLI 的 14 条行为用例 | +432 |
+| `lib/agent-loop/fix-reply-json-leak.test.mjs` | **新增**，脚本 CLI 的 15 条行为用例 | +475 |
 | `scripts/fix-reply-json-leak.mjs` | **新增**，一次性清洗脚本 | +290 |
 
 `git diff --numstat b6f7f35...HEAD` 全部为「纯新增」或 `loop.ts` 的 +8/-0，无任何整文件重写。
@@ -171,12 +171,17 @@ export interface RepairedReply { value: Record<string, unknown>; content: string
 
 ### 4. 脚本行为与门禁
 
+实测存量的两条形态（`","` 与 `,"` 各一条）走脚本：
+
 ```
 $ node scripts/fix-reply-json-leak.mjs --data-dir <tmp>              # dry-run（默认，零写入）
 worksplice 回复 JSON 碎片清洗 · dry-run · 数据目录 /tmp/…
   修复 7c1e…（#2 1667…，2026-10-07T03:13:37.221Z）：44 字符
 dry-run: 2 changes（修复 2，跳过 0，备份 0） —— 未写入（加 --apply 落盘）
 ```
+
+**空串 content 的处置**（coordinator 事实修正后核对过）：`","action":"ignore","content":"",…` 修复后 content 是空串。空串**是**字符串，按统一判据照常修、不特判——用例 `空串 content（live 实测的 ignore 形态）修复为空串，不被当成「非字符串」跳过` 钉住这一条。判据里没有任何针对空串的分支（`typeof value.content === "string"` 天然为真）。
+只有**根本没有 content 字段**（如 `","action":"ignore"`）的候选才会落进 skipped（`content` 为 null = 无从回填），且带原因列出、绝不静默——同样不特判。
 
 - **CLI**：`--dry-run`（默认）/ `--apply` / `--data-dir <path>`（缺省 `WORKSPLICE_DATA_DIR` → `~/.worksplice`）/ `--json` / `-h`；退出码 0 / 2（用法与环境）/ 1（运行期）。
 - **只有校验通过才修**：形状不合协议（parse 失败 / action 不是 reply|ignore / content 不是字符串）→ 跳过并进报告，带 `id` + `reason`，绝不按「看起来像」硬改。
@@ -194,7 +199,7 @@ $ npm test
 ℹ fail 0
 ```
 
-14 条新用例全部由 `npm test` 命中（贴其中 11 条实际输出）：
+14 条新用例全部由 `npm test` 命中（另 15 条，空串形态那条见上；贴其中 11 条实际输出）：
 
 ```
 ✔ dry-run 零写入：两条脏形态逐字不动、不建备份，报告里逐条列出计划
@@ -296,14 +301,14 @@ $ npm test
 
 ### 9. 留给 coordinator 的后续（不在本票范围）
 
-1. **live 库修复的执行**：`--dry-run` 看计划 → 拿一份数据副本先演习 `--apply` → 挑低频时段对 `~/.worksplice` 实跑。本票自始至终没碰过 live 库。
+1. **live 库修复的执行**：`--dry-run` 看计划 → 拿一份数据副本先演习 `--apply` → 挑低频时段对 `~/.worksplice` 实跑。注意存量**仍在增长**（修复部署前 bob 每轮唤醒都可能新增一条），所以实跑前先重新 `--dry-run` 看当次命中数。本票自始至终没碰过 live 库。
 2. **`docs/engineering-standards.md` §1 补一条例外条文**：一次性离线修复脚本可直连数据层（当前 `migrate-i18n-content` 走契约、本票脚本走旁路，两票先例并存会漂移）。这是 S-1 finding 的正解，需要独立一票。
 3. **观察形态复发**：若 `json-prologue.ts` 之后在 live 数据里再命中（即 `parseRepairedReply` 返回 null 的候选变多），说明模型输出形态又变了，届时应重新评估而不是扩 `LEAK_PROLOGUE_PATTERN`。
 
 ### 10. 收口核对
 
 - [x] `node --test lib/agent-loop/loop.test.mjs` 47/47（含既有 falls-back 用例）
-- [x] `node --test lib/agent-loop/fix-reply-json-leak.test.mjs` 14/14
+- [x] `node --test lib/agent-loop/fix-reply-json-leak.test.mjs` 15/15
 - [x] `npm test` 1061/1061，新增测试文件被既有 glob 命中
 - [x] `npx tsc --noEmit` 无新增；`npx eslint .` 与 base 同（0 error / 1 既有 warning）
 - [x] 双轴 code-review 两份独立报告，findings 逐条处置或写明豁免
