@@ -152,6 +152,18 @@ _Avoid_: busy-cwd 锁（仅描述现象）、文件锁（那是 `proper-lockfile
 轮次结果随盘 `prompt_tokens/completion_tokens/cost`（`round_logs` 新增三列）+ `cost-monitoring-baseline.md` 双视图（全量 session 聚合 + 最近 50 轮滑动）的可观测形态。silent/error/capped 显式 badge + reason 原文，must-respond capped 单独解释。
 _Avoid_: 成本日志（不可事后查的 console 日志）
 
+**状态点 (Status Point)**:
+成员可用性的四态指示：在线 / 正在干活 / 出错 / 离线。**出错**只表示最近一次运行失败，且只被三种事实清除：新一轮开始、生命周期动作（重启 / 重置 / 换工作区 / 删除身份）、或一次**模型探测**的结论——不从「会话还活着」推导出来。
+_Avoid_: 状态灯、指示灯
+
+**模型探测 (Model Probe)**:
+对某个具体模型做一次最小调用的连通性判定：通了即证明该模型此刻可用，不通则给出可读原因。它不落会话、不进会话历史、不唤醒 agent-loop——不是一轮对话。
+_Avoid_: 健康巡检（那是定时/全量形态，本形态不引入）、探活
+
+**错误恢复 (Error Recovery)**:
+让一个处于**出错**状态点的成员回到非出错状态的动作，证据是**模型探测**的结论而不是会话存活。它与「重放失败的那一轮」无关：失败的轮次仍按既有游标规则等下一次唤醒。
+_Avoid_: 自动重试（那是重放失败的轮次，本形态不做）、重连（那是会话重启一类的身份动作）
+
 **SDK 委托边界 (SDK Delegation Boundary)**:
 `pi 管 pi、worksplice 管 worksplice` 的切分线：SDK 侧收敛 `tools/enabledModels/ThinkingLevel/SessionManager/buildSessionContext/SettingsManager/ModelRuntime/AuthStorage/DefaultResourceLoader/DefaultPackageManager/compaction`，worksplice 侧保留 `lib/rpc registry+caller` 的 per-member 记账与 `Cwd 互斥`、`双轨状态`、`lifecycle 家目录两分`、`pi_session_file 固化门禁`、`协作域全量`（`Store 57`/`UNIQUE(target_id,seq)`/`freshness-hold`/`FTS5`）与 `project-trust/models-cache/provider-listing` 编排。
 _Avoid_: SDK 边界（泛指）、中层收敛（未指明归属）
