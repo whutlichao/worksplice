@@ -57,7 +57,8 @@ owner 已拍板：**修代码防未来 + 写一次性清洗脚本，备份后修
 ## Further Notes
 
 - 门禁：G-impl（第 0–5 条全过）。
-- 交付分支：`whutlichao/reply-json-leak`，base `b6f7f35`，三个 commit。
+- 交付分支：`whutlichao/reply-json-leak`，base `b6f7f35`，五个 commit。
+- PR：**#100** https://github.com/whutlichao/worksplice/pull/100
 
 ## Comments
 
