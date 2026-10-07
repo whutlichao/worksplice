@@ -1,0 +1,18 @@
+==============================================
+port=30199  ready=1  http(GET /)=200
+edge-warning-count=0
+==============================================
+--- 前 3 段原文 ---
+
+> worksplice@0.1.0 dev
+> next dev -H 127.0.0.1 -p 30142 -p 30199
+
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://127.0.0.1:30199
+- Network:       http://127.0.0.1:30199
+✓ Ready in 372ms
+
+ GET / 200 in 518ms (next.js: 52ms, proxy.ts: 84ms, application-code: 383ms)
+ GET /api/sessions 200 in 1930ms (next.js: 54ms, proxy.ts: 2ms, application-code: 1874ms)
+[?25h
+==============================================
