@@ -16,6 +16,33 @@ import type { RoundLogRow } from "../../data/types.ts";
 export const ROUND_LOG_RETAIN = 200;
 export const ROUND_LOG_LIST_LIMIT = 50;
 
+/**
+ * 轮次记录的**出线形状**（camelCase，createdAt 为 ISO）：与同一载荷里的 timeline
+ * 同形（D2）。`listRoundLogs` 把数据层的 `RoundLogRow`（snake_case）翻译成它再出线——
+ * 面板曾按 camelCase 读 snake_case 行，三个字段全 undefined（空白 target、光秃秃的
+ * `#`、"Invalid Date"）。写路径 `logRoundOutcome` 仍返回数据层行（生产路径不消费其返回值）。
+ */
+export interface RoundLogView {
+  id: string;
+  targetId: string;
+  status: RoundLogRow["status"];
+  reason: string;
+  baseSeq: number;
+  /** ISO 8601（`insertRoundLog` 写入 `new Date().toISOString()`）。 */
+  createdAt: string;
+}
+
+function toRoundLogView(row: RoundLogRow): RoundLogView {
+  return {
+    id: row.id,
+    targetId: row.target_id,
+    status: row.status,
+    reason: row.reason,
+    baseSeq: row.base_seq,
+    createdAt: row.created_at,
+  };
+}
+
 export interface RoundOutcomeLike {
   status: string;
   reason?: string;
@@ -57,8 +84,10 @@ export function logRoundOutcome(
   }
 }
 
-export function listRoundLogs(agentId: string, limit = ROUND_LOG_LIST_LIMIT): RoundLogRow[] {
-  return getDb().listRoundLogs(agentId, limit);
+export function listRoundLogs(agentId: string, limit = ROUND_LOG_LIST_LIMIT): RoundLogView[] {
+  return getDb()
+    .listRoundLogs(agentId, limit)
+    .map(toRoundLogView);
 }
 
 // ---------------------------------------------------------------------------

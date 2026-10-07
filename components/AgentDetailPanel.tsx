@@ -145,12 +145,15 @@ function formatCost(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
+/**
+ * 时间可读回落（D2）：非法日期不得渲染成 "Invalid Date"。
+ * `new Date(undefined).toLocaleString()` 不抛错（返回 "Invalid Date" 字符串），
+ * 所以 try/catch 拦不住——先验 `getTime()`，解析不出就回落到占位符（与面板其它缺值一致）。
+ */
 function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+  const parsed = new Date(iso);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString();
+  return "—";
 }
 
 interface ObservabilityData {
@@ -306,6 +309,102 @@ export function TaskHistoryList({
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * 轮次记录列表（§07）：纯展示——数据与 i18n 由调用方传入。
+ * 与 TaskHistoryList 同款拆出：node 侧测试可直接渲染真实 markup，断言失败原因与
+ * 时间可读（D2：snake_case 透传时期渲染出空白 target、光秃秃的 `#` 与 "Invalid Date"）。
+ */
+export function RoundLogsList({
+  rounds,
+  t,
+}: {
+  rounds: ObservabilityData["rounds"];
+  t: (key: string) => string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        maxHeight: 260,
+        overflowY: "auto",
+      }}
+    >
+      {rounds.map((round) => {
+        const failed = round.status === "error";
+        return (
+          <div
+            key={round.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 8px",
+              border: `2px solid ${INK}`,
+              background: failed ? "#ffe9e9" : "var(--bg-panel)",
+              fontSize: 11,
+            }}
+          >
+            <span
+              style={{
+                flexShrink: 0,
+                fontFamily: "var(--font-space-mono)",
+                fontWeight: 700,
+                padding: "1px 5px",
+                border: `2px solid ${INK}`,
+                background: failed
+                  ? "#ff6b6b"
+                  : round.status === "replied"
+                    ? "var(--success, #a9d877)"
+                    : "#ffffff",
+              }}
+            >
+              {t("observability.roundStatus." + round.status)}
+            </span>
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                color: "var(--text-muted)",
+              }}
+              title={round.reason}
+            >
+              {round.reason || "—"}
+            </span>
+            <span
+              style={{
+                flexShrink: 0,
+                fontFamily: "var(--font-space-mono)",
+                color: "var(--text-dim)",
+                maxWidth: "30%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={`target: ${round.targetId}`}
+            >
+              {round.targetId}
+            </span>
+            <span
+              style={{
+                flexShrink: 0,
+                fontFamily: "var(--font-space-mono)",
+                color: "var(--text-dim)",
+              }}
+            >
+              #{round.baseSeq} · {formatTime(round.createdAt)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1031,86 +1130,7 @@ export function AgentDetailPanel({
               {t("observability.roundsEmpty")}
             </div>
           ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                maxHeight: 260,
-                overflowY: "auto",
-              }}
-            >
-              {obs.rounds.map((round) => {
-                const failed = round.status === "error";
-                return (
-                  <div
-                    key={round.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "6px 8px",
-                      border: `2px solid ${INK}`,
-                      background: failed ? "#ffe9e9" : "var(--bg-panel)",
-                      fontSize: 11,
-                    }}
-                  >
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        fontFamily: "var(--font-space-mono)",
-                        fontWeight: 700,
-                        padding: "1px 5px",
-                        border: `2px solid ${INK}`,
-                        background: failed
-                          ? "#ff6b6b"
-                          : round.status === "replied"
-                            ? "var(--success, #a9d877)"
-                            : "#ffffff",
-                      }}
-                    >
-                      {t("observability.roundStatus." + round.status)}
-                    </span>
-                    <span
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        color: "var(--text-muted)",
-                      }}
-                      title={round.reason}
-                    >
-                      {round.reason || "—"}
-                    </span>
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        fontFamily: "var(--font-space-mono)",
-                        color: "var(--text-dim)",
-                        maxWidth: "30%",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={`target: ${round.targetId}`}
-                    >
-                      {round.targetId}
-                    </span>
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        fontFamily: "var(--font-space-mono)",
-                        color: "var(--text-dim)",
-                      }}
-                    >
-                      #{round.baseSeq} · {formatTime(round.createdAt)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <RoundLogsList rounds={obs.rounds} t={t} />
           )}
         </Card>
 

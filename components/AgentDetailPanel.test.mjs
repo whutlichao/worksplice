@@ -9,7 +9,7 @@ const jiti = createJiti(import.meta.url, {
     jsx: { runtime: "automatic" },
     tsconfigPaths: true,
 });
-const { AgentDetailPanel, TaskHistoryList } = await jiti.import("./AgentDetailPanel.tsx");
+const { AgentDetailPanel, TaskHistoryList, RoundLogsList } = await jiti.import("./AgentDetailPanel.tsx");
 const { ModelPicker } = await jiti.import("./ModelPicker.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
@@ -237,4 +237,68 @@ test("task history renders both same-number tasks from different channels", () =
     assert.match(html, /write the regression test/);
     assert.match(html, /task\.status\.in_progress/);
     assert.match(html, /task\.status\.todo/);
+});
+
+/**
+ * D2：服务层曾把数据层的 snake_case 轮次行直接透传（target_id / base_seq / created_at），
+ * 而面板读的是 camelCase（targetId / baseSeq / createdAt）——三个字段全 undefined，
+ * 渲染出空白 target、光秃秃的 `#` 与 "Invalid Date"（formatTime 的 try/catch 拦不住：
+ * new Date(undefined).toLocaleString() 不抛错，直接返回 "Invalid Date" 字符串）。
+ * 这里按 TaskHistoryList 先例渲染真实 markup 断言：可观察证据落在产品真正渲染出的东西上。
+ */
+const ROUNDS = [
+  {
+    id: "round-1",
+    targetId: "chan-alpha",
+    status: "error",
+    reason: 'model error: 429: {"message":"Rate limit exceeded. Please try again later."}',
+    baseSeq: 12,
+    createdAt: "2026-10-01T03:38:05.447Z",
+  },
+  {
+    id: "round-2",
+    targetId: "chan-beta",
+    status: "replied",
+    reason: "",
+    baseSeq: 7,
+    createdAt: "not-a-date",
+  },
+];
+
+test("round log rows render the real reason, target, baseSeq and a readable time (D2)", () => {
+  const html = renderWith(
+    React.createElement(RoundLogsList, { rounds: ROUNDS, t: (key) => key }),
+  );
+
+  // 真实失败原因（D1 的产物）在面板里可见，不被截断
+  assert.match(html, /Rate limit exceeded\. Please try again later\./);
+  // target / #baseSeq 都渲染出真值，而不是空白与光秃秃的 `#`
+  assert.match(html, /chan-alpha/);
+  assert.match(html, /#12/);
+  assert.match(html, /chan-beta/);
+  assert.match(html, /#7/);
+  // 时间可读：合法 ISO → 本地化时间（含年份），不是 "Invalid Date"
+  assert.match(html, /2026/);
+  assert.doesNotMatch(html, /Invalid Date/);
+  assert.doesNotMatch(html, /undefined/);
+});
+
+test("formatTime falls back readably for an unparseable date instead of Invalid Date (D2)", () => {
+  const html = renderWith(
+    React.createElement(RoundLogsList, {
+      rounds: [
+        {
+          id: "round-bad-time",
+          targetId: "chan-alpha",
+          status: "error",
+          reason: "boom",
+          baseSeq: 1,
+          createdAt: "not-a-date",
+        },
+      ],
+      t: (key) => key,
+    }),
+  );
+  assert.doesNotMatch(html, /Invalid Date/);
+  assert.match(html, /#1 · —/, "非法日期回落到可读的占位符");
 });

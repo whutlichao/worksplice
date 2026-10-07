@@ -652,16 +652,32 @@ export async function promptSession(
     | { text?: string }
     | undefined;
   const text = (last?.text ?? "").trim();
-  // SDK 对模型/API 报错（如 openrouter 402）不 reject prompt()：事件流照发 prompt_done，
-  // 但最后一条 assistant 无文本。空文本只能来自失败轮（合法的 ignore 也返回 JSON 文本），
-  // 必须按失败处理——否则游标被 ack、消息被静默消费、agent 永不回复。
+  // SDK 对模型/API 报错（如 openrouter 402 / new-api 429）不 reject prompt()：事件流照发
+  // prompt_done，但最后一条 assistant 无文本。空文本只能来自失败轮（合法的 ignore 也返回
+  // JSON 文本），必须按失败处理——否则游标被 ack、消息被静默消费、agent 永不回复。
   if (!text)
-    return {
-      ok: false,
-      error: "model returned no text (request failed?)",
-      text: "",
-    };
+    return { ok: false, error: await emptyTextFailureReason(session), text: "" };
   return { ok: true, text };
+}
+
+/**
+ * 空文本失败的真实原因（D1）：pi SDK 把模型/API 报错只写进末条 assistant message 的
+ * stopReason/errorMessage（与 session jsonl 同源），事件流不报错。这条只读命令把它取出来，
+ * 让可观测面板看得见「agent 为什么失败」（形如 "model error: 429: {...}"）。
+ * 「拿不到细节」是合法形态：LoopSession 是结构接口，测试 fake / 不认识该命令的会话
+ * 会回 null 或抛错——两者都回落既有通用文案，绝不因此让本轮再失败。
+ */
+async function emptyTextFailureReason(session: LoopSession): Promise<string> {
+  const fallback = "model returned no text (request failed?)";
+  const detail = (await session
+    .send({ type: "get_last_assistant_error" })
+    .catch(() => null)) as
+    | { stopReason?: unknown; errorMessage?: unknown }
+    | null
+    | undefined;
+  const message =
+    typeof detail?.errorMessage === "string" ? detail.errorMessage.trim() : "";
+  return message ? `model error: ${message}` : fallback;
 }
 
 // ----------------------------------------------------------------------------
