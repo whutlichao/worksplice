@@ -1,0 +1,11 @@
+
+> worksplice@0.1.0 lint
+> eslint .
+
+
+/Users/apple/orca/workspaces/worksplice/fix-edge-instrumentation-warnings/hooks/useI18n.tsx
+  61:6  warning  React Hook useEffect has a missing dependency: 'locale'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
+lint exit=0

@@ -1,0 +1,190 @@
+
+> worksplice@0.1.0 dev
+> next dev -H 127.0.0.1 -p 30142 -p 30199
+
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://127.0.0.1:30199
+- Network:       http://127.0.0.1:30199
+✓ Ready in 344ms
+
+⚠ ./instrumentation.ts:53:5
+A Node.js API is used (process.exit at line: 53) which is not supported in the Edge Runtime.
+    Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+  [90m51 |[0m   [36mif[0m (posture === [32m"closed"[0m) {
+  [90m52 |[0m     console.error([32m`[worksplice] [0m${accessGateClosedMessage()[32m}`[0m);
+[31m[1m>[0m [90m53 |[0m     process.exit([35m1[0m);
+  [90m   |[0m     [31m[1m^^^^^^^^^^^^[0m
+  [90m54 |[0m   }
+  [90m55 |[0m }
+  [90m56 |[0m
+
+Ecmascript file had an error
+
+
+⚠ ./lib/web-auth.ts:1:1
+A Node.js module is loaded ('node:crypto' at line 1) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+[31m[1m>[0m [90m1 |[0m [36mimport[0m { createHash, timingSafeEqual } [36mfrom[0m [32m"node:crypto"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m2 |[0m
+  [90m3 |[0m [36mexport[0m [36mconst[0m [33mWORKSPLICE_AUTH_USERNAME[0m = [32m"pi"[0m;
+  [90m4 |[0m
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/web-auth.ts
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+⚠ ./lib/access-gate.ts:16:1
+A Node.js module is loaded ('node:net' at line 16) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+  [90m14 |[0m [90m */[0m
+  [90m15 |[0m
+[31m[1m>[0m [90m16 |[0m [36mimport[0m { createConnection } [36mfrom[0m [32m"node:net"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m17 |[0m [36mimport[0m { networkInterfaces } [36mfrom[0m [32m"node:os"[0m;
+  [90m18 |[0m [36mimport[0m { setTimeout [36mas[0m delay } [36mfrom[0m [32m"node:timers/promises"[0m;
+  [90m19 |[0m [36mimport[0m { isWebPasswordEnabled } [36mfrom[0m [32m"./web-auth.ts"[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+⚠ ./lib/access-gate.ts:17:1
+A Node.js module is loaded ('node:os' at line 17) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+  [90m15 |[0m
+  [90m16 |[0m [36mimport[0m { createConnection } [36mfrom[0m [32m"node:net"[0m;
+[31m[1m>[0m [90m17 |[0m [36mimport[0m { networkInterfaces } [36mfrom[0m [32m"node:os"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m18 |[0m [36mimport[0m { setTimeout [36mas[0m delay } [36mfrom[0m [32m"node:timers/promises"[0m;
+  [90m19 |[0m [36mimport[0m { isWebPasswordEnabled } [36mfrom[0m [32m"./web-auth.ts"[0m;
+  [90m20 |[0m
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+⚠ ./lib/access-gate.ts:18:1
+A Node.js module is loaded ('node:timers/promises' at line 18) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+  [90m16 |[0m [36mimport[0m { createConnection } [36mfrom[0m [32m"node:net"[0m;
+  [90m17 |[0m [36mimport[0m { networkInterfaces } [36mfrom[0m [32m"node:os"[0m;
+[31m[1m>[0m [90m18 |[0m [36mimport[0m { setTimeout [36mas[0m delay } [36mfrom[0m [32m"node:timers/promises"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m19 |[0m [36mimport[0m { isWebPasswordEnabled } [36mfrom[0m [32m"./web-auth.ts"[0m;
+  [90m20 |[0m
+  [90m21 |[0m [36mexport[0m [36mtype[0m [33mBindScope[0m = [32m"loopback"[0m | [32m"non-loopback"[0m | [32m"unknown"[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+ GET / 200 in 509ms (next.js: 61ms, proxy.ts: 82ms, application-code: 367ms)
+⚠ ./instrumentation.ts:53:5
+A Node.js API is used (process.exit at line: 53) which is not supported in the Edge Runtime.
+    Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+  [90m51 |[0m   [36mif[0m (posture === [32m"closed"[0m) {
+  [90m52 |[0m     console.error([32m`[worksplice] [0m${accessGateClosedMessage()[32m}`[0m);
+[31m[1m>[0m [90m53 |[0m     process.exit([35m1[0m);
+  [90m   |[0m     [31m[1m^^^^^^^^^^^^[0m
+  [90m54 |[0m   }
+  [90m55 |[0m }
+  [90m56 |[0m
+
+Ecmascript file had an error
+
+
+⚠ ./lib/web-auth.ts:1:1
+A Node.js module is loaded ('node:crypto' at line 1) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+[31m[1m>[0m [90m1 |[0m [36mimport[0m { createHash, timingSafeEqual } [36mfrom[0m [32m"node:crypto"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m2 |[0m
+  [90m3 |[0m [36mexport[0m [36mconst[0m [33mWORKSPLICE_AUTH_USERNAME[0m = [32m"pi"[0m;
+  [90m4 |[0m
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/web-auth.ts
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+⚠ ./lib/access-gate.ts:16:1
+A Node.js module is loaded ('node:net' at line 16) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+  [90m14 |[0m [90m */[0m
+  [90m15 |[0m
+[31m[1m>[0m [90m16 |[0m [36mimport[0m { createConnection } [36mfrom[0m [32m"node:net"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m17 |[0m [36mimport[0m { networkInterfaces } [36mfrom[0m [32m"node:os"[0m;
+  [90m18 |[0m [36mimport[0m { setTimeout [36mas[0m delay } [36mfrom[0m [32m"node:timers/promises"[0m;
+  [90m19 |[0m [36mimport[0m { isWebPasswordEnabled } [36mfrom[0m [32m"./web-auth.ts"[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+⚠ ./lib/access-gate.ts:17:1
+A Node.js module is loaded ('node:os' at line 17) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+  [90m15 |[0m
+  [90m16 |[0m [36mimport[0m { createConnection } [36mfrom[0m [32m"node:net"[0m;
+[31m[1m>[0m [90m17 |[0m [36mimport[0m { networkInterfaces } [36mfrom[0m [32m"node:os"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m18 |[0m [36mimport[0m { setTimeout [36mas[0m delay } [36mfrom[0m [32m"node:timers/promises"[0m;
+  [90m19 |[0m [36mimport[0m { isWebPasswordEnabled } [36mfrom[0m [32m"./web-auth.ts"[0m;
+  [90m20 |[0m
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+⚠ ./lib/access-gate.ts:18:1
+A Node.js module is loaded ('node:timers/promises' at line 18) which is not supported in the Edge Runtime.
+    Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+  [90m16 |[0m [36mimport[0m { createConnection } [36mfrom[0m [32m"node:net"[0m;
+  [90m17 |[0m [36mimport[0m { networkInterfaces } [36mfrom[0m [32m"node:os"[0m;
+[31m[1m>[0m [90m18 |[0m [36mimport[0m { setTimeout [36mas[0m delay } [36mfrom[0m [32m"node:timers/promises"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m19 |[0m [36mimport[0m { isWebPasswordEnabled } [36mfrom[0m [32m"./web-auth.ts"[0m;
+  [90m20 |[0m
+  [90m21 |[0m [36mexport[0m [36mtype[0m [33mBindScope[0m = [32m"loopback"[0m | [32m"non-loopback"[0m | [32m"unknown"[0m;
+
+Ecmascript file had an error
+
+Import trace:
+  Edge Instrumentation:
+    ./lib/access-gate.ts
+    ./instrumentation.ts
+
+
+ GET /api/sessions 200 in 2.3s (next.js: 38ms, proxy.ts: 2ms, application-code: 2.2s)
+[?25h

@@ -1,0 +1,21 @@
+# 仓库门禁 §2.2 的全量套件两次摘要（完整输出 1400+ 行，不入库）
+
+## 改动前（base d26cdf1 的树 + 本票改动未提交时的第一次跑）
+ℹ tests 1073
+ℹ suites 0
+ℹ pass 1073
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+
+## 改动后（含新增的 lib/access-gate-startup.test.mjs，+6 用例）
+ℹ tests 1079
+ℹ suites 0
+ℹ pass 1079
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+
+两条都是 0 失败；+6 正是新测试文件被 scripts.test 的 lib/**/*.test.mjs glob 自动纳入。

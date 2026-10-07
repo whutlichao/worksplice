@@ -7,56 +7,18 @@
  *    `.scratch/agent-tool-path-guard/evidence/`；无法阻止启动时以请求门（proxy.ts 503）为准。
  * 2. agent-loop（§5.4）与秘书自动创建（spec-bootstrap-agent §6.1）：与准入闸同款纪律——
  *    非阻塞、失败不致命，但准入闸是例外：它必须先于一切业务启动完成。
+ *
+ * ⚠️ 本文件被 Next **无条件双编译**进 edge layer（`next/dist/build/entries.js`）：edge 那遍扫的是
+ * 静态 import 图 + 文件体本身，不认下面的 `NEXT_RUNTIME` 守卫。所以这个文件只许出现 edge 也认的
+ * 东西——凡是 Node 内置模块或 Node API（`process.exit`、`node:net` …）都必须待在
+ * `register()` 守卫之后的**动态 import** 目标里（准入闸那套在 `./lib/access-gate-startup.ts`）。
+ * 在这里加顶层静态 import 就等于把噪音加回来（issue #101）。
  */
-
-import {
-  accessGateClosedMessage,
-  getAccessPosture,
-  waitForServerListening,
-} from "@/lib/access-gate";
-
-/** 等 Next 把实际监听端口写进 process.env.PORT（start-server 在 listening 事件里写）。 */
-async function waitForServerPort(timeoutMs: number): Promise<string | null> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (process.env.PORT) return process.env.PORT;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  return process.env.PORT ?? null;
-}
-
-/**
- * 启动门：非 loopback + 无凭证 ⇒ 拒绝启动（fail-closed 的「拿不到安全前提就不提供服务」）。
- * 两件护栏（缺一就会误判成 open）：
- * - 端口未知（Next 还没写 process.env.PORT）→ 不探（探针会退化成 unknown），留给请求门；
- * - 端口已知但服务还没真的 listening（用户 env 里预置了 PORT）→ 等下再探，
- *   否则「非 loopback 全 refused」会被误读成 loopback（`detectBindScope` 的 loopback 复核也防这层）。
- */
-async function enforceAccessGateAtStartup(): Promise<void> {
-  const port = await waitForServerPort(3000);
-  if (!port) {
-    console.warn(
-      "[worksplice] access gate: server port unknown at startup; the request gate will decide per request",
-    );
-    return;
-  }
-  const listening = await waitForServerListening({ port, timeoutMs: 3000 });
-  if (!listening) {
-    console.warn(
-      "[worksplice] access gate: server not listening yet at startup; the request gate will decide per request",
-    );
-    return;
-  }
-  const posture = await getAccessPosture();
-  if (posture === "closed") {
-    console.error(`[worksplice] ${accessGateClosedMessage()}`);
-    process.exit(1);
-  }
-}
 
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  const { enforceAccessGateAtStartup } = await import("@/lib/access-gate-startup");
   await enforceAccessGateAtStartup();
 
   const { configureHttpDispatcher } = await import("@/lib/http-dispatcher");
