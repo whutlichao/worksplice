@@ -20,12 +20,16 @@ export async function GET(
       const rt = await getAgentRuntime();
       const wrapper = rt.findSession(agent);
       if (wrapper?.isAlive()) {
+        // get_state 的 model 是 {id, provider}（lib/rpc/session.ts），面板要 {provider, modelId}
+        // ——与 app/api/agent/new/route.ts 同款映射（D3：曾直接透传，面板显示 "new-api/—"）。
         const state = (await wrapper.send({ type: "get_state" })) as {
-          model?: { provider: string; modelId: string } | null;
+          model?: { id: string; provider: string } | null;
           thinkingLevel?: string;
         };
         live = {
-          model: state.model ?? null,
+          model: state.model
+            ? { provider: state.model.provider, modelId: state.model.id }
+            : null,
           thinkingLevel: state.thinkingLevel ?? null,
         };
       }

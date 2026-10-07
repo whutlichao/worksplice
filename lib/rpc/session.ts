@@ -1,7 +1,7 @@
 // AgentSessionWrapper — 单个 pi 会话的进程内封装（原 lib/rpc-manager.ts 的核心类）。
 //
 // 职责：把 AgentSession 包装成应用其余部分期望的接口——事件订阅（onEvent）、
-// 命令分发（send 的 27 个命令分支）、扩展绑定（session_start / 自定义 UI /
+// 命令分发（send 的 26 个命令分支）、扩展绑定（session_start / 自定义 UI /
 // 命令上下文动作）、生命周期（start/shutdown/destroy/idle 超时）。
 // 不负责：会话注册表（registry.ts）、会话启动构造（caller.ts）、
 // 运行状态广播（broadcaster.ts）。start() 等处的运行状态通知委托 broadcaster。
@@ -36,6 +36,18 @@ export interface AgentEvent {
 }
 
 type EventListener = (event: AgentEvent) => void;
+
+/**
+ * `AgentSession.messages` 的只读收窄（D1）：模型/API 报错时，末条 assistant message
+ * 带 `stopReason: "error"` 与 `errorMessage`（与 session jsonl 同源）。pi-types 的
+ * `AgentSessionLike` 未镜像 messages，这里按需收窄——只读，不碰任何写路径。
+ */
+type SessionMessageLike = {
+  role?: string;
+  stopReason?: string;
+  errorMessage?: string;
+  content?: readonly unknown[];
+};
 
 type PendingUiResponse = {
   resolve: (response: ExtensionUiResponse) => void;
@@ -91,6 +103,16 @@ const IDLE_RESET_EVENT_TYPES = new Set([
   "auto_compaction_end",
   "compaction_end",
 ]);
+
+/**
+ * 把本模块自产的 UI 请求载荷宽化成事件流形状（一处宽化，避免每个 emit 点各叠一层 `as`）。
+ * SAFETY: ExtensionUiRequest 与 AgentEvent（`type` + 任意字段）结构兼容，只差一个索引
+ * 签名——载荷都是本模块自己构造的，这里做一次无运行时检查的宽化并集中记录不变式。
+ */
+function asAgentEvent(event: ExtensionUiRequest): AgentEvent {
+  // SAFETY: 见上——本模块自产的 UI 载荷与 AgentEvent 结构兼容，只差索引签名。
+  return event as unknown as AgentEvent;
+}
 
 export interface RpcSessionStartOptions {
   toolNames?: string[];
@@ -351,13 +373,13 @@ export class AgentSessionWrapper {
           uiContext,
           mode: "rpc",
           commandContextActions: this.createExtensionCommandContextActions(),
-          shutdownHandler: () => this.emit({
+          shutdownHandler: () => this.emit(asAgentEvent({
             type: "extension_ui_request",
             id: randomUUID(),
             method: "notify",
             notifyType: "warning",
             message: "Extension requested shutdown, but shutdown is not supported in worksplice.",
-          } as ExtensionUiRequest as AgentEvent),
+          })),
           onError: (error) => this.emit({
             type: "extension_error",
             extensionPath: error.extensionPath,
@@ -454,6 +476,8 @@ export class AgentSessionWrapper {
     // Pi normally delays the first flush until an assistant message exists.
     // A leading shell command has no assistant message, so mark this SDK
     // manager as flushed after writing its own generated entries.
+    // SAFETY: `flushed` 是 SDK manager 内部的未导出状态位，用来阻止 pi 把自己再刷一遍；
+    // 这里就是“手工把这份 manager 当成已刷过”的意图，无公开接口可替代。
     (manager as unknown as { flushed: boolean }).flushed = true;
     cacheSessionPath(this.inner.sessionId, sessionFile);
   }
@@ -660,6 +684,30 @@ export class AgentSessionWrapper {
 
       case "get_last_assistant_text": {
         return { text: this.inner.getLastAssistantText() ?? "" };
+      }
+
+      case "get_last_assistant_error": {
+        // D1：pi SDK 对模型/API 报错不 reject prompt()——事件流照发 prompt_done、
+        // getLastAssistantText() 拿到空文本，真实原因只落在末条 assistant message 的
+        // stopReason/errorMessage 上。这条只读命令只是把它取出来，供 agent-loop 写进
+        // round_logs.reason（可观测面板看得见「为什么失败」）。
+        // 选取口径与 getLastAssistantText() 对齐（跳过 aborted 且无内容的条目）：
+        // 不改变后者的语义，也不影响其既有消费方。
+        // SAFETY: `AgentSessionLike` 未镜像 `messages`，但真实 AgentSession 必有（getLastAssistantText
+        // 就读它）；缺省 `?? []` 让假 inner（只读测试）走「无消息 → null」而不是抛错。
+        const messages =
+          (this.inner as unknown as { messages?: SessionMessageLike[] }).messages ?? [];
+        const lastAssistant = [...messages]
+          .reverse()
+          .find(
+            (message) =>
+              message.role === "assistant" &&
+              !(message.stopReason === "aborted" && (message.content?.length ?? 0) === 0),
+          );
+        return {
+          stopReason: lastAssistant?.stopReason ?? null,
+          errorMessage: lastAssistant?.errorMessage ?? null,
+        };
       }
 
       case "set_auto_compaction": {
@@ -877,12 +925,12 @@ export class AgentSessionWrapper {
     } catch (error) {
       lines = [`Extension custom UI render failed: ${error instanceof Error ? error.message : String(error)}`];
     }
-    const event = {
+    const event = asAgentEvent({
       type: "extension_ui_request",
       id,
       method: "custom",
       lines,
-    } as ExtensionUiRequest as AgentEvent;
+    });
     this.pendingUiRequests.set(id, event);
     this.emit(event);
   }
@@ -898,13 +946,13 @@ export class AgentSessionWrapper {
     } catch {
       // Ignore dispose errors from extension UI components.
     }
-    this.emit({
+    this.emit(asAgentEvent({
       type: "extension_ui_request",
       id,
       method: "custom",
       lines: [],
       closed: true,
-    } as ExtensionUiRequest as AgentEvent);
+    }));
     custom.resolve(value);
   }
 
@@ -1067,25 +1115,25 @@ export class AgentSessionWrapper {
         opts?.signal,
       ),
       notify: (message, type) => {
-        this.emit({
+        this.emit(asAgentEvent({
           type: "extension_ui_request",
           id: randomUUID(),
           method: "notify",
           message,
           notifyType: type,
-        } as ExtensionUiRequest as AgentEvent);
+        }));
       },
       onTerminalInput: () => () => {},
       setStatus: (key, text) => {
         if (text === undefined) this.extensionStatuses.delete(key);
         else this.extensionStatuses.set(key, text);
-        this.emit({
+        this.emit(asAgentEvent({
           type: "extension_ui_request",
           id: randomUUID(),
           method: "setStatus",
           statusKey: key,
           statusText: text,
-        } as ExtensionUiRequest as AgentEvent);
+        }));
       },
       setWorkingMessage: () => {},
       setWorkingVisible: () => {},
@@ -1102,41 +1150,41 @@ export class AgentSessionWrapper {
             placement: options?.placement ?? "aboveEditor",
           });
         }
-        this.emit({
+        this.emit(asAgentEvent({
           type: "extension_ui_request",
           id: randomUUID(),
           method: "setWidget",
           widgetKey: key,
           widgetLines: content,
           widgetPlacement: options?.placement,
-        } as ExtensionUiRequest as AgentEvent);
+        }));
       },
       setFooter: () => {},
       setHeader: () => {},
       setTitle: (title) => {
-        this.emit({
+        this.emit(asAgentEvent({
           type: "extension_ui_request",
           id: randomUUID(),
           method: "setTitle",
           title,
-        } as ExtensionUiRequest as AgentEvent);
+        }));
       },
       custom: <T = unknown>(factory: unknown, options?: unknown) => this.requestExtensionCustomUi<T>(factory, options),
       pasteToEditor: (text) => {
-        this.emit({
+        this.emit(asAgentEvent({
           type: "extension_ui_request",
           id: randomUUID(),
           method: "set_editor_text",
           text,
-        } as ExtensionUiRequest as AgentEvent);
+        }));
       },
       setEditorText: (text) => {
-        this.emit({
+        this.emit(asAgentEvent({
           type: "extension_ui_request",
           id: randomUUID(),
           method: "set_editor_text",
           text,
-        } as ExtensionUiRequest as AgentEvent);
+        }));
       },
       getEditorText: () => "",
       addAutocompleteProvider: () => {},
