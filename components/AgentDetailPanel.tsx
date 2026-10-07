@@ -421,6 +421,48 @@ interface RuntimeData {
   } | null;
 }
 
+/** 本次保存的探测结论（`lib/agent-recovery.ts` 的 RuntimeProbeSummary 的镜像）。
+ *  不落库、不做历史：只在保存的那一次交互里显示。 */
+interface RuntimeProbeSummary {
+  attempted: boolean;
+  ok?: boolean;
+  error?: string;
+  latencyMs?: number;
+  superseded?: boolean;
+}
+
+/** PATCH /api/members/[id]/runtime 的响应形态（票据 02）：agent + 本次探测结论。 */
+interface SaveRuntimeResponse {
+  probe?: RuntimeProbeSummary;
+}
+
+/**
+ * 保存 runtime 后的探测结论文案（票据 02 决策 4/9）：结论由服务端裁决，面板只负责显示——
+ * 不通过时红点保持，原因就地回这次交互；结论被更新的事件/配置接管时不冒充「已验证」。
+ */
+export function RuntimeProbeFeedback({ probe }: { probe: RuntimeProbeSummary }) {
+  const { t } = useI18n();
+  if (!probe.attempted) return null;
+  const failed = probe.ok === false;
+  const superseded = !failed && probe.superseded === true;
+  const text = failed
+    ? t("runtime.probeFailed", { message: probe.error ?? "" })
+    : superseded
+      ? t("runtime.probeSuperseded")
+      : t("runtime.probeOk");
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        color: failed ? "var(--coral)" : "var(--success, #2e8b57)",
+        marginTop: 8,
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
 /** 右栏：agent 详情面板（§3.6/§3.10/§6.5）。重置 / workspace / runtime（per-agent 模型） / 可观测性。 */
 export function AgentDetailPanel({
   agent,
@@ -463,6 +505,8 @@ export function AgentDetailPanel({
   } | null>(null);
   const [draftThinking, setDraftThinking] = useState<string | null>(null);
   const [runtimeMsg, setRuntimeMsg] = useState<string | null>(null);
+  // 本次保存的探测结论（出错状态下的恢复路径；未触发时为 null → 显示既有的 runtimeMsg）
+  const [runtimeProbe, setRuntimeProbe] = useState<RuntimeProbeSummary | null>(null);
 
   const isBusy = busyOp !== null;
 
@@ -561,8 +605,8 @@ export function AgentDetailPanel({
   const run = async (
     op: BusyOp,
     request: () => Promise<Response>,
-  ): Promise<boolean> => {
-    if (isBusy) return false;
+  ): Promise<{ ok: boolean; body: unknown }> => {
+    if (isBusy) return { ok: false, body: null };
     setBusyOp(op);
     setError(null);
     // 删除走乐观更新：确认即从侧栏移除/关面板（面板随之卸载），DELETE 后台继续。
@@ -581,13 +625,13 @@ export function AgentDetailPanel({
         await loadObservability(agent.id);
       }
       onChanged();
-      return true;
+      return { ok: true, body };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       // 面板已因乐观移除卸载时本地 setError 不生效——失败必须经 AppShell 回滚并提示。
       if (op === "delete") onDeleteFailed?.(agent.id, message);
       setError(message);
-      return false;
+      return { ok: false, body: null };
     } finally {
       setBusyOp(null);
     }
@@ -606,10 +650,12 @@ export function AgentDetailPanel({
     return () => fetch(`${base}/${suffix}`, { method: "POST" });
   };
 
-  /** §3.10 保存 per-agent runtime 覆盖：PATCH 持久化 + 存活会话立即生效。 */
+  /** §3.10 保存 per-agent runtime 覆盖：PATCH 持久化 + 存活会话立即生效。
+   *  出错状态点下服务端会对刚保存的模型做一次探测，结论随响应回来（决策 9）。 */
   const saveRuntime = async () => {
     setRuntimeMsg(null);
-    const ok = await run("runtime", () =>
+    setRuntimeProbe(null);
+    const { ok, body } = await run("runtime", () =>
       fetch(`/api/members/${encodeURIComponent(agent.id)}/runtime`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -620,16 +666,20 @@ export function AgentDetailPanel({
         }),
       }),
     );
-    if (ok) {
-      const cleared = draftModel === null && draftThinking === null;
-      setRuntimeMsg(
-        cleared
-          ? t("runtime.cleared")
-          : runtime?.live
-            ? t("runtime.savedLive")
-            : t("runtime.saved"),
-      );
+    if (!ok) return;
+    const probe = (body as SaveRuntimeResponse | null)?.probe ?? null;
+    if (probe?.attempted) {
+      setRuntimeProbe(probe);
+      return;
     }
+    const cleared = draftModel === null && draftThinking === null;
+    setRuntimeMsg(
+      cleared
+        ? t("runtime.cleared")
+        : runtime?.live
+          ? t("runtime.savedLive")
+          : t("runtime.saved"),
+    );
   };
 
   const exportUrl = obs?.session?.sessionId
@@ -842,7 +892,9 @@ export function AgentDetailPanel({
               {runtime.live.thinkingLevel ?? "—"}
             </div>
           )}
-          {runtimeMsg && (
+          {runtimeProbe ? (
+            <RuntimeProbeFeedback probe={runtimeProbe} />
+          ) : runtimeMsg ? (
             <div
               style={{
                 fontSize: 11,
@@ -852,7 +904,7 @@ export function AgentDetailPanel({
             >
               {runtimeMsg}
             </div>
-          )}
+          ) : null}
           <div
             style={{
               marginTop: 10,
