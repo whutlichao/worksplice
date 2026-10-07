@@ -9,7 +9,7 @@ const jiti = createJiti(import.meta.url, {
     jsx: { runtime: "automatic" },
     tsconfigPaths: true,
 });
-const { AgentDetailPanel } = await jiti.import("./AgentDetailPanel.tsx");
+const { AgentDetailPanel, TaskHistoryList } = await jiti.import("./AgentDetailPanel.tsx");
 const { ModelPicker } = await jiti.import("./ModelPicker.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
@@ -160,4 +160,81 @@ test("DM button click wires onOpenDM(agent.id)", async () => {
     );
     assert.match(source, /onOpenDM\(agent\.id\)/);
     assert.match(source, /MessageSquare/);
+});
+
+/**
+ * 同一 agent 在**两个 channel** 各有一个 #1 任务：listAgentTasks 聚合跨 channel 的
+ * 任务，而 number 是 channel 内序号（§3.7），所以 obs.tasks 里会有两条 number 相同
+ * 的不同任务。这正是浏览器报 “Encountered two children with the same key, `1`” 的输入形态。
+ * （参与支线——认领 owner / 锚点作者 / thread 进展者——在 panel 这一层不可见，只体现在
+ *  “哪几条任务进了列表”，故用 owner 有/无两态代表；真实形态另见 Answer 里的 live 数据实证。）
+ */
+const CROSS_CHANNEL_SAME_NUMBER_TASKS = [
+    {
+        number: 1,
+        status: "in_progress",
+        owner: { name: "bob" },
+        channelId: "chan-a",
+        anchor: { id: "anchor-a", content: "fix the duplicate key" },
+        progressCount: 0,
+    },
+    {
+        number: 1,
+        status: "todo",
+        owner: null,
+        channelId: "chan-b",
+        anchor: { id: "anchor-b", content: "write the regression test" },
+        progressCount: 2,
+    },
+];
+
+/**
+ * React 的重复 key 报警只发生在 client 渲染器（react-dom-client）里：SSR 会静默丢弃
+ * key，仓库也没有 jsdom。所以这里直接取组件真实返回的元素树，逐个父节点检查**同一父下
+ * 已给出的 key 互异**——正是 React 报警的那条不变式。
+ * （静态写死的 children 本来就没有 key，React 也不要求，所以只查重复、不查缺失；
+ *  TaskHistoryList 不用 hook，可安全地当普通函数调用。）
+ */
+function assertUniqueSiblingKeys(node, path = "TaskHistoryList") {
+    const children = Array.isArray(node) ? node : [node];
+    const elements = children.filter((child) => React.isValidElement(child));
+    const keys = elements
+        .map((el) => el.key)
+        .filter((key) => key !== null && key !== undefined);
+    const seen = new Set();
+    const duplicates = keys.filter((key) => {
+        if (seen.has(key)) return true;
+        seen.add(key);
+        return false;
+    });
+    assert.deepEqual(
+        duplicates,
+        [],
+        `duplicate sibling keys under ${path}: ${JSON.stringify(duplicates)}`,
+    );
+    for (const element of elements) {
+        assertUniqueSiblingKeys(element.props?.children, `${path}>${element.key}`);
+    }
+}
+
+test("task history rows get unique keys when two channels each hold task #1", () => {
+    const tree = TaskHistoryList({
+        tasks: CROSS_CHANNEL_SAME_NUMBER_TASKS,
+        t: (key) => key,
+    });
+    assertUniqueSiblingKeys(tree);
+});
+
+test("task history renders both same-number tasks from different channels", () => {
+    const html = renderWith(
+        React.createElement(TaskHistoryList, {
+            tasks: CROSS_CHANNEL_SAME_NUMBER_TASKS,
+            t: (key) => key,
+        }),
+    );
+    // 两行都在，且各自的 #1 / 摘要 / 状态都是自己的
+    assert.match(html, /fix the duplicate key/);
+    assert.match(html, /write the regression test/);
+    assert.match(html, /task\.status\.in_progress/);
+    assert.match(html, /task\.status\.todo/);
 });

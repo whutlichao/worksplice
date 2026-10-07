@@ -238,6 +238,78 @@ interface ObservabilityData {
   };
 }
 
+/**
+ * 任务历史行列表（§6.5）：纯展示——数据与 i18n 由调用方传入。
+ * 拆出来是为了让 node 侧测试能直接拿到真实元素树断言 React key 唯一性
+ * （SSR 渲染丢弃 key，且仓库无 jsdom，详见测试注释）。
+ */
+export function TaskHistoryList({
+  tasks,
+  t,
+}: {
+  tasks: ObservabilityData["tasks"];
+  t: (key: string) => string;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {tasks.map((task) => (
+        <div
+          /* key 用锚点消息 id：number 是 channel 内序号（§3.7），跨 channel 会重号，
+             而 tasks.message_id UNIQUE ⇒ 锚点 id 全局唯一。 */
+          key={task.anchor.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "6px 8px",
+            border: `2px solid ${INK}`,
+            background: "var(--bg-panel)",
+            fontSize: 12,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-space-mono)",
+              fontWeight: 700,
+              background: "var(--yellow)",
+              border: `2px solid ${INK}`,
+              padding: "1px 5px",
+              fontSize: 11,
+              flexShrink: 0,
+            }}
+          >
+            #{task.number}
+          </span>
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {task.anchor.content}
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-space-mono)",
+              fontSize: 10,
+              padding: "1px 5px",
+              border: `2px solid ${INK}`,
+              background:
+                task.status === "done" ? "var(--success, #a9d877)" : "#ffffff",
+              flexShrink: 0,
+            }}
+          >
+            {t(TASK_STATUS_KEY[task.status])}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface RuntimeData {
   configured: {
     provider: string | null;
@@ -831,64 +903,7 @@ export function AgentDetailPanel({
                   {t("observability.tasksEmpty")}
                 </div>
               ) : (
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
-                >
-                  {obs.tasks.map((task) => (
-                    <div
-                      key={task.number}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 8px",
-                        border: `2px solid ${INK}`,
-                        background: "var(--bg-panel)",
-                        fontSize: 12,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: "var(--font-space-mono)",
-                          fontWeight: 700,
-                          background: "var(--yellow)",
-                          border: `2px solid ${INK}`,
-                          padding: "1px 5px",
-                          fontSize: 11,
-                          flexShrink: 0,
-                        }}
-                      >
-                        #{task.number}
-                      </span>
-                      <span
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {task.anchor.content}
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-space-mono)",
-                          fontSize: 10,
-                          padding: "1px 5px",
-                          border: `2px solid ${INK}`,
-                          background:
-                            task.status === "done"
-                              ? "var(--success, #a9d877)"
-                              : "#ffffff",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {t(TASK_STATUS_KEY[task.status])}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <TaskHistoryList tasks={obs.tasks} t={t} />
               )}
               <div style={{ marginTop: 12, fontWeight: 700, fontSize: 12 }}>
                 {t("observability.timeline")}
