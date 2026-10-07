@@ -2,27 +2,23 @@ import { NextResponse } from "next/server";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { completeSimple, type AssistantMessage } from "@earendil-works/pi-ai/compat";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import {
+  missingProbeCredentialsError,
+  probeCredentialsFrom,
+  probeErrorMessage,
+  runModelProbe,
+} from "@/lib/model-probe";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 
 export const dynamic = "force-dynamic";
 
-const TEST_TIMEOUT_MS = 20_000;
+// 探测的常量与结论语义（maxTokens 16 / maxRetries 0 / 20s 超时 / ok-error-latencyMs-status）
+// 只有一份实现：lib/model-probe.ts（与恢复探测共用）。本路由负责的只是输入形态：
+// 「未保存的配置 + 临时 models.json」，行为与抽内核之前逐字一致。
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function getAssistantText(message: AssistantMessage): string {
-  return message.content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("");
 }
 
 export async function POST(req: Request) {
@@ -67,54 +63,17 @@ export async function POST(req: Request) {
     if (!model) return NextResponse.json({ ok: false, error: `Model not found: ${providerName}/${modelId}` });
 
     const resolved = await modelRuntime.getAuth(model);
-    if (!resolved?.auth.apiKey) {
-      return NextResponse.json({ ok: false, error: `No API key found for "${providerName}"` });
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT_MS);
-    let status: number | undefined;
-    const startedAt = Date.now();
-
-    try {
-      const message = await completeSimple(model, {
-        messages: [{
-          role: "user",
-          content: "Reply with OK only.",
-          timestamp: Date.now(),
-        }],
-      }, {
-        apiKey: resolved.auth.apiKey,
-        headers: resolved.auth.headers,
-        maxTokens: 16,
-        timeoutMs: TEST_TIMEOUT_MS,
-        maxRetries: 0,
-        cacheRetention: "none",
-        signal: controller.signal,
-        onResponse: (response) => { status = response.status; },
-      });
-
-      const latencyMs = Date.now() - startedAt;
-      if (message.stopReason === "error" || message.stopReason === "aborted") {
-        return NextResponse.json({
-          ok: false,
-          error: message.errorMessage ?? (controller.signal.aborted ? "Test timed out" : "Model returned an error"),
-          latencyMs,
-          status,
-        });
-      }
-
+    const credentials = probeCredentialsFrom(resolved?.auth);
+    if (!credentials) {
       return NextResponse.json({
-        ok: true,
-        latencyMs,
-        status,
-        responseText: getAssistantText(message).slice(0, 300),
+        ok: false,
+        error: missingProbeCredentialsError(providerName),
       });
-    } finally {
-      clearTimeout(timeout);
     }
+
+    return NextResponse.json(await runModelProbe(model, credentials));
   } catch (error) {
-    return NextResponse.json({ ok: false, error: errorMessage(error) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: probeErrorMessage(error) }, { status: 500 });
   } finally {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   }

@@ -9,7 +9,12 @@ const jiti = createJiti(import.meta.url, {
     jsx: { runtime: "automatic" },
     tsconfigPaths: true,
 });
-const { AgentDetailPanel, TaskHistoryList, RoundLogsList } = await jiti.import("./AgentDetailPanel.tsx");
+const {
+    AgentDetailPanel,
+    TaskHistoryList,
+    RoundLogsList,
+    RuntimeProbeFeedback,
+} = await jiti.import("./AgentDetailPanel.tsx");
 const { ModelPicker } = await jiti.import("./ModelPicker.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
@@ -223,6 +228,59 @@ test("task history rows get unique keys when two channels each hold task #1", ()
         t: (key) => key,
     });
     assertUniqueSiblingKeys(tree);
+});
+
+// ── §3.10 runtime 保存后的探测结论（票据 02）─────────────────────────────
+// 判定层由服务端裁决；面板只负责把结论渲染到既有消息槽（复用同一组件，测试渲染产品自己的 markup）。
+
+function renderProbeFeedback(probe) {
+    return renderWith(React.createElement(RuntimeProbeFeedback, { probe }));
+}
+
+test("runtime probe feedback renders the verified verdict copy", () => {
+    const html = renderProbeFeedback({ attempted: true, ok: true, latencyMs: 12 });
+    assert.match(html, /connection verified/i);
+    assert.doesNotMatch(html, /probe failed/i);
+});
+
+test("runtime probe feedback renders the failure copy with the reason", () => {
+    const html = renderProbeFeedback({
+        attempted: true,
+        ok: false,
+        error: "402 insufficient quota",
+    });
+    assert.match(html, /probe failed/i);
+    assert.match(html, /402 insufficient quota/);
+});
+
+test("runtime probe feedback marks a superseded verdict instead of claiming a status change", () => {
+    const html = renderProbeFeedback({ attempted: true, ok: true, superseded: true });
+    assert.match(html, /superseded/i);
+    assert.doesNotMatch(html, /connection verified/i);
+});
+
+test("runtime probe feedback renders nothing when the save did not probe", () => {
+    assert.equal(renderProbeFeedback({ attempted: false }), "");
+});
+
+test("panel markup without a probe verdict stays as before", () => {
+    const html = renderPanel(AGENT);
+    assert.doesNotMatch(html, /connection verified/i);
+    assert.doesNotMatch(html, /probe failed/i);
+    assert.doesNotMatch(html, /superseded/i);
+});
+
+test("probe verdict copy exists in both language packs", async () => {
+    const { enLocale } = await import("../lib/i18n/messages/en.ts");
+    const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
+    for (const key of [
+        "runtime.probeOk",
+        "runtime.probeFailed",
+        "runtime.probeSuperseded",
+    ]) {
+        assert.ok(enLocale.messages[key], `en missing ${key}`);
+        assert.ok(zhCNLocale.messages[key], `zh-CN missing ${key}`);
+    }
 });
 
 test("task history renders both same-number tasks from different channels", () => {

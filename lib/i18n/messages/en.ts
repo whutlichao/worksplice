@@ -674,6 +674,10 @@ export const enLocale: LocalePlugin = {
       "Bind a workspace first — the runtime config is applied when the session starts.",
     "runtime.onlyThinking":
       "Thinking override only — model inherits the global default.",
+    "runtime.probeOk": "Applied — connection verified",
+    "runtime.probeFailed": "Applied — probe failed: {message}",
+    "runtime.probeSuperseded":
+      "Applied — probe superseded by a newer change",
     "observability.tokensCost": "Tokens / cost",
     "observability.taskHistory": "Task history",
     "observability.export": "Session export",

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getAgent, setAgentRuntimeConfig, AgentNotFoundError } from "@/lib/domain/collab";
+import { getAgent, AgentNotFoundError } from "@/lib/domain/collab";
 import { getAgentRuntime } from "@/lib/agent-runtime";
+import { saveAgentRuntime } from "@/lib/agent-recovery";
 
 // GET /api/members/[id]/runtime — per-agent runtime 配置（§3.10）：
 // configured = 持久化的覆盖（null = 继承全局默认）；live = 存活会话的实际状态。
@@ -55,54 +56,29 @@ export async function GET(
 // PATCH /api/members/[id]/runtime — body: { provider?, modelId?, thinkingLevel? }
 // 设置 per-agent 模型/provider/thinking 覆盖（null 清空回全局默认）。
 // 存活会话立即应用（set_model / set_thinking_level），否则下次启动生效。
+//
+// 出错状态点的恢复路径（票据 02）：保存后存在具体覆盖对、且保存前该成员处于 error 时，
+// 服务层对刚保存的模型做一次最小连通性探测并按其结论收敛状态点——探测不落会话、
+// 不进会话历史、不唤醒 agent-loop、不写 round_logs；结论（含失败原因）只随本次响应返回。
+// 判定、串行与发布全部在 lib/agent-recovery.ts（本路由不内联任何探测逻辑）。
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const agent = getAgent(id);
     const body = (await request.json().catch(() => ({}))) as {
       provider?: unknown;
       modelId?: unknown;
       thinkingLevel?: unknown;
     };
 
-    // undefined = 不更新该维度；null = 清空回全局默认；空串按 null 处理。
-    const provider = body.provider === undefined
-      ? undefined
-      : typeof body.provider === "string" && body.provider.trim()
-        ? body.provider.trim()
-        : null;
-    const modelId = body.modelId === undefined
-      ? undefined
-      : typeof body.modelId === "string" && body.modelId.trim()
-        ? body.modelId.trim()
-        : null;
-    const thinkingLevel = body.thinkingLevel === undefined
-      ? undefined
-      : typeof body.thinkingLevel === "string" && body.thinkingLevel.trim()
-        ? body.thinkingLevel.trim()
-        : null;
-
-    // 先应用到存活会话（校验失败不持久化），再持久化覆盖配置。
-    const rt = await getAgentRuntime();
-    const wrapper = rt.findSession(agent);
-    if (wrapper?.isAlive()) {
-      if (provider !== undefined && modelId !== undefined && provider !== null && modelId !== null) {
-        await wrapper.send({ type: "set_model", provider, modelId });
-      }
-      if (thinkingLevel !== undefined && thinkingLevel !== null) {
-        await wrapper.send({ type: "set_thinking_level", level: thinkingLevel });
-      }
-    }
-
-    const updated = setAgentRuntimeConfig(id, {
-      modelProvider: provider,
-      modelId,
-      thinkingLevel,
+    const result = await saveAgentRuntime(id, {
+      provider: body.provider,
+      modelId: body.modelId,
+      thinkingLevel: body.thinkingLevel,
     });
-    return NextResponse.json({ agent: updated });
+    return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const status = error instanceof AgentNotFoundError ? 404 : 400;
