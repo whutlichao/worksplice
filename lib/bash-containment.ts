@@ -68,8 +68,6 @@ export interface BashSandboxPlan {
   surfaces: BashSandboxSurfaces;
   dataDir: string;
   homeDir: string;
-  /** 实际被封的端口（随计划持有，展示层与诊断共用同一份事实）。 */
-  blockedPorts: number[];
 }
 
 export interface BashSandboxPlanInput {
@@ -126,22 +124,7 @@ export function detectBashSandbox(): BashSandboxResolution {
   return resolveBashSandbox({ platform: process.platform, fileExists: (candidate) => fs.existsSync(candidate) });
 }
 
-/**
- * worksplice 自己监听的端口（ADR-0013 决策五第 ③ 环「成员 → 本端口关闭」的输入）。
- *
- * **推导，不硬编码**：源是 `process.env.PORT`，而 `PORT` 由 Next 在 `listening` 事件里写成
- * **真实绑定**的那个端口（`next/dist/server/lib/start-server.js:296`；dev 下请求端口被占时
- * Next 自动改端口，写进去的也是改过的那个）。所以人类 `npm run dev`、`npx worksplice`、
- * `npx worksplice -p 4041`、`PORT=4041 npx worksplice`、以及四条 npm 脚本，全都跟着实例走。
- * 仓库里读同一个变量的地方是 `instrumentation.ts` 的启动门与 `lib/access-gate.ts`（人类面准入闸）——
- * 同一事实的三个消费者，注入面各自不同（那两处的 `port` 参数可注入，本函数只吃 env）。
- *
- * **为什么不能硬编码**：实测教训——某成员的速查里记的 base URL 是 `30141`，实际监听 `30142`，
- * 而 `30141`/`30143` 都没监听。端口是**每个实例**的事实，不是仓库的常量。
- *
- * **推导不出来就是推导不出来**（`ports: []` + 可读原因）：调用方据此 fail-closed（不激活 bash），
- * 本函数**不**退回「不封」——不封等于洞开着。
- */
+/** worksplice 自己监听的端口（ADR-0013 决策五第 ③ 环「成员 → 本端口关闭」的输入）。 */
 export interface WorksplicePortResolution {
   /** 实际监听端口（升序去重）；空数组 = 推导不出，走 fail-closed 分支。 */
   ports: number[];
@@ -149,6 +132,25 @@ export interface WorksplicePortResolution {
   reason?: string;
 }
 
+/**
+ * 从服务进程推导 worksplice 自己监听的端口。
+ *
+ * **推导，不硬编码**：源是 `process.env.PORT`，而 `PORT` 由 Next 在 `listening` 事件里写成
+ * **真实绑定**的那个端口（`next/dist/server/lib/start-server.js:296`；dev 下请求端口被占时
+ * Next 自动改端口，写进去的也是改过的那个）。所以 `npm run dev`、`npx worksplice`、
+ * `npx worksplice -p 4041`、`PORT=4041 npx worksplice`、以及四条 npm 脚本，全都跟着实例走。
+ *
+ * 仓库里读同一个变量的地方共三处，各有各的理由，**都不适合拿来当本函数的兜底**：
+ * `bin/worksplice-options.js:25`（启动参数解析，持默认 `30142`——回退它等于把端口硬编码回来，
+ * 正是本函数要避免的）、`instrumentation.ts` 的启动门（要轮询等待 Next 写入）、
+ * `lib/access-gate.ts` 的准入闸（宽松解析，未知返回 `unknown` 让请求门兜着）。
+ *
+ * **为什么不能硬编码**：实测教训——某成员的速查里记的 base URL 是 `30141`，实际监听 `30142`，
+ * 而 `30141`/`30143` 都没监听。端口是**每个实例**的事实，不是仓库的常量。
+ *
+ * **推导不出来就是推导不出来**（`ports: []` + 可读原因）：调用方据此 fail-closed（不激活 bash），
+ * 本函数**不**退回「不封」——不封等于洞开着。
+ */
 export function resolveWorksplicePorts(env: NodeJS.ProcessEnv = process.env): WorksplicePortResolution {
   const raw = env.PORT;
   const port = parsePort(raw);
@@ -164,7 +166,12 @@ export function resolveWorksplicePorts(env: NodeJS.ProcessEnv = process.env): Wo
     : { ports: [port] };
 }
 
-/** `PORT` → 端口号。严格到「宁可不认」：非整数、非 1..65535 一律 null（交给 fail-closed，不猜）。 */
+/**
+ * `PORT` → 端口号。**刻意比别处更严**：这是本模块第三份端口解析（另两份在
+ * `bin/worksplice-options.js` 的启动参数与 `lib/access-gate.ts` 的准入闸），但它们的宽松语义不能搬来：
+ * 启动参数解析错时 Next 自己会报错，准入闸错时还有请求门兜着，而这里错一次就是「封错端口」或
+ * 「没封端口」——后者直接是洞开着。所以非整数、非 1..65535 一律 null，交给 fail-closed，不猜。
+ */
 function parsePort(raw: string | undefined): number | null {
   const trimmed = String(raw ?? "").trim();
   if (!/^\d+$/.test(trimmed)) return null;
@@ -246,7 +253,6 @@ export function planBashSandbox(scope: PathGuardScope, input: BashSandboxPlanInp
     surfaces,
     dataDir: scope.dataDir,
     homeDir: scope.homeDir,
-    blockedPorts: [...(input.blockedPorts ?? [])],
     profile: sandboxExecProfile({
       surfaces,
       dataDir: scope.dataDir,
@@ -443,13 +449,16 @@ export function containmentStatus(resolution: BashSandboxResolution): BashContai
 
 /**
  * 注册期就带在工具描述里的边界（ADR-0012 决策四「边界先于撞墙」）：
- * 模型在动手之前就知道自己的允许根与越界的失败形态；平台没有沙箱时，同一段文本说明
- * 「bash 未激活」以及原因（决策五：不允许静默不一致）。
+ * 模型在动手之前就知道自己的允许根、封掉的 worksplice 端口与越界的失败形态；平台没有沙箱
+ * （或机制封不了单个端口）时，同一段文本说明「bash 未激活」以及原因（决策五：不允许静默不一致）。
+ *
+ * `ports` **必填**（推导失败时传空数组的 resolution）：可选参数会允许调用方静默漏掉端口那一句，
+ * 而那一句正是「边界先于撞墙」的一部分——漏传不报错，只让模型白撞几轮墙。
  */
 export function bashBoundaryText(
   scope: PathGuardScope,
   resolution: BashSandboxResolution,
-  ports?: WorksplicePortResolution,
+  ports: WorksplicePortResolution,
 ): string {
   const mechanism = resolution.sandbox
     ? `this shell runs inside an allow-only OS sandbox (${resolution.sandbox.kind})`
@@ -460,7 +469,7 @@ export function bashBoundaryText(
     : `Every command is refused instead of being run unconfined; do not retry the tool expecting it to work.`;
   // 端口规则也进边界文本（决策四「边界先于撞墙」）：成员 curl app 端口会被内核拒绝，
   // 那条未沙箱的执行入口对它是关着的——与其让它一轮轮撞墙，不如注册期就说清。
-  const portRule = ports && ports.ports.length > 0
+  const portRule = ports.ports.length > 0
     ? `worksplice's own HTTP port (${ports.ports.join(", ")}) is unreachable from this shell too — the ` +
       `kernel refuses the connection, so reaching worksplice over HTTP is not a workaround for anything ` +
       `here; act through your reply actions instead.`

@@ -87,8 +87,6 @@ export interface ContainedBash {
   scope: PathGuardScope;
   /** **有效**结论：两个前提（机制 + 端口推导）合取后的结果（`gateBashSandbox`）。 */
   resolution: BashSandboxResolution;
-  /** 本进程实际监听、被封在沙箱外的 worksplice 端口。 */
-  ports: WorksplicePortResolution;
   plan: BashSandboxPlan;
   /** 注册期就写进工具描述的边界文本（决策四：边界先于撞墙）。 */
   boundary: string;
@@ -120,7 +118,7 @@ export function createContainedBash(scope: PathGuardScope, deps: BashContainment
   });
   const operations: BashOperations = {
     exec: (command, cwd, options) => {
-      const contained: ContainedBash = { scope, resolution, ports, plan, boundary, operations };
+      const contained: ContainedBash = { scope, resolution, plan, boundary, operations };
       return execInSandbox({ command, cwd, options, contained });
     },
   };
@@ -128,7 +126,6 @@ export function createContainedBash(scope: PathGuardScope, deps: BashContainment
   return {
     scope,
     resolution,
-    ports,
     plan,
     boundary,
     ...(deps.shellPath ? { shellPath: deps.shellPath } : {}),
