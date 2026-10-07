@@ -55,6 +55,7 @@ import {
   type MemberOpOutcome,
   type RawMemberOp,
 } from "./member-ops.ts";
+import { parseRepairedReply } from "./json-prologue.ts";
 
 /**
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
@@ -209,6 +210,13 @@ export function parseAgentAction(text: string): AgentAction {
         // 提取出的候选仍是坏 JSON：按明文处理
       }
     }
+  }
+  // 序言修复（reply-json-leak）：模型偶发把 `{"` 输出成 `","` / `,"`，上面两档都救不回来
+  // （坏序言之后没有 `{`，提取器找不到对象开头）。命中已实证形态 + 协议形状校验通过才补这一档，
+  // 结果直接合流进下面的 `if (parsed)`——content/onConflict/task/ops 的提取与校验一处不改，
+  // 行为与「直接 parse 成功」完全一致；校验不过则维持现状走兜底。
+  if (!parsed) {
+    parsed = parseRepairedReply(cleaned)?.value ?? null;
   }
   if (parsed) {
     const action: AgentAction["action"] =
