@@ -287,4 +287,28 @@ fail-closed 三分支与 ADR-0013 决策二一致；**「looks implemented but w
 
 ### 9. PR
 
-<!-- PR -->
+**https://github.com/whutlichao/worksplice/pull/103**（`whutlichao/fix-edge-instrumentation-warnings`
+→ `main`，提交 `a0fa4d6` + `5344833`，正文引用 `Closes #101`）。
+
+### 10. 票据 Status 流转说明
+
+仓库的 issue 追踪约定（`docs/agents/issue-tracker.md`）是「Status 记录在每个 issue 文件顶部」
+——本文件的 `Status:` 已由 `in-progress` 置为 `resolved`，这是本票的溯源正本。
+GitHub #101 侧：仓库既有的 label 词表里**没有** `in-progress`（只有 `bug` / `ready-for-agent`），
+所以没有发明新 label；按 GitHub 惯例由 PR #103 的 `Closes #101` 在合入时关闭 issue。
+
+### 11. 证据文件清单
+
+`.scratch/edge-instrumentation-warnings/evidence/`：
+
+| 文件 | 是什么 |
+| --- | --- |
+| `repro.sh` | 红绿两遍的同一份反馈回路（`npm run dev -- -p <port>`） |
+| `red-dev.log`（190 行）/ `red-verdict.txt` | 必红：`edge-warning-count=10` |
+| `green-dev.log` / `green-verdict.txt` | 必绿：`edge-warning-count=0` |
+| `red-startup-test.txt` / `green-startup-test.txt` | 源码级断言的红（3/6 失败）与绿（6/6） |
+| `gate-nonloopback-refuses.log` | 行为未变 (a)：非 loopback 无密码实测拒服 |
+| `gate-nonloopback-with-password.log` | 行为未变 (b)：配密码 200 / 401 |
+| `baseline-lint.txt` / `green-lint.txt` | 增量对照（逐行一致） |
+| `baseline-tsc.txt` / `green-tsc.txt` | `tsc --noEmit` 退出码 0 |
+| `full-suite.txt` | 全量套件两次摘要（1073 → 1079，0 失败） |
