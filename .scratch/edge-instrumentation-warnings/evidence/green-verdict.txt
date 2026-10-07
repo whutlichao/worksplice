@@ -10,9 +10,9 @@ edge-warning-count=0
 ▲ Next.js 16.2.12 (Turbopack)
 - Local:         http://127.0.0.1:30199
 - Network:       http://127.0.0.1:30199
-✓ Ready in 372ms
+✓ Ready in 376ms
 
- GET / 200 in 518ms (next.js: 52ms, proxy.ts: 84ms, application-code: 383ms)
- GET /api/sessions 200 in 1930ms (next.js: 54ms, proxy.ts: 2ms, application-code: 1874ms)
+ GET / 200 in 490ms (next.js: 46ms, proxy.ts: 78ms, application-code: 366ms)
+ GET /api/sessions 200 in 2.1s (next.js: 39ms, proxy.ts: 2ms, application-code: 2.0s)
 [?25h
 ==============================================
