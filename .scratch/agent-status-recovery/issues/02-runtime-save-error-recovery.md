@@ -230,3 +230,46 @@ lib/domain/collab/observability-route.test.mjs |  15 +-   （断言随接缝搬�
 4. **没动清空语义缺口**（spec Out of Scope 点名的那张票）：本设计不掩盖它——清空覆盖不触发探测，红点仍在。
 5. **没做第五态 / 乐观清错 / 手动验证入口 / 自动重试 / 会话预热**（Out of Scope 逐条）。
 
+---
+
+### rebase 复跑（origin/main 合入 #107 后）
+
+**背景：** PR #108 一度 `CONFLICTING`——origin/main 已合入 `aacf7e9`
+（`fix(observability): 轮次失败原因可见 + 面板字段映射修正（D1/D2/D3） (#107)`），与本票在 4 个文件上两边都改过。
+**新固定点：** `aacf7e9`（旧：`23a2dfe`）。
+
+**按意图解冲突（两边意图不互斥，四文件最终都同时保留）：**
+
+| 文件 | 两侧意图 | 解法 |
+| --- | --- | --- |
+| `app/api/members/[id]/runtime/route.ts` | 本票：PATCH 收为薄封装（service 承载持久化 + 探测）；#107 D3：GET 把 `get_state` 的 `{id, provider}` 映射成 `{provider, modelId}` | 取本票的 PATCH + #107 的 GET——两者在不同函数，落盘后逐行核对：`live.model` 的映射与类型（`{id, provider}` 入、`{provider, modelId}` 出）与 `saveAgentRuntime` 的薄封装同时在位 |
+| `components/AgentDetailPanel.tsx` | 本票：`RuntimeProbeFeedback` + `runtimeProbe` 消息槽 + `run()` 回传播荷；#107 D2：`formatTime` 非法日期回落 `—` + 轮次列表抽成 `RoundLogsList` | 二者并存：`formatTime` 为 #107 版，`RoundLogsList` 与 `RuntimeProbeFeedback` 同文件导出，消息槽（runtime 卡片）与轮次渲染（可观测性段）互不相干 |
+| `components/AgentDetailPanel.test.mjs` | 同一行解构各加一个导出（`RoundLogsList` / `RuntimeProbeFeedback`） | **唯一真冲突**：取并集（四条导出 + 两个自持的新用例块）。#107 的 `round log rows …` / `formatTime …` 用例与本票六条 probe 用例在落盘后逐一核对均在 |
+| `lib/domain/collab/observability-route.test.mjs` | 本票：PATCH 断言从 route 迁到 service（跨 route → service 两段）；#107：新增 D3 载荷测试（真跑 GET handler + 假存活会话） | 二者并存：`PATCH /api/members/[id]/runtime persists …` 为本票版，`runtime and observability payloads carry the live session's real modelId (D3)` 为 #107 版 |
+
+**未 invent 任何新行为**：无一行超出「两边改动并集」；未顺手改无关代码；未 `--abort`。
+
+**rebase 后门禁复跑（全在本 worktree，rebase 后）：**
+
+```text
+$ npm test
+ℹ tests 1124   ℹ pass 1124   ℹ fail 0    （与 rebase 前 1116 相比 +8 = #107 带来的用例）
+$ node_modules/.bin/tsc --noEmit
+(exit 0)
+$ node_modules/.bin/eslint <本票 11 个改动文件>
+(exit 0，0 问题)
+$ git status --porcelain
+（空）
+```
+
+**提交与推送：**
+
+```text
+ad9b9e2  feat(agent-status): 出错状态点保存 runtime 后的模型探测与状态收敛   ← rebase 后的实现提交（旧 d90173b）
+8e9a051  docs(agent-status-recovery): 票据 02 Answer 回填 PR 号 (#108)      ← 旧 20406e6
+$ git push --force-with-lease   →   20406e6...8e9a051 (forced update)
+$ gh pr view 108 --json mergeable   →   mergeable=MERGEABLE  state=CLEAN  head=8e9a051
+```
+
+本节自身由该分支 tip 上的收尾提交落盘（`git log --oneline -1` 即它）。
+
