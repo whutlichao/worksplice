@@ -1,0 +1,14 @@
+✔ instrumentation 顶层不出现任何静态 import（类型 import 除外：编译期擦除，edge 看不见） (1.3415ms)
+✔ instrumentation 不静态引用任何 node: 内置模块 (0.2175ms)
+✔ instrumentation 文件体不含 process.exit（它必须待在守卫之后动态 import 的模块里） (0.096208ms)
+✔ 准入闸的动态 import 排在 NEXT_RUNTIME 守卫之后（守卫在前 = 只有 node 才可能走到它） (0.094208ms)
+✔ 启动闸模块仍是 fail-closed 的三分支（端口未知 / 还没 listening / closed 退出） (0.1305ms)
+✔ 启动闸从判定层取结论，判定层不反向依赖它（职责分层且不成环） (0.199625ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.856708

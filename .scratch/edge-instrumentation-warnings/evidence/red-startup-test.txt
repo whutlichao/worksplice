@@ -1,0 +1,90 @@
+✖ instrumentation 顶层不出现任何静态 import（类型 import 除外：编译期擦除，edge 看不见） (1.861333ms)
+✔ instrumentation 不静态引用任何 node: 内置模块 (0.418666ms)
+✖ instrumentation 文件体不含 process.exit（它必须待在守卫之后动态 import 的模块里） (0.314292ms)
+✖ 准入闸的动态 import 排在 NEXT_RUNTIME 守卫之后（守卫在前 = 只有 node 才可能走到它） (0.120209ms)
+✔ 启动闸模块仍是 fail-closed 的三分支（端口未知 / 还没 listening / closed 退出） (0.123083ms)
+✔ 启动闸从判定层取结论，判定层不反向依赖它（职责分层且不成环） (0.257792ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 3
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 70.584917
+
+✖ failing tests:
+
+test at lib/access-gate-startup.test.mjs:46:1
+✖ instrumentation 顶层不出现任何静态 import（类型 import 除外：编译期擦除，edge 看不见） (1.861333ms)
+  AssertionError [ERR_ASSERTION]: 顶层静态 import 会把 Node 内置拖进 edge 编译（issue #101）。要用的东西一律放进 register() 守卫之后的 await import(...)。命中行：
+    import {
+  + actual - expected
+  
+  + [
+  +   [
+  +     12,
+  +     'import {'
+  +   ]
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/fix-edge-instrumentation-warnings/lib/access-gate-startup.test.mjs:52:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.start (node:internal/test_runner/test:1003:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 12, 'import {' ] ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at lib/access-gate-startup.test.mjs:75:1
+✖ instrumentation 文件体不含 process.exit（它必须待在守卫之后动态 import 的模块里） (0.314292ms)
+  AssertionError [ERR_ASSERTION]: process.exit 写在 instrumentation 的文件体里，edge 那遍编译照样看得见（与 import 链无关）。命中行：
+        process.exit(1);
+  + actual - expected
+  
+  + [
+  +   [
+  +     53,
+  +     '    process.exit(1);'
+  +   ]
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/fix-edge-instrumentation-warnings/lib/access-gate-startup.test.mjs:78:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 53, '    process.exit(1);' ] ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at lib/access-gate-startup.test.mjs:86:1
+✖ 准入闸的动态 import 排在 NEXT_RUNTIME 守卫之后（守卫在前 = 只有 node 才可能走到它） (0.120209ms)
+  AssertionError [ERR_ASSERTION]: instrumentation 找不到准入闸的动态 import（应写成 await import("@/lib/access-gate-startup")）
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/fix-edge-instrumentation-warnings/lib/access-gate-startup.test.mjs:91:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

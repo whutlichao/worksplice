@@ -1,0 +1,10 @@
+
+> worksplice@0.1.0 dev:lan
+> next dev -H 0.0.0.0 -p 30142 -p 30198
+
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://localhost:30198
+- Network:       http://0.0.0.0:30198
+✓ Ready in 286ms
+[worksplice] worksplice is listening on a non-loopback address without WORKSPLICE_PASSWORD and refuses to serve (fail-closed). Set WORKSPLICE_PASSWORD to allow remote access, or bind to 127.0.0.1 (the default) and restart.
+[?25h
