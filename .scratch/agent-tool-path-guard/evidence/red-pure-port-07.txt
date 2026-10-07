@@ -1,0 +1,14 @@
+# RED · lib/bash-containment.test.mjs · 票 07 第一轮（端口推导 + profile 规则）
+# 命令: node --test --test-timeout=60000 lib/bash-containment.test.mjs
+# 预期: 新增 3 条断言红（resolveWorksplicePorts 未实现 / profile 无按端口 deny / 空列表仍放开网络）
+
+✖ 封的端口来自服务进程实际监听的那个（Next 在 listening 里写进 PORT），不是硬编码常量 (0.5475ms)
+✖ profile 只封这一个端口：出网照常（allow network* 保留），同机其它 loopback 不动 (2.212666ms)
+✖ 推导不出端口时 profile 整体封死网络面——不是静默放开 (2.04575ms)
+ℹ tests 16
+ℹ pass 13
+ℹ fail 3
+✖ failing tests:
+✖ 封的端口来自服务进程实际监听的那个（Next 在 listening 里写进 PORT），不是硬编码常量 (0.5475ms)
+✖ profile 只封这一个端口：出网照常（allow network* 保留），同机其它 loopback 不动 (2.212666ms)
+✖ 推导不出端口时 profile 整体封死网络面——不是静默放开 (2.04575ms)

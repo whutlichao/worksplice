@@ -234,8 +234,11 @@ lib/
                       六个文件工具的同名覆盖定义（全部由 pi 的 factory 造，守卫只换 operations）
                       + `extensionFactories` 接缝外壳（与 forced-empty-system-prompt 同一条缝）
   bash-containment.ts 沙箱的判定层（ADR-0012）：平台适配（macOS sandbox-exec / Linux bwrap /
-                      其余 fail-closed）、allow-only profile 与 bwrap bind 清单（由允许根派生，
-                      与路径守卫同一份判定）、`WORKSPLICE_*` env 收口、EPERM/exit 134 可读归因
+                      其余 fail-closed）+ 机制能否按端口过滤（`BashSandbox.canFilterPort`）、
+                      allow-only profile 与 bwrap bind 清单（由允许根派生，与路径守卫同一份判定）、
+                      worksplice 自身端口的推导（`resolveWorksplicePorts` 读 Next 写入的 `PORT`）
+                      与按端口 deny、两个前提的合取（`gateBashSandbox`）、`WORKSPLICE_*` env 收口、
+                      EPERM/exit 134 可读归因
   bash-containment-extension.ts
                       pi 侧装配：bash 同名覆盖定义（描述带允许根）＋ 工具面与 RPC 面共用的 sandboxed
                       operations（自建 spawn，镜像 pi 的进程监督语义）
@@ -399,6 +402,17 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
   可读文本注进输出流；允许根另写进**注册期的工具描述**（边界先于撞墙）。不静默改写、不静默截断。
 - **平台 fail-closed**：macOS `sandbox-exec`（实测）；Linux `bwrap`（生成有实现、**本机未验证**）；
   Windows 无对应物 → bash 拒绝执行且描述说明原因。
+- **成员连不上 worksplice 自己的端口**（ticket 07，ADR-0013 决策五第 ③ 环）：profile 保留
+  `(allow network*)`（**不能封死出网**：成员要能 `npm install`、拉依赖、访问外部服务），追加一条
+  `(deny network* (remote ip "*:<port>"))` —— 只封这一个端口，同机其它 loopback 不动。**端口推导不硬编码**：
+  源是 `process.env.PORT`，由 Next 在 `listening` 事件里写成**真实绑定**的端口（dev 端口被占自动改端口
+  也写进去），所以 `-p` / `PORT=` / 四条 npm 脚本全都跟着实例走。
+  **⚠️ 两个后来者必知的坑**：① **推导不出端口 ⇒ 不激活成员 bash**（决策五同款 fail-closed），
+  绝不退化成「不封端口的沙箱」——不封等于 `POST /api/agent/[id]` 的 `{"type":"bash"}` 对成员敞开；
+  `blockedPorts` 为空时 profile 写 `(deny network*)` 整体封死而不是放开。
+  ② **Linux 上成员 bash 一律不激活**：bwrap 只有 `--share-net` / `--unshare-net` 两档、封不了单个端口，
+  而 `--unshare-net` 会连出网一起封死；「矩阵说可用」≠「有效结论可用」，判据是 `gateBashSandbox`
+  的两个前提（拿得到沙箱 ∧ 能按端口过滤 ∧ 推导得出端口）。
 - **⚠️ 实测代价（比 ADR 预估更强）**：`gh` 整条命令在沙箱里不可用（它启动就要读 `hosts.yml`，
   那是 token 落点，凭证不进清单）；`git push` 同理。成员要自带凭证是后续票（ADR-0012 决策二的正解）。
 - **自建 spawn 的理由**：pi 的 `createLocalBashOperations` 把「可执行文件 + 前缀参数」硬编码在

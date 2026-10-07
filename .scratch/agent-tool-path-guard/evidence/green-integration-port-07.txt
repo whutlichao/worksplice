@@ -1,0 +1,8 @@
+# GREEN · 票 07 · lib/bash-containment-extension.test.mjs（真沙箱集成层，含内核层负例）
+# 命令: node --test --test-timeout=60000 lib/bash-containment-extension.test.mjs
+# 负例主证据：真 loopback 服务器的命中计数不涨（请求从未到达，不是 HTTP 4xx/5xx）
+
+ℹ tests 20
+ℹ pass 20
+ℹ fail 0
+ℹ skipped 0

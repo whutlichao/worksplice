@@ -37,12 +37,15 @@ import {
   bashBoundaryText,
   bashUnavailableMessage,
   explainBashFailure,
+  gateBashSandbox,
   planBashSandbox,
   resolveBashSandbox,
+  resolveWorksplicePorts,
   sandboxLaunch,
   stripWorkspliceEnv,
   type BashSandboxPlan,
   type BashSandboxResolution,
+  type WorksplicePortResolution,
 } from "./bash-containment.ts";
 import type { PathGuardScope } from "./tool-path-guard.ts";
 
@@ -70,11 +73,19 @@ export interface BashContainmentDeps {
    * RPC 面由 `executeBash` 自己应用同一项，两处各应用一次、不重复前缀。
    */
   commandPrefix?: string;
+  /**
+   * 本进程实际监听的 worksplice 端口（ADR-0013 决策五第 ③ 环）：由 `resolveWorksplicePorts`
+   * 从 `process.env.PORT` 推导（Next 在 `listening` 里写真实绑定端口）。注入只为让集成测试
+   * 穷举「推导不出」与「封另一个端口」两条分支；生产路径永远走推导——端口是每个实例的事实，
+   * 人类可以 `-p` / `PORT=` 改它。
+   */
+  worksplicePorts?: WorksplicePortResolution;
 }
 
 /** 一次会话的沙箱装配：工具面与 RPC 面共用的那一份（决策三）。 */
 export interface ContainedBash {
   scope: PathGuardScope;
+  /** **有效**结论：两个前提（机制 + 端口推导）合取后的结果（`gateBashSandbox`）。 */
   resolution: BashSandboxResolution;
   plan: BashSandboxPlan;
   /** 注册期就写进工具描述的边界文本（决策四：边界先于撞墙）。 */
@@ -88,14 +99,22 @@ export interface ContainedBash {
 /** 由该成员的判定域装配沙箱（决策一：入参是 `pathGuardScopeFor` 的产物，不新造目录解析）。 */
 export function createContainedBash(scope: PathGuardScope, deps: BashContainmentDeps = {}): ContainedBash {
   const platform = deps.platform ?? process.platform;
-  const resolution = resolveBashSandbox({
-    platform,
-    fileExists: deps.fileExists ?? ((candidate) => fs.existsSync(candidate)),
-  });
+  // 两个前提各自在本模块里算一次，合取在这里（ADR-0012 决策五 + ADR-0013 决策五第 ③ 环）：
+  // 拿不到沙箱、或机制封不了单个端口、或推导不出本进程实际监听的端口 ⇒ 都不激活 bash。
+  // 合成一个**有效 resolution** 后，下游三处（fail-closed 拒绝文本 / 工具描述 / 档位展示）不变。
+  const ports = deps.worksplicePorts ?? resolveWorksplicePorts();
+  const resolution = gateBashSandbox(
+    resolveBashSandbox({
+      platform,
+      fileExists: deps.fileExists ?? ((candidate) => fs.existsSync(candidate)),
+    }),
+    ports,
+  );
   const plan = planBashSandbox(scope, {
     platform,
     tmpdir: deps.tmpdir ?? os.tmpdir(),
     userHome: deps.userHome ?? os.homedir(),
+    blockedPorts: ports.ports,
   });
   const operations: BashOperations = {
     exec: (command, cwd, options) => {
@@ -103,7 +122,7 @@ export function createContainedBash(scope: PathGuardScope, deps: BashContainment
       return execInSandbox({ command, cwd, options, contained });
     },
   };
-  const boundary = bashBoundaryText(scope, resolution);
+  const boundary = bashBoundaryText(scope, resolution, ports);
   return {
     scope,
     resolution,

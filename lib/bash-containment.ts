@@ -25,6 +25,15 @@ import type { PathGuardScope } from "./tool-path-guard.ts";
 export interface BashSandbox {
   kind: "sandbox-exec" | "bwrap";
   command: string;
+  /**
+   * 这个机制**能不能按端口过滤网络面**（ADR-0013 决策五第 ③ 环依赖它）。
+   *
+   * macOS 的 SBPL 能：`(deny network* (remote ip "*:<port>"))` 只封那一个端口。
+   * bwrap 不能：它对网络只有 `--share-net`（原样共享主机栈）与 `--unshare-net`（整个网络栈换掉）
+   * 两档，没有「只封一个端口」的中间形态，而 `--unshare-net` 会连出网一起封死——
+   * 成员要能 `npm install`、拉依赖、访问外部服务，出网不能封。所以 Linux 侧这一维是 `false`。
+   */
+  canFilterPort: boolean;
 }
 
 /**
@@ -68,6 +77,11 @@ export interface BashSandboxPlanInput {
   tmpdir: string;
   /** **用户**家目录（`os.homedir()`）：工具链缓存挂在这里，成员自己的家目录在允许根里。 */
   userHome: string;
+  /**
+   * 要封的端口：**本进程实际监听的 worksplice 端口**（`resolveWorksplicePorts` 的产物）。
+   * 空列表 ⇒ 网络面整体封死（见 `sandboxExecProfile`），不是「不封」。
+   */
+  blockedPorts?: readonly number[];
 }
 
 const SANDBOX_EXEC_PATH = "/usr/bin/sandbox-exec";
@@ -90,14 +104,17 @@ export function resolveBashSandbox(input: {
     if (!fileExists(SANDBOX_EXEC_PATH)) {
       return { available: false, reason: `macOS sandbox-exec not found at ${SANDBOX_EXEC_PATH}` };
     }
-    return { available: true, sandbox: { kind: "sandbox-exec", command: SANDBOX_EXEC_PATH } };
+    return {
+      available: true,
+      sandbox: { kind: "sandbox-exec", command: SANDBOX_EXEC_PATH, canFilterPort: true },
+    };
   }
   if (platform === "linux") {
     const command = BWRAP_CANDIDATES.find((candidate) => fileExists(candidate));
     if (!command) {
       return { available: false, reason: "bubblewrap (bwrap) is not installed" };
     }
-    return { available: true, sandbox: { kind: "bwrap", command } };
+    return { available: true, sandbox: { kind: "bwrap", command, canFilterPort: false } };
   }
   return { available: false, reason: `no OS-level sandbox on ${platform}` };
 }
@@ -105,6 +122,92 @@ export function resolveBashSandbox(input: {
 /** 本机适配（唯一读取 ambient 状态的地方；矩阵本身在 `resolveBashSandbox` 里穷举）。 */
 export function detectBashSandbox(): BashSandboxResolution {
   return resolveBashSandbox({ platform: process.platform, fileExists: (candidate) => fs.existsSync(candidate) });
+}
+
+/** worksplice 自己监听的端口（ADR-0013 决策五第 ③ 环「成员 → 本端口关闭」的输入）。 */
+export interface WorksplicePortResolution {
+  /** 实际监听端口（升序去重）；空数组 = 推导不出，走 fail-closed 分支。 */
+  ports: number[];
+  /** `ports` 为空时给 fail-closed 文本用的一句话原因。 */
+  reason?: string;
+}
+
+/**
+ * 从服务进程推导 worksplice 自己监听的端口。
+ *
+ * **推导，不硬编码**：源是 `process.env.PORT`，而 `PORT` 由 Next 在 `listening` 事件里写成
+ * **真实绑定**的那个端口（`next/dist/server/lib/start-server.js:296`；dev 下请求端口被占时
+ * Next 自动改端口，写进去的也是改过的那个）。所以 `npm run dev`、`npx worksplice`、
+ * `npx worksplice -p 4041`、`PORT=4041 npx worksplice`、以及四条 npm 脚本，全都跟着实例走。
+ *
+ * 仓库里读同一个变量的地方共三处，各有各的理由，**都不适合拿来当本函数的兜底**：
+ * `bin/worksplice-options.js:25`（启动参数解析，持默认 `30142`——回退它等于把端口硬编码回来，
+ * 正是本函数要避免的）、`instrumentation.ts` 的启动门（要轮询等待 Next 写入）、
+ * `lib/access-gate.ts` 的准入闸（宽松解析，未知返回 `unknown` 让请求门兜着）。
+ *
+ * **为什么不能硬编码**：实测教训——某成员的速查里记的 base URL 是 `30141`，实际监听 `30142`，
+ * 而 `30141`/`30143` 都没监听。端口是**每个实例**的事实，不是仓库的常量。
+ *
+ * **推导不出来就是推导不出来**（`ports: []` + 可读原因）：调用方据此 fail-closed（不激活 bash），
+ * 本函数**不**退回「不封」——不封等于洞开着。
+ */
+export function resolveWorksplicePorts(env: NodeJS.ProcessEnv = process.env): WorksplicePortResolution {
+  const raw = env.PORT;
+  const port = parsePort(raw);
+  return port === null
+    ? {
+        ports: [],
+        reason:
+          "worksplice's own HTTP port could not be determined from the server process " +
+          "(Next writes the real bound port into PORT on `listening`), so there is no port to deny " +
+          "and this member gets no shell — a shell without a port filter could still reach " +
+          "worksplice's un-sandboxed HTTP surface",
+      }
+    : { ports: [port] };
+}
+
+/**
+ * `PORT` → 端口号。**刻意比别处更严**：这是本模块第三份端口解析（另两份在
+ * `bin/worksplice-options.js` 的启动参数与 `lib/access-gate.ts` 的准入闸），但它们的宽松语义不能搬来：
+ * 启动参数解析错时 Next 自己会报错，准入闸错时还有请求门兜着，而这里错一次就是「封错端口」或
+ * 「没封端口」——后者直接是洞开着。所以非整数、非 1..65535 一律 null，交给 fail-closed，不猜。
+ */
+function parsePort(raw: string | undefined): number | null {
+  const trimmed = String(raw ?? "").trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const port = Number(trimmed);
+  return port >= 1 && port <= 65535 ? port : null;
+}
+
+/**
+ * 激活成员沙箱的**两个前提**（ADR-0012 决策五 ＋ ADR-0013 决策五第 ③ 环）：
+ *   ① 拿得到 OS 级沙箱（票 05 的平台矩阵）；
+ *   ② 该机制能按端口过滤，且**推导得出本进程实际监听的端口**。
+ *
+ * 任一不成立就返回 `available: false` + 可读原因，**而不是**降级成「不封端口的沙箱」——
+ * 不封等于成员仍能走到 `POST /api/agent/[id]` 的未沙箱裸执行（ADR-0013 残留 #1）。
+ * fail-closed 的后果沿用票 05 已有的那一条通路：不激活 bash + 同一句原因出现在拒绝文本、
+ * 工具描述与档位展示三处（同一个函数算出来，下游三处不变）。
+ *
+ * 这也是「同一事实不写两处」的落点：端口推导与机制能力各在本模块里算一次，
+ * 装配处（`lib/bash-containment-extension.ts`）只调这一个函数拿到有效结论。
+ */
+export function gateBashSandbox(
+  resolution: BashSandboxResolution,
+  ports: WorksplicePortResolution,
+): BashSandboxResolution {
+  if (!resolution.available || !resolution.sandbox) return resolution;
+  if (!resolution.sandbox.canFilterPort) {
+    return {
+      available: false,
+      reason:
+        `${resolution.sandbox.kind} cannot deny a single port (it either shares the host network or ` +
+        `replaces it wholesale), so a shell behind it could still reach worksplice's own HTTP surface; ` +
+        `the port filter is required, so bash is not activated on this platform`,
+    };
+  }
+  if (ports.ports.length === 0) return { available: false, reason: ports.reason };
+  return resolution;
 }
 
 /**
@@ -150,7 +253,12 @@ export function planBashSandbox(scope: PathGuardScope, input: BashSandboxPlanInp
     surfaces,
     dataDir: scope.dataDir,
     homeDir: scope.homeDir,
-    profile: sandboxExecProfile({ surfaces, dataDir: scope.dataDir, homeDir: scope.homeDir }),
+    profile: sandboxExecProfile({
+      surfaces,
+      dataDir: scope.dataDir,
+      homeDir: scope.homeDir,
+      blockedPorts: input.blockedPorts ?? [],
+    }),
   };
 }
 
@@ -160,8 +268,14 @@ export function planBashSandbox(scope: PathGuardScope, input: BashSandboxPlanInp
  * 形状（顺序是契约，逐条有理由）：
  *   1. `(deny default)` —— 清单外一律不可达，这是 allow-only 与 deny-list 的分水岭；
  *   2. 进程面：`process*`（起子进程）、`mach-lookup` / `ipc-posix-shm`（运行时服务）、
- *      `sysctl-read`、`network*`（本形态**不封网络**：成员面封端口是 ADR-0013 决策五的后续票，
- *      本票只登记依赖，不做它；这里写 `network*` 是为了不在无声之中把网络一并关掉）。
+ *      `sysctl-read`、`network*`（**出网照常**：成员要能 `npm install`、拉依赖、访问外部服务）。
+ *   3. **按端口封 worksplice 自己**（ADR-0013 决策五第 ③ 环）：紧跟 `(allow network*)` 之后写
+ *      `(deny network* (remote ip "*:<port>"))`——**只封这一个端口**，同机其它 loopback 服务不动、
+ *      出网不动（`docs/agent-bash-containment-form.md:238` 实测形态；`localhost:*` 的写法会把
+ *      出网一起封掉，本形态不使用）。成员于是连不上 app 端口，`POST /api/agent/[id]` 的
+ *      `{"type":"bash"}`（未沙箱的裸执行、进门一律按 Owner）对成员关闭。
+ *      `blockedPorts` 为空 ⇒ 写 `(deny network*)` **整体封死**而不是退回 allow：「推导不出端口就
+ *      不封」等于把洞开着，而那正是 fail-closed 要避免的形态（那时 bash 本来就不激活，见 `gateBashSandbox`）。
  *   3. 读面：`(literal "/")` + 只读目录与允许根（写面是它的子集）+ 只读单文件；
  *   4. **数据目录显式不变式**：allow 之后 `(deny file-read* (subpath <dataDir>))`，
  *      再 `(allow file-read* (subpath <homeDir>))` 把成员自己家目录这条**更窄**的条目重新开口。
@@ -179,6 +293,7 @@ export function sandboxExecProfile(input: {
   surfaces: BashSandboxSurfaces;
   dataDir: string;
   homeDir: string;
+  blockedPorts: readonly number[];
 }): string {
   const readDirs = expandForms([...input.surfaces.readOnlyDirs, ...input.surfaces.writableDirs]);
   const readFiles = expandForms(input.surfaces.readOnlyFiles);
@@ -198,7 +313,7 @@ export function sandboxExecProfile(input: {
     "(allow mach-lookup)",
     "(allow ipc-posix-shm)",
     "(allow signal (target self))",
-    "(allow network*)",
+    ...networkRules(input.blockedPorts),
     `(allow file-read* (literal "/") ${subpaths(readDirs)} ${literals(readFiles)})`,
     `(deny file-read* ${subpaths(expandForms([input.dataDir]))})`,
     `(allow file-read* ${subpaths(expandForms([input.homeDir]))})`,
@@ -207,6 +322,20 @@ export function sandboxExecProfile(input: {
     `(deny file-write* ${subpaths(expandForms([input.dataDir]))})`,
     `(allow file-write* ${subpaths(expandForms([input.homeDir]))})`,
   ].join("\n") + "\n";
+}
+
+/**
+ * 网络面那两行（顺序即契约：先放开出网，再按端口收窄）。
+ *
+ * 有可封的端口 ⇒ `(allow network*)` + `(deny network* (remote ip "*:<p>")…)`：
+ * 出网照常、同机其它 loopback 不动，只有 worksplice 自己的端口被内核拒绝。
+ * 没有可封的端口 ⇒ 只写 `(deny network*)`：**整体封死**而不是退回放开。
+ */
+function networkRules(blockedPorts: readonly number[]): string[] {
+  const ports = [...new Set(blockedPorts)].sort((a, b) => a - b);
+  if (ports.length === 0) return ["(deny network*)"];
+  const filters = ports.map((port) => `(remote ip "*:${port}")`).join(" ");
+  return ["(allow network*)", `(deny network* ${filters})`];
 }
 
 /**
@@ -320,10 +449,17 @@ export function containmentStatus(resolution: BashSandboxResolution): BashContai
 
 /**
  * 注册期就带在工具描述里的边界（ADR-0012 决策四「边界先于撞墙」）：
- * 模型在动手之前就知道自己的允许根与越界的失败形态；平台没有沙箱时，同一段文本说明
- * 「bash 未激活」以及原因（决策五：不允许静默不一致）。
+ * 模型在动手之前就知道自己的允许根、封掉的 worksplice 端口与越界的失败形态；平台没有沙箱
+ * （或机制封不了单个端口）时，同一段文本说明「bash 未激活」以及原因（决策五：不允许静默不一致）。
+ *
+ * `ports` **必填**（推导失败时传空数组的 resolution）：可选参数会允许调用方静默漏掉端口那一句，
+ * 而那一句正是「边界先于撞墙」的一部分——漏传不报错，只让模型白撞几轮墙。
  */
-export function bashBoundaryText(scope: PathGuardScope, resolution: BashSandboxResolution): string {
+export function bashBoundaryText(
+  scope: PathGuardScope,
+  resolution: BashSandboxResolution,
+  ports: WorksplicePortResolution,
+): string {
   const mechanism = resolution.sandbox
     ? `this shell runs inside an allow-only OS sandbox (${resolution.sandbox.kind})`
     : `bash is not activated on this platform: ${resolution.reason}`;
@@ -331,7 +467,17 @@ export function bashBoundaryText(scope: PathGuardScope, resolution: BashSandboxR
     ? `Everything outside the paths below is unreachable: the kernel answers "Operation not permitted", ` +
       `and a process missing a required rule aborts with exit 134.`
     : `Every command is refused instead of being run unconfined; do not retry the tool expecting it to work.`;
-  return [`Sandbox: ${mechanism}. ${outcome}`, boundaryListing(scope)].join("\n");
+  // 端口规则也进边界文本（决策四「边界先于撞墙」）：成员 curl app 端口会被内核拒绝，
+  // 那条未沙箱的执行入口对它是关着的——与其让它一轮轮撞墙，不如注册期就说清。
+  const portRule = ports.ports.length > 0
+    ? `worksplice's own HTTP port (${ports.ports.join(", ")}) is unreachable from this shell too — the ` +
+      `kernel refuses the connection, so reaching worksplice over HTTP is not a workaround for anything ` +
+      `here; act through your reply actions instead.`
+    : "";
+  return [
+    [`Sandbox: ${mechanism}. ${outcome}`, portRule].filter(Boolean).join(" "),
+    boundaryListing(scope),
+  ].filter(Boolean).join("\n");
 }
 
 /** fail-closed 的拒绝文本：拿不到沙箱就不激活 bash（决策五）。可用时返回空串。 */
