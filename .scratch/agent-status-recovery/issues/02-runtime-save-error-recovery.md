@@ -68,7 +68,7 @@
 
 ## Answer
 
-**PR:** （见下方「交付」——本轮创建后回填）
+**PR:** https://github.com/whutlichao/worksplice/pull/108
 **分支:** `whutlichao/agent-status-recovery-02` · **固定点:** `23a2dfe`（origin/main tip = 本分支 base）
 **Status:** resolved
 
