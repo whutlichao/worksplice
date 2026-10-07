@@ -78,6 +78,12 @@
 - `npm run lint` → 改动前基线与改后一致：`hooks/useI18n.tsx:61` 那条既有 `react-hooks/exhaustive-deps` warning（0 error）；`npx eslint components/AgentDetailPanel.tsx components/AgentDetailPanel.test.mjs` → 0 problem
 - `grep DEBUG-` → 两个文件零残留；临时探针（数据探针 / 等价探针 / dev server / 临时数据目录）全删
 
+### 交付
+
+- 分支：`whutlichao/agent-task-key`；PR：**#102**（https://github.com/whutlichao/worksplice/pull/102）；commit `86799cc`。
+- coordinator 的 live 数据实证与本票结论一致：agent Susan (7e308574) 参与 secretary-office #1（thread 进展者）、secretary-office #2（锚点作者）、#all #1（锚点作者），number 集合 {1,2,1} ⇒ key=1 撞。据此把回归 fixture 的第二条改成 `owner: null`，代表「非认领支线命中」的任务；参与支线本身在 panel 这一层不可见（列表项不带该字段），已在 fixture 注释里点明。
+- 真浏览器双向复验 coordinator 本不要求，本 worker 顺手做了（见上），G-impl 可直接采信或重跑。
+
 ### Review 小节（双轴，worker 自审，未合并两轴）
 
 **Standards**（依据 `docs/engineering-standards.md` §1/§2/§5、`AGENTS.md`、`CONTEXT.md`）：
