@@ -1,0 +1,105 @@
+# LIVE · 票 07 · 真会话实测（成员会话 = 真 pi AgentSession + 真 sandbox-exec + 真 curl）
+
+实例：本 worktree 的 `next dev -H 127.0.0.1 -p 30242`，`WORKSPLICE_DATA_DIR=/tmp/ticket07-live-data`（隔离数据目录，
+不碰人类自己的 ~/.worksplice）。**刻意用自定义端口 30242**（30142 已被人类自己的实例占着）——
+这同时是「端口推导而非硬编码」的直接检验：封的必须是 30242。
+
+成员：`port-probe`（2886f177…，家目录即 workspace）。
+秘书 `Susan`（46e68380…，自动创建）也在场，她的会话同样带沙箱。
+
+- 成员会话状态（`GET /api/agent/<id>`）→ `bashContainment: {"available":true,"mechanism":"sandbox-exec","reason":null}`
+  ⇒ 端口推导在**真 Next 进程里**成立（否则会是 available:false 的 fail-closed）。
+- 秘书会话状态 → 同上（`{"available":true,"mechanism":"sandbox-exec"}`）。
+
+## 负例（内核拒绝，不是 HTTP 层报错）
+
+经 `POST /api/agent/<session>` 的 `{"type":"bash"}`（RPC 面，与工具面共用同一份 operations）：
+
+```
+$ curl -o /dev/null -m 5 -w 'http_code=%{http_code}' http://127.0.0.1:30242/api/channels
+curl: (7) Failed to connect to 127.0.0.1 port 30242 after 0 ms: Couldn't connect to server
+http_code=000
+```
+
+```
+$ curl -m 5 http://localhost:30242/api/channels | head -c 200
+curl: (7) Failed to connect to localhost port 30242 after 0 ms: Couldn't connect to server
+```
+
+**同一时刻、同一台机器的人类会话（未沙箱）对照**：
+
+```
+human -> http://127.0.0.1:30242/api/channels = 200
+human -> http://localhost:30242/api/channels  = 200
+```
+
+⇒ 服务在听、人类侧通；成员侧 `http_code=000` 且**连不上**（没有任何 HTTP 状态码，不是 4xx/5xx）。
+`localhost` 写法同样被拒 ⇒ deny 不是绑在 IP 字面量上。
+
+**工具面（成员自己发起的）**——让 `port-probe` 用它自己的 bash 工具跑同一条（模型原话）：
+
+```
+@port-probe 用你的 bash 工具执行这一条并把输出原样贴出来：
+  curl -s -m 5 -o /dev/null -w 'code=%{http_code}' http://127.0.0.1:30242/api/channels
+
+#9 agent:port-probe | 原样贴出（刚跑的这一条）：
+    code=000
+    curl 自身退出码 0（`-s` 静默了错误信息）；`code=000` 表示连接没建立成功，即 127.0.0.1:30242 在我这个执行环境里不可达。
+```
+
+**工具面 vs RPC 面的分离证明（取红）**：把 `lib/bash-containment.ts` 的 `networkRules` 临时回退成票 05 的
+`(allow network*)`（一行、带 `[RED-PROBE]` 标记），集成层负例立刻红在主判据上——
+「请求根本没到达 app」：真 loopback 服务器的命中计数涨了 1（见 `red-integration-port-07.txt`）。
+同一套夹具、只差那条规则 ⇒ 拒绝来自内核规则，不是「端口上没人听」。
+
+## 正例一：只封这一个端口
+
+```
+$ curl -s -m 5 http://127.0.0.1:65214/     # 另一个 loopback 服务
+OTHER-LOOPBACK-OK
+```
+
+## 正例二：出网照常（成员要能装依赖）
+
+```
+$ dscacheutil -q host -a name example.com | head -4
+name: example.com
+ipv6_address: 2606:4700:10::6814:179a
+...
+dns_exit=0
+
+$ curl -s -o /dev/null -m 10 -w 'egress_http=%{http_code}\n' -I https://example.com
+egress_http=200
+
+$ npm config get registry
+https://registry.npmjs.org/
+```
+
+## 正例三：成员经 loop 的结构化回复协议调协作能力照常（不经网络）
+
+```
+$ curl -s -m 10 .../api/messages/<#4 的 id>/reactions
+{"reactions":[{"emoji":"👍","count":1,"memberIds":["2886f177-b32c-49b0-b3bc-216dcfcc0c40"]}]}
+
+$ .../api/members/2886f177…/observability
+status: online
+ round: replied | ops: react=applied | base_seq 6
+```
+
+⇒ op 在**进程内**执行、以**结构身份**（成员自己的 id，不是 Owner 的 `owner`）落库；
+端口封死对它零影响。秘书 `Susan` 在同一进程、同样带沙箱，也经这条路成功回复了 #2/#4。
+
+## 端口不是硬编码（可验证）
+
+- 沙箱路径上**没有端口字面量**：`grep -n "3014\|3024" lib/bash-containment.ts lib/bash-containment-extension.ts`
+  只命中注释里那条实测教训，代码里没有任何端口常量。
+- 唯一的端口来源是 `resolveWorksplicePorts` 里的 `env.PORT`（`lib/bash-containment.ts:153`），
+  而 `PORT` 由 Next 在 `listening` 事件里写成**真实绑定**的端口
+  （`node_modules/next/dist/server/lib/start-server.js:296`；dev 下端口被占自动改端口也写进去）。
+- 本次实测的实例跑在 **30242**、封的正是 **30242**：若代码硬编码 30142，结果会正好相反。
+
+## 取证中发现的、与本票无关的一件事（如实记）
+
+`port-probe` 最初几轮 loop 返回 `status: error / reason: "model returned no text (request failed?)"`
+（`totals.totalTokens=0, costTotal=0`）——**provider 侧**的失败，不是沙箱：同一时刻同一模型的
+秘书回复正常。把该成员的 thinking 从 `off` 改成 `medium` 后同一条 op 立即成功（见正例三）。

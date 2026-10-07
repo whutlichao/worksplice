@@ -1,0 +1,7 @@
+# GREEN · 票 07 · lib/bash-containment.test.mjs（纯函数层）
+# 命令: node --test --test-timeout=60000 lib/bash-containment.test.mjs
+
+ℹ tests 17
+ℹ pass 17
+ℹ fail 0
+ℹ skipped 0

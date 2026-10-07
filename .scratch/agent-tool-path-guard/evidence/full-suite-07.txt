@@ -1,0 +1,11 @@
+# 全量 · 票 07
+# 命令: npm test（node --test，四个测试目录）
+
+ℹ tests 1052
+ℹ suites 0
+ℹ pass 1052
+ℹ fail 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9881.105792
+EXIT=0

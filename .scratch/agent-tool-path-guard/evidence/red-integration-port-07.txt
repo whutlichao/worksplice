@@ -1,0 +1,26 @@
+# RED · 票 07 · 集成层（真沙箱 + 真 loopback 服务器）
+# 命令: node --test --test-timeout=60000 lib/bash-containment-extension.test.mjs
+# 取红手法：只把 lib/bash-containment.ts 里的 networkRules 临时回退成票 05 的 '(allow network*)'
+#（一行、带 [RED-PROBE] 标记），其余改动全部保留——跑完立即 git checkout 恢复。
+# 预期红：成员 curl 到 app 端口被内核拒绝（请求从未到达）⇒ 回退后请求真的到达了 ⇒ 红。
+
+ℹ tests 20
+ℹ pass 19
+ℹ fail 1
+ℹ skipped 0
+EXIT=1
+
+✖ 负例：成员 shell 连不上 worksplice 自己的端口——内核拒绝，不是 HTTP 层报错 (47.411ms)
+[worksplice] session_start dispatched to extensions for session 01a1143d-b54c-7355-ba40-38c10281c55c
+✔ 正例一：只封这一个端口——同机其它 loopback 服务照常可达 (48.682416ms)
+[worksplice] session_start dispatched to extensions for session 01a1143d-b57d-7355-ba40-38c3c9c0ce60
+✔ 正例二：人类会话（无人归属 ⇒ 不沙箱）访问同一个端口不受影响 (43.071583ms)
+[worksplice] session_start dispatched to extensions for session 01a1143d-b5a8-7355-ba40-38c425399021
+✔ fail-closed：推导不出本进程端口时不激活 bash（不退回「不封端口的沙箱」） (24.835542ms)
+[worksplice] session_start dispatched to extensions for session 01a1143d-b5c1-7355-ba40-38c631f2b638
+✔ 边界文本在注册期就说出被封的端口（边界先于撞墙） (24.430625ms)
+[worksplice] session_start dispatched to extensions for session 01a1143d-b5d9-7355-ba40-38c84f0f69d4
+✔ timeout 契约：超时报 pi 同款错误文本，并把进程树杀掉 (336.064292ms)
+[worksplice] session_start dispatched to extensions for session 01a1143d-b72a-7355-ba40-38ca826d8aa4
+✔ abort 契约：中止后进程被真的杀掉（不挂满整段 sleep），会话回到空闲 (239.254292ms)
+[worksplice] session_start dispatched to extensions for session 01a1143d-b819-7355-ba40-38cc9cb2d62a

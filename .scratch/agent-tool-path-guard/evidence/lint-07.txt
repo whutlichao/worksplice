@@ -1,0 +1,8 @@
+# lint · 票 07（只报告不修）
+# npm run lint ⇒ 0 errors / 1 warning，warning 在 hooks/useI18n.tsx（既有、与本票无关的文件）
+
+/Users/apple/orca/workspaces/worksplice/kernel-port-filter/hooks/useI18n.tsx
+  61:6  warning  React Hook useEffect has a missing dependency: 'locale'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
