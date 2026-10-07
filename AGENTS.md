@@ -208,6 +208,17 @@ lib/data/                         数据层（Ticket 03 Separate Data Layer：St
   db-singleton.ts                 `getDb(): Store` 单例（globalThis.__workspliceDb，schema 版本号兜底重建，扛热重载）
 
 lib/
+  access-gate.ts       人类面准入闸判定层（ADR-0013 决策二）：自连接探针探非 loopback 网卡地址
+                       → detectBindScope / getAccessPosture（open|password|closed）/ waitForServerListening /
+                       accessGateClosedMessage；非 loopback + 无凭证 ⇒ fail-closed。
+                       ⚠ 顶层 import node:net / node:os / node:timers/promises —— 别从 instrumentation.ts 静态引入，见陷阱段
+  web-auth.ts          HTTP Basic Auth（username 恒为 `pi`）：isWebPasswordEnabled / isValidBasicAuthorization
+                       （node:crypto 定长比较，同样受下条陷阱约束）
+  access-gate-startup.ts
+                       准入闸的**启动期**段（issue #101 从 instrumentation.ts 搬出）：waitForServerPort /
+                       enforceAccessGateAtStartup（端口未知或未 listening 则留给请求门；closed 则
+                       process.exit(1)）。只被 instrumentation 的 `await import()` 引用——
+                       这就是它不在 edge 静态图里的原因；回归测试 lib/access-gate-startup.test.mjs。
   agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
   agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import lib/rpc/SDK）+ deriveLiveAgentStatus
                       + startSession 应用 per-agent 模型覆盖（§3.10）
@@ -385,6 +396,27 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 ### Exported session HTML
 
 - `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
+
+### 启动钩子的 edge 双编译：instrumentation 顶层不得静态引 Node 内置模块
+
+Next.js **无条件**把 `instrumentation.ts` 与 middleware 文件编进同一个 edge layer
+（`next/dist/build/entries.js:511`，`(isMiddlewareFilename(name) || isInstrumentation) ?
+WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份编译都会发生。
+
+后果：`instrumentation.ts` **顶层**静态 import 的任何 Node 内置模块（`node:net` / `node:os` /
+`node:timers/promises` / `node:crypto`）与 `process.exit`，都会在 edge 那一遍编译里报
+`A Node.js module is loaded … not supported in the Edge Runtime`，dev 终端每个请求周期刷一遍。
+
+**功能无碍**：`register()` 第一行的 `if (process.env.NEXT_RUNTIME !== "nodejs") return;`
+已经把 edge 那份挡掉了，node 侧照跑。噪音措辞（`Ecmascript file had an error`）却像真错误。
+
+纪律：
+- `instrumentation.ts` 只在 `register()` 内、`NEXT_RUNTIME` 守卫**之后**动态 `await import()` 依赖，
+  且被引入的模块自身不要再静态拖 Node 内置模块进来（issue #101 的修法：`access-gate` 的启动段
+  经动态 import 引入；判定层 `lib/access-gate.ts` 本体不动）。
+- 这条契约有常驻回归测试兜底：`lib/access-gate-startup.test.mjs` 用 readFile 断言源码
+  （§2.1「路由源码级断言」那一档：不起 dev server，毫秒级）。**改 `instrumentation.ts` 前先跑它。**
+- `proxy.ts` 不受此限：Next 16 下 proxy 跑 Node runtime。
 
 ### 成员 bash 的沙箱（ticket 05，ADR-0012）
 
