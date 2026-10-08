@@ -227,6 +227,16 @@ test("消息动作栏：绝对定位、hover/focus 才出、--shadow-pop、opaci
     assert.doesNotMatch(tools, /2px solid/);
 });
 
+test("消息行垂直内边距取节奏带顶 8px（--sp-4）：相邻行盒间距 10px → 16px", () => {
+    // 用户 2x 截图反馈「两条消息间距太近、过于密集」。取值依据是设计系统
+    // DESIGN.md 自述的垂直节奏带 6–8px（"Density is high (13px base, 6–8px
+    // vertical rhythm) yet never cramped"）——原值 5px 低于该带，取带顶 8px。
+    // 断言钉整条 padding 声明（水平不变、仍 8px）：`5px var(--sp-4)` 这类
+    // 只改垂直轴的旧形态不会再匹配。两处规则体的逐字同步由上一例的
+    // 「形态来源唯一」断言兜底，这里只钉值。
+    assert.match(blockBody(globalsCss, ".msg"), /padding:\s*var\(--sp-4\);/);
+});
+
 // ─── ② 渲染面 ────────────────────────────────────────────────────────────────
 
 test("MessageRow 渲染出 .msg 形态：行 / 头 / 作者 / 正文 / 动作栏", () => {
