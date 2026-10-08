@@ -1463,9 +1463,9 @@ span.linenumber {
    `.reactions` / `.reaction` / `.composer*` / `.tabs` 段。
 
    裁剪登记（coordinator 开工前裁决：判据是「本仓有没有现成实体」，不是「票面有没有列」）：
-   ① `.day-sep` / `.task-chip` / `.composer-hint` / `.msg-tag` **只作词汇表**——本仓消息流没有
-      按日分组的实体、没有消息下挂任务的 chip、Enter 提示由 placeholder 承担、Agent 胶囊需要
-      新的文案与作者类型分支：都是**新增显示面**，按「只换皮、不扩面」不渲染（其存在性由本段守）。
+   ① `.day-sep` / `.task-chip` / `.composer-hint` / `.msg-tag` **只作词汇表**——四条都属**新增可见实体**
+      （本仓消息流没有按日分组的实体、没有消息下挂任务的 chip、Enter 提示由 placeholder 承担、
+      没有 Agent 胶囊这一可见元素）：按「只换皮、不扩面」不渲染（其存在性由本段守）。
    ② `.tabs` / `.tab` **落位**：本仓已有 Messages|Tasks 实体，原形态带硬偏移阴影，属旧方向残留。
    ③ 不搬 `.msg.sys` / `.sys-avatar`：本仓没有「系统消息」实体（提醒消息以作者署名，是普通消息）。
 
@@ -1538,6 +1538,9 @@ span.linenumber {
   content: ""; position: absolute; left: 0; top: 5px; bottom: 5px;
   width: 2px; background: var(--accent); border-radius: var(--r-pill);
 }
+/* 锚点行的 hover 也要留在「当前位置」色（票 03 的 `.ws-message-row-anchor:hover` 与 `.msg:hover`
+   同特异度，后者在后会吃掉前者）：补一条更特异的组合，让锚点行 hover 不变灰。 */
+.msg.ws-message-row-anchor:hover { background: var(--accent-soft); }
 /* `.msg` 的 `margin: 0 -8px` 是逐字形态，前提是容器有 ≥8px 内边距（`.stream` 是 20px）；
    右栏线程面板的滚动容器（票 07 的 `.tt-scroll`，当前无 class 也无内边距）没有——
    在 dock 作用域把负外边距收回，否则动作栏挂上 `overflow-y: auto` 后会多出一条横向滚动条。 */

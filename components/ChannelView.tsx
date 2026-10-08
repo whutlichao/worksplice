@@ -185,8 +185,25 @@ const messageTime = (iso: string): string => {
 
 /** 轮询合并由 hooks/useChannelData 持有（01 票起；ThreadPanel 改从 hook 直引，见其 import）。 */
 
-function EmptyState({
-  glyph,
+/** 头部图标按钮的计数角标（pinned / mute / members 三处同形）：加载中显示 `…`，无计数则不渲染。 */
+function IconCount({ loading, count }: { loading: boolean; count: number }) {
+  if (!loading && count <= 0) return null;
+  return (
+    <span className="badge" style={{ position: "absolute", top: -6, right: -6 }}>
+      {loading ? "…" : count}
+    </span>
+  );
+}
+
+/** 22px 的 `.icon-btn`（成员移除 / 置顶上下移 / 取消置顶 / 引文与附件 chip 的 ✕）：原语默认 30px，
+    内联收小（同 `.rail-foot` 的 `.select` 收高先例）。 */
+const SMALL_ICON_BTN_STYLE: React.CSSProperties = {
+  width: 22,
+  height: 22,
+  flex: "0 0 22px",
+};
+
+function EmptyState({  glyph,
   title,
   hint,
   children,
@@ -887,7 +904,7 @@ export const MessageRow = memo(function MessageRow({
                 alignItems: "center",
                 gap: 4,
                 padding: "1px 6px",
-                fontSize: 10,
+                fontSize: "var(--fs-mono-xs)",
                 fontWeight: 700,
                 background: "var(--panel-2)",
                 color: "var(--fg)",
@@ -914,7 +931,7 @@ export const MessageRow = memo(function MessageRow({
                 alignItems: "center",
                 gap: 4,
                 padding: "1px 6px",
-                fontSize: 10,
+                fontSize: "var(--fs-mono-xs)",
                 fontWeight: 700,
                 background: "var(--accent-soft)",
                 color: "var(--fg)",
@@ -1740,7 +1757,7 @@ export function Composer({
   };
 
   return (
-    <div className="composer">
+    <div className="composer" style={{ flexShrink: 0 }}>
       <div className="composer-inner">
         {quoting && (
           <div
@@ -1775,7 +1792,7 @@ export function Composer({
               type="button"
               aria-label={t("message.clearQuote")}
               className="icon-btn"
-              style={{ width: 22, height: 22, flex: "0 0 22px" }}
+              style={SMALL_ICON_BTN_STYLE}
               onClick={onClearQuote}
             >
               <X size={12} />
@@ -2190,8 +2207,7 @@ export function ChannelView({
     setMembersOpen(false);
   };
 
-  /** 频道内 agent 成员（状态取自全量 agents，SSE 实时）；@ 补全候选 = 全部 agent + joined 标记。 */
-  const channelAgents = useMemo(
+  /** 频道内 agent 成员（状态取自全量 agents，SSE 实时）；@ 补全候选 = 全部 agent + joined 标记。 */  const channelAgents = useMemo(
     () => agents.filter((a) => channelMemberIds.has(a.id)),
     [agents, channelMemberIds],
   );
@@ -2202,6 +2218,11 @@ export function ChannelView({
       ? [...members, owner]
       : members;
   }, [agents, owner, channelMemberIds]);
+  /** 被静音的 agent 数（头部按钮的 `.is-on` 与 `.badge` 计数共用）。 */
+  const mutedCount = useMemo(
+    () => mutes.filter((m) => m.muted).length,
+    [mutes],
+  );
   const mentionable = useMemo(
     () =>
       agents.map((a) => ({
@@ -2769,14 +2790,7 @@ export function ChannelView({
                   onClick={togglePinnedPanel}
                 >
                   <Pin size={15} />
-                  {(pinnedLoading || pinnedItems.length > 0) && (
-                    <span
-                      className="badge"
-                      style={{ position: "absolute", top: -6, right: -6 }}
-                    >
-                      {pinnedLoading ? "…" : pinnedItems.length}
-                    </span>
-                  )}
+                  <IconCount loading={pinnedLoading} count={pinnedItems.length} />
                 </button>
               )}
               {joined && !isDM && (
@@ -2785,21 +2799,12 @@ export function ChannelView({
                   title={t("mute.toggle")}
                   aria-label={t("mute.toggle")}
                   className={`icon-btn${
-                    muteOpen || mutes.some((m) => m.muted) ? " is-on" : ""
+                    muteOpen || mutedCount > 0 ? " is-on" : ""
                   }`}
                   onClick={toggleMutePanel}
                 >
                   <BellOff size={15} />
-                  {(mutesLoading || mutes.some((m) => m.muted)) && (
-                    <span
-                      className="badge"
-                      style={{ position: "absolute", top: -6, right: -6 }}
-                    >
-                      {mutesLoading
-                        ? "…"
-                        : mutes.filter((m) => m.muted).length}
-                    </span>
-                  )}
+                  <IconCount loading={mutesLoading} count={mutedCount} />
                 </button>
               )}
               {joined && !isDM && (
@@ -2811,14 +2816,10 @@ export function ChannelView({
                   onClick={toggleMembersPanel}
                 >
                   <Users size={15} />
-                  {(membersLoading || channelMembers.length > 0) && (
-                    <span
-                      className="badge"
-                      style={{ position: "absolute", top: -6, right: -6 }}
-                    >
-                      {membersLoading ? "…" : channelMembers.length}
-                    </span>
-                  )}
+                  <IconCount
+                    loading={membersLoading}
+                    count={channelMembers.length}
+                  />
                 </button>
               )}
             </div>
@@ -3192,7 +3193,7 @@ export function ChannelView({
                           aria-label={t("pinned.moveUp")}
                           disabled={index === 0}
                           className="icon-btn"
-                          style={{ width: 22, height: 22, flex: "0 0 22px" }}
+                          style={SMALL_ICON_BTN_STYLE}
                           onClick={() => void movePinned(index, -1)}
                         >
                           <ChevronUp size={12} />
@@ -3203,7 +3204,7 @@ export function ChannelView({
                           aria-label={t("pinned.moveDown")}
                           disabled={index === pinnedItems.length - 1}
                           className="icon-btn"
-                          style={{ width: 22, height: 22, flex: "0 0 22px" }}
+                          style={SMALL_ICON_BTN_STYLE}
                           onClick={() => void movePinned(index, 1)}
                         >
                           <ChevronDown size={12} />
@@ -3213,7 +3214,7 @@ export function ChannelView({
                           title={t("message.unpin")}
                           aria-label={t("message.unpin")}
                           className="icon-btn"
-                          style={{ width: 22, height: 22, flex: "0 0 22px" }}
+                          style={SMALL_ICON_BTN_STYLE}
                           onClick={() => void togglePinAction(item.message)}
                         >
                           <X size={11} />

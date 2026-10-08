@@ -28,6 +28,8 @@ pinned 区 / 消息行 / 动作栏 / reaction / composer / 切换条）从 inlin
 （逐字搬运 + 票面判据 + 渲染面）。**零行为改动**：props 名 / i18n key / 事件处理 / 轮询节奏 /
 freshness `baseSeq` 来源 / 权限面一字未动；`lib/**`（除 i18n 文案，本票未新增键）与 `app/api/**` 零改动。
 任务板段（`TASK_STATUS_COLOR` → `TaskViews`，票 06 已合并）与 `EmptyState` 未动。
+review 收口另修四处：锚点行 hover 回归（`.msg:hover` 吃掉票 03 的锚点 hover）、composer 根补回
+`flexShrink: 0`、注释与规格表述对齐、头部角标/22px 尺寸去重（`IconCount` + `SMALL_ICON_BTN_STYLE`）。
 
 ### 验收清单（逐条）
 
@@ -64,6 +66,8 @@ freshness `baseSeq` 来源 / 权限面一字未动；`lib/**`（除 i18n 文案�
 | 红 | `node --test components/message-stream.test.mjs`（base `5506fc4` 的两个文件） | **13 fail / 0 pass** |
 | 绿 ① | `app/globals.css` 追加频道面 class 块后重跑 | 4 pass / 9 fail（渲染面仍红） |
 | 绿 ② | `ChannelView.tsx` 频道面换形后重跑 | **13 pass / 0 fail** |
+| 红 ③ | review 收口：锚点 hover 断言（`.msg.ws-message-row-anchor:hover`）先落，在未补规则的实现上跑 | **1 fail（12/13）** |
+| 绿 ③ | 补 `.msg.ws-message-row-anchor:hover { background: var(--accent-soft) }` 后重跑 | **13 pass / 0 fail** |
 
 红侧可复现命令（交付后仍可复跑；按父提交回退单文件是安全的）：
 
@@ -99,7 +103,7 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 | 项 | 结果 |
 | --- | --- |
 | `git status --porcelain` | 交付前为空（`.pi-lens.json` 已进本地 `.git/info/exclude`，不进仓库） |
-| `npm test`（**全量**） | **1201 pass / 0 fail**（基线 1188；新增 13） |
+| `npm test`（**全量**） | **1201 pass / 0 fail**（基线 1188；新增 13，其中一条断言在 review 收口时加严） |
 | `node_modules/.bin/tsc --noEmit` | exit 0 |
 | `npm run lint`（增量对照） | 本票 0 error / 1 warning；基线 = `git checkout 5506fc4 -- app/globals.css components/ChannelView.tsx` 后重跑 → **逐字同一条** `hooks/useI18n.tsx:61` → **零新增** |
 | `git diff --numstat` | `app/globals.css` **+118/−0**（追加段）、`components/ChannelView.tsx` **+599/−809**（净减 210）、`components/message-stream.test.mjs` +425（新增）——无整文件重写 |
@@ -109,12 +113,13 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 ### 偏离（逐条、带理由）
 
 - **D1 `.day-sep` / `.task-chip` / `.composer-hint` / `.msg-tag` = 只作词汇表、无渲染点**
-  （coordinator 开工前裁决）。依据：**判据是「本仓有没有现成实体」，不是「票面有没有列」**——
-  本仓消息流没有按日分组的实体、没有消息下挂任务的 chip、Enter 提示由 composer 的 placeholder 承担、
-  Agent 胶囊需要新增文案与作者类型分支，四条都属**新增显示面**（票 07 的右栏同样情形由产品所有者裁决
-  「只换皮、不扩面」）。与票 06 的 `.drop-hint` P1 **不同类**：那条是「本仓已有空列实体，只缺提示」。
-  已写进 `globals.css` 段头注释与 `message-stream.test.mjs` 头注；四个 class 的逐字搬运由测试的
-  「逐字搬运清单」覆盖（是**存在性**断言，不是渲染断言）。
+  （coordinator 开工前裁决）。四条都属**新增可见实体**：本仓消息流没有按日分组的实体、没有消息下挂
+  任务的 chip、Enter 提示由 composer 的 placeholder 承担、没有 Agent 胶囊这一可见元素（裁决的判据是
+  「本仓有没有现成实体」，**不是「票面有没有列」**——spec 组件表第 3 行确实点名了 `.day-sep` 与
+  `.msg-tag`，票 11 docs-sync 按实况描述即可；票 07 的右栏同样情形由产品所有者裁决「只换皮、不扩面」）。
+  与票 06 的 `.drop-hint` P1 **不同类**：那条是「本仓已有空列实体，只缺提示」。已写进 `globals.css` 段头
+  注释与 `message-stream.test.mjs` 头注；四个 class 的逐字搬运由测试的「逐字搬运清单」覆盖
+  （是**存在性**断言，不是渲染断言）。
 - **D2 `.msg:hover` 取 `--fg-soft`**：上游是 `color-mix(in oklch, var(--fg) 3.5%, transparent)`；
   票面明写 `--fg-soft`（= 5%），且与票 03 的 `.ws-message-row:hover` 同源。这是本块与上游 app.css 的
   **唯一**逐字差异（测试把 `.msg:hover` 单独排除在逐字比对之外，另以规则体断言钉住 `--fg-soft`）。
@@ -142,12 +147,13 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
   票 07 落 `.tt-scroll` 的 16px padding 后可以撤掉。
 - **D8 锚点竖条 `left: 0`**（不是 `.nav-row.is-active::before` 的 `-8px` 沟槽位）：同 D7，dock 的滚动
   容器没有内边距，负数位会被裁掉。
-- **D9 composer 结构换形 + 三处调用点偏离**：`.composer-box` 包住 textarea 与 `.composer-bar`
+- **D9 composer 结构换形 + 四处调用点偏离**：`.composer-box` 包住 textarea 与 `.composer-bar`
   （附件 `.icon-btn` + As task `.filter-chip` + `.sep` + `.composer-send`）。① send 从文字按钮改
   **图标方块**（`aria-label` / `title` 仍取 `t("message.send")`，既有 `/Send/` 断言仍绿）；
   ② textarea 保留 `resize: vertical`（上游 `resize: none` 配自动长高，本仓没有自动长高，去掉等于
-  收回一个既有用户能力）；③ 引文 / 附件 chip、@ 菜单、emoji picker、右键菜单的弹层统一
-  `--shadow-pop` + `--r-md`（ED-4 / ED-3）。
+  收回一个既有用户能力）；③ 根节点保留 `flex-shrink: 0`（上游无此声明；同屏 header/tabs 也都带，
+  短视口下面板全开时不被压扁——review 收口时补回）；④ 引文 / 附件 chip、@ 菜单、emoji picker、
+  右键菜单的弹层统一 `--shadow-pop` + `--r-md`（ED-4 / ED-3）。
 - **D10 折叠面板关闭态真正塌到 0**：网格项自己的 padding（24px）+ 下边框（1px）**不可收缩**，`0fr`
   会停在 25px——票 13 起的遗留，`--bg` 底时不可见，本票把内层底改 `--surface`（ED-1 chrome）后
   会显形为两条白带。处置：padding / bottom-border 随 `open` 收起并同步过渡（同一 220ms / 缓动）；
@@ -178,10 +184,59 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 
 ### 双轴 code-review（两份报告不合并）
 
-（待补：两个独立 reviewer 并行，固定点 `5506fc4`，diff 落盘 `/tmp/ds05.diff`。）
+固定点 `5506fc4`（父提交），代码 diff 落盘 `/tmp/ds05.diff`（2441 行），两个独立 reviewer（`reviewer`
+子代理，只读）并行；两份报告原样如下。
+
+#### Standards
+
+> **硬违规：无。** 逐条对读 `docs/engineering-standards.md`、`AGENTS.md`（图标/i18n）、`docs/i18n.md`、spec D7 + ED-1…ED-10：
+>
+> - **图标（AGENTS.md 禁新增 emoji）**：diff 只移除 `＋`/`↑`/`↓`（`/tmp/ds05.diff:490/1875/1892`），新增全是 lucide（`Send`/`ChevronUp|Down`/`SmilePlus`）；`⚠` 仅出现在注释。合规。
+> - **i18n（docs/i18n.md 分层规则）**：本票新增 `aria-label`/`title` 全走 `t(...)`；发送键由文案改图标仍保留无障碍名（`message-stream.test.mjs:352-353` 断言 `aria-label="Send"`），无硬编码用户文案。合规。
+> - **ED-2/ED-4**：新增块无 2px ink、无 rgba；`--shadow-pop` 只落 `.msg-tools`/弹层，`.composer-box` 用 `--shadow-composer`（`globals.css:1302/1337`）。合规。
+> - **ED-9**：`.msg-tools`/`.composer-box`/折叠壳的 transition 均被 `globals.css:99-105` 的 reduce 属性级 reset 覆盖。
+> - **逐字搬运**：抽检 `.msg`/`.reaction`/`.composer-send`（`globals.css:1286/1310/1344` vs `app.css:171/197/211`）逐字一致；token 全在 `tokens.css`/`colors_and_type.css` 有定义，无悬空引用。
+>
+> **判断题（基线味道，非阻断）**
+>
+> - **P2 Duplicated Code**：频道头三个图标按钮（pinned/mute/members，`ChannelView.tsx` ≈2760-2830）逐块重复 `<span className="badge" style={{position:"absolute",top:-6,right:-6}}>` + `loading?"…":count`；`width:22,height:22,flex:"0 0 22px"` 在 4 个 `icon-btn` 上重复。最小改法：抽局部 `<IconBadge>` 组件或共享常量。
+> - **P2 Duplicated Code**：`<main className="stream">`（`ChannelView.tsx:3264-3272`）同时内联 `flex/minHeight/overflowY`，与 `.stream` 规则重复声明。
+> - **P2 文档准确性/规格冲突**：`message-stream.test.mjs:18` 称“票面没点名的**三个** class”却列了四个；且 spec D7 组件表**第 3 行确实点名** `.day-sep`/`.msg-tag`/`.task-chip`/`.composer-hint`。裁剪本身合法（`globals.css:1249` 已记 coordinator 裁决），但测试注释与 spec 表述冲突。最小改法：改注释措辞，并把该裁剪记入 Answer 供票 11 docs-sync 收敛。
+> - **P2（边界）ED-5**：本仓独有角标仍内联 `fontSize: 10`（`ChannelView.tsx:890/917`），不在 `--fs-*` 标尺（10.5 = `--fs-mono-xs`）。属既有值、diff 未改数值，未“引入”，故不计硬违规。
+>
+> **Merge verdict: OK with notes.**
+
+#### Spec
+
+> **D1 裁定（独立判断）**：`.day-sep` / `.composer-hint` / `.task-chip` 的「只搬 class、无渲染点」站得住——本仓消息流无按日分组实体（`ChannelView.tsx:178-183` 的 `messageTime` 只在非当天把日期内联进行内）；composer 无提示元素（Enter 提示在 `chat.tabEnter` 的 @ 菜单里）；`.task-chip` 要让消息行显示任务号，须把 task number 新灌进 `MessageRow`（现仅有 `canConvertToTask` 布尔），属数据+显示扩面。**`.msg-tag` 的理由偏弱**：实体与分支本 diff 已具备（`ChannelView.tsx:845` `const isAgent = message.author?.type === "agent"`；`.msg-author.is-agent` 已渲染 accent），且「需要新增文案」不成立——spec §6 红线明写 `lib/i18n` 文案可改。不渲染可保留（「只换皮不扩面」），但该条理由应改写为「新增可见元素」，而非「需要新分支/文案」。
+>
+> **Finding（P2，做得不对）**：锚点行 hover 被新规则吃掉。`.msg:hover{background:var(--fg-soft)}`（`app/globals.css:1286`）与票 03 的 `.ws-message-row-anchor:hover{background:var(--accent-soft)}`（:961）同特异度、前者在后 ⇒ 锚点行 hover 由 accent-soft 变 fg-soft，「当前位置」色在 hover 时消失（:956 静止态仍在）。最小修法：补 `.msg.ws-message-row-anchor:hover{background:var(--accent-soft)}`。
+>
+> **Finding（P2，未登记的行为/布局改动）**：composer 根丢掉 `flexShrink: 0`——diff 删掉旧的 `style={{flexShrink:0,…}}` 改 `className="composer"`，上游 `.composer` 无此声明，D9 三处偏离未登记；同屏 header/tabs 仍各自保留行内 `flexShrink:0`。视口极短（面板全开/移动端键盘）时 composer 可被压缩并与内容重叠。最小修法：`<div className="composer" style={{ flexShrink: 0 }}>`（不能写进 class，否则破逐字断言）。
+>
+> **Finding（P2，文档）**：`message-stream.test.mjs:11` 头注称「票面没点名的三个 class」却列了四个，且票面 Change 明列这四个，「没点名」与事实相反。
+>
+> **Scope creep**：`.tabs`/`.stream(-inner)`/`.ws-right .msg`/`.pin-strip` 多行化/图标化工具条均已登记（D4/D7/D14/D3），未见未登记扩张。
+>
+> **Correct**：逐字搬运与 `ui_kits/app/app.css` 逐条相符，唯一差异 `.msg:hover` 正是票面明写的 `--fg-soft`（D2 成立）；`isAgent` 有数据支撑（`getMember` 返回带 `type` 的 `MemberRow`）；`MobilePwaLayout.test.mjs` 四条护栏完好；未发现行为改动（As task 仍 label 包 input、send 仍带 `title`/`aria-label`、`＋` 已换 lucide）。
+>
+> **Merge verdict: OK with notes**（仅 P2；未改任何文件）。测试未运行：请 supervisor 跑 `npm test`、`node_modules/.bin/tsc --noEmit`。
+
+#### findings 逐条处置
+
+| 轴 | finding | 处置 |
+| --- | --- | --- |
+| Spec | P2 锚点行 hover 被 `.msg:hover` 吃掉（同特异度、后者在后 ⇒ accent-soft 变 fg-soft） | **已修**：补 `.msg.ws-message-row-anchor:hover { background: var(--accent-soft) }`（更高特异性）。断言先红（12/13）后绿（13/13）；浏览器实测 hover 仍 `oklch(0.56 0.17 256 / 0.11)` |
+| Spec | P2 composer 根丢掉 `flexShrink: 0`（上游 `.composer` 无此声明） | **已修**：`<div className="composer" style={{ flexShrink: 0 }}>`（不进 class，保逐字断言）；浏览器实测 `flex-shrink: 0` |
+| Spec + Standards | P2 测试头注「三个 class」却列四个、「没点名」与事实相反 | **已修**：头注与 `globals.css` 段头改写（四个 class；`.day-sep`/`.msg-tag` 在 spec 组件表第 3 行被点名）；裁剪理由统一改为「新增可见实体」 |
+| Spec | D1 里 `.msg-tag` 的理由偏弱（「需新文案/分支」，而 `isAgent` 已具备、`lib/i18n` 文案可改） | **已修**：理由改写为「新增可见元素」（与另三条同一判据） |
+| Standards | P2 Duplicated Code：三处角标 + 四处 22px 内联尺寸 | **已修**：抽 `IconCount`（`loading`/`count`，`useMemo` 的 `mutedCount` 一并提取）+ `SMALL_ICON_BTN_STYLE`（4 个调用点） |
+| Standards | P2（边界）ED-5：消息头部角标内联 `fontSize: 10` | **已修**：两处改 `var(--fs-mono-xs)`（本仓独有 chip，不在上游 `.badge` 的 10px 家族里） |
+| Standards | P2 `<main className="stream">` 内联 `flex/minHeight/overflowY` 与 `.stream` 重复 | **豁免**：同一份行内样式要同时服务 Tasks tab（那里没有 `.stream` class，看板的 `flex:1/min-height:0` 只能由 `main` 提供），且 `overflowX/overflowY` 是票 02 明写的护栏（`MobilePwaLayout.test.mjs` 断的就是行内串）；拆成条件样式会引入同一元素的第二份来源 |
+| Spec | 裁剪切片记进 Answer 供票 11 docs-sync 收敛 | **已登记**（D1）：spec 组件表第 3 行点名 `.day-sep`/`.msg-tag`，本票只落 class 不渲染——票 11 按实况描述即可 |
 
 ### 持久化
 
 - 分支：`whutlichao/ds-05-stream`
-- 提交：`e66fe22`（主体）+ 本票据收敛 commit
-- PR：**待回填**
+- 提交：`e66fe22`（主体）+ `49389e3`（票据收敛）+ review 收口 commit
+- PR：**#118** —— https://github.com/whutlichao/worksplice/pull/118

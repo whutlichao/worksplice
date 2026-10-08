@@ -8,9 +8,10 @@
  * ② **产品渲染出的 markup**（jiti + renderToStaticMarkup）——消息行 / composer / 频道头真的带上
  *    这些 class，不是断「class 字符串在源码里出现」。
  *
- * 票面没点名的三个 class（`.day-sep` / `.task-chip` / `.composer-hint` / `.msg-tag`）只作词汇表、
- * 无渲染点（coordinator 开工前裁决：判据 = 本仓有没有现成实体），本文件不为它们落渲染断言；
- * 其存在性由 ① 的逐字搬运清单覆盖。
+ * 票面没点名、但上游 app.css 里同块的四个 class（`.day-sep` / `.task-chip` / `.composer-hint` /
+ * `.msg-tag`，其中 `.day-sep` / `.msg-tag` 在 spec 组件表第 3 行被点名）只作**词汇表**、无渲染点
+ * （coordinator 开工前裁决：四条都属新增可见实体）——本文件不为它们落渲染断言，其存在性由 ① 的
+ * 逐字搬运清单覆盖。
  */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -195,6 +196,11 @@ test("消息行 hover 走 --fg-soft；锚点行不再是黄色实心且带左侧
     const anchorBar = blockBody(globalsCss, ".ws-message-row-anchor::before");
     assert.match(anchorBar, /background:\s*var\(--accent\)/);
     assert.match(anchorBar, /width:\s*2px/);
+    // 锚点行的 hover 也要留在「当前位置」色：`.msg:hover` 与票 03 的锚点 hover 同特异度、后者会被吃掉。
+    assert.match(
+        blockBody(globalsCss, ".msg.ws-message-row-anchor:hover"),
+        /background:\s*var\(--accent-soft\)/,
+    );
 });
 
 test("消息时间戳与 #seq 走 var(--mono) + tabular-nums", () => {
