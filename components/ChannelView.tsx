@@ -147,7 +147,7 @@ const actionButtonStyle: React.CSSProperties = {
   fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 11,
-  background: "#ffffff",
+  background: "var(--surface)",
   color: "var(--fg)",
   border: `1px solid var(--border)`,
   boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
@@ -200,7 +200,7 @@ function Badge({ children }: { children: React.ReactNode }) {
         letterSpacing: "0.06em",
         padding: "2px 7px",
         border: `1px solid var(--border)`,
-        background: "#ffffff",
+        background: "var(--surface)",
         color: "var(--muted)",
         whiteSpace: "nowrap",
       }}
@@ -241,7 +241,7 @@ function EmptyState({
           height: 72,
           display: "grid",
           placeItems: "center",
-          background: "#ffffff",
+          background: "var(--surface)",
           border: `1px solid var(--border)`,
           boxShadow: "var(--shadow-card)",
           fontFamily: "var(--mono)",
@@ -311,7 +311,7 @@ function EmojiPicker({
         display: "grid",
         gridTemplateColumns: "repeat(6, 1fr)",
         gap: 4,
-        background: "#ffffff",
+        background: "var(--surface)",
         border: `1px solid var(--border)`,
         boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.35)",
       }}
@@ -438,7 +438,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
     fontFamily: "var(--font)",
     fontWeight: 700,
     fontSize: 12,
-    background: "#ffffff",
+    background: "var(--surface)",
     color: "var(--fg)",
     border: `1px solid var(--border)`,
     boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
@@ -469,7 +469,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
                   maxWidth: 260,
                   maxHeight: 180,
                   objectFit: "contain",
-                  background: "#ffffff",
+                  background: "var(--surface)",
                   border: `1px solid var(--border)`,
                   boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
                 }}
@@ -773,7 +773,7 @@ function ContextMenu({
         top: Math.min(y, window.innerHeight - items.length * 40 - 12),
         zIndex: 100,
         minWidth: 190,
-        background: "#ffffff",
+        background: "var(--surface)",
         border: `1px solid var(--border)`,
         boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.35)",
         padding: 4,
@@ -1065,7 +1065,7 @@ export const MessageRow = memo(function MessageRow({
 /** §3.7 任务状态徽标样式（List 分组标题 / Board 列头共用）。 */
 const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => {
   const background: Record<TaskStatus, string> = {
-    todo: "var(--panel-2)",
+    todo: "var(--faint)",
     in_progress: "var(--accent)",
     in_review: "var(--working)",
     done: "var(--online)",
@@ -1079,7 +1079,8 @@ const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => {
     padding: "2px 7px",
     border: `1px solid var(--border)`,
     background: background[status],
-    color: "var(--fg)",
+    // accent 实底是全表唯一的深色底，字用浅 ink；其余状态底都是浅色，字用 --fg。
+    color: status === "in_progress" ? "oklch(99% 0.01 256)" : "var(--fg)",
     whiteSpace: "nowrap",
   };
 };
@@ -1089,7 +1090,7 @@ const taskCardButtonStyle: React.CSSProperties = {
   fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 11,
-  background: "#ffffff",
+  background: "var(--surface)",
   color: "var(--fg)",
   border: `1px solid var(--border)`,
   boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
@@ -1228,7 +1229,7 @@ function TaskCard({
       onDragEnd={onDragEnd}
       style={{
         padding: "10px 12px",
-        background: "#ffffff",
+        background: "var(--surface)",
         border: `1px solid var(--border)`,
         boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
         cursor: "pointer",
@@ -1262,7 +1263,7 @@ function TaskCard({
               padding: "2px 7px",
               border: `1px solid var(--border)`,
               background: "var(--working)",
-              color: "#ffffff",
+              color: "oklch(99% 0.01 256)",
               whiteSpace: "nowrap",
             }}
           >
@@ -1650,7 +1651,7 @@ export function TaskViews({
                 minWidth: 220,
                 padding: "8px 10px",
                 border: `1px solid var(--border)`,
-                background: "#ffffff",
+                background: "var(--surface)",
                 fontFamily: "var(--font)",
                 fontSize: 13,
                 outline: "none",
@@ -1981,7 +1982,7 @@ export function Composer({
             style={{
               width: 22,
               height: 22,
-              background: "#ffffff",
+              background: "var(--surface)",
               border: `1px solid var(--border)`,
               cursor: "pointer",
               fontSize: 11,
@@ -2033,7 +2034,7 @@ export function Composer({
                 style={{
                   width: 18,
                   height: 18,
-                  background: "#ffffff",
+                  background: "var(--surface)",
                   border: `1px solid var(--border)`,
                   cursor: "pointer",
                   fontSize: 10,
@@ -2102,7 +2103,7 @@ export function Composer({
               flex: 1,
               padding: "8px 10px",
               border: `1px solid var(--border)`,
-              background: "#ffffff",
+              background: "var(--surface)",
               color: "var(--fg)",
               fontFamily: "var(--font)",
               fontSize: 13,
@@ -2265,7 +2266,7 @@ export function Composer({
               fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
-              background: "#ffffff",
+              background: "var(--surface)",
               color: "var(--fg)",
               border: `1px solid var(--border)`,
               cursor: disabled ? "not-allowed" : "pointer",
@@ -2952,7 +2953,7 @@ export function ChannelView({
     fontFamily: "var(--font)",
     fontWeight: 700,
     fontSize: 11,
-    background: "#ffffff",
+    background: "var(--surface)",
     color: "var(--fg)",
     border: `1px solid var(--border)`,
     boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
@@ -3110,7 +3111,7 @@ export function ChannelView({
                   background:
                     muteOpen || mutes.some((m) => m.muted)
                       ? "var(--accent-soft)"
-                      : "#ffffff",
+                      : "var(--surface)",
                 }}
                 onClick={toggleMutePanel}
               >
@@ -3452,7 +3453,7 @@ export function ChannelView({
                     padding: "3px 6px",
                     fontFamily: "var(--font)",
                     fontSize: 12,
-                    background: "#ffffff",
+                    background: "var(--surface)",
                     border: `1px solid var(--border)`,
                     outline: "none",
                   }}
@@ -3488,7 +3489,7 @@ export function ChannelView({
                       alignItems: "center",
                       gap: 8,
                       padding: "6px 10px",
-                      background: "#ffffff",
+                      background: "var(--surface)",
                       border: `1px solid var(--border)`,
                       cursor: "pointer",
                     }}

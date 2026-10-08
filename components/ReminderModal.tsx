@@ -39,7 +39,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "var(--font)",
   fontSize: 13,
   border: `1px solid var(--border)`,
-  background: "#ffffff",
+  background: "var(--surface)",
   color: "var(--fg)",
 };
 
@@ -322,7 +322,7 @@ export function ReminderModal({
                     alignItems: "center",
                     gap: 8,
                     padding: "6px 8px",
-                    background: "#fffaef",
+                    background: "var(--bg)",
                     border: `1px solid var(--border)`,
                     fontSize: 12,
                     flexWrap: "wrap",
@@ -339,7 +339,7 @@ export function ReminderModal({
                       {reminder.recurrence}
                     </span>
                   )}
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, padding: "1px 5px", border: `1px solid var(--border)`, background: reminder.status === "scheduled" ? "var(--online)" : "#c9c7c2" }}>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, padding: "1px 5px", border: `1px solid var(--border)`, background: reminder.status === "scheduled" ? "var(--online)" : "var(--offline)" }}>
                     {t(`reminders.status.${reminder.status}`)}
                   </span>
                   {reminder.status === "scheduled" && (
@@ -347,14 +347,14 @@ export function ReminderModal({
                       <button
                         type="button"
                         onClick={() => runAction(reminder, "snooze")}
-                        style={{ marginLeft: "auto", padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "#ffffff", cursor: "pointer" }}
+                        style={{ marginLeft: "auto", padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "var(--surface)", cursor: "pointer" }}
                       >
                         {t("reminders.snooze")}
                       </button>
                       <button
                         type="button"
                         onClick={() => runAction(reminder, "cancel")}
-                        style={{ padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "#ffffff", cursor: "pointer" }}
+                        style={{ padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "var(--surface)", cursor: "pointer" }}
                       >
                         {t("reminders.cancel")}
                       </button>

@@ -312,7 +312,7 @@ export function ThreadPanel({
             marginLeft: "auto",
             width: 24,
             height: 24,
-            background: "#ffffff",
+            background: "var(--surface)",
             border: `1px solid var(--border)`,
             cursor: "pointer",
             fontSize: 12,

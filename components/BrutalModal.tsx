@@ -57,7 +57,7 @@ export function BrutalModal({
           maxWidth: width,
           maxHeight: "min(640px, 90dvh)",
           overflowY: "auto",
-          background: "#ffffff",
+          background: "var(--surface)",
           border: "1px solid var(--border)",
           boxShadow: "6px 6px 0 0 rgba(20, 17, 17, 0.55)",
         }}
@@ -89,7 +89,7 @@ export function BrutalModal({
             style={{
               width: 26,
               height: 26,
-              background: "#ffffff",
+              background: "var(--surface)",
               border: "1px solid var(--border)",
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: "pointer",

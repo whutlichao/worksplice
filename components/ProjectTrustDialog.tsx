@@ -88,7 +88,7 @@ export function ProjectTrustDialog({
               {cwd}
             </code>
             {error && (
-              <div role="alert" style={{ marginTop: 10, color: "#ef4444", fontSize: 12, lineHeight: 1.5 }}>
+              <div role="alert" style={{ marginTop: 10, color: "var(--error)", fontSize: 12, lineHeight: 1.5 }}>
                 {error}
               </div>
             )}

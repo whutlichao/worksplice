@@ -220,6 +220,28 @@ test("T-C: 断点对齐上游（900 / 1080），旧的 960 退场", () => {
   assert.doesNotMatch(globalsCss, /@media\s*\(max-width:\s*960px\)/);
 });
 
+test("T-C: 有色 2px 结构线在 app/components/hooks 的源码里也为 0（组件侧回归网）", async () => {
+  // globals.css 之外同样不能残留 2px ink 线（T-C 的 globals 断言只守一处，防 shotgun 漏点）。
+  const roots = ["app/", "components/", "hooks/"].map(
+    (dir) => new URL(dir, repoUrl),
+  );
+  const files = (
+    await Promise.all(
+      roots.map((root) =>
+        recursiveFiles(root, (name) => /\.(tsx|ts|css)$/.test(name)),
+      ),
+    )
+  ).flat();
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(
+      source,
+      /(?<!\/\/)border(?:-[a-z]+)?\s*:\s*[^;{}]*\b2px\s+solid\s+(?!transparent)/,
+      `${fileURLToPath(file)} 仍有有色 2px 结构线`,
+    );
+  }
+});
+
 // ─── T-D 渲染面：组件真的在消费新契约 ────────────────────────────────────────
 
 const jiti = createJiti(import.meta.url, {

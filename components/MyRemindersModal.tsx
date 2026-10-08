@@ -33,7 +33,7 @@ const rowStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
   padding: "7px 9px",
-  background: "#fffaef",
+  background: "var(--bg)",
   border: `1px solid var(--border)`,
   fontSize: 12,
   flexWrap: "wrap",
@@ -45,7 +45,7 @@ const actionStyle: React.CSSProperties = {
   fontWeight: 700,
   fontSize: 11,
   border: `1px solid var(--border)`,
-  background: "#ffffff",
+  background: "var(--surface)",
   cursor: "pointer",
 };
 
@@ -197,7 +197,7 @@ export function MyRemindersModal({
                     fontSize: 10,
                     padding: "1px 5px",
                     border: `1px solid var(--border)`,
-                    background: reminder.status === "scheduled" ? "var(--online)" : "#c9c7c2",
+                    background: reminder.status === "scheduled" ? "var(--online)" : "var(--offline)",
                   }}
                 >
                   {t(`reminders.status.${reminder.status}`)}

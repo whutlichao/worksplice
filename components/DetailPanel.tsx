@@ -157,7 +157,7 @@ function HumanProfileCard({
               flexShrink: 0,
               width: 26,
               height: 26,
-              background: "#ffffff",
+              background: "var(--surface)",
               border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: "pointer",
@@ -194,7 +194,7 @@ function HumanProfileCard({
         </div>
         <div
           style={{
-            background: "#ffffff",
+            background: "var(--surface)",
             border: `1px solid var(--border)`,
             boxShadow: "var(--shadow-card)",
             padding: "10px 12px",

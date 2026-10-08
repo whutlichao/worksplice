@@ -62,7 +62,7 @@ function statusColor(status: PluginPackageInfo["status"]): string {
   if (status === "loaded") return "var(--accent)";
   if (status === "installed") return "#f59e0b";
   if (status === "disabled") return "var(--faint)";
-  return "#ef4444";
+  return "var(--error)";
 }
 
 function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
@@ -177,7 +177,7 @@ function buttonStyle(disabled?: boolean, danger?: boolean): React.CSSProperties 
     background: danger ? "rgba(239,68,68,0.08)" : "none",
     border: "1px solid var(--border)",
     borderRadius: 6,
-    color: danger ? "#ef4444" : "var(--muted)",
+    color: danger ? "var(--error)" : "var(--muted)",
     cursor: disabled ? "not-allowed" : "pointer",
     fontSize: 12,
     opacity: disabled ? 0.5 : 1,
@@ -447,7 +447,7 @@ function AddPluginPanel({
       </div>
 
       {actionError && (
-        <div style={{ fontSize: 12, color: "#ef4444", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: 12, color: "var(--error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -578,7 +578,7 @@ function PackageDetail({
         <div style={{ color: "var(--faint)" }}>{t("i18n.installedPath")}</div>
         <div
           style={{
-            color: pkg.installedPath ? "var(--muted)" : "#ef4444",
+            color: pkg.installedPath ? "var(--muted)" : "var(--error)",
             fontFamily: "var(--font-mono)",
             overflowWrap: "anywhere",
           }}
@@ -604,7 +604,7 @@ function PackageDetail({
         </div>
       )}
       {actionError && (
-        <div style={{ fontSize: 12, color: "#ef4444", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: 12, color: "var(--error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -859,7 +859,7 @@ export function PluginsConfig({
                   Loading...
                 </div>
               ) : error ? (
-                <div style={{ padding: "10px 8px", fontSize: 11, color: "#ef4444" }}>
+                <div style={{ padding: "10px 8px", fontSize: 11, color: "var(--error)" }}>
                   {error}
                 </div>
               ) : packages.length === 0 ? (
@@ -1069,7 +1069,7 @@ export function PluginsConfig({
             {data?.diagnostics.length ? (
               <span
                 title={data.diagnostics.map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`).join("\n")}
-                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "#ef4444" : "#d97706" }}
+                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "var(--error)" : "#d97706" }}
               >
                 {data.diagnostics.length} diagnostic{data.diagnostics.length === 1 ? "" : "s"}
               </span>

@@ -81,7 +81,7 @@ export function SearchView({
     alignItems: "flex-start",
     gap: 10,
     padding: "10px 12px",
-    background: "#ffffff",
+    background: "var(--surface)",
     border: `1px solid var(--border)`,
     boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
   } as const;
@@ -126,7 +126,7 @@ export function SearchView({
               minWidth: 0,
               height: "var(--control-h)",
               padding: "0 10px",
-              background: "#ffffff",
+              background: "var(--surface)",
               color: "var(--fg)",
               border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
@@ -143,7 +143,7 @@ export function SearchView({
             style={{
               width: 32,
               height: "var(--control-h)",
-              background: "#ffffff",
+              background: "var(--surface)",
               color: "var(--fg)",
               border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",

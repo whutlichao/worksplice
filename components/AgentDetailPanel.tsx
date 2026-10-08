@@ -33,7 +33,7 @@ function Card({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        background: "#ffffff",
+        background: "var(--surface)",
         border: `1px solid var(--border)`,
         boxShadow: "var(--shadow-card)",
         padding: "10px 12px",
@@ -80,7 +80,7 @@ const ACTION_BUTTON: React.CSSProperties = {
   fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 12,
-  background: "#ffffff",
+  background: "var(--surface)",
   color: "var(--fg)",
   border: `1px solid var(--border)`,
   cursor: "pointer",
@@ -299,7 +299,7 @@ export function TaskHistoryList({
               padding: "1px 5px",
               border: `1px solid var(--border)`,
               background:
-                task.status === "done" ? "var(--online, #a9d877)" : "#ffffff",
+                task.status === "done" ? "var(--online)" : "var(--surface)",
               flexShrink: 0,
             }}
           >
@@ -358,8 +358,8 @@ export function RoundLogsList({
                 background: failed
                   ? "#ff6b6b"
                   : round.status === "replied"
-                    ? "var(--online, #a9d877)"
-                    : "#ffffff",
+                    ? "var(--online)"
+                    : "var(--surface)",
               }}
             >
               {t("observability.roundStatus." + round.status)}
@@ -452,7 +452,7 @@ export function RuntimeProbeFeedback({ probe }: { probe: RuntimeProbeSummary }) 
     <div
       style={{
         fontSize: 11,
-        color: failed ? "var(--error)" : "var(--online, #2e8b57)",
+        color: failed ? "var(--error)" : "var(--online)",
         marginTop: 8,
       }}
     >
@@ -754,7 +754,7 @@ export function AgentDetailPanel({
               flexShrink: 0,
               width: 26,
               height: 26,
-              background: "#ffffff",
+              background: "var(--surface)",
               border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: "pointer",
@@ -896,7 +896,7 @@ export function AgentDetailPanel({
             <div
               style={{
                 fontSize: 11,
-                color: "var(--online, #2e8b57)",
+                color: "var(--online)",
                 marginTop: 8,
               }}
             >
@@ -1338,7 +1338,7 @@ export function AgentDetailPanel({
                   fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 13,
-                  background: "#ffffff",
+                  background: "var(--surface)",
                   color: "var(--fg)",
                   border: `1px solid var(--border)`,
                   cursor: isBusy ? "not-allowed" : "pointer",

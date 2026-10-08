@@ -256,7 +256,7 @@ export function WorkspaceSidebar({
           style={{
             width: 24,
             height: 24,
-            background: "#ffffff",
+            background: "var(--surface)",
             border: `1px solid var(--border)`,
             cursor: "pointer",
             color: "var(--fg)",
@@ -296,7 +296,7 @@ export function WorkspaceSidebar({
             minWidth: 0,
             height: 28,
             padding: "0 8px",
-            background: "#ffffff",
+            background: "var(--surface)",
             color: "var(--fg)",
             border: `1px solid var(--border)`,
             boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
@@ -516,7 +516,7 @@ export function WorkspaceSidebar({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "#ffffff",
+                background: "var(--surface)",
                 border: `1px solid var(--border)`,
                 borderRadius: "50%",
                 fontFamily: "var(--mono)",
@@ -536,7 +536,7 @@ export function WorkspaceSidebar({
           style={{
             flex: 1,
             height: 28,
-            background: "#ffffff",
+            background: "var(--surface)",
             color: "var(--fg)",
             border: `1px solid var(--border)`,
             cursor: "pointer",
@@ -553,7 +553,7 @@ export function WorkspaceSidebar({
           style={{
             flex: 1,
             height: 28,
-            background: "#ffffff",
+            background: "var(--surface)",
             color: "var(--fg)",
             border: `1px solid var(--border)`,
             cursor: "pointer",
@@ -570,7 +570,7 @@ export function WorkspaceSidebar({
           onChange={(e) => setLocale(e.target.value as typeof locale)}
           style={{
             height: 28,
-            background: "#ffffff",
+            background: "var(--surface)",
             color: "var(--fg)",
             border: `1px solid var(--border)`,
             cursor: "pointer",

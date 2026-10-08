@@ -292,7 +292,7 @@ function SkillDetail({
                     : updateStatus?.state === "up-to-date"
                       ? "#16a34a"
                       : updateStatus?.state === "error"
-                          ? "#ef4444"
+                          ? "var(--error)"
                           : "var(--faint)",
                 }}
               >
@@ -314,7 +314,7 @@ function SkillDetail({
                   border: "none",
                   borderRadius: 5,
                   background: "var(--accent)",
-                  color: "#fff",
+                  color: "oklch(99% 0.01 256)",
                   cursor: updating || checkingUpdate ? "not-allowed" : "pointer",
                   opacity: updating || checkingUpdate ? 0.5 : 1,
                   fontSize: 11,
@@ -326,7 +326,7 @@ function SkillDetail({
             )}
           </div>
           {updateError && (
-            <span style={{ fontSize: 12, color: "#ef4444" }}>{updateError}</span>
+            <span style={{ fontSize: 12, color: "var(--error)" }}>{updateError}</span>
           )}
         </div>
       )}
@@ -500,7 +500,7 @@ function AddSkillPanel({
               borderRadius: 6,
               border: "none",
               background: "var(--accent)",
-              color: "#fff",
+              color: "oklch(99% 0.01 256)",
               cursor: searching || !query.trim() ? "not-allowed" : "pointer",
               opacity: searching || !query.trim() ? 0.5 : 1,
               flexShrink: 0,

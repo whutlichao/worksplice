@@ -105,7 +105,7 @@ export function ModelPicker({
     gap: 6,
     width: "100%",
     padding: "7px 10px",
-    background: "#ffffff",
+    background: "var(--surface)",
     color: "var(--fg)",
     border: `1px solid var(--border)`,
     cursor: disabled ? "not-allowed" : "pointer",
@@ -176,7 +176,7 @@ export function ModelPicker({
                   padding: "5px 8px",
                   border: `1px solid var(--border)`,
                   outline: "none",
-                  background: "#ffffff",
+                  background: "var(--surface)",
                   color: "var(--fg)",
                 }}
               />
@@ -255,7 +255,7 @@ export function ModelPicker({
                 width: "100%",
                 textAlign: "left",
                 padding: "7px 10px",
-                background: "#ffffff",
+                background: "var(--surface)",
                 border: "none",
                 borderTop: `1px solid var(--border)`,
                 cursor: "pointer",
