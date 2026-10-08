@@ -449,8 +449,11 @@ export function AppShell() {
         paddingRight: "env(safe-area-inset-right)",
       }}
     >
-      {/* 左栏：channels + agents */}
-      <aside className={`ws-left${sidebarOpen ? " ws-left-open" : ""}`}>
+      {/* 左栏：channels + agents（宽度取自设计系统的 --rail-w 252px；紧凑端抽屉沿用同一宽度） */}
+      <aside
+        className={`ws-left${sidebarOpen ? " ws-left-open" : ""}`}
+        style={{ width: "var(--rail-w)" }}
+      >
         <WorkspaceSidebar
           channels={channels}
           agents={agents}
@@ -507,9 +510,13 @@ export function AppShell() {
         )}
       </div>
 
-      {/* 右栏（非长驻单槽 dock，ticket 13）：无选中/不可解析时整栏消失（中央吃满宽度）；桌面 380px，紧凑端滑入覆盖 */}
+      {/* 右栏（非长驻单槽 dock，ticket 13）：无选中/不可解析时整栏消失（中央吃满宽度）；
+          桌面宽度取自 --dock-w 380px（≤1080 由 CSS 的 max-width 收窄到 --dock-w-md，≤900 压到抽屉宽度） */}
       {resolvablePanel && (
-        <aside className="ws-right ws-right-open">
+        <aside
+          className="ws-right ws-right-open"
+          style={{ width: "var(--dock-w)" }}
+        >
           <DetailPanel
             content={resolvablePanel}
             channel={selectedChannel}

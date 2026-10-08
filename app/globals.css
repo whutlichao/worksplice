@@ -825,6 +825,12 @@ span.linenumber {
 /* ==========================================================================
    三栏骨架（§3.1，ticket 13）：左 channels+agents / 中央 channel 消息流+Tasks /
    右非长驻单槽面板（agent | human | thread | null——无选中时整栏不渲染，中央吃满宽度）
+
+   `.ws-shell` 取 `.app` 语义（`display:flex` + `overflow:hidden`）；视口高度由 AppShell 的
+   inline `var(--app-viewport-height, 100dvh)` 接管（iOS 键盘护栏，见 MobilePwaLayout.test.mjs）。
+   左右两栏的**宽度**是 AppShell 的 inline token（`var(--rail-w)` / `var(--dock-w)`，票 03 的
+   渲染级契约，见 components/AppShell.test.mjs），本段不重复声明同一值，只负责断点收窄
+   （≤1080）与紧凑端抽屉形态（≤900）。
    ========================================================================== */
 
 .ws-shell {
@@ -832,6 +838,7 @@ span.linenumber {
   display: flex;
   width: 100%;
   min-height: 0;
+  overflow: hidden;
   background: var(--bg);
   color: var(--fg);
 }
@@ -839,7 +846,6 @@ span.linenumber {
 .ws-left {
   display: flex;
   flex-direction: column;
-  width: var(--rail-w);
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--panel);
@@ -857,16 +863,16 @@ span.linenumber {
 .ws-right {
   display: flex;
   flex-direction: column;
-  /* 桌面 dock 宽度：设计系统的 --dock-w（380px），≤1080px 收窄到 --dock-w-md（340px） */
-  width: var(--dock-w);
   flex-shrink: 0;
   border-left: 1px solid var(--border);
   background: var(--surface);
 }
 
+/* D5：≤1080 dock 收窄到 --dock-w-md（340px）。桌面宽度是 AppShell 的 inline `var(--dock-w)`，
+   内联声明只能被 max-width 收窄——断点因此仍由样式表说了算，不需要 !important。 */
 @media (max-width: 1080px) {
   .ws-right {
-    width: var(--dock-w-md);
+    max-width: var(--dock-w-md);
   }
 }
 
@@ -895,7 +901,9 @@ span.linenumber {
   line-height: 1;
 }
 
-.ws-sidebar-close {
+/* 抽屉关闭按钮只在紧凑端出现（桌面端 rail 常驻）。选择器带 `.rail-head` 前缀，
+   因为 `.icon-btn`（原语段，声明在本段之后）的 `display:grid` 会盖掉单类名规则。 */
+.rail-head .ws-sidebar-close {
   display: none;
 }
 
@@ -959,7 +967,8 @@ span.linenumber {
     bottom: 0;
     z-index: var(--z-dock);
     height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    width: min(320px, 86vw);
+    /* 抽屉宽度：桌面宽度（inline `var(--dock-w)`）压到 ≤320px / 86vw */
+    max-width: min(320px, 86vw);
     transform: translateX(calc(100% + 24px));
     transition: transform var(--dur-drawer) var(--ease), box-shadow var(--dur-drawer) var(--ease);
   }
@@ -980,16 +989,93 @@ span.linenumber {
     display: flex;
   }
 
-  .ws-sidebar-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .rail-head .ws-sidebar-close {
+    display: grid;
   }
 
   .ws-center-header {
     padding-left: 52px !important;
   }
 }
+
+/* ==========================================================================
+   rail 形态（票 03，spec §3 组件表第 2 行）——逐字搬自 worksplice-design-system/
+   ui_kits/app/app.css 的 `.rail-head` / `.brand*` / `.search*` / `.rail-actions` /
+   `.rail-scroll` / `.group*` / `.nav-row` / `.rail-foot` 块。
+
+   裁剪登记（有理由，不是遗漏）：
+   ① `.rail` 容器本身不搬——它的角色（`--panel` 底 + 右发丝 + 固定宽度）已由骨架钩子
+      `.ws-left` 承担；再加一层 `.rail` 会让上游那条 ≤900 的 `position:fixed` 规则
+      与本仓 `.ws-left` 的抽屉规则套在同一元素上打架。
+   ② `.group-label button`（分组标题里的 ＋ 号）不搬——本仓的创建入口在 `.rail-actions`。
+   ③ `.search-btn span` / `.kbd` 不搬——本仓的搜索入口是真实输入框 + 提交按钮（§6.4 的
+      Enter/Escape 行为不动），故 input 取上游 `span` 的位置（`flex:1; min-width:0`），
+      焦点环落在 shell 上（ED-8 的字段环），见票 03 Answer 的偏离登记。
+   ========================================================================== */
+
+.rail-head {
+  display: flex; align-items: center; gap: 9px;
+  padding: var(--sp-6) var(--sp-5) var(--sp-5);
+}
+.brand { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
+.brand-mark {
+  width: 26px; height: 26px; flex: 0 0 26px; display: grid; place-items: center;
+  color: oklch(99% 0.01 256); background: var(--accent); border-radius: 7px;
+}
+.brand-name {
+  font-size: var(--fs-body-lg); font-weight: var(--fw-black);
+  letter-spacing: var(--ls-tight); line-height: var(--lh-tight);
+}
+.brand-sub {
+  font-family: var(--mono); font-size: var(--fs-mono-micro);
+  color: var(--faint); letter-spacing: var(--ls-wide); text-transform: uppercase;
+}
+
+.search-shell { padding: 0 var(--sp-5) 10px; }
+.search-btn {
+  width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); color: var(--muted); text-align: left;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.search-btn:hover { border-color: var(--border-strong); color: var(--fg); }
+.search-btn:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-btn input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--fg); font-size: var(--fs-sm); }
+/* 字段环已在 shell（`:focus-within`）上；内层 input 自己的环会让这两层叠成双环。 */
+.search-btn input:focus-visible { box-shadow: none; }
+.search-btn input::placeholder { color: var(--faint); }
+.search-btn button { display: grid; place-items: center; color: var(--muted); flex: 0 0 auto; }
+.search-btn button:hover { color: var(--accent); }
+
+.rail-actions { display: flex; gap: var(--sp-4); padding: 0 var(--sp-5) var(--sp-5); border-bottom: 1px solid var(--border); }
+.rail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-4) var(--sp-4) var(--sp-7); }
+
+.group { margin-top: var(--sp-5); }
+.group:first-child { margin-top: 2px; }
+.group-label {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) 10px; font-family: var(--mono);
+  font-size: var(--fs-mono-micro); letter-spacing: var(--ls-wider);
+  text-transform: uppercase; color: var(--faint); font-weight: var(--fw-semi);
+}
+
+.nav-row {
+  width: 100%; display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-3) 9px; border-radius: var(--r-sm); color: var(--muted);
+  text-align: left; position: relative; margin-bottom: 1px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.nav-row:hover { background: var(--surface); color: var(--fg); }
+.nav-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-row .hash { font-family: var(--mono); font-size: 12px; color: var(--faint); width: 13px; text-align: center; flex: 0 0 13px; }
+.nav-row.is-active { background: var(--surface); color: var(--fg); font-weight: var(--fw-semi); box-shadow: inset 0 0 0 1px var(--border); }
+.nav-row.is-active::before {
+  content: ""; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 2px;
+  background: var(--accent); border-radius: var(--r-pill);
+}
+.nav-row.is-active .hash { color: var(--accent); }
+
+.rail-foot { border-top: 1px solid var(--border); padding: var(--sp-4); display: flex; gap: var(--sp-3); align-items: center; }
 
 /* ==========================================================================
    原语 class 块（票 04，spec D7 的原语层）——逐字搬自 worksplice-design-system/
