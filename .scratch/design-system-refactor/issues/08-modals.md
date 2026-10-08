@@ -100,3 +100,41 @@ git diff d387cfa HEAD --numstat -- app/globals.css → 44 0（只追加）
 残留风险（登记，不阻塞）：一次全量跑出现环境性 flake——`lib/bash-containment-extension.test.mjs` 的沙箱用例在并行负载下 172s 超时并连带 `lib/domain/collab/observability-route.test.mjs` 失败；两份文件单独重跑全绿，其后两次全量跑均 1195 / 0。与本次改动面（`components/**` + `app/globals.css`）无关。
 
 **PR:** [#115](https://github.com/whutlichao/worksplice/pull/115)
+
+### Rebase（第二次交付）
+
+**触发**：协调端 `gh pr merge` 报 `CONFLICTING`——本票分支基于 `c21602a`，而 `origin/main` 已前进到 `5506fc4`（票 06 #113 → 票 03 #114）。
+
+**冲突面**：`git rebase origin/main` 只在**一处**停下——`app/globals.css` 的单个 hunk，位置在文件末尾：
+
+- `HEAD` 侧 = 票 06 的任务板 class 块（`.board-*` / `.col*` / `.card*` / `.seg` / `.drop-hint` / 拖拽态）
+- incoming 侧 = 票 08 的模态族 class 块（`.overlay` / `.modal*` / `.member-pick` / `.member-opt` / `.radio-*` / `.kv` / `.directory-picker-*`）
+
+其余 3 个提交（`5d6aa2a` 的 globals.css 收口、两份票据文档提交）与 15 个组件文件**零冲突**自动应用——票 03 / 06 碰过的组件（`AppShell` / `WorkspaceSidebar` / `ChannelView`）与本票 Ownership 不重叠。
+
+**解法与取序理由**：两边块**都保留**（互不相干的段落，不是二选一），取 **票 06 任务板在前、票 08 模态族在后**。理由：`app/globals.css` 既有的段落顺序 = 票据 / 分层顺序（骨架 03 → 原语 04 → 任务板 06 → 模态族 08），票号与分层同向升序；票 08 依赖票 04 的原语段（`.field` / `.input` / `.btn` 已在票 04 段落位，本票只补模态专属 class），后到的段落落在文件尾也符合「新票往末尾追加」的既有做法。冲突标记三行按「保留两侧」摘除，**未改任何规则值、未删任何一侧的规则**。
+
+**机械校验（防「解冲突时丢块」）**：
+
+- `origin/main` 侧归一化规则行：**0 缺失**
+- 本票新增行（`git diff d387cfa..c099e58 -- app/globals.css` 的 `+` 行 49 条）：**0 缺失**
+- 选择器重复检测：全文件仅 1 处重复 `.mermaid-zoom-icon-button`（`origin/main` 与本票 base `d387cfa` 各 2 处，属既有重复，**不在本票范围**，未顺手改）
+- 关键段落 spot-check：`.ws-shell` / `.rail-head` / `.btn` / `.card` / `.board-wrap` / `.col` / `.overlay` / `.modal` / `.modal.wide` / `.modal-head` / `.modal-body` / `.modal-foot` / `.member-opt` / `.radio-card` / `.kv` / `.directory-picker-entry:hover` 全部在位
+- 票 04 的 `.card` 仍在原语段（票 06 只在自己的段落位加 `.card.dragging`）；本票裁掉的三个零消费者槽位（`.modal-head .sub` / `.radio-card span` / `.reminder-row*`）在注释剥离后仍为 0 命中（票 06 的逐字保留策略未把它们带回来）
+
+**重跑门禁（rebase 后，本 worktree）**：
+
+```text
+git status --porcelain                → 空
+git log --oneline origin/main..HEAD   → 只含本票 4 个提交（bb9d7b1 / 5d6aa2a / 4009f99 / cf9c560）
+npm test                              → 1221 pass / 0 fail（并入 main 的票 03/06 测试；本票 +33 断言仍在）
+node_modules/.bin/tsc --noEmit        → 通过（无输出）
+npm run lint                          → 0 error / 1 warning（同基线 hooks/useI18n.tsx:61）
+git diff origin/main..HEAD --numstat  → 16 个文件；app/globals.css 44/0（对 main 仍是纯追加），无整文件重写
+grep -c '@keyframes' app/globals.css  → 13（未减）；reduce 块 3 处（未减）
+2px solid（注释剥离后）                → 5 处，与 origin/main 逐字相同（全为 reset 焦点环与既有面；模态段 0 处）
+```
+
+**推送与 PR**：`git push --force-with-lease` → `d15e599...cf9c560`（forced update）；`gh pr view 115 --json mergeable` → `MERGEABLE`（`mergeStateStatus: CLEAN`，head `cf9c560`）。
+
+**零语义改动声明**：本轮只解冲突 + 追加本文档段落；未改任何组件形态、未改 token、未改 `globals.css` 的任何规则值，未 invent 新行为。
