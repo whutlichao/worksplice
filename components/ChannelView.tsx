@@ -33,7 +33,7 @@ import {
 import { useI18n } from "@/hooks/useI18n";
 import type { TranslationParams } from "@/lib/i18n/types";
 import { MentionText } from "./MentionText";
-import { PixelAvatar } from "./PixelAvatar";
+import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import { ReminderModal } from "./ReminderModal";
 import { copyText } from "@/lib/clipboard";
@@ -906,10 +906,11 @@ export const MessageRow = memo(function MessageRow({
         padding: "10px 16px",
       }}
     >
-      <PixelAvatar
-        seed={message.author_id}
-        name={message.author?.name ?? "?"}
-        size={40}
+      <Avatar
+        name={message.author?.name}
+        type={message.author?.type}
+        size="md"
+        colorKey={message.author_id}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
@@ -1285,11 +1286,14 @@ function TaskCard({
             fontSize: 11,
           }}
         >
-          <PixelAvatar
-            seed={task.owner_id ?? "none"}
-            name={task.owner?.name ?? "?"}
-            size={28}
-          />
+          {task.owner ? (
+            <Avatar
+              name={task.owner.name}
+              type={task.owner.type}
+              size="sm"
+              colorKey={task.owner_id ?? undefined}
+            />
+          ) : null}
           {task.owner ? task.owner.name : t("tasks.unassigned")}
         </span>
       </div>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { MessageSquare, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
-import { PixelAvatar } from "./PixelAvatar";
+import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import { BrutalModal } from "./BrutalModal";
 import { DirectoryPicker } from "./DirectoryPicker";
@@ -703,7 +703,7 @@ export function AgentDetailPanel({
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-          <PixelAvatar seed={agent.id} name={agent.name} size={44} />
+          <Avatar name={agent.name} type={agent.type} size="lg" colorKey={agent.id} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span
