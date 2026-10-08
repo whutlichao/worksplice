@@ -181,5 +181,13 @@ _Avoid_: 浅封装（仅做 re-export 转发）、大杂烩模块
 _Avoid_: 散导入（直引子模块）、桶文件（仅为缩短路径）
 
 **视觉契约 (Visual Contract)**:
-下游按**名字**消费的 token 名集合（`--bg` / `--surface` / `--panel` / `--panel-2` / `--fg` / `--muted` / `--faint` / `--border` / `--border-strong` / `--accent` / `--accent-hover` / `--accent-soft` / `--accent-line` / `--online` / `--working` / `--error` / `--offline` / `--av-0…--av-4` 等）。改名不是改一处定义，而是同时扯断全部消费点，所以它是**承诺**而不是实现细节。正本是 `worksplice-design-system/colors_and_type.css` + `tokens.css`，产品经 `app/globals.css` 的 `@import` 直接消费它（ADR-0014）。
+下游按**名字**消费的 token 名集合（`--bg` / `--surface` / `--panel` / `--panel-2` / `--fg` / `--muted` / `--faint` / `--border` / `--border-strong` / `--accent` / `--accent-hover` / `--accent-soft` / `--accent-line` / `--online` / `--working` / `--error` / `--offline` / `--av-0…--av-4` 等）。改名不是改一处定义，而是同时扯断全部消费点，所以它是**承诺**而不是实现细节。正本是 `worksplice-design-system/colors_and_type.css` + `tokens.css`，产品经 `app/globals.css` 的 `@import` 直接消费它（ADR-0014）。色值的组织形态由 ADR-0015 再改判为**角色族 × 档位**；正本位置与消费方式不变。
 _Avoid_: 主题变量（会被读成可自由改值的一层）、设计 token（泛指，不说清「按名消费」这条约束）
+
+**档位 (Tier)**:
+同一色相族内按**对比度用途**分层的取值：**填充档**（族的本色，深墨文字压其上）、**淡底档**（淡到只做背景提示、不做边界）、**文字档**（同色相压深，≥4.5:1 可作正文）、**图形档**（同色相中档，≥3:1 可作焦点环、状态点、边界）。它回答「为什么一个色相有三个值」，是马卡龙方向下唯一的新结构（ADR-0015）。
+_Avoid_: 色阶（会被读成同色相的明度渐变序列，那是色板而不是用途分层）、变体（泛指）
+
+**角色族 (Role Family)**:
+以**角色**而不是色相命名的一组档位（`--accent*` / `--selected*` / `--unread*` / `--warn*` / `--online*` …），每个角色恰好一个色相。它回答「多色 pastel 怎么映射到既有单色 token 名」：族名沿用旧名（`--accent*` 不动），新增档位加后缀（`-deep` / `-graphic` / `-fill`）。
+_Avoid_: 配色组（泛指）、主题（会被读成可切换的一套）
