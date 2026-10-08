@@ -35,7 +35,6 @@
   --accent:        oklch(85.7% 0.086 356.8);  /* primary action surface  */
   --accent-hover:  oklch(79.4% 0.104 356.6);  /* pressed / hover surface */
   --accent-soft:   color-mix(in oklch, var(--accent) 22%, transparent);
-  --accent-line:   color-mix(in oklch, var(--accent) 40%, transparent);
   --accent-deep:   oklch(53% 0.086 356.3);    /* text tier (on paper)    */
   --accent-graphic: oklch(62.6% 0.086 356.7); /* ring / dot / boundary   */
 
@@ -100,11 +99,10 @@
   /* ─── radii (map onto --r-* consumed by components) ──────────────────── */
   --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 99px;
 
-  /* ─── elevation（几何与透明度档位不动，只换 ink 的色相为梅墨） ────────── */
-  --shadow-pop: 0 10px 30px -12px oklch(33% 0.045 300 / 0.28),
-                0 2px 6px -2px oklch(33% 0.045 300 / 0.12);
-  --shadow-card: 0 2px 8px -4px oklch(33% 0.045 300 / 0.18);
-  --shadow-composer: 0 1px 2px oklch(33% 0.045 300 / 0.04);
+  /* ─── elevation 不在本文件 ─────────────────────────────────────────────
+     `--shadow-pop` / `--shadow-card` / `--shadow-composer` 唯一声明在
+     `tokens.css`（elevation 归它）。本文件曾重复声明同一批值，因 import 顺序
+     （本文件 → tokens.css）那三条是死的；票 04 去重时删掉，**不要加回来**。 */
 
   /* ─── spacing scale (4px base) ───────────────────────────────────────── */
   --sp-1: 2px;  --sp-2: 4px;  --sp-3: 6px;  --sp-4: 8px;

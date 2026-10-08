@@ -8,7 +8,7 @@
 | 决策 | 出处 ticket | 一句话 |
 |---|---|---|
 | pi 能力边界与多实例模型 | 01 | 持久 agent = 绑定 cwd 的 AgentSession / `pi --mode rpc` 子进程；隔离单位 cwd |
-| 参考形态的视觉参考与马卡龙配色 | 02 | `--color-brutal-*` 色板 + 2px 粗边框 + 0 圆角 + 硬偏移阴影 |
+| 参考形态的视觉参考与马卡龙配色 | 02 | `--color-brutal-*` 色板 + 2px 粗边框 + 0 圆角 + 硬偏移阴影（**已被 ADR-0014 / ADR-0015 先后改判，终局值见 §4**） |
 | 参考产品与架构细节研究 | 03 | 拉取式 inbox、freshness-hold、任务板状态机、记忆 = workspace 磁盘目录 |
 | pi-web 功能去留与能力映射 | 04 | 骨架按参考形态重写；pi-web 降级为组件库；保留/重写/删除清单 |
 | 数据层选型与数据建模 | 05 | better-sqlite3 独立存储层；`UNIQUE(target_id, seq)`；双写流；FTS5 |
@@ -212,49 +212,79 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 
 ## 4. 视觉设计 token
 
-马卡龙 × brutalist：粉彩色块 + 墨色结构线。仅亮色一档，无深色模式，不响应 `prefers-color-scheme`。
+**马卡龙暖奶霜 + pastel 角色族**（`docs/adr/0015-macaron-palette-warm-cream-pastel.md` 裁决），**形态段沿用 `docs/adr/0014-visual-direction-modern-minimal.md`**——小圆角、发丝边框、柔和阴影、首字头像、三栏骨架、断点（1080 / 900 / 640）与系统字体栈全部继续有效。仅亮色一档，无深色模式，不响应 `prefers-color-scheme`。
+
+> 沿革（本节曾三次记录方向）：最初是「马卡龙 × brutalist」的 12 色板 + 0 圆角 + 2px ink；ADR-0014 整节改判为 modern-minimal；ADR-0015 只再改判其**色板段**为马卡龙。本节只保留终局值，历史论证在两份 ADR 里。
+
+事实来源是入库的 `worksplice-design-system/`：`colors_and_type.css`（色 + 字型）、`tokens.css`（间距 / 圆角 / 高度 / 阴影 / 动效 / z-index），两者经 `app/globals.css` 顶层 `@import` 成为**运行时真源**；`app/globals.css` 只叠产品扩展层，不复制上游同名 token。
 
 ### 4.1 色板
 
-| Token | 值 | 用途 | 决策状态 |
-|---|---|---|---|
-| cream（底色） | `#fffaef` | 页面背景 | **[锁定]** 02 |
-| yellow（primary） | `#ffd440` | 品牌主色：导航栏、当前选中态、高亮 | **[锁定]** 02 |
-| bubble pink（accent） | `#fe7da8` | CTA / 行动按钮底色 | **[锁定]** 02 |
-| cyan（info） | `#27ccf3` | 信息态、色块点缀 | **[锁定]** 02 |
-| orange | `#f8a16f` | 色块点缀、像素头像 | **[锁定]** 02 |
-| lime | `#a9d877` | 色块点缀 | **[锁定]** 02 |
-| lavender | `#bbafe6` | 色块点缀、像素头像 | **[锁定]** 02 |
-| coral（danger） | `#f97264` | 错误态、危险操作 | **[锁定]** 02 |
-| ink | `#141111` | 文字、边框、硬阴影色 | **[锁定]** 02 |
-| success | 薄荷绿 `oklch(71.4% .176 153.079)` | 成功态（任务 done 等） | **[锁定]** 02 |
-| warning | 琥珀 `oklch(70% .202 44.441)` | 警告态 | **[锁定]** 02 |
-| stone（中性灰） | `#c9c7c2`（oklch 近似推断值） | 次级文字、分隔 | **[锁定]** 02（hex 为推断） |
+每族四档：**fill**（马卡龙亮档，只做填充，其上压 `--on-accent` 深梅墨）/ **soft**（淡底，只做背景提示，不做边界）/ **deep**（文字档，≥4.5:1）/ **graphic**（环 · 点 · 边界档，≥3:1）。`-soft` 的配方是 `color-mix(in oklch, var(--<族>) <配比>%, transparent)`，配比是契约的一部分（22 / 21 / 36 / 24，四态族 20%）。
+
+**角色族**（一色一义）：
+
+| 族 | 角色 | fill | deep | graphic |
+|---|---|---|---|---|
+| `--accent` | 行动：主按钮 / 徽标 / composer send / agent 身份 | `oklch(85.7% 0.086 356.8)` | `oklch(53% 0.086 356.3)` | `oklch(62.6% 0.086 356.7)` |
+| `--selected` | 当前位置：导航激活 / 锚点行 / tab / 选中 chip | `oklch(84.9% 0.081 299.9)` | `oklch(52.4% 0.081 299.8)` | `oklch(62.4% 0.081 300.5)` |
+| `--unread` | 注意力：未读角标 / 命中高亮 | `oklch(91% 0.100 94.8)` | `oklch(51.8% 0.100 94.5)` | `oklch(61.6% 0.099 94.7)` |
+| `--warn` | 警示：待审 / 横幅 | `oklch(86.3% 0.084 52.2)` | `oklch(52.6% 0.084 51.9)` | `oklch(62.1% 0.083 51.6)` |
+| `--online` | 在线 / 成功 / done | `oklch(80.8% 0.108 159.6)`（`-fill`） | `oklch(50.6% 0.107 159.9)`（`-text`） | **base** `oklch(60.1% 0.108 159.4)` |
+| `--working` | 正在干活 / in_review | `oklch(84.3% 0.110 74.6)`（`-fill`） | `oklch(52.3% 0.110 75.2)`（`-text`） | **base** `oklch(61.9% 0.110 74.2)` |
+| `--error` | 出错 / 危险 / 失败 | `oklch(74.5% 0.127 25.8)`（`-fill`） | **base** `oklch(53.2% 0.128 25.9)` | 同 deep（不另立名字） |
+| `--offline` | 离线 / closed | `oklch(82.5% 0.026 303.4)`（`-fill`） | `oklch(51.8% 0.026 302.5)`（`-deep`） | **base** `oklch(61.8% 0.026 304.2)` |
+
+族的**裸名**指向「改判前它实际的主用途档」：`--accent` / `--selected` / `--unread` / `--warn` 是 fill，`--online` / `--working` / `--offline` 是 graphic，`--error` 是 deep（`--error` 一名一值，不设 `-graphic` 第二名字）。`--accent-hover` = `oklch(79.4% 0.104 356.6)`（fill 档，压深一档）。
+
+**纸张与墨族**：
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `--bg` | `oklch(98% 0.011 85)` | 页面画布（暖奶霜） |
+| `--surface` | `oklch(99.4% 0.006 85)` | 卡片 / 面板 / chrome / 弹层 |
+| `--panel` | `oklch(95.7% 0.018 85)` | 栏 / 列 / well |
+| `--panel-2` | `oklch(93.1% 0.022 84)` | 嵌套 well / chip / 代码块 |
+| `--fg` | `oklch(33% 0.045 300)` | 主文字（深梅墨）· 兼 `--on-accent` |
+| `--muted` | `oklch(46% 0.030 300)` | 次级文字 |
+| `--faint` | `oklch(52% 0.024 300)` | 三级 / meta / placeholder |
+| `--border` | `oklch(90% 0.013 86)` | 发丝分隔 |
+| `--border-strong` | `oklch(78% 0.020 86)` | 输入框 / 可交互边界 |
+| `--on-accent` | `var(--fg)` | 每个 fill 档上的文字 |
+| `--fg-soft` | `color-mix(in oklch, var(--fg) 5%, transparent)` | hover 填充 |
+| `--av-0…--av-4` | 薰衣草 / 薄荷 / 蜜桃 / 柠檬 / 藕灰 | 头像五格，确定性取色 |
+| `--shadow-*` / scrim ink | `oklch(33% 0.045 300 / …)` | 阴影与遮罩的色相（几何与透明度档位不动） |
+
+**对比度下限**：文字 4.5:1；大字与图形边界 3:1（WCAG AA）。机械断言在 `app/globals.contrast.test.mjs`（族 × 档位矩阵、配对实测值、淡底可见性 ΔL ≥ 3.0）。
 
 ### 4.2 边框 / 圆角 / 阴影
 
-- 全局 **0 圆角**（方角直角）。
-- **2px ink 粗边框**贯穿所有组件（卡片、按钮、消息气泡、导航栏底边、section 分隔线用 `border-y-2`）。
-- 硬偏移阴影阶梯（无模糊）：`sm = 2px 2px 0`、默认 `4px 4px 0`、`lg = 6px 6px 0`、按压态 `1px 1px 0`；hover 阴影增大一档（"抬起"手感）。
+形态段沿用 ADR-0014（不因 ADR-0015 复活 brutalist）：
+
+- 小圆角 6 / 8 / 12 / 16（`--r-sm/md/lg/xl`）；`--r-pill` 99px 只用于计数 / 标签 / 状态 / 反应 chip，卡片不做胶囊。
+- 发丝边框 1px：`--border` 分隔、`--border-strong` 输入与可交互边界。**无 2px ink 粗边框**。
+- 柔和阴影三档（`--shadow-composer` 常驻输入 / `--shadow-card` 卡片 hover / `--shadow-pop` 浮层 · 弹窗 · 抽屉），只用于分层表面，静止内容不加；**无硬偏移阴影阶梯**。
 
 ### 4.3 字体
 
 | 角色 | 字体 | 用途 |
 |---|---|---|
-| 正文/标题 | Space Grotesk（400–700） | 正文默认；h1 60px/700 |
-| heading/按钮 | Hanken Grotesk（700） | CTA 按钮、标题强调 |
-| 等宽 | Space Mono | 代码、时间戳、seq 号等 |
+| 正文 / 标题 | 系统 sans 栈（`--font`，含 `PingFang SC`） | 正文默认、标题、按钮 |
+| 等宽 | 系统 mono 栈（`--mono`） | 代码、时间戳、seq 号、计数（`tabular-nums`） |
+
+无 webfont、无第三字体（Space Grotesk / Hanken Grotesk / Space Mono 作废）；13px 正文密度。
 
 ### 4.4 组件风格
 
-- **按钮**：主 CTA = bubble pink 底 + ink 文字 + 2px 边框 + `2px 2px 0` 阴影 + 0 圆角 + Hanken Grotesk 700；hover 抬起、active 按压。语义：**粉 = 行动**，**黄 = 当前位置/状态**。
-- **卡片**：白底 / 奶油底 + 2px ink 边框 + 硬阴影 + 0 圆角。
-- **消息气泡**：白底 + 2px ink 边框 + 0 圆角 + Space Mono 时间戳。
-- **头像**：8×8 像素网格（`image-rendering: pixelated`），底色取自马卡龙色板（橙/粉/黄/青/紫），尺寸 28/40/44/48px。
+- **按钮**：主 CTA = `--accent` 填充 + `--on-accent` 深墨文字 + 8px 圆角 + 同色描边；hover 换 `--accent-hover`（两通道同时换）。语义：**粉 = 行动**，**薰衣草 = 当前位置**，**柠檬 = 未读**，**蜜桃 = 警示**。
+- **卡片**：`--surface` 底 + `--border` 发丝 + `--r-md`；hover 强化边框并加 `--shadow-card`。
+- **消息**：`--bg` / `--surface` 底 + 发丝分隔 + `--fg` 正文；agent 作者名与 `#` 频道号走 `--accent-deep`。
+- **头像**：首字方 tile（7px 圆角），底色取 `--av-0…--av-4`，按成员确定性取色、「我」恒 `--av-4`（8×8 像素图案作废）。
+- **状态点**：四态点取各族 base（graphic 档，≥3:1）；徽标 / 横幅底取各族 `-fill` 并压 `--on-accent`。
 
 ### 4.5 实现载体
 
-沿用 pi-web 的主题基建（tailwind 配置 + CSS 变量），将主题色替换为本节 token；组件样式按本节规则重写。**[锁定]** 04（主题基建复用）。
+`worksplice-design-system/` 即运行时真源（ADR-0014 的 D2）：`app/globals.css` 顶层 `@import` `colors_and_type.css` + `tokens.css`，本仓只在其后叠**扩展层**（`--selected*` / `--unread*` / `--warn*` 三个产品角色族 + `--font-mono`），不覆盖上游同名 token。Tailwind 已删除（ADR-0014 D4），`@theme` 别名层不复活；`ws-*` 只作骨架钩子。
 
 ---
 

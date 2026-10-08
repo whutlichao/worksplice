@@ -46,9 +46,12 @@ screens/               sliced per-surface reproductions of the source monolith
 
 ## Core principles
 
-- **One accent, many meanings.** A single indigo-blue `--accent` is the agent/action
-  color. Status hues (`--online/--working/--error/--offline`) are reserved for agent
-  presence and task state — color is never decorative.
+- **One hue per role, tiers per family.** Eight pastel role families carry the meaning —
+  action=樱粉 `--accent`, selected=薰衣草 `--selected`, unread=柠檬 `--unread`,
+  warn=蜜桃 `--warn`, presence=薄荷 `--online` / 杏 `--working` / 珊瑚 `--error` /
+  藕灰 `--offline`. Each family is organised by **tier**: fill (pastel, ink is
+  `--on-accent` on top), soft (tint, background hint only), deep (text, ≥4.5:1),
+  graphic (ring / dot / boundary, ≥3:1). Color is never decorative.
 - **Layered surfaces, not shadows.** Depth comes from `--bg → --panel → --surface`
   plus hairline borders; shadows only for popovers, modals and drawers.
 - **Monospace as structure.** Identifiers, timestamps, counts, metrics, key/value
@@ -58,9 +61,13 @@ screens/               sliced per-surface reproductions of the source monolith
 
 ## Direction
 
-`modern-minimal` — Linear / Vercel register: near-white paper, tight 13px density,
-small radii, hairline dividers, a restrained single accent. Bound verbatim from the
-source file's own `:root` block, reproduced unchanged in `colors_and_type.css`.
+`macaron` — warm cream paper (`--bg` at hue 85) + deep plum ink (`--fg` at hue 300)
++ multi-hue pastel role families (ADR-0015, superseding ADR-0014's colour section
+only). The **form** half of `modern-minimal` stays in force verbatim: tight 13px
+density, small radii (6/8/12/16), hairline dividers, soft shadows, first-letter
+avatar tiles. Colour is authored once in `colors_and_type.css` (+ the product role
+families in the app layer); every value is `oklch()` and every family carries the
+four tiers.
 
 ## Fidelity
 

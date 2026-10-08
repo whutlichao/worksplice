@@ -34,7 +34,7 @@ code, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   border-radius: var(--r-pill); color: var(--muted); background: var(--surface);
 }
 .pv-nav a:hover { border-color: var(--border-strong); color: var(--fg); text-decoration: none; }
-.pv-nav a.is-on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.pv-nav a.is-on { border-color: var(--accent-graphic); background: var(--accent-soft); color: var(--accent-deep); }
 
 .pv-grid { max-width: 1180px; margin: 0 auto; display: grid; gap: var(--sp-6); }
 .pv-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

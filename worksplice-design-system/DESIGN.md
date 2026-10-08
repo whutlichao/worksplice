@@ -2,7 +2,9 @@
 
 > Category: Project Design System
 > Surface: web
-> Direction: `modern-minimal` (Linear / Vercel register) — bound from the source tokens
+> Direction: `macaron` (warm cream paper + deep plum ink + one pastel per role,
+> four tiers per family) — colour re-decided by ADR-0015; the form half of
+> `modern-minimal` stays in force
 > Source: Open Design project "Web Prototype" (228a9bdf-5a68-4d36-a153-9771522ea041),
 > copied file `worksplice-app.html` (1,865 lines).
 
@@ -21,9 +23,11 @@ tells an agent how to compose new surfaces with it.
 ## 1. Visual Theme & Atmosphere
 
 A calm, legible operator console for human–agent teamwork. The mood is **technical
-but warm**: a near-white paper canvas, hairline separators, and a single indigo-blue
-accent that reads as "the agent color". Density is high (13px base, 6–8px vertical
-rhythm) yet never cramped — every row has breathing room, and the layered surfaces
+but warm**: a warm cream paper canvas, deep plum ink, hairline separators, and a
+pastel hue per role — action is macaron pink, position is lavender, attention is
+lemon, warning is peach, and the four presence states keep a readable mid-tone of
+their own hue. Density is high (13px base, 6–8px vertical rhythm) yet never cramped
+— every row has breathing room, and the layered surfaces
 (`--bg` → `--panel` → `--surface`) create depth without shadow noise.
 
 The signature is **status made visible**: agents carry a live presence dot
@@ -33,7 +37,9 @@ decorative; every hue means something.
 
 Restraint rules observed in the source:
 
-- One accent hue for the entire app; it is the agent/action color and appears sparingly.
+- One hue per role, and four tiers per family: `fill` (the pastel; fills only, ink is
+  `--on-accent`), `soft` (tint), `deep` (text, ≥4.5:1), `graphic` (ring / dot /
+  boundary, ≥3:1). Never put a `fill` on paper as text or as a status dot.
 - Radius is small and consistent (6/8/12/16). No pill-shaped cards; pills only for
   counts, tags, status and reaction chips.
 - Shadows are hairline and directional, used only for popovers, modals and the
@@ -49,37 +55,61 @@ All color is authored in `oklch()` in `colors_and_type.css`. Do not introduce he
 
 | Token | Value | Role |
 | --- | --- | --- |
-| `--bg` | `oklch(99% 0.002 240)` | page canvas behind the main column |
-| `--surface` | `oklch(100% 0 0)` | cards, panels, header chrome, popovers |
-| `--panel` | `oklch(97.4% 0.004 250)` | rail, board columns, stat wells, pin strip |
-| `--panel-2` | `oklch(95.6% 0.006 250)` | nested wells, inactive tags, code chips |
-| `--fg` | `oklch(21% 0.014 255)` | primary text, active tab underline, toolbar fill |
-| `--muted` | `oklch(50% 0.014 255)` | secondary text, inactive nav / tab labels |
-| `--faint` | `oklch(56% 0.013 255)` | tertiary text, meta, placeholders, scrollbar |
-| `--border` | `oklch(92% 0.006 250)` | hairline separators |
-| `--border-strong` | `oklch(85% 0.008 250)` | inputs, composer, interactive borders |
-| `--accent` | `oklch(56% 0.17 256)` | primary action + agent identity |
-| `--accent-hover` | `oklch(50% 0.17 256)` | primary pressed/hover |
-| `--accent-soft` | `color-mix(--accent 11% transparent)` | soft fills, active nav tint |
-| `--accent-line` | `color-mix(--accent 40% transparent)` | softened accent borders |
+| `--bg` | `oklch(98% 0.011 85)` | page canvas behind the main column (warm cream) |
+| `--surface` | `oklch(99.4% 0.006 85)` | cards, panels, header chrome, popovers |
+| `--panel` | `oklch(95.7% 0.018 85)` | rail, board columns, stat wells, pin strip |
+| `--panel-2` | `oklch(93.1% 0.022 84)` | nested wells, inactive tags, code chips |
+| `--fg` | `oklch(33% 0.045 300)` | primary text (deep plum), active tab underline, toolbar fill |
+| `--muted` | `oklch(46% 0.030 300)` | secondary text, inactive nav / tab labels |
+| `--faint` | `oklch(52% 0.024 300)` | tertiary text, meta, placeholders, scrollbar |
+| `--border` | `oklch(90% 0.013 86)` | hairline separators |
+| `--border-strong` | `oklch(78% 0.020 86)` | inputs, composer, interactive borders |
+| `--on-accent` | `var(--fg)` | the ink that sits on every `fill` tier |
+
+Families are organised by **tier** — `fill` (pastel: fills only, `--on-accent` on top),
+`soft` (`color-mix(<family> N%, transparent)`; the ratios are 22 / 21 / 36 / 24 for
+accent / selected / unread / warn and 20% for the four presence families), `deep`
+(text) and `graphic` (ring / dot / boundary). Each family's bare name holds the tier
+that was its main use before the split:
+
+| Family | Role | fill | deep | graphic |
+| --- | --- | --- | --- | --- |
+| `--accent` | action: primary button, brand mark, composer send, agent identity | `oklch(85.7% 0.086 356.8)` | `oklch(53% 0.086 356.3)` | `oklch(62.6% 0.086 356.7)` |
+| `--selected` | current position: nav, anchor row, tab, selected chip | `oklch(84.9% 0.081 299.9)` | `oklch(52.4% 0.081 299.8)` | `oklch(62.4% 0.081 300.5)` |
+| `--unread` | attention: unread badge, search-hit highlight | `oklch(91% 0.100 94.8)` | `oklch(51.8% 0.100 94.5)` | `oklch(61.6% 0.099 94.7)` |
+| `--warn` | warning: pending review, banners | `oklch(86.3% 0.084 52.2)` | `oklch(52.6% 0.084 51.9)` | `oklch(62.1% 0.083 51.6)` |
+
+`--accent-hover` is `oklch(79.4% 0.104 356.6)` (a fill, one step deeper).
 
 ### Semantic status
 
-| Token | Value | Meaning |
-| --- | --- | --- |
-| `--online` | `oklch(64% 0.15 152)` | agent idle / granted / success |
-| `--working` | `oklch(74% 0.15 78)` | agent busy / pending review / highlight |
-| `--error` | `oklch(60% 0.19 27)` | failure, destructive, unread dot |
-| `--offline` | `oklch(78% 0.008 250)` | agent offline / closed |
+The four presence hues are the exception to "the bare name is the fill tier": their
+bare names hold the `graphic` tier (dots, bars, markers), because that was their main
+use before the split. `--error` holds the `deep` tier — text, stroke and dot share it.
 
-Task status maps directly: `todo → --faint`, `in_progress → --accent`,
-`in_review → --working`, `done → --online`, `closed → --offline`.
+| Token | Value | Tier | Meaning |
+| --- | --- | --- | --- |
+| `--online` | `oklch(60.1% 0.108 159.4)` | graphic | agent idle / granted / success |
+| `--working` | `oklch(61.9% 0.110 74.2)` | graphic | agent busy / pending review / highlight |
+| `--error` | `oklch(53.2% 0.128 25.9)` | deep | failure, destructive |
+| `--offline` | `oklch(61.8% 0.026 304.2)` | graphic | agent offline / closed |
+| `--online-fill` | `oklch(80.8% 0.108 159.6)` | fill | success badge / banner |
+| `--working-fill` | `oklch(84.3% 0.110 74.6)` | fill | busy badge / banner |
+| `--error-fill` | `oklch(74.5% 0.127 25.8)` | fill | failure badge / banner / toast err |
+| `--offline-fill` | `oklch(82.5% 0.026 303.4)` | fill | offline badge |
+| `--online-text` / `--working-text` | `oklch(50.6% 0.107 159.9)` / `oklch(52.3% 0.110 75.2)` | deep | status hues as text |
+
+Task status maps directly: `todo → --faint`, `in_progress → --accent-graphic`,
+`in_review → --working`, `done → --online`, `closed → --offline`. A task's *badge
+background* is the fill tier instead (`--accent` / `--working-fill` / `--online-fill`
+/ `--offline-fill`, with `--panel-2` for the neutral state).
 
 ### Avatar palette
 
-Five deterministic pastel tints keyed by member index (`--av-0…--av-4`): blue, teal,
-amber, coral, and a neutral used for "you". Avatar tiles are 7px-radius squares, not
-circles — a deliberate differentiator from chat products.
+Five deterministic pastel tints keyed by member index (`--av-0…--av-4`): lavender,
+mint, peach, lemon, and a lotus grey used for "you". Every tint clears 7.1:1 against
+the deep plum ink. Avatar tiles are 7px-radius squares, not circles — a deliberate
+differentiator from chat products.
 
 ## 3. Typography
 
@@ -159,36 +189,44 @@ Responsive breakpoints observed:
 Full visual specimens live in `preview/`; the applied kit is `ui_kits/app/`.
 
 - **Buttons** — `.btn` (32px, `--surface`, `--border-strong`), `.btn-primary`
-  (`--accent` on white ink), `.btn-ghost`, `.btn-danger`, `.btn-sm` (27px).
+  (`--accent` fill with `--on-accent` ink), `.btn-ghost`, `.btn-danger`, `.btn-sm` (27px).
 - **Icon button** — `.icon-btn` 30px, transparent border, `--muted`; hover fills
-  `--surface` and strengthens the border; `.is-on` uses `--accent-soft`.
-- **Navigation row** — `.nav-row`: left accent bar `::before` when active, `--surface`
-  fill + inset hairline, mono `#` marker turns accent.
+  `--surface` and strengthens the border; `.is-on` uses `--accent-soft` fill with
+  `--accent-deep` text.
+- **Navigation row** — `.nav-row`: left `--selected-graphic` bar `::before` when active,
+  `--surface` fill + inset hairline, mono `#` marker turns `--selected-deep`.
 - **Search field** — `.search-btn` (rail) and `.search-field` (search view); both
-  reveal an accent ring on `:focus-within`.
+  reveal an `--accent-graphic` ring on `:focus-within`.
 - **Presence dot** — `.presence.{online|working|error|offline}`; `working` pulses
   (`pulse 1.5s`), disabled under `prefers-reduced-motion`.
 - **Avatar** — `.avatar` square tiles with `.sm` / `.lg`; five tints.
-- **Tabs** — underline tabs (`.tab`, `.dock-tab`) with mono count that turns accent.
-- **Pin strip** — `.pin-strip`, `--panel` callout with an accent pin icon and a link.
+- **Tabs** — underline tabs (`.tab`, `.dock-tab`) with mono count that turns
+  `--selected-deep`.
+- **Pin strip** — `.pin-strip`, `--panel` callout with an `--accent-deep` pin icon and link.
 - **Message** — `.msg` with hover fill, absolutely-positioned `.msg-tools` toolbar,
-  `.msg-author.is-agent` accent, `.msg-tag` "Agent" capsule, mention + code inline,
-  `.task-chip` linked work object, `.reactions` pills.
-- **Composer** — `.composer-box` with accent focus ring, auto-growing textarea,
-  attach / mention / as-task icon buttons, hint, `.composer-send` accent square.
+  `.msg-author.is-agent` `--accent-deep`, `.msg-tag` "Agent" capsule, mention + code
+  inline, `.task-chip` linked work object with an `--accent-graphic` left rule,
+  `.reactions` pills (`.reaction.mine` = `--selected` family).
+- **Composer** — `.composer-box` with an `--accent-graphic` focus ring, auto-growing
+  textarea, attach / mention / as-task icon buttons, hint, `.composer-send` `--accent` square.
 - **Kanban** — `.col` (236px, `--panel`), `.card` draggable with hover lift, drag
-  `.drag-over` (accent) / `.invalid-over` (error) affordances, `.drop-hint` dashed
-  empty slot, `.seg` board/list segmented control, `.filter-chip`.
+  `.drag-over` (`--accent-graphic` boundary) / `.invalid-over` (`--error`) affordances,
+  `.drop-hint` dashed empty slot, `.seg` board/list segmented control, `.filter-chip`
+  (`.is-on` = `--selected` family).
 - **Dock panels** — `.d-sec` + `.d-sec-title` sections, `.kv` key/value rows with
-  dotted leaders, `.meter` progress, `.stat-grid` 2×2 metrics, `.log-row` level tags.
+  dotted leaders, `.meter` progress (`--accent-graphic`, `.warn` → `--warn-graphic`),
+  `.stat-grid` 2×2 metrics, `.log-row` level tags (`.lv` = `-soft` ground + `deep` text).
 - **Thread** — `.tt-summary` sticky header, `.tt-status` state pill, `.assignee`
-  pill, `.tt-actions` chip rows, `.tt-log` timeline with `ok` / `warn` / `err` /
-  `is-now` dots, sticky `.tt-reply` composer.
+  pill, `.tt-actions` chip rows, `.tt-log` timeline with `ok` (`--online`) /
+  `warn` (`--warn-graphic`) / `err` (`--error`) / `is-now` (`--selected-graphic`) dots,
+  sticky `.tt-reply` composer.
 - **Overlay / Modal** — `.overlay` (scrim + blur), `.modal` (`--r-xl`, pop shadow),
-  `.field` + `.input/.textarea/.select`, `.member-opt` pick pills, `.radio-card`.
+  `.field` + `.input/.textarea/.select`, `.member-opt` pick pills, `.radio-card`
+  (`.is-on` = `--selected` family).
 - **Command palette** — `.cmd` 520px, grouped `.cmd-group` labels, `.cmd-item` rows
-  with hover `--accent-soft`.
-- **Toast** — `.toast` (dark `--fg` fill, online dot) and `.toast.err`.
+  with hover `--accent-soft` fill / `--accent-deep` text.
+- **Toast** — `.toast` (dark `--fg` fill, online dot) and `.toast.err`
+  (`--error-fill` with `--on-accent` ink).
 
 ## 7. Motion & Interaction
 
@@ -196,7 +234,7 @@ Full visual specimens live in `preview/`; the applied kit is `ui_kits/app/`.
   for drawers, `opacity .12s` for the message toolbar.
 - Hover never lowers contrast. Surfaces move **up** in lightness (`--surface` fill,
   `--border` → `--border-strong`) while text moves toward `--fg`. Never `--muted`.
-- Focus is always explicit: `:focus-visible { outline:2px solid var(--accent);
+- Focus is always explicit: `:focus-visible { outline:2px solid var(--accent-graphic);
   outline-offset:2px }`; fields and the composer use a `0 0 0 3px var(--accent-soft)`
   ring instead of an outline.
 - Loading: the only spinner-free affordance in-source is the pulsing presence dot;
@@ -222,11 +260,14 @@ Full visual specimens live in `preview/`; the applied kit is `ui_kits/app/`.
 
 Do **not**:
 
-- Introduce hex or RGB colors, extra hues, or gradients. Everything is `oklch()`
-  derived from the tokens above.
+- Introduce hex or RGB colors, gradients, or a hue that is not one of the role
+  families. Everything is `oklch()` derived from the tokens above.
 - Round avatars into circles, or make cards into pills — squares/soft rectangles only.
 - Add drop shadows to resting content; shadows are reserved for layered surfaces.
-- Use color without meaning: status hues encode agent/task state and nothing else.
+- Use color without meaning: each hue is a role family (action / selected / unread /
+  warn / presence), never decoration.
+- Use a `fill` tier as text, a focus ring or a status dot — it is only ever paired
+  with `--on-accent` on top of it.
 - Put emoji or decorative illustration into functional chrome (the ☕ in one
   tea-room message is content, not UI).
 - Lower text contrast on hover, or gray out labels on interaction.

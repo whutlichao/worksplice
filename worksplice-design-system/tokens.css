@@ -25,8 +25,8 @@
   --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 99px;
 
   /* ─── elevation (layered surfaces only) ──────────────────────────────── */
-  /* 阴影 ink 与 colors_and_type.css 逐字相同（两份都声明、按 import 顺序本文件生效；
-     重复声明本身是既有形态，去重留给独立票据，不在换色票里顺手做）。 */
+  /* 阴影的唯一声明处（票 04 去重：colors_and_type.css 曾重复声明同一批值，
+     因 import 顺序本文件生效、那份是死的，已删；不要再复制一份回去）。 */
   --shadow-composer: 0 1px 2px oklch(33% 0.045 300 / 0.04);
   --shadow-card: 0 2px 8px -4px oklch(33% 0.045 300 / 0.18);
   --shadow-pop: 0 10px 30px -12px oklch(33% 0.045 300 / 0.28),

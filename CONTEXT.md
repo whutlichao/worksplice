@@ -185,7 +185,7 @@ _Avoid_: 浅封装（仅做 re-export 转发）、大杂烩模块
 _Avoid_: 散导入（直引子模块）、桶文件（仅为缩短路径）
 
 **视觉契约 (Visual Contract)**:
-下游按**名字**消费的 token 名集合（`--bg` / `--surface` / `--panel` / `--panel-2` / `--fg` / `--muted` / `--faint` / `--border` / `--border-strong` / `--accent` / `--accent-hover` / `--accent-soft` / `--accent-line` / `--online` / `--working` / `--error` / `--offline` / `--av-0…--av-4` 等）。改名不是改一处定义，而是同时扯断全部消费点，所以它是**承诺**而不是实现细节。正本是 `worksplice-design-system/colors_and_type.css` + `tokens.css`，产品经 `app/globals.css` 的 `@import` 直接消费它（ADR-0014）。色值的组织形态由 ADR-0015 再改判为**角色族 × 档位**；正本位置与消费方式不变。
+下游按**名字**消费的 token 名集合（`--bg` / `--surface` / `--panel` / `--panel-2` / `--fg` / `--muted` / `--faint` / `--border` / `--border-strong` / `--accent` / `--accent-hover` / `--accent-soft` / `--online` / `--working` / `--error` / `--offline` / `--av-0…--av-4` 等）。改名不是改一处定义，而是同时扯断全部消费点，所以它是**承诺**而不是实现细节。正本是 `worksplice-design-system/colors_and_type.css` + `tokens.css`，产品经 `app/globals.css` 的 `@import` 直接消费它（ADR-0014）。色值的组织形态由 ADR-0015 再改判为**角色族 × 档位**；正本位置与消费方式不变。
 _Avoid_: 主题变量（会被读成可自由改值的一层）、设计 token（泛指，不说清「按名消费」这条约束）
 
 **档位 (Tier)**:
