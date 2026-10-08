@@ -306,7 +306,7 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 | `node_modules/.bin/tsc --noEmit` | exit 0 |
 | `npm run lint` | 0 error / 1 warning；唯一 warning 在 `hooks/useI18n.tsx:61`，该文件与 `eslint.config.mjs` 在 `5506fc4 → origin/main` 之间**零改动** → 新 main 基线同一条，**零新增** |
 | `git diff --numstat origin/main` | `app/globals.css` **+132/−1**、`components/ChannelView.tsx` **+601/−808**、`components/message-stream.test.mjs` +431（新增）、本票据 +233/−9——无整文件重写 |
-| `git log --oneline origin/main..HEAD` | 4 个提交**全部是本票的**（主体 / 票据收敛 / review 收口 / rebase 收口） |
+| `git log --oneline origin/main..HEAD` | 5 个提交**全部是本票的**（主体 / 票据收敛 / review 收口 / rebase 收口 / Answer SHA 回填） |
 | `git status --porcelain` | 空 |
 
 ### 浏览器抽验（rebase 后，真实 dev server + 隔离数据目录）
@@ -327,4 +327,4 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 
 - 分支：`whutlichao/ds-05-stream`（`git push --force-with-lease`）
 - PR **#118**：`mergeable: MERGEABLE`，**保持 OPEN（未合并）**
-- 提交：`430519c`（主体，rebase 后）+ `7493359`（票据收敛）+ `31678ae`（review 收口）+ `6f3c374`（rebase 收口）
+- 提交：`430519c`（主体，rebase 后）+ `7493359`（票据收敛）+ `31678ae`（review 收口）+ `6f3c374`（rebase 收口）+ `992a96d`（本 Answer 的 SHA 回填）
