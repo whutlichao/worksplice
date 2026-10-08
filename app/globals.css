@@ -1346,6 +1346,10 @@ span.linenumber {
 .composer-box { border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-composer); transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
 .composer-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .composer-input { width: 100%; border: 0; background: none; resize: none; padding: 11px 13px var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); outline: none; max-height: 160px; }
+/* 字段环已在 shell（`:focus-within`）上；内层 textarea 自己的环会落在外壳环内侧 1px 处叠成双环，
+   而且它的 `:focus-visible` 圆角是 reset 的 2px、角上不跟外壳的 `--r-lg`。
+   同 `.search-btn input`（票 03）与 `.search-field input`（票 09）的处置。 */
+.composer-input:focus-visible { box-shadow: none; }
 .composer-input::placeholder { color: var(--faint); }
 .composer-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 5px var(--sp-3) var(--sp-3) var(--sp-4); }
 .composer-bar .sep { flex: 1; }

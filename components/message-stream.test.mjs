@@ -350,6 +350,13 @@ test("Composer 走 .composer/.composer-box/.composer-bar/.composer-send（accent
         blockBody(globalsCss, ".composer-box:focus-within"),
         /0 0 0 3px var\(--accent-soft\)/,
     );
+    // 内层 textarea 不再叠第二圈：字段环已在外壳（`:focus-within`）上，内层自己的环
+    // 会落在外壳环内侧 1px 处叠成双层、且近直角不跟 `--r-lg` 圆角——同 `.search-btn input`
+    // （票 03）与 `.search-field input`（票 09）两处既有处置。
+    assert.match(
+        blockBody(globalsCss, ".composer-input:focus-visible"),
+        /box-shadow:\s*none/,
+    );
     assert.match(
         blockBody(globalsCss, ".composer-send"),
         /background:\s*var\(--accent\)/,
