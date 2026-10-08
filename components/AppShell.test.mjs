@@ -210,6 +210,10 @@ test("rail 形态落盘：rail-head / brand* / search-btn / rail-actions / rail-
 
   assert.match(ruleBody(".rail-actions"), /gap:\s*var\(--sp-4\)/);
   assert.match(ruleBody(".rail-actions"), /border-bottom:\s*1px solid var\(--border\)/);
+  // 行内两个创建按钮的内边距收一档：英文 "New channel"/"New agent" 在 252px rail 下合不拢
+  // （自然宽 237.5px > 内容宽 227px）→ 只覆盖这一行，`.btn` 原语保持 `--sp-5`
+  assert.match(ruleBody(".rail-actions .btn"), /padding:\s*0 var\(--sp-4\)/);
+  assert.match(ruleBody(".btn"), /padding:\s*0 var\(--sp-5\)/);
   assert.match(ruleBody(".rail-scroll"), /overflow-y:\s*auto/);
   assert.match(ruleBody(".rail-scroll"), /min-height:\s*0/);
   assert.match(ruleBody(".rail-foot"), /border-top:\s*1px solid var\(--border\)/);

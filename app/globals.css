@@ -1113,6 +1113,11 @@ span.linenumber {
 .search-btn button:hover { color: var(--accent-deep); }
 
 .rail-actions { display: flex; gap: var(--sp-4); padding: 0 var(--sp-5) var(--sp-5); border-bottom: 1px solid var(--border); }
+/* 两个创建按钮的水平内边距按 `--sp-4` 收一档（`.btn` 原语是 `--sp-5`）：rail 固定 252px、
+   这一行内容宽 227px，而「New channel + New agent」在英文下自然宽 237.5px（12.5px/560
+   实测）→ 右侧溢出、`New agent` 的边框被 rail 边界切掉。收一档后英文 221.5px、中文更
+   宽裕，两个文案都完整显示；只覆盖这一行，`.btn` 原语（`--sp-5`）不动。 */
+.rail-actions .btn { padding: 0 var(--sp-4); }
 .rail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-4) var(--sp-4) var(--sp-7); }
 
 .group { margin-top: var(--sp-5); }
