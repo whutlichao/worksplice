@@ -766,7 +766,7 @@ span.linenumber {
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.3; }
 }
 
 @keyframes notice-shelf-in {
@@ -993,9 +993,12 @@ span.linenumber {
 
 /* ==========================================================================
    原语 class 块（票 04，spec D7 的原语层）——逐字搬自 worksplice-design-system/
-   ui_kits/app/app.css，按仓适配只有分组注释。后半部分的 `.presence` / `.avatar` 由
-   StatusDot / Avatar 两个原语消费；`.input` / `.textarea` / `.select` / `.composer-box`
-   的 `--accent-soft` 焦点环已在文件顶部的 reset 段（票 02），此处不重复声明。
+   ui_kits/app/app.css。搬运时按票面事实做了三处裁剪（见票 04 Answer 的偏离登记）：
+   ① `.avatar img{image-rendering:pixelated}` 不搬（D6 退役像素头像）；
+   ② `.tag` 上游不存在（tag 家族只有 `.msg-tag` / `.card-tag`，归票 05/06），未发明；
+   ③ 拖拽态（`.card.dragging` / `.drag-over` / `.invalid-over`）归票 06。
+   后半部分的 `.presence` / `.avatar` 由 StatusDot / Avatar 消费；`.input` / `.textarea` /
+   `.select` / `.composer-box` 的 `--accent-soft` 焦点环已在文件顶部的 reset 段（票 02）。
    ============================================================================ */
 
 /* ─── buttons ────────────────────────────────────────────────────────────── */
@@ -1050,6 +1053,8 @@ span.linenumber {
 }
 .avatar.sm { width: var(--avatar-sm); height: var(--avatar-sm); flex-basis: var(--avatar-sm); font-size: 10px; }
 .avatar.lg { width: var(--avatar-lg); height: var(--avatar-lg); flex-basis: var(--avatar-lg); font-size: 16px; border-radius: var(--r-md); }
+.av-0 { background: var(--av-0); } .av-1 { background: var(--av-1); } .av-2 { background: var(--av-2); }
+.av-3 { background: var(--av-3); } .av-4 { background: var(--av-4); }
 
 /* ─── fields ─────────────────────────────────────────────────────────────── */
 .field { margin-bottom: 13px; }

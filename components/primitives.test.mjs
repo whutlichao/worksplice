@@ -124,6 +124,8 @@ test("原语 .presence：7px 圆点、无 ink 边框、四态 token、working �
   assert.match(blockBody(".presence.offline"), /background:\s*var\(--offline\)/);
 
   assert.match(blockBody(".presence.working"), /animation:\s*pulse 1\.5s/);
+  // 波形取上游 app.css 的同名 keyframe（50% 处 0.3），不是旧内联动画的 0.5。
+  assert.match(globalsCss, /@keyframes\s+pulse\s*\{[\s\S]*?50%\s*\{\s*opacity:\s*0?\.3;/);
   assert.match(
     globalsCss,
     /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.presence\.working\s*\{\s*animation:\s*none/,
@@ -151,7 +153,19 @@ test("原语 .avatar：三档尺寸取自 --avatar-sm|md|lg、7px 圆角（.lg �
   assert.match(lg, /border-radius:\s*var\(--r-md\)/);
 });
 
-test("像素头像的槽位整体退场（globals.css 里不再有 image-rendering / .pixelated）", () => {
-  assert.doesNotMatch(globalsCss, /image-rendering/);
-  assert.doesNotMatch(globalsCss, /\.pixelated\b/);
+test("原语 .av-0…--av-4：五格 tint 逐字搬自上游，各格绑自己的 token", () => {
+  for (let tint = 0; tint < 5; tint += 1) {
+    assert.match(
+      blockBody(`.av-${tint}`),
+      new RegExp(`background:\\s*var\\(--av-${tint}\\)`),
+      `.av-${tint} 未绑 --av-${tint}`,
+    );
+  }
+});
+
+test("像素头像的槽位整体退场（globals.css 里不再有 image-rendering / .pixelated 的规则）", () => {
+  // 注释里允许提它（搬迁说明要写清哪条槽位被踩掉），所以先剥注释再看规则。
+  const css = globalsCss.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(css, /image-rendering/);
+  assert.doesNotMatch(css, /\.pixelated\b/);
 });

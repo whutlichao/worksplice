@@ -623,6 +623,7 @@ export const enLocale: LocalePlugin = {
     "shell.menu": "Toggle channel list",
     "shell.selectChannel": "Select a channel",
     "role.owner": "Owner",
+    "avatar.you": "You",
     "memberProfile.description": "Description",
     "memberProfile.noDescription": "This member has no profile yet",
     "role.member": "Member",

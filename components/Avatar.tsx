@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/hooks/useI18n";
 import type { MemberType } from "@/lib/data/types";
 
 export type AvatarSize = "sm" | "md" | "lg";
@@ -35,16 +36,15 @@ function avatarTint(
   return 0;
 }
 
-/** 首字：人类「我」；agent 名称首字符（ASCII 转大写）；名称缺失 → 占位 `?`。 */
-function initials(name: string | undefined, type: MemberType | null | undefined): string {
-  if (type === "human") return "我";
+/** 首字：agent 名称首字符（ASCII 转大写）；名称缺失 → 占位 `?`。人类的「我」走 i18n（`avatar.you`）。 */
+function initials(name: string | undefined): string {
   const trimmed = name?.trim();
   if (!trimmed) return "?";
   return Array.from(trimmed)[0].toUpperCase();
 }
 
-/** §4.4 头像（D6）：方 tile + 首字。形态在 globals.css 的 `.avatar` class 块；
- *  底色 = `--av-0…--av-4`，由上面的纯函数确定性取。 */
+/** §4.4 头像（D6）：方 tile + 首字。形态与 tint（`.avatar` / `.avatar.sm|lg` / `.av-0…av-4`）
+ *  全部在 globals.css 的原语 class 块；本模块只做「成员 → 首字 / 色格」的确定性映射。 */
 export function Avatar({
   name,
   type,
@@ -57,13 +57,13 @@ export function Avatar({
   /** 取色参数：列表内传序号，否则传 member id；缺省走色板首位。 */
   colorKey?: number | string;
 }) {
+  const { t } = useI18n();
   const tint = avatarTint(colorKey, type);
-  const glyph = initials(name, type);
+  const glyph = type === "human" ? t("avatar.you") : initials(name);
   const label = name?.trim() || (typeof colorKey === "string" ? colorKey : glyph);
   return (
     <span
-      className={size === "md" ? "avatar" : `avatar ${size}`}
-      style={{ background: `var(--av-${tint})` }}
+      className={size === "md" ? `avatar av-${tint}` : `avatar ${size} av-${tint}`}
       role="img"
       aria-label={label}
       title={label}
