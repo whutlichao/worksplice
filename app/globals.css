@@ -1,5 +1,5 @@
 /* ============================================================================
-   worksplice — 视觉契约入口（modern-minimal，ADR-0014 / ticket 02）
+   worksplice — 视觉契约入口（macaron，ADR-0015 / ticket 02）
 
    设计系统即运行时真源：`worksplice-design-system/` 的 token 文件被顶层 @import，
    本仓只叠扩展层。改 token 只有一处可改（上游），此处不复制它的 :root。
@@ -71,6 +71,31 @@ select:focus-visible {
    清单把它排除在灭绝集外，所以不改写 83 处调用点。 */
 :root {
   --font-mono: var(--mono);
+}
+
+/* ─── 扩展层：三个**产品角色**族（ADR-0015；spec 的族 × 档位矩阵） ─────────────
+   色板原语（纸族 / 墨族 / 五个既有族的 fill·soft·deep·graphic）在上游
+   `colors_and_type.css`；`--selected*` / `--unread*` / `--warn*` 是产品角色词汇
+   （当前位置 / 未读 / 警示），不进通用资料，落本仓。四档与上游同义：
+   fill 填充（--on-accent 压其上）· soft 淡底 · deep 文字 · graphic 环·点。 */
+:root {
+  /* 选中 / 导航激活 / 锚点行 / tab / 选中 chip */
+  --selected:         oklch(84.9% 0.081 299.9);
+  --selected-soft:    color-mix(in oklch, var(--selected) 21%, transparent);
+  --selected-deep:    oklch(52.4% 0.081 299.8);
+  --selected-graphic: oklch(62.4% 0.081 300.5);
+
+  /* 未读角标 / 未读点 / 命中高亮 */
+  --unread:         oklch(91% 0.100 94.8);
+  --unread-soft:    color-mix(in oklch, var(--unread) 36%, transparent);
+  --unread-deep:    oklch(51.8% 0.100 94.5);
+  --unread-graphic: oklch(61.6% 0.099 94.7);
+
+  /* 警示 / 待审提示 / 警告横幅（今天借 --working 的那些站点） */
+  --warn:         oklch(86.3% 0.084 52.2);
+  --warn-soft:    color-mix(in oklch, var(--warn) 24%, transparent);
+  --warn-deep:    oklch(52.6% 0.084 51.9);
+  --warn-graphic: oklch(62.1% 0.083 51.6);
 }
 
 pre, code {
