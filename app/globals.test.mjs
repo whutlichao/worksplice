@@ -128,6 +128,7 @@ const RETIRED_TOKEN_NAMES = [
   "--shadow-md",
   "--shadow-lg",
   "--shadow-pressed",
+  "--accent-line",
 ];
 
 test("T-B: 旧 token 名在 app/components/hooks/lib 的 .tsx/.ts/.css 里出现 0 次", async () => {

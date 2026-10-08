@@ -46,7 +46,7 @@ screens/               sliced per-surface reproductions of the source monolith
 
 ## Core principles
 
-- **One hue per role, tiers per family.** Seven pastel role families carry the meaning —
+- **One hue per role, tiers per family.** Eight pastel role families carry the meaning —
   action=樱粉 `--accent`, selected=薰衣草 `--selected`, unread=柠檬 `--unread`,
   warn=蜜桃 `--warn`, presence=薄荷 `--online` / 杏 `--working` / 珊瑚 `--error` /
   藕灰 `--offline`. Each family is organised by **tier**: fill (pastel, ink is

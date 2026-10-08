@@ -27,9 +27,13 @@
  * 断言**跑在 base `9ce948e` 的旧色值上，真实跑出红灯（见票 04 Answer 的「红 → 绿」
  * 小节）；默认运行（不设该变量）没有这条路径。
  * 旧色值时代还没有档位名（一族一值），因此历史运行下允许把「新增档位名」回落到该族
- * 当年的裸名（`--accent-deep` → `--accent`、`--agent-fill` 形态同理见 `HISTORICAL_ALIAS`）
- * ——目的是让同一条阈值断言以**实测值**失败（如 base 的 accent 作文字 on --panel-2 =
- * 4.16 < 4.5），而不是以「token 缺失」失败。回落表在默认运行下不生效。
+ * 当年的裸名（`--accent-deep` / `--online-fill` → `--accent` / `--online`，见 `resolveName`）
+ * ——这样一部分阈值断言会以**实测值**失败（如 base 的 accent 作文字 on --panel-2 =
+ * 4.156 < 4.5、`--working` 点 = 2.351 < 3.0），而不是全部退化成「token 缺失」。
+ * 两类例外在 base 本就没有对应物，它们只能以「缺 token」失败，这是如实的：
+ * ① `--on-accent`（base 的填充档压的是白色字面量，不是 token）；
+ * ② `--selected*` / `--unread*` / `--warn*` 三个产品角色族与各族的 `-soft`（accent 除外）。
+ * 回落逻辑在默认运行下不生效（`resolveName` 直接短路返回原名）。
  */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -145,25 +149,16 @@ const TOKENS = new Map([
 ]);
 
 /**
- * 历史回落表（只在 `WORKSPLICE_CONTRAST_ROOT` 生效）：base 时代一族一值，契约里
- * 「新增的档位名」在 base 不存在，此时回落到该族当年的裸名。默认运行下是恒等映射。
+ * 历史回落（只在 `WORKSPLICE_CONTRAST_ROOT` 生效）：base 时代一族一值，契约里「新增的
+ * 档位名」在 base 不存在，此时剥掉 `-fill` / `-graphic` / `-deep` 后缀回落到该族当年的
+ * 裸名；名字里没有后缀的（如 `--on-accent`）没有对应物，如实报「缺 token」。
+ * 默认运行下 `HISTORICAL` 为假，本函数直接返回原名——回落路径不可达。
  */
-const HISTORICAL_ALIAS = {
-  "--accent-deep": "--accent",
-  "--accent-graphic": "--accent",
-  "--offline-deep": "--offline",
-  "--online-fill": "--online",
-  "--working-fill": "--working",
-  "--error-fill": "--error",
-  "--offline-fill": "--offline",
-  "--accent-soft": "--accent-soft",
-};
-
 function resolveName(name) {
   if (TOKENS.has(name)) return name;
   if (!HISTORICAL) return name;
-  const alias = HISTORICAL_ALIAS[name] ?? (/^--[a-z0-9-]+-(fill|graphic|deep)$/.test(name) ? name.replace(/-(fill|graphic|deep)$/, "") : name);
-  return TOKENS.has(alias) ? alias : name;
+  const bare = name.replace(/-(fill|graphic|deep)$/, "");
+  return TOKENS.has(bare) ? bare : name;
 }
 
 function token(name) {
@@ -433,7 +428,7 @@ test("每个族的淡底在 --surface 上的 ΔL ≥ 3.0（看不见的 tint 不
       const surface = solid("--surface");
       const soft = softOver(family.softName, "--surface");
       const deltaL = (oklabL(surface) - oklabL(soft.composite)) * 100;
-      if (deltaL < SOFT_DL_MIN - EPS) {
+      if (deltaL < SOFT_DL_MIN) {
         violations.push(`  ${family.softName}：ΔL ${deltaL.toFixed(2)} < ${SOFT_DL_MIN}`);
       }
     });
