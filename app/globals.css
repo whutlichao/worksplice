@@ -1285,7 +1285,7 @@ span.linenumber {
 .day-sep span { font-family: var(--mono); font-size: 10px; letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--faint); }
 
 /* ─── message row ────────────────────────────────────────────────────────── */
-.msg { display: flex; gap: 11px; padding: 5px var(--sp-4); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
+.msg { display: flex; gap: 11px; padding: var(--sp-4); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
 .msg:hover { background: var(--fg-soft); }
 .msg:hover .msg-tools, .msg:focus-within .msg-tools { opacity: 1; }
 .msg-body { flex: 1; min-width: 0; }
