@@ -91,3 +91,30 @@ test("票 08 形态：已触发/已取消的行没有 snooze/cancel，只看得�
   assert.match(html, /Locate/);
   assert.match(html, /fired/);
 });
+
+test("en 溢出修复：右簇在 markup 上是「可换行 + 右对齐 + 可压缩」，放不下才折到第二行", () => {
+  const html = renderRow();
+  const start = html.indexOf('<span style="display:inline-flex');
+  assert.ok(start >= 0, `右簇（inline-flex 容器）应在 markup 里：${html}`);
+  const tagEnd = html.indexOf(">", start);
+  const tag = html.slice(start, tagEnd + 1);
+  const tail = html.slice(tagEnd + 1);
+  // 定位到的确是承载 .v / 状态 chip / 动作按钮的右簇，而不是别的 inline-flex 元素
+  assert.match(tail, /class="v"/);
+  assert.match(tail, /Snooze 15m/);
+  const style = tag.match(/style="([^"]*)"/);
+  assert.ok(style, `右簇走行内样式：${tag}`);
+  const decls = new Map(
+    style[1]
+      .split(";")
+      .map((d) => d.trim())
+      .filter(Boolean)
+      .map((d) => [d.slice(0, d.indexOf(":")), d.slice(d.indexOf(":") + 1).trim()]),
+  );
+  // 换行契约落在产品渲染出的行内样式上：flex-wrap + 右对齐 + 可压缩
+  assert.equal(decls.get("flex-wrap"), "wrap", "放不下时右簇内容折到第二行");
+  assert.equal(decls.get("justify-content"), "flex-end", "折到第二行后右对齐");
+  assert.equal(decls.get("flex"), "0 1 auto", "右簇可压缩，不再 0 0 auto 顶出 .modal-body");
+  // 不恒定两行：markup 里没有强制换行元素，放得下时仍是单行
+  assert.doesNotMatch(tail, /<br\b/);
+});

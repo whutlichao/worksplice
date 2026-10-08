@@ -78,7 +78,18 @@ export function MyReminderRow({
       >
         {reminder.title}
       </span>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 7, flex: "0 0 auto" }}>
+      {/* 右簇：en 下动作文案更宽，放不下时在本行内折到第二行并右对齐；
+          可压缩（0 1 auto）是前提，否则会把 .k 挤到 0 并顶出 .modal-body。 */}
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+          flex: "0 1 auto",
+        }}
+      >
         <span className="v">{targetLabel(reminder, t)}</span>
         <span className="v">{formatFireAt(reminder.fire_at)}</span>
         {reminder.recurrence && (
