@@ -10,25 +10,8 @@ import type { ChannelWithMeta } from "./ChannelView";
 import type { MemberRow } from "@/lib/data/types";
 import type { PanelContent } from "@/lib/panel-state";
 
-/**
- * 右栏单槽容器（ticket 13）：按 kind 分派——agent → AgentDetailPanel（内容原样），
- * human → 薄资料卡，thread → 线程面板。非长驻：panelContent 为 null 时整栏不渲染（AppShell 侧）。
- * 打开任意内容即替换（单槽互斥，无栈/无回退）。
- */
-export function DetailPanel({
-  content,
-  channel,
-  agents,
-  owner,
-  currentMemberId,
-  onClose,
-  onChanged,
-  onDeleteOptimistic,
-  onDeleteFailed,
-  onOpenPanel,
-  onOpenDM,
-  dmHasMessages,
-}: {
+/** 单槽容器的入参（AppShell 侧接线；ticket 13 起不变）。 */
+export type DetailPanelProps = {
   content: NonNullable<PanelContent>;
   channel: ChannelWithMeta | null;
   agents: MemberRow[];
@@ -46,7 +29,26 @@ export function DetailPanel({
   onOpenDM: (agentId: string) => void;
   /** 当前 agent 面板的 DM 是否已有消息（文案动态：发送消息 / 打开私信）。 */
   dmHasMessages?: boolean;
-}) {
+};
+
+/**
+ * 单槽分派（ticket 13，逻辑一字未动）：agent → AgentDetailPanel（内容原样），
+ * human → 薄资料卡，thread → 线程面板。找不到对应成员时返回 null（整体空渲染）。
+ */
+function renderPanelSlot({
+  content,
+  channel,
+  agents,
+  owner,
+  currentMemberId,
+  onClose,
+  onChanged,
+  onDeleteOptimistic,
+  onDeleteFailed,
+  onOpenPanel,
+  onOpenDM,
+  dmHasMessages,
+}: DetailPanelProps): React.ReactNode {
   switch (content.kind) {
     case "agent": {
       const agent = agents.find((a) => a.id === content.id);
@@ -85,7 +87,22 @@ export function DetailPanel({
   }
 }
 
-/** 人类成员薄资料卡：avatar / name / role / description / status（非阻塞，与 agent 同一容器同一生命周期）。 */
+/**
+ * 右栏单槽容器（ticket 13）：按 kind 分派——agent → AgentDetailPanel（内容原样），
+ * human → 薄资料卡，thread → 线程面板。非长驻：panelContent 为 null 时整栏不渲染（AppShell 侧）。
+ * 打开任意内容即替换（单槽互斥，无栈/无回退）。
+ *
+ * 形态（票 07）：`.dock` = `--surface` 底 + flex 列，容器自身不吃圆角；**左发丝归骨架钩子
+ * `.ws-right`**（票 03）——两处都声明会叠成双线。三个 kind 共用这一个外壳。
+ */
+export function DetailPanel(props: DetailPanelProps) {
+  const slot = renderPanelSlot(props);
+  // 保持既有「找不到成员就整体空渲染」语义（AppShell 侧另有 resolvablePanel 预校验）。
+  if (slot === null) return null;
+  return <div className="dock">{slot}</div>;
+}
+
+/** 人类成员薄资料卡：avatar / name / role / status / description（非阻塞，与 agent 同一容器同一生命周期）。 */
 function HumanProfileCard({
   member,
   onClose,
@@ -95,31 +112,15 @@ function HumanProfileCard({
 }) {
   const { t } = useI18n();
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        minHeight: 0,
-      }}
-    >
-      <header
-        style={{
-          flexShrink: 0,
-          padding: "14px 16px 12px",
-          borderBottom: `1px solid var(--border)`,
-          background: "var(--panel)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <>
+      <header className="dock-head">
+        <div className="dock-id">
           <Avatar name={member.name} type={member.type} size="lg" colorKey={member.id} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="meta">
+            <div className="dock-name">
               <span
                 style={{
-                  fontFamily: "var(--font)",
-                  fontWeight: 700,
-                  fontSize: 17,
+                  minWidth: 0,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -127,91 +128,43 @@ function HumanProfileCard({
               >
                 {member.name}
               </span>
-              <StatusDot status={member.status} />
-              <span
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 10,
-                  padding: "1px 6px",
-                  border: `1px solid var(--border)`,
-                  background:
-                    member.role === "owner" ? "var(--accent-soft)" : "var(--surface)",
-                  color: "var(--fg)",
-                }}
-              >
+              <span className="badge soft">
                 {member.role === "owner" ? t("role.owner") : t("role.member")}
               </span>
             </div>
-            <div
-              style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}
-            >
-              {t("status." + member.status)}
+            <div className="dock-role">
+              <StatusDot status={member.status} />
+              <span>{t("status." + member.status)}</span>
             </div>
           </div>
           <button
             type="button"
+            className="icon-btn"
             aria-label={t("detail.close")}
             title={t("detail.close")}
             onClick={onClose}
-            style={{
-              flexShrink: 0,
-              width: 26,
-              height: 26,
-              background: "var(--surface)",
-              border: `1px solid var(--border)`,
-              boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor: "pointer",
-              color: "var(--fg)",
-              fontSize: 13,
-              lineHeight: 1,
-            }}
           >
-            <X size={13} style={{ display: "block", margin: "auto" }} />
+            <X size={15} style={{ display: "block" }} />
           </button>
         </div>
       </header>
 
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          padding: "0 12px 20px",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: "var(--mono)",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "var(--faint)",
-            margin: "16px 2px 6px",
-          }}
-        >
-          {t("memberProfile.description")}
-        </div>
-        <div
-          style={{
-            background: "var(--surface)",
-            border: `1px solid var(--border)`,
-            boxShadow: "var(--shadow-card)",
-            padding: "10px 12px",
-            fontSize: 13,
-            lineHeight: 1.6,
-            color: "var(--fg)",
-          }}
-        >
-          {member.description?.trim() ? (
-            member.description.trim()
-          ) : (
-            <span style={{ color: "var(--faint)" }}>
-              {t("memberProfile.noDescription")}
-            </span>
-          )}
-        </div>
+      <div className="dock-scroll">
+        <section className="d-sec">
+          <div className="d-sec-title">{t("memberProfile.description")}</div>
+          <div
+            style={{
+              fontSize: "var(--fs-body)",
+              lineHeight: "var(--lh-text)",
+              color: member.description?.trim() ? "var(--fg)" : "var(--faint)",
+            }}
+          >
+            {member.description?.trim()
+              ? member.description.trim()
+              : t("memberProfile.noDescription")}
+          </div>
+        </section>
       </div>
-    </div>
+    </>
   );
 }

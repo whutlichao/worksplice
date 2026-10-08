@@ -1239,6 +1239,124 @@ span.linenumber {
 .drop-hint { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 9px; text-align: center; font-size: 11px; color: var(--faint); }
 
 /* ==========================================================================
+   右栏 class 块（票 07，spec §3 组件表第 5–7 行）——逐字搬自 worksplice-design-system/
+   ui_kits/app/app.css 的 `/* ─── right dock ───` 与 `/* ─── thread panel (in dock) ───` 两段。
+
+   裁剪登记（有理由，不是遗漏；与票 03 对 `.rail`、票 04 对 `.tag` 同档）：
+   ① `.dock` 的容器职责分家：宽度（`--dock-w` / ≤1080 的 `--dock-w-md`）与**左发丝**在骨架钩子
+      `.ws-right`（票 03，AppShell.test.mjs 断的就是它），本段的 `.dock` 只取「`--surface` 底 +
+      flex 列」——两条 `border-left` 会叠成 2px 的双线，而右栏的判据是「分隔一律发丝」（ED-2）。
+   ② `.dock-tabs` / `.dock-tab` / `.tt-status` / `.assignee` / `.tt-actions` / `.tt-log` 只落
+      **class 块**（词汇表，D7），零消费者：本仓的 AgentDetailPanel 是一根滚动 + `.d-sec` 分组
+      （无 tab），ThreadPanel 只渲染锚点 + 回复 + composer（无任务状态胶囊 / owner 胶囊 /
+      状态变更时间线）。原型的任务线程 chrome 属功能开发（新显示分支 / 写操作 / 状态机 UI），
+      不是视觉重构——票 07 的范围裁决（orchestration ask）与 Answer 的「降级登记」段留痕。
+   ③ `.kv` / `.k` / `.v` 是上游的三处消费方（dock / MyRemindersModal / 提醒列表）共用的唯一一份定义，
+      与票 08 的合并冲突按「上游只有一处定义」去重，落在这里（票 08 段留指针）。
+   ④ `.lv.ok` / `.lv.warn` 的前景色不取上游的 `oklch()` 字面量，改用本仓扩展层的
+      `--online-text` / `--working-text`（票 10 已按「状态色作文字时的浅底高对比派生」落盘）：
+      同一件事只留一处定义（locality），ED-10 也不许新增色值。
+   ④ `.tt-scroll` 的 16px 内边距是给 `.tt-log` 条目的；本仓面板内是 `.ws-message-row`（自带
+      `10px 16px`），再叠一层会双重缩进——ThreadPanel 侧按 inline `padding: 0` 只取滚动职责。
+   ⑤ 字号取 `--fs-*` 标尺（ED-5）：上游的 11.5 / 12 / 14.5 / 17px 逐一对上
+      `--fs-caption` / `--fs-sm` / `--fs-title` / `--fs-stat`，`.log-row .lv` 的 10px →
+      `--fs-mono-micro`（9.5px，与它同族的 `.d-sec-title` / `.card-tag` 同档）；
+      `.d-sec-title` / `.kv .v` / `.log-row .ts` / `.dock-tab .count` 按 ED-6 补
+      `font-variant-numeric: tabular-nums`。圆角一律取 `--r-*`（ED-3）——`.log-row .lv` 的 4px
+      是上游逐字值（与票 06 的 `.card-tag` 同档），组件侧的 chip 圆角走 `var(--r-sm)`。
+   ⑥ 一次性局部结构（DM 入口的 padding、提示句、会话文件行）不发明 class——走 inline style
+      + token（仓库既有语言，见 spec §1e 的事实：组件样式 100% 走 inline `var(--token)`）。
+   ========================================================================== */
+
+/* ─── 单槽容器（DetailPanel；三个 kind 共用同一外壳） ────────────────────── */
+.dock {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+/* ─── agent 详情头（`.dock-tabs` / `.dock-tab` 见文件尾的零消费词汇表） ──── */
+.dock-head { padding: 13px var(--sp-7); border-bottom: 1px solid var(--border); }
+.dock-id { display: flex; align-items: center; gap: 11px; }
+.dock-id .meta { flex: 1; min-width: 0; }
+.dock-name { font-size: var(--fs-title); font-weight: var(--fw-heavy); letter-spacing: var(--ls-snug); display: flex; align-items: center; gap: 7px; }
+.dock-role { font-size: var(--fs-caption); color: var(--muted); margin-top: 2px; display: flex; align-items: center; gap: var(--sp-3); }
+.dock-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-6) var(--sp-7) var(--sp-9); }
+
+/* ─── 分节 / key-value / meter / stat ────────────────────────────────────── */
+.d-sec { margin-bottom: var(--sp-8); }
+.d-sec:last-child { margin-bottom: var(--sp-2); }
+.d-sec-title { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-micro); letter-spacing: var(--ls-wider); text-transform: uppercase; color: var(--faint); font-weight: var(--fw-semi); margin-bottom: 9px; }
+.kv { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-5); padding: 5px 0; border-bottom: 1px dashed var(--border); font-size: var(--fs-sm); }
+.kv:last-child { border-bottom: 0; }
+.kv .k { color: var(--muted); }
+.kv .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-caption); color: var(--fg); text-align: right; overflow-wrap: anywhere; }
+.meter { height: 6px; border-radius: var(--r-pill); background: var(--panel-2); overflow: hidden; margin-top: var(--sp-2); }
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: var(--r-pill); }
+.meter.warn i { background: var(--working); }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.stat { border: 1px solid var(--border); border-radius: var(--r-md); padding: 9px 10px; background: var(--panel); }
+.stat .n { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-stat); font-weight: var(--fw-black); letter-spacing: var(--ls-tight); }
+.stat .l { font-size: var(--fs-caption); color: var(--muted); margin-top: 1px; }
+
+/* ─── 轮次记录：`.log-row` + `.lv` 级别标签 ─────────────────────────────── */
+.log-row { display: flex; gap: 9px; font-size: var(--fs-caption); padding: 5px 0; }
+.log-row .ts { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-xs); color: var(--faint); flex: 0 0 auto; padding-top: 1px; }
+.log-row .lv { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-micro); font-weight: var(--fw-black); padding: 0 5px; border-radius: 4px; height: 16px; display: inline-flex; align-items: center; flex: 0 0 auto; }
+.lv.info { background: var(--accent-soft); color: var(--accent); }
+.lv.ok { background: color-mix(in oklch, var(--online) 16%, transparent); color: var(--online-text); }
+.lv.warn { background: color-mix(in oklch, var(--working) 22%, transparent); color: var(--working-text); }
+.lv.err { background: color-mix(in oklch, var(--error) 14%, transparent); color: var(--error); }
+.log-row .msg { flex: 1; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ─── 线程面板（ThreadPanel 消费 `.tt-summary` / `.tt-scroll` / `.tt-reply`；
+       其余 `.tt-*` 见文件尾的零消费词汇表） ──────────────────────────────── */
+.tt-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--sp-7) var(--sp-7); }
+.tt-summary { position: sticky; top: 0; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--border); padding: 13px var(--sp-7) var(--sp-6); }
+.tt-title { font-size: var(--fs-title); font-weight: var(--fw-heavy); letter-spacing: var(--ls-snug); line-height: var(--lh-snug); }
+.tt-reply { border-top: 1px solid var(--border); padding: 11px var(--sp-7) var(--sp-6); background: var(--surface); }
+/* 常驻阴影退场（ED-4：静止内容不加阴影），焦点环保留 accent（ED-8）——后一条必须显式重声明：
+   它与文件顶部 reset 的 `.composer-box:focus-within` 同特异度，靠顺序决胜。 */
+.tt-reply .composer-box { box-shadow: none; }
+.tt-reply .composer-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tt-reply textarea { min-height: 38px; }
+.tt-empty { padding: 26px var(--sp-2); text-align: center; color: var(--faint); font-size: var(--fs-sm); }
+
+/* ─── 零消费词汇表（范围裁决 A：只落 class 块，不新增显示面） ────────────── */
+/* 任务状态胶囊：点色由消费点按 ED-10 映射给（与 ChannelView 的 TASK_STATUS_COLOR 同源），
+   本票没有消费点，故这里只有形态。 */
+.tt-status { display: inline-flex; align-items: center; gap: var(--sp-3); height: 26px; padding: 0 10px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg); font-size: var(--fs-caption); font-weight: var(--fw-semi); font-family: var(--mono); }
+.tt-status:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.tt-status .dot { width: 7px; height: 7px; border-radius: var(--r-pill); flex: 0 0 auto; }
+/* owner 胶囊（内嵌 `.avatar.sm` 的槽位）。 */
+.assignee { display: inline-flex; align-items: center; gap: var(--sp-3); height: 26px; padding: 0 9px 0 var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); font-size: var(--fs-caption); color: var(--muted); }
+.assignee:hover { border-color: var(--border-strong); color: var(--fg); }
+.assignee.unassigned { font-style: italic; padding: 0 10px; }
+/* 推进 / 指派 chip 行。 */
+.tt-actions { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-5) var(--sp-7); border-bottom: 1px solid var(--border); }
+.tt-actions-row { display: flex; align-items: center; gap: var(--sp-4); }
+.tt-actions .tt-label { font-family: var(--mono); font-size: var(--fs-mono-micro); letter-spacing: var(--ls-wider); text-transform: uppercase; color: var(--faint); font-weight: var(--fw-semi); width: 44px; flex: 0 0 auto; }
+.tt-chips { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+/* 状态变更时间线：四种点色逐条取四态 token（ED-10）。 */
+.tt-log { list-style: none; margin: 0; padding: var(--sp-2) 0 0; }
+.tt-log li { position: relative; padding: 0 0 var(--sp-6) var(--sp-8); font-size: var(--fs-sm); color: var(--muted); line-height: var(--lh-snug); }
+.tt-log li::before { content: ""; position: absolute; left: 3px; top: 4px; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--border-strong); }
+.tt-log li::after { content: ""; position: absolute; left: 6px; top: 13px; bottom: 2px; width: 1px; background: var(--border); }
+.tt-log li:last-child::after { display: none; }
+.tt-log li b { color: var(--fg); font-weight: var(--fw-semi); }
+.tt-log li .ts { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-xs); color: var(--faint); margin-left: var(--sp-3); }
+.tt-log li.ok::before { background: var(--online); }
+.tt-log li.warn::before { background: var(--working); }
+.tt-log li.err::before { background: var(--error); }
+.tt-log li.is-now::before { box-shadow: 0 0 0 3px var(--accent-soft); background: var(--accent); }
+/* 下划线 tab（mono 计数转 accent）。 */
+.dock-tabs { display: flex; gap: 2px; padding: 0 var(--sp-5); border-bottom: 1px solid var(--border); }
+.dock-tab { padding: 9px 10px; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.dock-tab:hover { color: var(--fg); }
+.dock-tab.is-active { color: var(--fg); border-bottom-color: var(--fg); }
+.dock-tab .count { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--accent); }
    模态族 class 块（票 08：spec 组件表第 10–15 行）
    —— `.overlay` / `.modal*` / `.member-pick` / `.member-opt` / `.radio-*` / `.kv`
    逐字搬自 worksplice-design-system/ui_kits/app/app.css（`.overlay`/`.modal` 段 +
@@ -1270,11 +1388,8 @@ span.linenumber {
 .radio-card.is-on { border-color: var(--accent); background: var(--accent-soft); }
 .radio-card b { font-size: 12.5px; display: block; }
 
-/* ─── kv 行（MyRemindersModal / 提醒列表：频道名 + 锚点 seq mono + 下次触发 mono） ── */
-.kv { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-5); padding: 5px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
-.kv:last-child { border-bottom: 0; }
-.kv .k { color: var(--muted); }
-.kv .v { font-family: var(--mono); font-size: 11.5px; color: var(--fg); text-align: right; overflow-wrap: anywhere; }
+/* ─── kv 行：上游只有一处定义（在右 dock 段），归票 07 的右栏 class 块 ──
+        MyRemindersModal / 提醒列表 / dock 三处共用同一份 `.kv` / `.k` / `.v`。 */
 
 /* ─── DirectoryPicker 形态收口（票 08） ───────────────────────────────────
    行 hover 走 --fg-soft（ED-7：表面往亮处走、文字往 --fg 走；不降对比）。
