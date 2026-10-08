@@ -60,8 +60,8 @@ const FILE_LINE_NUMBER_STYLE: CSSProperties = {
   minWidth: 48,
   padding: "0 10px",
   textAlign: "right",
-  color: "var(--text-dim)",
-  background: "var(--bg-panel)",
+  color: "var(--faint)",
+  background: "var(--panel)",
   borderRight: "1px solid var(--border)",
   fontFamily: "var(--font-mono)",
   fontSize: 11,
@@ -282,7 +282,7 @@ function DiffView({ patch }: { patch: string }) {
   const hasChanges = diff.some((l) => l.type !== "unchanged");
   if (!hasChanges) {
     return (
-      <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+      <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--faint)", fontFamily: "var(--font-mono)" }}>
         {t("i18n.noChanges")}
       </div>
     );
@@ -334,8 +334,8 @@ function DiffView({ patch }: { patch: string }) {
               key={si}
               style={{
                 padding: "2px 16px",
-                color: "var(--text-dim)",
-                background: "var(--bg-panel)",
+                color: "var(--faint)",
+                background: "var(--panel)",
                 fontSize: 11,
                 borderTop: "1px solid var(--border)",
                 borderBottom: "1px solid var(--border)",
@@ -356,7 +356,7 @@ function DiffView({ patch }: { patch: string }) {
           const prefix =
             line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
           const prefixColor =
-            line.type === "added" ? "#4ade80" : line.type === "removed" ? "#f87171" : "var(--text-dim)";
+            line.type === "added" ? "#4ade80" : line.type === "removed" ? "#f87171" : "var(--faint)";
 
           return (
             <div
@@ -396,7 +396,7 @@ function DiffView({ patch }: { patch: string }) {
                   flexShrink: 0,
                   padding: "0 8px 0 0",
                   whiteSpace: "pre",
-                  color: "var(--text)",
+                  color: "var(--fg)",
                 }}
               >
                 {line.text || "\u00a0"}
@@ -467,7 +467,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
           padding: "4px 16px",
           borderBottom: "1px solid var(--border)",
           fontSize: 11,
-          color: "var(--text-dim)",
+          color: "var(--faint)",
           background: "var(--bg)",
           flexShrink: 0,
         }}
@@ -480,7 +480,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
         {formatSizeStr && <span>{formatSizeStr}</span>}
         <span
           title={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
-          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--text-dim)" }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--faint)" }}
         >
           <span
             style={{
@@ -500,7 +500,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
         style={{
           flex: 1,
           overflow: "auto",
-          background: "var(--bg-panel)",
+          background: "var(--panel)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -601,7 +601,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
           padding: "4px 16px",
           borderBottom: "1px solid var(--border)",
           fontSize: 11,
-          color: "var(--text-dim)",
+          color: "var(--faint)",
           background: "var(--bg)",
           flexShrink: 0,
         }}
@@ -614,7 +614,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
         {size != null && <span>{formatSize(size)}</span>}
         <span
           title={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
-          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--text-dim)" }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--faint)" }}
         >
           <span
             style={{
@@ -637,7 +637,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
           alignItems: "center",
           justifyContent: "center",
           padding: 24,
-          background: "var(--bg-panel)",
+          background: "var(--panel)",
         }}
       >
         <div style={{ width: "min(680px, 100%)" }}>
@@ -736,7 +736,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
           padding: "4px 16px",
           borderBottom: "1px solid var(--border)",
           fontSize: 11,
-          color: "var(--text-dim)",
+          color: "var(--faint)",
           background: "var(--bg)",
           flexShrink: 0,
         }}
@@ -749,7 +749,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
         <span
           title={watching ? t("i18n.liveSync") : t("i18n.notWatching")}
-          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--text-dim)", flexShrink: 0 }}
+          style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "#4ade80" : "var(--faint)", flexShrink: 0 }}
         >
           <span
             style={{
@@ -764,7 +764,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
           {watching ? "live" : "static"}
         </span>
       </div>
-      <div style={{ flex: 1, minHeight: 0, background: "var(--bg-panel)" }}>
+      <div style={{ flex: 1, minHeight: 0, background: "var(--panel)" }}>
         {error ? (
           <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "#f87171", fontSize: 13, textAlign: "center" }}>
             {error}
@@ -992,7 +992,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
 
   if (loading || (initialDisplayMode === "diff" && gitDiffLoading && !data)) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 13 }}>
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>
         {t("i18n.loading")}
       </div>
     );
@@ -1038,7 +1038,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
           padding: "5px 12px",
           borderBottom: "1px solid var(--border)",
           fontSize: 11,
-          color: "var(--text-dim)",
+          color: "var(--faint)",
           background: "var(--bg)",
           flexShrink: 0,
         }}
@@ -1074,8 +1074,8 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
                     aria-pressed={active}
                     className="file-viewer-mode-button"
                     style={{
-                      background: active ? "var(--bg-selected)" : "transparent",
-                      color: active ? "var(--text)" : "var(--text-muted)",
+                      background: active ? "var(--accent-soft)" : "transparent",
+                      color: active ? "var(--accent)" : "var(--muted)",
                     }}
                   >
                     {DISPLAY_MODE_LABELS[mode]}
@@ -1107,8 +1107,8 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
                   aria-pressed={wrapLines}
                   className="file-viewer-icon-button"
                   style={{
-                    background: wrapLines ? "var(--bg-selected)" : "transparent",
-                    color: wrapLines ? "var(--text)" : "var(--text-muted)",
+                    background: wrapLines ? "var(--accent-soft)" : "transparent",
+                    color: wrapLines ? "var(--fg)" : "var(--muted)",
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

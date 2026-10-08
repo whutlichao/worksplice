@@ -9,14 +9,13 @@ import type { ChannelWithMeta } from "./ChannelView";
 import type { MemberRow } from "@/lib/data/types";
 import { DM_ID_PREFIX } from "@/lib/data/schema";
 
-const INK = "#141111";
 const LABEL_STYLE: React.CSSProperties = {
-  fontFamily: "var(--font-space-mono)",
+  fontFamily: "var(--mono)",
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: "0.08em",
   textTransform: "uppercase",
-  color: "var(--text-dim)",
+  color: "var(--faint)",
   padding: "10px 12px 4px",
 };
 
@@ -39,13 +38,13 @@ const rowStyle = (isSelected: boolean): React.CSSProperties => ({
   marginBottom: 4,
   cursor: "pointer",
   textAlign: "left",
-  fontFamily: "var(--font-space-grotesk)",
+  fontFamily: "var(--font)",
   fontSize: 13,
   fontWeight: isSelected ? 700 : 500,
-  color: "var(--text)",
-  background: isSelected ? "var(--yellow)" : "transparent",
-  border: `2px solid ${INK}`,
-  borderColor: isSelected ? INK : "transparent",
+  color: "var(--fg)",
+  background: isSelected ? "var(--accent-soft)" : "transparent",
+  border: `1px solid var(--border)`,
+  borderColor: isSelected ? "var(--border-strong)" : "transparent",
   boxShadow: isSelected ? "2px 2px 0 0 rgba(20, 17, 17, 0.45)" : "none",
   transition: "background 0.08s, box-shadow 0.08s, transform 0.08s",
 });
@@ -74,7 +73,7 @@ function ChannelRow({
   onSelect: (channelId: string) => void;
 }) {
   const { t } = useI18n();
-  const glyphColor = isSelected ? INK : "var(--text-muted)";
+  const glyphColor = isSelected ? "var(--fg)" : "var(--muted)";
   return (
     <button
       type="button"
@@ -86,7 +85,7 @@ function ChannelRow({
       ) : (
         <span
           style={{
-            fontFamily: "var(--font-space-mono)",
+            fontFamily: "var(--mono)",
             fontSize: 13,
             fontWeight: 700,
             color: glyphColor,
@@ -112,14 +111,14 @@ function ChannelRow({
             marginLeft: "auto",
             minWidth: 20,
             padding: "1px 5px",
-            fontFamily: "var(--font-space-mono)",
+            fontFamily: "var(--mono)",
             fontSize: 10,
             fontWeight: 700,
             lineHeight: 1.5,
             textAlign: "center",
-            background: "var(--yellow)",
-            color: "var(--text)",
-            border: `2px solid ${INK}`,
+            background: "var(--accent)",
+            color: "oklch(99% 0.01 256)",
+            border: `1px solid var(--border)`,
             borderRadius: 999,
           }}
         >
@@ -131,7 +130,7 @@ function ChannelRow({
             style={{
               marginLeft: "auto",
               fontSize: 10,
-              color: "var(--text-dim)",
+              color: "var(--faint)",
             }}
           >
             {t("channel.archived")}
@@ -190,17 +189,17 @@ export function WorkspaceSidebar({
     );
   const regularChannels = channels.filter((channel) => channel.type !== "dm");
 
-  const actionButton = (pink: boolean): React.CSSProperties => ({
+  const actionButton = (primary: boolean): React.CSSProperties => ({
     flex: 1,
     height: 30,
-    background: pink ? "var(--pink)" : "#ffffff",
-    color: INK,
-    border: `2px solid ${INK}`,
-    boxShadow: pink
+    background: primary ? "var(--accent)" : "var(--surface)",
+    color: primary ? "oklch(99% 0.01 256)" : "var(--fg)",
+    border: `1px solid var(--border)`,
+    boxShadow: primary
       ? "3px 3px 0 0 rgba(20, 17, 17, 0.55)"
       : "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
     cursor: "pointer",
-    fontFamily: "var(--font-hanken)",
+    fontFamily: "var(--font)",
     fontWeight: 700,
     fontSize: 12,
     transition: "box-shadow 0.08s, transform 0.08s",
@@ -222,7 +221,7 @@ export function WorkspaceSidebar({
           alignItems: "center",
           gap: 8,
           padding: "12px 12px 10px",
-          borderBottom: `2px solid ${INK}`,
+          borderBottom: `1px solid var(--border)`,
           flexShrink: 0,
         }}
       >
@@ -231,18 +230,18 @@ export function WorkspaceSidebar({
             width: 16,
             height: 16,
             display: "inline-block",
-            background: "var(--yellow)",
-            border: `2px solid ${INK}`,
+            background: "var(--accent)",
+            border: `1px solid var(--border)`,
             flexShrink: 0,
           }}
         />
         <span
           style={{
-            fontFamily: "var(--font-hanken)",
+            fontFamily: "var(--font)",
             fontWeight: 800,
             fontSize: 16,
             letterSpacing: "-0.02em",
-            color: "var(--text)",
+            color: "var(--fg)",
             flex: 1,
           }}
         >
@@ -258,9 +257,9 @@ export function WorkspaceSidebar({
             width: 24,
             height: 24,
             background: "#ffffff",
-            border: `2px solid ${INK}`,
+            border: `1px solid var(--border)`,
             cursor: "pointer",
-            color: "var(--text)",
+            color: "var(--fg)",
             fontSize: 12,
             lineHeight: 1,
           }}
@@ -275,7 +274,7 @@ export function WorkspaceSidebar({
           display: "flex",
           gap: 6,
           padding: 10,
-          borderBottom: `2px solid ${INK}`,
+          borderBottom: `1px solid var(--border)`,
           flexShrink: 0,
         }}
       >
@@ -298,11 +297,11 @@ export function WorkspaceSidebar({
             height: 28,
             padding: "0 8px",
             background: "#ffffff",
-            color: "var(--text)",
-            border: `2px solid ${INK}`,
+            color: "var(--fg)",
+            border: `1px solid var(--border)`,
             boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
             outline: "none",
-            fontFamily: "var(--font-space-grotesk)",
+            fontFamily: "var(--font)",
             fontSize: 12,
           }}
         />
@@ -314,9 +313,9 @@ export function WorkspaceSidebar({
           style={{
             width: 30,
             height: 28,
-            background: "var(--lime)",
-            color: INK,
-            border: `2px solid ${INK}`,
+            background: "var(--online)",
+            color: "var(--fg)",
+            border: `1px solid var(--border)`,
             boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
             cursor: "pointer",
             fontSize: 13,
@@ -333,7 +332,7 @@ export function WorkspaceSidebar({
           display: "flex",
           gap: 8,
           padding: 10,
-          borderBottom: `2px solid ${INK}`,
+          borderBottom: `1px solid var(--border)`,
           flexShrink: 0,
         }}
       >
@@ -384,7 +383,7 @@ export function WorkspaceSidebar({
       <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px 12px" }}>
         {error && (
           <div
-            style={{ padding: "8px 12px", color: "var(--coral)", fontSize: 12 }}
+            style={{ padding: "8px 12px", color: "var(--error)", fontSize: 12 }}
           >
             {error}
           </div>
@@ -396,7 +395,7 @@ export function WorkspaceSidebar({
             style={{
               padding: "4px 12px 8px",
               fontSize: 12,
-              color: "var(--text-dim)",
+              color: "var(--faint)",
             }}
           >
             {t("shell.noChannels")}
@@ -418,7 +417,7 @@ export function WorkspaceSidebar({
             style={{
               padding: "4px 12px 8px",
               fontSize: 12,
-              color: "var(--text-dim)",
+              color: "var(--faint)",
             }}
           >
             {t("shell.noDm")}
@@ -442,7 +441,7 @@ export function WorkspaceSidebar({
             style={{
               padding: "4px 12px 8px",
               fontSize: 12,
-              color: "var(--text-dim)",
+              color: "var(--faint)",
             }}
           >
             {t("shell.noAgents")}
@@ -480,7 +479,7 @@ export function WorkspaceSidebar({
           display: "flex",
           gap: 6,
           padding: 8,
-          borderTop: `2px solid ${INK}`,
+          borderTop: `1px solid var(--border)`,
           flexShrink: 0,
         }}
       >
@@ -498,9 +497,9 @@ export function WorkspaceSidebar({
             alignItems: "center",
             justifyContent: "center",
             background:
-              scheduledReminderCount > 0 ? "var(--yellow)" : "#ffffff",
-            color: INK,
-            border: `2px solid ${INK}`,
+              scheduledReminderCount > 0 ? "var(--accent-soft)" : "var(--surface)",
+            color: "var(--fg)",
+            border: `1px solid var(--border)`,
             cursor: "pointer",
           }}
         >
@@ -518,13 +517,13 @@ export function WorkspaceSidebar({
                 alignItems: "center",
                 justifyContent: "center",
                 background: "#ffffff",
-                border: `2px solid ${INK}`,
+                border: `1px solid var(--border)`,
                 borderRadius: "50%",
-                fontFamily: "var(--font-space-mono)",
+                fontFamily: "var(--mono)",
                 fontSize: 10,
                 fontWeight: 700,
                 lineHeight: 1,
-                color: INK,
+                color: "var(--fg)",
               }}
             >
               {scheduledReminderCount > 99 ? "99+" : scheduledReminderCount}
@@ -538,10 +537,10 @@ export function WorkspaceSidebar({
             flex: 1,
             height: 28,
             background: "#ffffff",
-            color: INK,
-            border: `2px solid ${INK}`,
+            color: "var(--fg)",
+            border: `1px solid var(--border)`,
             cursor: "pointer",
-            fontFamily: "var(--font-hanken)",
+            fontFamily: "var(--font)",
             fontWeight: 700,
             fontSize: 12,
           }}
@@ -555,10 +554,10 @@ export function WorkspaceSidebar({
             flex: 1,
             height: 28,
             background: "#ffffff",
-            color: INK,
-            border: `2px solid ${INK}`,
+            color: "var(--fg)",
+            border: `1px solid var(--border)`,
             cursor: "pointer",
-            fontFamily: "var(--font-hanken)",
+            fontFamily: "var(--font)",
             fontWeight: 700,
             fontSize: 12,
           }}
@@ -572,10 +571,10 @@ export function WorkspaceSidebar({
           style={{
             height: 28,
             background: "#ffffff",
-            color: INK,
-            border: `2px solid ${INK}`,
+            color: "var(--fg)",
+            border: `1px solid var(--border)`,
             cursor: "pointer",
-            fontFamily: "var(--font-space-grotesk)",
+            fontFamily: "var(--font)",
             fontSize: 12,
             fontWeight: 600,
             padding: "0 4px",

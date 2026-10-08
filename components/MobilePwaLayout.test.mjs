@@ -33,7 +33,9 @@ test("tracks the visual viewport while the software keyboard is open", () => {
 test("contains chat content and inputs within the mobile viewport", () => {
   assert.match(cssSource, /\.markdown-body \{[\s\S]*?min-width: 0;[\s\S]*?max-width: 100%;[\s\S]*?overflow-x: hidden;/);
   assert.match(cssSource, /\.markdown-code-block \{[\s\S]*?min-width: 0;[\s\S]*?max-width: 100%;/);
-  assert.match(channelViewSource, /overflow-x-hidden overflow-y-auto/);
+  // ticket 02 卸载 Tailwind：该滚动约束从工具类改为 inline style（语义不变——
+  // 纵向滚动 + 横向不溢出，iOS 键盘弹出时内容不撑宽布局）。
+  assert.match(channelViewSource, /overflowX: "hidden",\s*overflowY: "auto",/);
   assert.match(chatInputSource, /flex: 1,\s*minWidth: 0,\s*width: "100%",/);
 });
 

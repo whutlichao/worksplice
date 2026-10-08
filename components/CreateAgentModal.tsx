@@ -8,27 +8,25 @@ import type { ModelsData } from "@/lib/models-cache";
 import type { MemberRow } from "@/lib/data/types";
 import { hasLiveSusan, resolveBootstrapModel } from "@/lib/secretary-bootstrap";
 
-const INK = "#141111";
-
 const FIELD_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",
-  border: `2px solid ${INK}`,
+  border: `1px solid var(--border)`,
   background: "#ffffff",
-  color: "var(--text)",
-  fontFamily: "var(--font-space-grotesk)",
+  color: "var(--fg)",
+  fontFamily: "var(--font)",
   fontSize: 13,
   outline: "none",
 };
 
 const LABEL_STYLE: React.CSSProperties = {
   display: "block",
-  fontFamily: "var(--font-space-mono)",
+  fontFamily: "var(--mono)",
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: "0.06em",
   textTransform: "uppercase",
-  color: "var(--text-muted)",
+  color: "var(--muted)",
   margin: "12px 0 5px",
 };
 
@@ -97,7 +95,7 @@ export function ModelsEmptyHint({
   if (loading) return null;
   if ((models?.modelList?.length ?? 0) !== 0) return null;
   return (
-    <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+    <div style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}>
       {t("agent.modelsEmpty")}
     </div>
   );
@@ -229,7 +227,7 @@ export function CreateAgentModal({
             style={{
               marginTop: 12,
               padding: "12px 12px 10px",
-              border: `2px dashed ${INK}`,
+              border: `1px dashed var(--border-strong)`,
               background: "#fffdf5",
               display: "flex",
               alignItems: "center",
@@ -243,12 +241,12 @@ export function CreateAgentModal({
               style={{
                 flexShrink: 0,
                 padding: "8px 12px",
-                fontFamily: "var(--font-hanken)",
+                fontFamily: "var(--font)",
                 fontWeight: 700,
                 fontSize: 13,
-                background: "var(--yellow)",
-                color: "var(--ink)",
-                border: `2px solid ${INK}`,
+                background: "var(--accent)",
+                color: "oklch(99% 0.01 256)",
+                border: `1px solid var(--border)`,
                 boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
                 cursor: bootstrapBusy || modelsLoading ? "wait" : "pointer",
                 opacity: bootstrapBusy || modelsLoading ? 0.7 : 1,
@@ -256,7 +254,7 @@ export function CreateAgentModal({
             >
               {bootstrapBusy ? "…" : t("agent.bootstrap")}
             </button>
-            <span style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.45 }}>
+            <span style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>
               {t("agent.bootstrapHint")}
             </span>
           </div>
@@ -303,12 +301,12 @@ export function CreateAgentModal({
           onClearThinking={() => setThinkingLevel(null)}
         />
         <ModelsEmptyHint models={models} loading={modelsLoading} />
-        <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+        <div style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}>
           {t("agent.homeHint")}
         </div>
 
         {error && (
-          <div style={{ marginTop: 10, color: "var(--coral)", fontSize: 12 }}>{error}</div>
+          <div style={{ marginTop: 10, color: "var(--error)", fontSize: 12 }}>{error}</div>
         )}
 
         <div
@@ -324,12 +322,12 @@ export function CreateAgentModal({
             onClick={onClose}
             style={{
               padding: "8px 16px",
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
               background: "#ffffff",
-              color: "var(--text)",
-              border: `2px solid ${INK}`,
+              color: "var(--fg)",
+              border: `1px solid var(--border)`,
               cursor: "pointer",
             }}
           >
@@ -341,12 +339,12 @@ export function CreateAgentModal({
             onClick={() => void submit()}
             style={{
               padding: "8px 16px",
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
-              background: "var(--pink)",
-              color: "var(--ink)",
-              border: `2px solid ${INK}`,
+              background: "var(--accent)",
+              color: "oklch(99% 0.01 256)",
+              border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: canSubmit ? "pointer" : "not-allowed",
               opacity: canSubmit ? 1 : 0.55,

@@ -43,7 +43,7 @@ export function ProjectTrustDialog({
           maxWidth: "100%",
           border: "1px solid var(--border)",
           borderRadius: 8,
-          background: "var(--bg-panel)",
+          background: "var(--panel)",
           boxShadow: "0 12px 36px rgba(0,0,0,0.24)",
           overflow: "hidden",
         }}
@@ -65,10 +65,10 @@ export function ProjectTrustDialog({
             <path d="m9 12 2 2 4-4" />
           </svg>
           <div style={{ minWidth: 0 }}>
-            <div id="project-trust-title" style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>
+            <div id="project-trust-title" style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>
               {t("trust.dialogTitle")}
             </div>
-            <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.6, color: "var(--text-muted)" }}>
+            <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.6, color: "var(--muted)" }}>
               {t("trust.dialogBody")}
             </div>
             <code
@@ -79,7 +79,7 @@ export function ProjectTrustDialog({
                 border: "1px solid var(--border)",
                 borderRadius: 5,
                 background: "var(--bg)",
-                color: "var(--text)",
+                color: "var(--fg)",
                 fontFamily: "var(--font-mono)",
                 fontSize: 11,
                 overflowWrap: "anywhere",
@@ -108,12 +108,12 @@ export function ProjectTrustDialog({
             onClick={onCancel}
             disabled={busy}
             style={{
-              height: 32,
+              height: "var(--control-h)",
               padding: "0 12px",
               border: "1px solid var(--border)",
               borderRadius: 5,
               background: "transparent",
-              color: "var(--text-muted)",
+              color: "var(--muted)",
               cursor: busy ? "not-allowed" : "pointer",
               fontSize: 12,
             }}
@@ -125,7 +125,7 @@ export function ProjectTrustDialog({
             onClick={onConfirm}
             disabled={busy}
             style={{
-              height: 32,
+              height: "var(--control-h)",
               padding: "0 12px",
               border: "1px solid var(--accent)",
               borderRadius: 5,

@@ -6,7 +6,6 @@ import { useI18n } from "@/hooks/useI18n";
 import { PixelAvatar } from "./PixelAvatar";
 import type { MessageSearchHit } from "@/lib/domain/collab";
 
-const INK = "#141111";
 const DEBOUNCE_MS = 250;
 
 /** §6.4 命中时间展示（与 ChannelView 同一格式：今天只显示时分）。 */
@@ -83,7 +82,7 @@ export function SearchView({
     gap: 10,
     padding: "10px 12px",
     background: "#ffffff",
-    border: `2px solid ${INK}`,
+    border: `1px solid var(--border)`,
     boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
   } as const;
 
@@ -94,18 +93,18 @@ export function SearchView({
         style={{
           flexShrink: 0,
           padding: "14px 16px 10px",
-          borderBottom: `2px solid ${INK}`,
+          borderBottom: `1px solid var(--border)`,
           background: "var(--bg)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span
             style={{
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 800,
               fontSize: 18,
               letterSpacing: "-0.01em",
-              color: "var(--text)",
+              color: "var(--fg)",
               whiteSpace: "nowrap",
             }}
           >
@@ -125,14 +124,14 @@ export function SearchView({
             style={{
               flex: 1,
               minWidth: 0,
-              height: 32,
+              height: "var(--control-h)",
               padding: "0 10px",
               background: "#ffffff",
-              color: "var(--text)",
-              border: `2px solid ${INK}`,
+              color: "var(--fg)",
+              border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
               outline: "none",
-              fontFamily: "var(--font-space-grotesk)",
+              fontFamily: "var(--font)",
               fontSize: 13,
             }}
           />
@@ -143,13 +142,13 @@ export function SearchView({
             onClick={onClose}
             style={{
               width: 32,
-              height: 32,
+              height: "var(--control-h)",
               background: "#ffffff",
-              color: INK,
-              border: `2px solid ${INK}`,
+              color: "var(--fg)",
+              border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
               cursor: "pointer",
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
               lineHeight: 1,
@@ -159,7 +158,7 @@ export function SearchView({
           </button>
         </div>
         {results !== null && !loading && (
-          <p style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: 12 }}>
+          <p style={{ margin: "8px 0 0", color: "var(--muted)", fontSize: 12 }}>
             {t("search.results", { count: String(results.length) })}
           </p>
         )}
@@ -168,15 +167,15 @@ export function SearchView({
       {/* 结果区 */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
         {loading ? (
-          <div style={{ color: "var(--text-dim)", fontSize: 13 }}>…</div>
+          <div style={{ color: "var(--faint)", fontSize: 13 }}>…</div>
         ) : error ? (
-          <div style={{ color: "var(--coral)", fontSize: 13 }}>
+          <div style={{ color: "var(--error)", fontSize: 13 }}>
             {t("search.error", { error })}
           </div>
         ) : results === null ? (
-          <div style={{ color: "var(--text-dim)", fontSize: 13 }}>{t("search.emptyHint")}</div>
+          <div style={{ color: "var(--faint)", fontSize: 13 }}>{t("search.emptyHint")}</div>
         ) : results.length === 0 ? (
-          <div style={{ color: "var(--text-dim)", fontSize: 13 }}>
+          <div style={{ color: "var(--faint)", fontSize: 13 }}>
             {t("search.noResults")}
           </div>
         ) : (
@@ -207,38 +206,38 @@ export function SearchView({
                       alignItems: "center",
                       gap: 6,
                       flexWrap: "wrap",
-                      fontFamily: "var(--font-space-grotesk)",
+                      fontFamily: "var(--font)",
                       fontSize: 12,
                       fontWeight: 700,
-                      color: "var(--text-muted)",
+                      color: "var(--muted)",
                     }}
                   >
-                    <span style={{ color: "var(--text)" }}>
+                    <span style={{ color: "var(--fg)" }}>
                       {hit.author?.name ?? hit.author_id}
                     </span>
                     {hit.channel ? (
                       <span>
-                        #<span style={{ fontFamily: "var(--font-space-mono)" }}>{hit.channel.name}</span>
+                        #<span style={{ fontFamily: "var(--mono)" }}>{hit.channel.name}</span>
                       </span>
                     ) : null}
-                    <span style={{ fontFamily: "var(--font-space-mono)", color: "var(--text-dim)" }}>
+                    <span style={{ fontFamily: "var(--mono)", color: "var(--faint)" }}>
                       #{hit.seq}
                     </span>
                     {hit.inThread && (
                       <span
                         style={{
                           padding: "1px 5px",
-                          background: "var(--pink)",
-                          color: INK,
-                          border: `1px solid ${INK}`,
-                          fontFamily: "var(--font-space-mono)",
+                          background: "var(--accent-soft)",
+                          color: "var(--accent)",
+                          border: `1px solid var(--border)`,
+                          fontFamily: "var(--mono)",
                           fontSize: 10,
                         }}
                       >
                         {t("search.thread")}
                       </span>
                     )}
-                    <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: 11 }}>
+                    <span style={{ marginLeft: "auto", color: "var(--faint)", fontSize: 11 }}>
                       {hitTime(hit.created_at)}
                     </span>
                   </div>
@@ -247,7 +246,7 @@ export function SearchView({
                     style={{
                       marginTop: 4,
                       fontSize: 13,
-                      color: "var(--text)",
+                      color: "var(--fg)",
                       lineHeight: 1.5,
                       wordBreak: "break-word",
                     }}
@@ -264,12 +263,12 @@ export function SearchView({
                     style={{
                       flexShrink: 0,
                       padding: "4px 8px",
-                      background: "var(--yellow)",
-                      color: INK,
-                      border: `2px solid ${INK}`,
+                      background: "var(--accent-soft)",
+                      color: "var(--fg)",
+                      border: `1px solid var(--border)`,
                       boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
                       cursor: "pointer",
-                      fontFamily: "var(--font-hanken)",
+                      fontFamily: "var(--font)",
                       fontWeight: 700,
                       fontSize: 11,
                     }}

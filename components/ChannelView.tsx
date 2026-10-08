@@ -97,7 +97,6 @@ export interface ChannelMessage {
 /** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */
 import type { ChannelTask } from "@/hooks/useChannelData";
 
-const INK = "#141111";
 /** @ 提及补全菜单最大展示条数。 */
 const AT_MATCH_LIMIT = 20;
 /** 任务板状态分组顺序（§3.7）。 */
@@ -145,12 +144,12 @@ const actionButtonStyle: React.CSSProperties = {
   gap: 4,
   padding: "3px 8px",
   minHeight: 26,
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 11,
   background: "#ffffff",
-  color: "var(--text)",
-  border: `2px solid ${INK}`,
+  color: "var(--fg)",
+  border: `1px solid var(--border)`,
   boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
   cursor: "pointer",
 };
@@ -174,7 +173,7 @@ const panelCollapseInnerStyle: React.CSSProperties = {
   minHeight: 0,
   overflow: "hidden",
   padding: "8px 16px 12px",
-  borderBottom: `2px solid ${INK}`,
+  borderBottom: `1px solid var(--border)`,
   background: "var(--bg)",
 };
 
@@ -195,14 +194,14 @@ function Badge({ children }: { children: React.ReactNode }) {
   return (
     <span
       style={{
-        fontFamily: "var(--font-space-mono)",
+        fontFamily: "var(--mono)",
         fontSize: 10,
         fontWeight: 700,
         letterSpacing: "0.06em",
         padding: "2px 7px",
-        border: `2px solid ${INK}`,
+        border: `1px solid var(--border)`,
         background: "#ffffff",
-        color: "var(--text-muted)",
+        color: "var(--muted)",
         whiteSpace: "nowrap",
       }}
     >
@@ -243,19 +242,19 @@ function EmptyState({
           display: "grid",
           placeItems: "center",
           background: "#ffffff",
-          border: `2px solid ${INK}`,
-          boxShadow: "var(--shadow-md)",
-          fontFamily: "var(--font-space-mono)",
+          border: `1px solid var(--border)`,
+          boxShadow: "var(--shadow-card)",
+          fontFamily: "var(--mono)",
           fontSize: 36,
           fontWeight: 700,
-          color: "var(--text)",
+          color: "var(--fg)",
         }}
       >
         {glyph}
       </div>
       <div
         style={{
-          fontFamily: "var(--font-hanken)",
+          fontFamily: "var(--font)",
           fontWeight: 700,
           fontSize: 17,
           marginTop: 6,
@@ -265,7 +264,7 @@ function EmptyState({
       </div>
       <div
         style={{
-          color: "var(--text-muted)",
+          color: "var(--muted)",
           fontSize: 13,
           maxWidth: 340,
           lineHeight: 1.6,
@@ -313,7 +312,7 @@ function EmojiPicker({
         gridTemplateColumns: "repeat(6, 1fr)",
         gap: 4,
         background: "#ffffff",
-        border: `2px solid ${INK}`,
+        border: `1px solid var(--border)`,
         boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.35)",
       }}
     >
@@ -333,7 +332,7 @@ function EmojiPicker({
             cursor: "pointer",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--yellow)";
+            e.currentTarget.style.background = "var(--accent-soft)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
@@ -369,14 +368,14 @@ function ReactionChips({
             style={{
               ...actionButtonStyle,
               gap: 5,
-              background: mine ? "var(--yellow)" : "#ffffff",
+              background: mine ? "var(--accent-soft)" : "var(--surface)",
             }}
           >
             <span style={{ fontSize: 14, lineHeight: 1 }}>
               {reaction.emoji}
             </span>
             <span
-              style={{ fontFamily: "var(--font-space-mono)", fontSize: 11 }}
+              style={{ fontFamily: "var(--mono)", fontSize: 11 }}
             >
               {reaction.count}
             </span>
@@ -436,12 +435,12 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
     alignSelf: "flex-start",
     maxWidth: "100%",
     padding: "4px 10px",
-    fontFamily: "var(--font-hanken)",
+    fontFamily: "var(--font)",
     fontWeight: 700,
     fontSize: 12,
     background: "#ffffff",
-    color: "var(--text)",
-    border: `2px solid ${INK}`,
+    color: "var(--fg)",
+    border: `1px solid var(--border)`,
     boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
     textDecoration: "none",
     cursor: "pointer",
@@ -471,7 +470,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
                   maxHeight: 180,
                   objectFit: "contain",
                   background: "#ffffff",
-                  border: `2px solid ${INK}`,
+                  border: `1px solid var(--border)`,
                   boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
                 }}
               />
@@ -498,15 +497,15 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
               </span>
               <span
                 style={{
-                  fontFamily: "var(--font-space-mono)",
+                  fontFamily: "var(--mono)",
                   fontSize: 10,
-                  color: "var(--text-muted)",
+                  color: "var(--muted)",
                 }}
               >
                 {formatBytes(attachment.size_bytes)}
               </span>
               <span
-                style={{ fontFamily: "var(--font-space-mono)", fontSize: 10 }}
+                style={{ fontFamily: "var(--mono)", fontSize: 10 }}
               >
                 {previewId === attachment.id ? "▲" : "▼"}
               </span>
@@ -519,7 +518,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
                   overflow: "auto",
                   padding: "8px 10px",
                   background: "var(--bg)",
-                  border: `2px solid ${INK}`,
+                  border: `1px solid var(--border)`,
                   fontFamily: "var(--font-mono)",
                   fontSize: 11,
                   whiteSpace: "pre-wrap",
@@ -561,9 +560,9 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
             </span>
             <span
               style={{
-                fontFamily: "var(--font-space-mono)",
+                fontFamily: "var(--mono)",
                 fontSize: 10,
-                color: "var(--text-muted)",
+                color: "var(--muted)",
               }}
             >
               {formatBytes(attachment.size_bytes)}
@@ -621,7 +620,7 @@ function MessageActions({
           title={t("message.addReaction")}
           style={{
             ...actionButtonStyle,
-            background: reactOpen ? "var(--yellow)" : "#ffffff",
+            background: reactOpen ? "var(--accent-soft)" : "var(--surface)",
           }}
           onClick={onToggleReactOpen}
         >
@@ -674,7 +673,7 @@ function MessageActions({
           title={pinned ? t("message.unpin") : t("message.pin")}
           style={{
             ...actionButtonStyle,
-            background: pinned ? "var(--yellow)" : "#ffffff",
+            background: pinned ? "var(--accent-soft)" : "var(--surface)",
           }}
           onClick={() => onTogglePin(message)}
         >
@@ -775,7 +774,7 @@ function ContextMenu({
         zIndex: 100,
         minWidth: 190,
         background: "#ffffff",
-        border: `2px solid ${INK}`,
+        border: `1px solid var(--border)`,
         boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.35)",
         padding: 4,
       }}
@@ -795,16 +794,16 @@ function ContextMenu({
             width: "100%",
             textAlign: "left",
             padding: "7px 10px",
-            fontFamily: "var(--font-hanken)",
+            fontFamily: "var(--font)",
             fontWeight: 700,
             fontSize: 12,
             background: "transparent",
-            color: "var(--text)",
+            color: "var(--fg)",
             border: "none",
             cursor: "pointer",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--yellow)";
+            e.currentTarget.style.background = "var(--accent-soft)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
@@ -922,23 +921,23 @@ export const MessageRow = memo(function MessageRow({
             marginBottom: 2,
           }}
         >
-          <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: "var(--fg)" }}>
             {message.author?.name ?? t("message.unknownAuthor")}
           </span>
           <span
             style={{
-              fontFamily: "var(--font-space-mono)",
+              fontFamily: "var(--mono)",
               fontSize: 11,
-              color: "var(--text-muted)",
+              color: "var(--muted)",
             }}
           >
             #{message.seq}
           </span>
           <span
             style={{
-              fontFamily: "var(--font-space-mono)",
+              fontFamily: "var(--mono)",
               fontSize: 11,
-              color: "var(--text-dim)",
+              color: "var(--faint)",
             }}
           >
             {messageTime(message.created_at)}
@@ -956,12 +955,12 @@ export const MessageRow = memo(function MessageRow({
                 alignItems: "center",
                 gap: 4,
                 padding: "1px 6px",
-                fontFamily: "var(--font-space-mono)",
+                fontFamily: "var(--mono)",
                 fontSize: 10,
                 fontWeight: 700,
-                background: "var(--cyan)",
-                color: "var(--text)",
-                border: `2px solid ${INK}`,
+                background: "var(--panel-2)",
+                color: "var(--fg)",
+                border: `1px solid var(--border)`,
                 cursor: "pointer",
               }}
             >
@@ -982,12 +981,12 @@ export const MessageRow = memo(function MessageRow({
                 alignItems: "center",
                 gap: 4,
                 padding: "1px 6px",
-                fontFamily: "var(--font-space-mono)",
+                fontFamily: "var(--mono)",
                 fontSize: 10,
                 fontWeight: 700,
-                background: "var(--yellow)",
-                color: "var(--text)",
-                border: `2px solid ${INK}`,
+                background: "var(--accent-soft)",
+                color: "var(--fg)",
+                border: `1px solid var(--border)`,
                 cursor: "pointer",
                 userSelect: "none",
               }}
@@ -1007,7 +1006,7 @@ export const MessageRow = memo(function MessageRow({
         </div>
         <div
           className="ws-message-content"
-          style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)" }}
+          style={{ fontSize: 14, lineHeight: 1.6, color: "var(--fg)" }}
         >
           <MentionText
             content={message.content}
@@ -1066,33 +1065,33 @@ export const MessageRow = memo(function MessageRow({
 /** §3.7 任务状态徽标样式（List 分组标题 / Board 列头共用）。 */
 const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => {
   const background: Record<TaskStatus, string> = {
-    todo: "#ffffff",
-    in_progress: "var(--yellow)",
-    in_review: "var(--cyan)",
-    done: "#b9ecd0",
-    closed: "#c9c7c2",
+    todo: "var(--panel-2)",
+    in_progress: "var(--accent)",
+    in_review: "var(--working)",
+    done: "var(--online)",
+    closed: "var(--offline)",
   };
   return {
-    fontFamily: "var(--font-space-mono)",
+    fontFamily: "var(--mono)",
     fontSize: 10,
     fontWeight: 700,
     letterSpacing: "0.06em",
     padding: "2px 7px",
-    border: `2px solid ${INK}`,
+    border: `1px solid var(--border)`,
     background: background[status],
-    color: "var(--text)",
+    color: "var(--fg)",
     whiteSpace: "nowrap",
   };
 };
 
 const taskCardButtonStyle: React.CSSProperties = {
   padding: "4px 9px",
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 11,
   background: "#ffffff",
-  color: "var(--text)",
-  border: `2px solid ${INK}`,
+  color: "var(--fg)",
+  border: `1px solid var(--border)`,
   boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
   cursor: "pointer",
 };
@@ -1103,12 +1102,12 @@ const taskViewButtonStyle = (active: boolean): React.CSSProperties => ({
   alignItems: "center",
   gap: 5,
   padding: "6px 10px",
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 11,
-  background: active ? "var(--yellow)" : "#ffffff",
-  color: "var(--text)",
-  border: `2px solid ${INK}`,
+  background: active ? "var(--accent-soft)" : "var(--surface)",
+  color: "var(--fg)",
+  border: `1px solid var(--border)`,
   boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
   cursor: "pointer",
 });
@@ -1230,7 +1229,7 @@ function TaskCard({
       style={{
         padding: "10px 12px",
         background: "#ffffff",
-        border: `2px solid ${INK}`,
+        border: `1px solid var(--border)`,
         boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
         cursor: "pointer",
       }}
@@ -1245,7 +1244,7 @@ function TaskCard({
       >
         <span
           style={{
-            fontFamily: "var(--font-space-mono)",
+            fontFamily: "var(--mono)",
             fontWeight: 700,
             fontSize: 13,
           }}
@@ -1256,13 +1255,13 @@ function TaskCard({
           <span
             title={t("tasks.reopenedHint")}
             style={{
-              fontFamily: "var(--font-space-mono)",
+              fontFamily: "var(--mono)",
               fontSize: 10,
               fontWeight: 700,
               letterSpacing: "0.06em",
               padding: "2px 7px",
-              border: `2px solid ${INK}`,
-              background: "var(--orange)",
+              border: `1px solid var(--border)`,
+              background: "var(--working)",
               color: "#ffffff",
               whiteSpace: "nowrap",
             }}
@@ -1271,7 +1270,7 @@ function TaskCard({
           </span>
         )}
         <span
-          style={{ flex: 1, fontSize: 13, color: "var(--text)", minWidth: 120 }}
+          style={{ flex: 1, fontSize: 13, color: "var(--fg)", minWidth: 120 }}
         >
           {previewLine(task.anchor.content)}
         </span>
@@ -1280,7 +1279,7 @@ function TaskCard({
             display: "flex",
             alignItems: "center",
             gap: 5,
-            fontFamily: "var(--font-hanken)",
+            fontFamily: "var(--font)",
             fontWeight: 700,
             fontSize: 11,
           }}
@@ -1360,14 +1359,14 @@ function TaskList({
               </span>
               <span
                 style={{
-                  fontFamily: "var(--font-space-mono)",
+                  fontFamily: "var(--mono)",
                   fontSize: 11,
-                  color: "var(--text-dim)",
+                  color: "var(--faint)",
                 }}
               >
                 {group.length}
               </span>
-              <span style={{ flex: 1, borderTop: `2px solid var(--border)` }} />
+              <span style={{ flex: 1, borderTop: `1px solid var(--border)` }} />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {group.map((task) => (
@@ -1484,11 +1483,11 @@ function TaskBoard({
               display: "flex",
               flexDirection: "column",
               background: invalid
-                ? "var(--coral)"
+                ? "var(--error)"
                 : active
-                  ? "var(--yellow)"
-                  : "var(--bg-panel)",
-              border: `2px solid ${active || invalid ? "var(--accent)" : INK}`,
+                  ? "var(--accent-soft)"
+                  : "var(--panel)",
+              border: `1px solid ${active || invalid ? "var(--accent)" : "var(--border)"}`,
             }}
           >
             <div
@@ -1497,7 +1496,7 @@ function TaskBoard({
                 alignItems: "center",
                 gap: 8,
                 padding: "8px 10px",
-                borderBottom: `2px solid ${INK}`,
+                borderBottom: `1px solid var(--border)`,
               }}
             >
               <span style={taskBadgeStyle(status)}>
@@ -1505,9 +1504,9 @@ function TaskBoard({
               </span>
               <span
                 style={{
-                  fontFamily: "var(--font-space-mono)",
+                  fontFamily: "var(--mono)",
                   fontSize: 11,
-                  color: "var(--text-dim)",
+                  color: "var(--faint)",
                 }}
               >
                 {group.length}
@@ -1650,9 +1649,9 @@ export function TaskViews({
                 flex: 1,
                 minWidth: 220,
                 padding: "8px 10px",
-                border: `2px solid ${INK}`,
+                border: `1px solid var(--border)`,
                 background: "#ffffff",
-                fontFamily: "var(--font-space-grotesk)",
+                fontFamily: "var(--font)",
                 fontSize: 13,
                 outline: "none",
                 opacity: disabled ? 0.55 : 1,
@@ -1665,7 +1664,8 @@ export function TaskViews({
               style={{
                 ...taskCardButtonStyle,
                 padding: "9px 14px",
-                background: "var(--pink)",
+                background: "var(--accent)",
+                color: "oklch(99% 0.01 256)",
               }}
             >
               {t("tasks.create")}
@@ -1686,7 +1686,8 @@ export function TaskViews({
             style={{
               ...taskCardButtonStyle,
               padding: "8px 14px",
-              background: "var(--pink)",
+              background: "var(--accent)",
+              color: "oklch(99% 0.01 256)",
             }}
           >
             + {t("tasks.new")}
@@ -1695,9 +1696,9 @@ export function TaskViews({
         {notice && (
           <span
             style={{
-              fontFamily: "var(--font-space-mono)",
+              fontFamily: "var(--mono)",
               fontSize: 12,
-              color: "var(--text-muted)",
+              color: "var(--muted)",
             }}
           >
             {notice}
@@ -1729,14 +1730,14 @@ export function TaskViews({
         </div>
       </div>
       {error && (
-        <div style={{ marginBottom: 12, color: "var(--coral)", fontSize: 12 }}>
+        <div style={{ marginBottom: 12, color: "var(--error)", fontSize: 12 }}>
           {error}
         </div>
       )}
 
       {tasks.length === 0 ? (
         <div
-          style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6 }}
+          style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}
         >
           {t("tasks.emptyHint")}
         </div>
@@ -1943,7 +1944,7 @@ export function Composer({
       style={{
         flexShrink: 0,
         padding: "10px 16px 12px",
-        borderTop: `2px solid ${INK}`,
+        borderTop: `1px solid var(--border)`,
         background: "var(--bg)",
       }}
     >
@@ -1955,9 +1956,9 @@ export function Composer({
             gap: 8,
             marginBottom: 8,
             padding: "6px 10px",
-            background: "var(--cyan)",
-            border: `2px solid ${INK}`,
-            fontFamily: "var(--font-space-mono)",
+            background: "var(--panel-2)",
+            border: `1px solid var(--border)`,
+            fontFamily: "var(--mono)",
             fontSize: 12,
           }}
         >
@@ -1981,7 +1982,7 @@ export function Composer({
               width: 22,
               height: 22,
               background: "#ffffff",
-              border: `2px solid ${INK}`,
+              border: `1px solid var(--border)`,
               cursor: "pointer",
               fontSize: 11,
               lineHeight: 1,
@@ -2003,9 +2004,9 @@ export function Composer({
                 alignItems: "center",
                 gap: 6,
                 padding: "3px 8px",
-                background: "var(--cyan)",
-                border: `2px solid ${INK}`,
-                fontFamily: "var(--font-space-mono)",
+                background: "var(--panel-2)",
+                border: `1px solid var(--border)`,
+                fontFamily: "var(--mono)",
                 fontSize: 11,
               }}
             >
@@ -2020,7 +2021,7 @@ export function Composer({
                 <Paperclip size={11} style={{ verticalAlign: "-2px" }} />{" "}
                 {file.name}
               </span>
-              <span style={{ color: "var(--text-muted)" }}>
+              <span style={{ color: "var(--muted)" }}>
                 {formatBytes(file.size)}
               </span>
               <button
@@ -2033,7 +2034,7 @@ export function Composer({
                   width: 18,
                   height: 18,
                   background: "#ffffff",
-                  border: `2px solid ${INK}`,
+                  border: `1px solid var(--border)`,
                   cursor: "pointer",
                   fontSize: 10,
                   lineHeight: 1,
@@ -2100,10 +2101,10 @@ export function Composer({
             style={{
               flex: 1,
               padding: "8px 10px",
-              border: `2px solid ${INK}`,
+              border: `1px solid var(--border)`,
               background: "#ffffff",
-              color: "var(--text)",
-              fontFamily: "var(--font-space-grotesk)",
+              color: "var(--fg)",
+              fontFamily: "var(--font)",
               fontSize: 13,
               resize: "vertical",
               outline: "none",
@@ -2119,7 +2120,7 @@ export function Composer({
                 bottom: "calc(100% + 6px)",
                 zIndex: 40,
                 background: "var(--bg)",
-                border: `2px solid ${INK}`,
+                border: `1px solid var(--border)`,
                 boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
                 maxHeight: 260,
                 overflowY: "auto",
@@ -2132,8 +2133,8 @@ export function Composer({
                   justifyContent: "space-between",
                   gap: 8,
                   padding: "6px 10px",
-                  borderBottom: `1px solid ${INK}`,
-                  fontFamily: "var(--font-hanken)",
+                  borderBottom: `1px solid var(--border)`,
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 11,
                 }}
@@ -2141,9 +2142,9 @@ export function Composer({
                 <span>{t("mention.title")}</span>
                 <span
                   style={{
-                    fontFamily: "var(--font-space-mono)",
+                    fontFamily: "var(--mono)",
                     fontWeight: 400,
-                    color: "var(--text-muted)",
+                    color: "var(--muted)",
                   }}
                 >
                   {t("chat.tabEnter")}
@@ -2154,7 +2155,7 @@ export function Composer({
                   style={{
                     padding: "8px 10px",
                     fontSize: 12,
-                    color: "var(--text-muted)",
+                    color: "var(--muted)",
                   }}
                 >
                   {t("mention.noMatch")}
@@ -2183,13 +2184,13 @@ export function Composer({
                         border: "none",
                         borderBottom:
                           index < atMatches.length - 1
-                            ? `1px solid ${INK}`
+                            ? `1px solid var(--border)`
                             : "none",
-                        background: active ? "var(--cyan)" : "#ffffff",
-                        color: "var(--text)",
+                        background: active ? "var(--accent-soft)" : "var(--surface)",
+                        color: "var(--fg)",
                         cursor: "pointer",
                         textAlign: "left",
-                        fontFamily: "var(--font-hanken)",
+                        fontFamily: "var(--font)",
                         fontWeight: 700,
                         fontSize: 12,
                       }}
@@ -2200,9 +2201,9 @@ export function Composer({
                         <span
                           style={{
                             marginLeft: "auto",
-                            fontFamily: "var(--font-space-mono)",
+                            fontFamily: "var(--mono)",
                             fontSize: 10,
-                            color: "var(--text-muted)",
+                            color: "var(--muted)",
                           }}
                         >
                           {t("mention.notJoined")}
@@ -2231,11 +2232,11 @@ export function Composer({
                 alignItems: "center",
                 gap: 6,
                 padding: "4px 8px",
-                fontFamily: "var(--font-hanken)",
+                fontFamily: "var(--font)",
                 fontWeight: 700,
                 fontSize: 11,
-                background: asTask ? "var(--yellow)" : "#ffffff",
-                border: `2px solid ${INK}`,
+                background: asTask ? "var(--accent-soft)" : "var(--surface)",
+                border: `1px solid var(--border)`,
                 cursor: "pointer",
                 userSelect: "none",
                 opacity: disabled ? 0.55 : 1,
@@ -2246,7 +2247,7 @@ export function Composer({
                 checked={Boolean(asTask)}
                 disabled={disabled}
                 onChange={(e) => onAsTaskChange(e.target.checked)}
-                style={{ cursor: "pointer", accentColor: INK }}
+                style={{ cursor: "pointer", accentColor: "var(--accent)" }}
               />
               {t("tasks.asTask")}
             </label>
@@ -2261,12 +2262,12 @@ export function Composer({
               alignItems: "center",
               height: 30,
               padding: "0 8px",
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
               background: "#ffffff",
-              color: "var(--ink)",
-              border: `2px solid ${INK}`,
+              color: "var(--fg)",
+              border: `1px solid var(--border)`,
               cursor: disabled ? "not-allowed" : "pointer",
               opacity: disabled ? 0.55 : 1,
             }}
@@ -2288,14 +2289,14 @@ export function Composer({
             disabled={disabled || busy || (!value.trim() && files.length === 0)}
             onClick={() => void submit()}
             style={{
-              height: 38,
+              height: "var(--control-h-lg)",
               padding: "0 16px",
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
-              background: "var(--pink)",
-              color: "var(--ink)",
-              border: `2px solid ${INK}`,
+              background: "var(--accent)",
+              color: "oklch(99% 0.01 256)",
+              border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor:
                 disabled || busy || (!value.trim() && files.length === 0)
@@ -2312,7 +2313,7 @@ export function Composer({
         </div>
       </div>
       {error && (
-        <div style={{ marginTop: 6, color: "var(--coral)", fontSize: 12 }}>
+        <div style={{ marginTop: 6, color: "var(--error)", fontSize: 12 }}>
           {error}
         </div>
       )}
@@ -2929,14 +2930,14 @@ export function ChannelView({
   };
 
   const tabButtonStyle = (active: boolean): React.CSSProperties => ({
-    fontFamily: "var(--font-hanken)",
+    fontFamily: "var(--font)",
     fontWeight: 700,
     fontSize: 13,
     padding: "9px 16px",
     cursor: "pointer",
-    background: active ? "var(--yellow)" : "transparent",
-    color: "var(--text)",
-    border: `2px solid ${INK}`,
+    background: active ? "var(--accent-soft)" : "transparent",
+    color: "var(--fg)",
+    border: `1px solid var(--border)`,
     borderBottom: "none",
     marginBottom: -2,
     boxShadow: active ? "2px 2px 0 0 rgba(20, 17, 17, 0.45)" : "none",
@@ -2948,12 +2949,12 @@ export function ChannelView({
     alignItems: "center",
     gap: 4,
     padding: "5px 10px",
-    fontFamily: "var(--font-hanken)",
+    fontFamily: "var(--font)",
     fontWeight: 700,
     fontSize: 11,
     background: "#ffffff",
-    color: "var(--text)",
-    border: `2px solid ${INK}`,
+    color: "var(--fg)",
+    border: `1px solid var(--border)`,
     boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
     cursor: "pointer",
   };
@@ -2974,7 +2975,7 @@ export function ChannelView({
         style={{
           flexShrink: 0,
           padding: "14px 16px 10px",
-          borderBottom: `2px solid ${INK}`,
+          borderBottom: `1px solid var(--border)`,
           background: "var(--bg)",
         }}
       >
@@ -2989,7 +2990,7 @@ export function ChannelView({
           <h1
             style={{
               margin: 0,
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 20,
               letterSpacing: "-0.01em",
@@ -3000,8 +3001,8 @@ export function ChannelView({
           >
             <span
               style={{
-                fontFamily: "var(--font-space-mono)",
-                color: "var(--text-muted)",
+                fontFamily: "var(--mono)",
+                color: "var(--muted)",
               }}
             >
               #
@@ -3025,7 +3026,7 @@ export function ChannelView({
           <p
             style={{
               margin: "6px 0 0",
-              color: "var(--text-muted)",
+              color: "var(--muted)",
               fontSize: 13,
             }}
           >
@@ -3051,7 +3052,7 @@ export function ChannelView({
                 ) : (
                   <button
                     type="button"
-                    style={{ ...actionButton, background: "var(--pink)" }}
+                    style={{ ...actionButton, background: "var(--accent)", color: "oklch(99% 0.01 256)" }}
                     onClick={() =>
                       void runChannelAction("join", {
                         memberId: currentMemberId,
@@ -3076,7 +3077,7 @@ export function ChannelView({
               <button
                 type="button"
                 title={t("reminders.channelAction")}
-                style={{ ...actionButton, background: "var(--lime)" }}
+                style={{ ...actionButton, background: "var(--online)" }}
                 onClick={openChannelReminder}
               >
                 <AlarmClock size={14} />
@@ -3088,7 +3089,7 @@ export function ChannelView({
                 title={t("pinned.toggle")}
                 style={{
                   ...actionButton,
-                  background: pinnedOpen ? "var(--yellow)" : "#ffffff",
+                  background: pinnedOpen ? "var(--accent-soft)" : "var(--surface)",
                 }}
                 onClick={togglePinnedPanel}
               >
@@ -3108,7 +3109,7 @@ export function ChannelView({
                   ...actionButton,
                   background:
                     muteOpen || mutes.some((m) => m.muted)
-                      ? "var(--yellow)"
+                      ? "var(--accent-soft)"
                       : "#ffffff",
                 }}
                 onClick={toggleMutePanel}
@@ -3126,7 +3127,7 @@ export function ChannelView({
                 title={t("channel.membersPanel")}
                 style={{
                   ...actionButton,
-                  background: membersOpen ? "var(--yellow)" : "#ffffff",
+                  background: membersOpen ? "var(--accent-soft)" : "var(--surface)",
                 }}
                 onClick={toggleMembersPanel}
               >
@@ -3157,7 +3158,7 @@ export function ChannelView({
             >
               <span
                 style={{
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 13,
                 }}
@@ -3166,16 +3167,16 @@ export function ChannelView({
               </span>
               <span
                 style={{
-                  fontFamily: "var(--font-space-mono)",
+                  fontFamily: "var(--mono)",
                   fontSize: 11,
-                  color: "var(--text-muted)",
+                  color: "var(--muted)",
                 }}
               >
                 {t("mute.hint")}
               </span>
             </div>
             {mutes.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>
                 {t("mute.none")}
               </div>
             ) : (
@@ -3196,7 +3197,7 @@ export function ChannelView({
                     })}
                     style={{
                       ...actionButton,
-                      background: m.muted ? "var(--yellow)" : "#ffffff",
+                      background: m.muted ? "var(--accent-soft)" : "var(--surface)",
                     }}
                     onClick={() => void toggleMute(m)}
                   >
@@ -3204,7 +3205,7 @@ export function ChannelView({
                     {m.name}{" "}
                     <span
                       style={{
-                        fontFamily: "var(--font-space-mono)",
+                        fontFamily: "var(--mono)",
                         fontSize: 10,
                         opacity: 0.75,
                       }}
@@ -3220,7 +3221,7 @@ export function ChannelView({
                 style={{
                   marginTop: 8,
                   fontSize: 12,
-                  color: "var(--text-muted)",
+                  color: "var(--muted)",
                 }}
               >
                 {muteNotice}
@@ -3245,7 +3246,7 @@ export function ChannelView({
             >
               <span
                 style={{
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 13,
                 }}
@@ -3254,9 +3255,9 @@ export function ChannelView({
               </span>
               <span
                 style={{
-                  fontFamily: "var(--font-space-mono)",
+                  fontFamily: "var(--mono)",
                   fontSize: 11,
-                  color: "var(--text-muted)",
+                  color: "var(--muted)",
                 }}
               >
                 {t("mention.hint")}
@@ -3264,13 +3265,13 @@ export function ChannelView({
             </div>
             {membersError && (
               <div
-                style={{ marginBottom: 8, fontSize: 12, color: "var(--coral)" }}
+                style={{ marginBottom: 8, fontSize: 12, color: "var(--error)" }}
               >
                 {membersError}
               </div>
             )}
             {channelMembers.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>
                 {t("channel.membersEmpty")}
               </div>
             ) : (
@@ -3339,12 +3340,12 @@ export function ChannelView({
                     gap: 8,
                     marginTop: 10,
                     paddingTop: 8,
-                    borderTop: `1px dashed ${INK}`,
+                    borderTop: `1px dashed var(--border-strong)`,
                   }}
                 >
                   <span
                     style={{
-                      fontFamily: "var(--font-hanken)",
+                      fontFamily: "var(--font)",
                       fontWeight: 700,
                       fontSize: 12,
                     }}
@@ -3354,9 +3355,9 @@ export function ChannelView({
                   {mentionable.length === channelAgents.length ? (
                     <span
                       style={{
-                        fontFamily: "var(--font-space-mono)",
+                        fontFamily: "var(--mono)",
                         fontSize: 11,
-                        color: "var(--text-muted)",
+                        color: "var(--muted)",
                       }}
                     >
                       {t("mention.allJoined")}
@@ -3396,7 +3397,7 @@ export function ChannelView({
                     style={{
                       marginTop: 8,
                       fontSize: 12,
-                      color: "var(--text-muted)",
+                      color: "var(--muted)",
                     }}
                   >
                     {memberNotice}
@@ -3423,7 +3424,7 @@ export function ChannelView({
             >
               <span
                 style={{
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 13,
                 }}
@@ -3435,7 +3436,7 @@ export function ChannelView({
                   display: "flex",
                   alignItems: "center",
                   gap: 5,
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 11,
                 }}
@@ -3449,10 +3450,10 @@ export function ChannelView({
                   }}
                   style={{
                     padding: "3px 6px",
-                    fontFamily: "var(--font-space-grotesk)",
+                    fontFamily: "var(--font)",
                     fontSize: 12,
                     background: "#ffffff",
-                    border: `2px solid ${INK}`,
+                    border: `1px solid var(--border)`,
                     outline: "none",
                   }}
                 >
@@ -3464,9 +3465,9 @@ export function ChannelView({
               {pinnedError && (
                 <span
                   style={{
-                    fontFamily: "var(--font-space-mono)",
+                    fontFamily: "var(--mono)",
                     fontSize: 11,
-                    color: "var(--coral)",
+                    color: "var(--error)",
                   }}
                 >
                   {pinnedError}
@@ -3474,7 +3475,7 @@ export function ChannelView({
               )}
             </div>
             {pinnedItems.length === 0 ? (
-              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+              <div style={{ color: "var(--muted)", fontSize: 12 }}>
                 {t("pinned.empty")}
               </div>
             ) : (
@@ -3488,7 +3489,7 @@ export function ChannelView({
                       gap: 8,
                       padding: "6px 10px",
                       background: "#ffffff",
-                      border: `2px solid ${INK}`,
+                      border: `1px solid var(--border)`,
                       cursor: "pointer",
                     }}
                     role="button"
@@ -3500,9 +3501,9 @@ export function ChannelView({
                   >
                     <span
                       style={{
-                        fontFamily: "var(--font-space-mono)",
+                        fontFamily: "var(--mono)",
                         fontSize: 11,
-                        color: "var(--text-muted)",
+                        color: "var(--muted)",
                       }}
                     >
                       #{item.message.seq}
@@ -3581,7 +3582,7 @@ export function ChannelView({
           display: "flex",
           gap: 6,
           padding: "0 16px",
-          borderBottom: `2px solid ${INK}`,
+          borderBottom: `1px solid var(--border)`,
           flexShrink: 0,
         }}
         role="tablist"
@@ -3603,10 +3604,11 @@ export function ChannelView({
       {/* 主体 */}
       <main
         ref={scrollRef}
-        className="overflow-x-hidden overflow-y-auto"
         style={{
           flex: 1,
           minHeight: 0,
+          overflowX: "hidden",
+          overflowY: "auto",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
@@ -3618,7 +3620,7 @@ export function ChannelView({
               hint={t("messages.emptyHint")}
             />
           ) : loadError ? (
-            <div style={{ padding: 24, color: "var(--coral)", fontSize: 13 }}>
+            <div style={{ padding: 24, color: "var(--error)", fontSize: 13 }}>
               {loadError}
             </div>
           ) : messagesLoading ? (
@@ -3673,9 +3675,9 @@ export function ChannelView({
                   style={{
                     margin: "10px 16px 0",
                     padding: "8px 12px",
-                    background: "var(--yellow)",
-                    border: `2px solid ${INK}`,
-                    fontFamily: "var(--font-space-mono)",
+                    background: "var(--accent-soft)",
+                    border: `1px solid var(--border)`,
+                    fontFamily: "var(--mono)",
                     fontSize: 12,
                   }}
                 >
@@ -3687,9 +3689,9 @@ export function ChannelView({
                   style={{
                     margin: "10px 16px 0",
                     padding: "8px 12px",
-                    background: "var(--cyan)",
-                    border: `2px solid ${INK}`,
-                    fontFamily: "var(--font-space-mono)",
+                    background: "var(--panel-2)",
+                    border: `1px solid var(--border)`,
+                    fontFamily: "var(--mono)",
                     fontSize: 12,
                   }}
                 >

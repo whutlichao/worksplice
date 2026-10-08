@@ -1,10 +1,10 @@
-// Flat monochrome file & folder icons — all use currentColor / var(--text-dim)
+// Flat monochrome file & folder icons — all use currentColor / var(--faint)
 
 interface IconProps {
   size?: number;
 }
 
-const DIM = "var(--text-dim)";
+const DIM = "var(--faint)";
 
 // ── Folder ────────────────────────────────────────────────────────────────
 

@@ -32,17 +32,15 @@ const RECURRENCE_PRESETS = [
   "weekly:mon,fri@09:00",
 ];
 
-const INK = "#141111";
-
 const inputStyle: React.CSSProperties = {
   width: "100%",
   boxSizing: "border-box",
   padding: "7px 9px",
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font)",
   fontSize: 13,
-  border: `2px solid ${INK}`,
+  border: `1px solid var(--border)`,
   background: "#ffffff",
-  color: "var(--text)",
+  color: "var(--fg)",
 };
 
 function toLocalInputValue(iso: string): string {
@@ -172,11 +170,11 @@ export function ReminderModal({
 
   const chipStyle = (active: boolean): React.CSSProperties => ({
     padding: "3px 8px",
-    fontFamily: "var(--font-space-mono)",
+    fontFamily: "var(--mono)",
     fontSize: 11,
-    background: active ? "var(--yellow)" : "#ffffff",
-    color: "var(--text)",
-    border: `2px solid ${INK}`,
+    background: active ? "var(--accent-soft)" : "var(--surface)",
+    color: "var(--fg)",
+    border: `1px solid var(--border)`,
     cursor: "pointer",
   });
 
@@ -191,11 +189,11 @@ export function ReminderModal({
           <span style={{ fontWeight: 700 }}>{t("reminders.for")}</span>
           <span
             style={{
-              fontFamily: "var(--font-space-mono)",
+              fontFamily: "var(--mono)",
               fontSize: 12,
               padding: "2px 7px",
-              border: `2px solid ${INK}`,
-              background: "var(--cyan)",
+              border: `1px solid var(--border)`,
+              background: "var(--panel-2)",
             }}
           >
             {targetLabel}
@@ -235,7 +233,7 @@ export function ReminderModal({
             type="datetime-local"
             value={fireAt}
             onChange={(e) => setFireAt(e.target.value)}
-            style={{ ...inputStyle, fontFamily: "var(--font-space-mono)" }}
+            style={{ ...inputStyle, fontFamily: "var(--mono)" }}
           />
         </label>
 
@@ -246,7 +244,7 @@ export function ReminderModal({
             value={recurrence}
             onChange={(e) => setRecurrence(e.target.value)}
             placeholder="every:15m / daily@09:00 / weekly:mon,fri@09:00"
-            style={{ ...inputStyle, fontFamily: "var(--font-space-mono)" }}
+            style={{ ...inputStyle, fontFamily: "var(--mono)" }}
           />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
             {RECURRENCE_PRESETS.map((preset) => (
@@ -267,9 +265,9 @@ export function ReminderModal({
             style={{
               padding: "7px 10px",
               background: "#ffe3df",
-              border: `2px solid ${INK}`,
+              border: `1px solid var(--border)`,
               fontSize: 12,
-              color: "var(--coral)",
+              color: "var(--error)",
             }}
           >
             {error}
@@ -280,7 +278,7 @@ export function ReminderModal({
             style={{
               padding: "7px 10px",
               background: "#e4f7e9",
-              border: `2px solid ${INK}`,
+              border: `1px solid var(--border)`,
               fontSize: 12,
             }}
           >
@@ -295,12 +293,12 @@ export function ReminderModal({
           style={{
             alignSelf: "flex-start",
             padding: "7px 16px",
-            fontFamily: "var(--font-hanken)",
+            fontFamily: "var(--font)",
             fontWeight: 700,
             fontSize: 13,
-            background: "var(--pink)",
-            color: "var(--text)",
-            border: `2px solid ${INK}`,
+            background: "var(--accent)",
+            color: "oklch(99% 0.01 256)",
+            border: `1px solid var(--border)`,
             boxShadow: "3px 3px 0 0 rgba(20, 17, 17, 0.4)",
             cursor: "pointer",
           }}
@@ -308,12 +306,12 @@ export function ReminderModal({
           {t("reminders.create")}
         </button>
 
-        <div style={{ borderTop: `2px solid ${INK}`, paddingTop: 10 }}>
+        <div style={{ borderTop: `1px solid var(--border)`, paddingTop: 10 }}>
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
             {t("reminders.existing")}
           </div>
           {reminders.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("reminders.empty")}</div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("reminders.empty")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {reminders.map((reminder) => (
@@ -325,7 +323,7 @@ export function ReminderModal({
                     gap: 8,
                     padding: "6px 8px",
                     background: "#fffaef",
-                    border: `2px solid ${INK}`,
+                    border: `1px solid var(--border)`,
                     fontSize: 12,
                     flexWrap: "wrap",
                   }}
@@ -333,15 +331,15 @@ export function ReminderModal({
                   <span style={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {reminder.title}
                   </span>
-                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
                     {formatFireAt(reminder.fire_at)}
                   </span>
                   {reminder.recurrence && (
-                    <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, padding: "1px 5px", border: `2px solid ${INK}`, background: "var(--yellow)" }}>
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 10, padding: "1px 5px", border: `1px solid var(--border)`, background: "var(--panel-2)" }}>
                       {reminder.recurrence}
                     </span>
                   )}
-                  <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, padding: "1px 5px", border: `2px solid ${INK}`, background: reminder.status === "scheduled" ? "var(--lime)" : "#c9c7c2" }}>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, padding: "1px 5px", border: `1px solid var(--border)`, background: reminder.status === "scheduled" ? "var(--online)" : "#c9c7c2" }}>
                     {t(`reminders.status.${reminder.status}`)}
                   </span>
                   {reminder.status === "scheduled" && (
@@ -349,14 +347,14 @@ export function ReminderModal({
                       <button
                         type="button"
                         onClick={() => runAction(reminder, "snooze")}
-                        style={{ marginLeft: "auto", padding: "2px 7px", fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 11, border: `2px solid ${INK}`, background: "#ffffff", cursor: "pointer" }}
+                        style={{ marginLeft: "auto", padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "#ffffff", cursor: "pointer" }}
                       >
                         {t("reminders.snooze")}
                       </button>
                       <button
                         type="button"
                         onClick={() => runAction(reminder, "cancel")}
-                        style={{ padding: "2px 7px", fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 11, border: `2px solid ${INK}`, background: "#ffffff", cursor: "pointer" }}
+                        style={{ padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "#ffffff", cursor: "pointer" }}
                       >
                         {t("reminders.cancel")}
                       </button>

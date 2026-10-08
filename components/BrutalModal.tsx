@@ -58,7 +58,7 @@ export function BrutalModal({
           maxHeight: "min(640px, 90dvh)",
           overflowY: "auto",
           background: "#ffffff",
-          border: "2px solid var(--ink)",
+          border: "1px solid var(--border)",
           boxShadow: "6px 6px 0 0 rgba(20, 17, 17, 0.55)",
         }}
       >
@@ -68,16 +68,16 @@ export function BrutalModal({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "12px 16px",
-            borderBottom: "2px solid var(--ink)",
-            background: "var(--yellow)",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--surface)",
           }}
         >
           <span
             style={{
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 15,
-              color: "var(--text)",
+              color: "var(--fg)",
             }}
           >
             {title}
@@ -90,10 +90,10 @@ export function BrutalModal({
               width: 26,
               height: 26,
               background: "#ffffff",
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--border)",
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: "pointer",
-              color: "var(--text)",
+              color: "var(--fg)",
               fontSize: 13,
               lineHeight: 1,
             }}
