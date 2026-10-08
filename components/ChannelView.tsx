@@ -1435,6 +1435,10 @@ export function TaskBoard({
                   }}
                 />
               ))}
+              {/* 空列的虚线空槽（上游原型形态）：可达/非法落点的高亮落在列上，空列给出「拖到这」的言语线索。 */}
+              {group.length === 0 && (
+                <div className="drop-hint">{t("tasks.dropHint")}</div>
+              )}
             </div>
           </div>
         );

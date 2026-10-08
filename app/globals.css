@@ -1074,10 +1074,10 @@ span.linenumber {
    （同一 class 只留一处声明，形态来源不分叉），本段补它的拖拽态 `.card.dragging` 与
    列/卡片/工具条其余部分。
 
-   三处逐字保留但本票无渲染点（逐字搬运优先于裁剪，登记在票 06 的 Answer）：
+   两处逐字保留但本票无渲染点（逐字搬运优先于裁剪，登记在票 06 的 Answer）：
    ① `.col-head .col-add`（按列新建任务，本仓任务板没有这条创建途径）；
-   ② `.filter-chip`（本仓任务板没有筛选功能；渲染点归票 09 的 SearchView facet）；
-   ③ `.drop-hint`（空列提示需要新 i18n key，而本 effort 的红线是「i18n key 一字不动」）。
+   ② `.filter-chip`（本仓任务板没有筛选功能；渲染点归票 09 的 SearchView facet）。
+   `.drop-hint` 由本票的看板空列真渲染（上游原型同形）。
    拖拽态 `.col.drag-over` / `.col.invalid-over` / `.card.dragging` 的 class 由
    `ChannelView.tsx` 的任务板段按 `reachable` 落点裁决与 `dragging` 态挂上。
    ========================================================================== */

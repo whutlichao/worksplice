@@ -41,13 +41,13 @@ const channelViewSource = await readFile(
     "utf8",
 );
 
-/** 任务板段的源码切片（从状态色映射到 TaskViews 结束）——红线自查只看这一段。 */
+/** 任务板段的源码切片（从状态色映射到 Composer 之前，两端都是稳定符号名）——红线自查只看这一段。 */
 function boardSectionSource() {
     const start = channelViewSource.indexOf("const TASK_STATUS_COLOR");
-    const end = channelViewSource.indexOf("/** 消息输入条", start);
+    const end = channelViewSource.indexOf("export function Composer", start);
     assert.ok(
         start !== -1 && end > start,
-        "ChannelView.tsx 应当有任务板段（TASK_STATUS_COLOR → TaskViews）",
+        "ChannelView.tsx 应当有任务板段（TASK_STATUS_COLOR → Composer 之前）",
     );
     return channelViewSource.slice(start, end);
 }
@@ -426,6 +426,26 @@ test("TaskCard 拖拽中带 .dragging（display-only prop，落点 opacity .4）
         React.createElement(mod.TaskCard, { ...props, dragging: true }),
     );
     assert.match(dragging, /class="card dragging"/);
+});
+
+test("TaskBoard 空列渲染 .drop-hint（原型形态；新键 tasks.dropHint 两套包都有）", async () => {
+    const mod = await jiti.import("./ChannelView.tsx");
+    const html = renderI18n(
+        React.createElement(mod.TaskBoard, {
+            tasks: [task()],
+            currentMemberId: "owner",
+            busy: false,
+            onAction: () => undefined,
+            onOpenThread: () => undefined,
+            onInvalidDrop: () => undefined,
+        }),
+    );
+    // 5 列里 1 列有卡片 ⇒ 空列 4 个虚线空槽（上游原型：空列渲染“拖拽任务到此”）。
+    assert.equal(html.split('class="drop-hint"').length - 1, 4);
+    assert.match(html, /class="drop-hint">Drag a task here</);
+    // UI 文案走 i18n（docs/i18n.md 分层规则）：zh-CN 包也有这个键。
+    const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
+    assert.equal(zhCNLocale.messages["tasks.dropHint"], "拖拽任务到此");
 });
 
 test("TaskViews 工具条：.board-toolbar + .seg 分段控件（选中走 is-active）+ .btn 按钮", async () => {
