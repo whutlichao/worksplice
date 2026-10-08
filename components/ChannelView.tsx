@@ -1063,55 +1063,28 @@ export const MessageRow = memo(function MessageRow({
   );
 });
 
-/** §3.7 任务状态徽标样式（List 分组标题 / Board 列头共用）。 */
-const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => {
-  const background: Record<TaskStatus, string> = {
-    todo: "var(--faint)",
-    in_progress: "var(--accent)",
-    in_review: "var(--working)",
-    done: "var(--online)",
-    closed: "var(--offline)",
-  };
-  return {
-    fontFamily: "var(--mono)",
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: "0.06em",
-    padding: "2px 7px",
-    border: `1px solid var(--border)`,
-    background: background[status],
-    // accent 实底是全表唯一的深色底，字用浅 ink；其余状态底都是浅色，字用 --fg。
-    color: status === "in_progress" ? "oklch(99% 0.01 256)" : "var(--fg)",
-    whiteSpace: "nowrap",
-  };
+/** §3.7 / ED-10 任务状态色（原型 JS 的 `STATUS_COLOR`）：成员四态色 + `--faint` / `--accent`
+ *  两档中性/强调色，无第二强调色。看板列头状态点与 List 分组徽标共用同一份映射。 */
+const TASK_STATUS_COLOR: Record<TaskStatus, string> = {
+  todo: "var(--faint)",
+  in_progress: "var(--accent)",
+  in_review: "var(--working)",
+  done: "var(--online)",
+  closed: "var(--offline)",
 };
 
-const taskCardButtonStyle: React.CSSProperties = {
-  padding: "4px 9px",
-  fontFamily: "var(--font)",
+/** §3.7 任务状态徽标样式（List 分组标题）：形态不变，色取 ED-10 映射。 */
+const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => ({
+  fontFamily: "var(--mono)",
+  fontSize: 10,
   fontWeight: 700,
-  fontSize: 11,
-  background: "var(--surface)",
-  color: "var(--fg)",
+  letterSpacing: "0.06em",
+  padding: "2px 7px",
   border: `1px solid var(--border)`,
-  boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
-  cursor: "pointer",
-};
-
-/** 视图切换按钮样式（List | Board）。 */
-const taskViewButtonStyle = (active: boolean): React.CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 5,
-  padding: "6px 10px",
-  fontFamily: "var(--font)",
-  fontWeight: 700,
-  fontSize: 11,
-  background: active ? "var(--accent-soft)" : "var(--surface)",
-  color: "var(--fg)",
-  border: `1px solid var(--border)`,
-  boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
-  cursor: "pointer",
+  background: TASK_STATUS_COLOR[status],
+  // accent 实底是全表唯一的深色底，字用浅 ink；其余状态底都是浅色，字用 --fg。
+  color: status === "in_progress" ? "oklch(99% 0.01 256)" : "var(--fg)",
+  whiteSpace: "nowrap",
 });
 
 const TASK_VIEW_KEY = "worksplice-task-view";
@@ -1190,14 +1163,16 @@ function taskActionsFor(
   }
 }
 
-/** §3.7 任务卡片（List/Board 共用）：#number + reopened 徽标 + 预览 + owner；点击打开任务 thread。 */
-function TaskCard({
+/** §3.7 任务卡片（List/Board 共用）：.card-title + .card-meta（#number / 重开标记 / owner）；
+ *  点击打开任务 thread；Board 视图可拖拽（落点由 TaskBoard 按 reachable 裁决）。 */
+export function TaskCard({
   task,
   currentMemberId,
   busy,
   onAction,
   onOpenThread,
   draggable = false,
+  dragging = false,
   onDragStart,
   onDragEnd,
 }: {
@@ -1211,6 +1186,8 @@ function TaskCard({
   ) => void;
   onOpenThread: (anchor: ChannelMessage) => void;
   draggable?: boolean;
+  /** 拖拽中（display-only）：形态 = `.card.dragging{opacity:.4}`，不参与落点裁决。 */
+  dragging?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, task: ChannelTask) => void;
   onDragEnd?: () => void;
 }) {
@@ -1218,9 +1195,13 @@ function TaskCard({
   const actions = taskActionsFor(task, currentMemberId, onAction, t);
   return (
     <div
+      className={dragging ? "card dragging" : "card"}
       role="button"
       tabIndex={0}
       title={t("tasks.threadHint")}
+      // `.card` 自带 `cursor: grab`（上游形态）；List 视图的卡片不可拖（draggable 缺省 false），
+      // 光标退回 pointer。形态仍全走 class，这里只纠一个指针暗示。
+      style={draggable ? undefined : { cursor: "pointer" }}
       onClick={() => onOpenThread(task.anchor)}
       onKeyDown={(e) => {
         if (e.key === "Enter") onOpenThread(task.anchor);
@@ -1228,64 +1209,16 @@ function TaskCard({
       draggable={draggable}
       onDragStart={onDragStart ? (e) => onDragStart(e, task) : undefined}
       onDragEnd={onDragEnd}
-      style={{
-        padding: "10px 12px",
-        background: "var(--surface)",
-        border: `1px solid var(--border)`,
-        boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
-        cursor: "pointer",
-      }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "var(--mono)",
-            fontWeight: 700,
-            fontSize: 13,
-          }}
-        >
-          #{task.number}
-        </span>
+      <div className="card-title">{previewLine(task.anchor.content)}</div>
+      <div className="card-meta">
+        <span className="card-num">#{task.number}</span>
         {task.reopened === 1 && (
-          <span
-            title={t("tasks.reopenedHint")}
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-              padding: "2px 7px",
-              border: `1px solid var(--border)`,
-              background: "var(--working)",
-              color: "oklch(99% 0.01 256)",
-              whiteSpace: "nowrap",
-            }}
-          >
+          <span className="card-tag" title={t("tasks.reopenedHint")}>
             {t("tasks.reopenedBadge")}
           </span>
         )}
-        <span
-          style={{ flex: 1, fontSize: 13, color: "var(--fg)", minWidth: 120 }}
-        >
-          {previewLine(task.anchor.content)}
-        </span>
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            fontFamily: "var(--font)",
-            fontWeight: 700,
-            fontSize: 11,
-          }}
-        >
+        <span className={task.owner ? "card-owner" : "card-owner unassigned"}>
           {task.owner ? (
             <Avatar
               name={task.owner.name}
@@ -1307,13 +1240,9 @@ function TaskCard({
             <button
               key={action.label}
               type="button"
+              className="btn btn-sm"
               disabled={busy}
               onClick={action.onClick}
-              style={{
-                ...taskCardButtonStyle,
-                opacity: busy ? 0.55 : 1,
-                cursor: busy ? "not-allowed" : "pointer",
-              }}
             >
               {action.label}
             </button>
@@ -1392,8 +1321,10 @@ function TaskList({
   );
 }
 
-/** 任务看板（§3.7 任务视图 / ADR-0002）：5 列 = 5 状态常显；跨列拖拽 = 请求一次状态转移（服务端裁决，不做乐观移动）。 */
-function TaskBoard({
+/** 任务看板（§3.7 任务视图 / ADR-0002）：5 列 = 5 状态常显；跨列拖拽 = 请求一次状态转移
+ *  （服务端裁决，不做乐观移动：松手后卡片留原列，等 updateTaskStatus 返回才随重载落位）。
+ *  列宽/不拉伸、列底、拖拽态形态全在 globals.css 的任务板 class 块。 */
+export function TaskBoard({
   tasks,
   currentMemberId,
   busy,
@@ -1434,16 +1365,7 @@ function TaskBoard({
 
   return (
     <div
-      style={{
-        flex: 1,
-        minHeight: 0,
-        display: "flex",
-        gap: 12,
-        alignItems: "stretch",
-        overflowX: "auto",
-        overflowY: "auto",
-        paddingBottom: 8,
-      }}
+      className="board-cols"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => e.preventDefault()}
     >
@@ -1462,6 +1384,9 @@ function TaskBoard({
         return (
           <div
             key={status}
+            className={`col${active ? " drag-over" : ""}${
+              invalid ? " invalid-over" : ""
+            }`}
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(status);
@@ -1483,50 +1408,16 @@ function TaskBoard({
               }
               onAction(task, "updateStatus", status);
             }}
-            style={{
-              flex: "0 0 236px",
-              display: "flex",
-              flexDirection: "column",
-              background: invalid
-                ? "var(--error)"
-                : active
-                  ? "var(--accent-soft)"
-                  : "var(--panel)",
-              border: `1px solid ${active || invalid ? "var(--accent)" : "var(--border)"}`,
-            }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 10px",
-                borderBottom: `1px solid var(--border)`,
-              }}
-            >
-              <span style={taskBadgeStyle(status)}>
-                {t(`task.status.${status}`)}
-              </span>
+            <div className="col-head">
               <span
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 11,
-                  color: "var(--faint)",
-                }}
-              >
-                {group.length}
-              </span>
+                className="st-dot"
+                style={{ background: TASK_STATUS_COLOR[status] }}
+              />
+              <b>{t(`task.status.${status}`)}</b>
+              <span className="col-count">{group.length}</span>
             </div>
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                padding: 8,
-                minHeight: 64,
-              }}
-            >
+            <div className="col-body">
               {group.map((task) => (
                 <TaskCard
                   key={task.id}
@@ -1536,6 +1427,7 @@ function TaskBoard({
                   onAction={onAction}
                   onOpenThread={onOpenThread}
                   draggable={!busy}
+                  dragging={dragId === task.id}
                   onDragStart={handleDragStart}
                   onDragEnd={() => {
                     setDragId(null);
@@ -1611,33 +1503,17 @@ export function TaskViews({
 
   return (
     <div
-      style={{
-        // 看板模式：板面撑满 main 剩余高度并在面板内滚动，横向滚动条钉在可视区域底部
-        // （否则滚动条随内容沉底，需要先滚到底才看得到）
-        padding: "12px 16px 24px",
-        ...(view === "board"
-          ? {
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              minHeight: 0,
-            }
-          : {}),
-      }}
+      className="board-wrap"
+      // 看板模式：板面撑满 main 剩余高度、在 `.board` 内滚动，横向滚动条钉在可视区域底部
+      // （否则滚动条随内容沉底，需要先滚到底才看得到）；列表模式保持内容高度，由 main 滚。
+      style={view === "board" ? { height: "100%" } : undefined}
     >
-      {/* 创建途径 3：Tasks tab Create Task；右侧 List|Board 视图切换（ADR-0002） */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-        }}
-      >
+      {/* 创建途径 3：Tasks tab Create Task；右侧 List|Board 分段控件（ADR-0002） */}
+      <div className="board-toolbar">
         {formOpen ? (
           <>
             <textarea
+              className="textarea"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={(e) => {
@@ -1650,34 +1526,19 @@ export function TaskViews({
               disabled={disabled}
               rows={2}
               autoFocus
-              style={{
-                flex: 1,
-                minWidth: 220,
-                padding: "8px 10px",
-                border: `1px solid var(--border)`,
-                background: "var(--surface)",
-                fontFamily: "var(--font)",
-                fontSize: 13,
-                outline: "none",
-                opacity: disabled ? 0.55 : 1,
-              }}
+              style={{ flex: 1, minWidth: 220 }}
             />
             <button
               type="button"
+              className="btn btn-primary btn-sm"
               disabled={disabled || !content.trim()}
               onClick={submitCreate}
-              style={{
-                ...taskCardButtonStyle,
-                padding: "9px 14px",
-                background: "var(--accent)",
-                color: "oklch(99% 0.01 256)",
-              }}
             >
               {t("tasks.create")}
             </button>
             <button
               type="button"
-              style={taskCardButtonStyle}
+              className="btn btn-sm"
               onClick={() => setFormOpen(false)}
             >
               {t("tasks.cancel")}
@@ -1686,14 +1547,9 @@ export function TaskViews({
         ) : (
           <button
             type="button"
+            className="btn btn-primary btn-sm"
             disabled={disabled}
             onClick={() => setFormOpen(true)}
-            style={{
-              ...taskCardButtonStyle,
-              padding: "8px 14px",
-              background: "var(--accent)",
-              color: "oklch(99% 0.01 256)",
-            }}
           >
             + {t("tasks.new")}
           </button>
@@ -1709,17 +1565,14 @@ export function TaskViews({
             {notice}
           </span>
         )}
-        <div
-          role="tablist"
-          aria-label={t("tasks.view")}
-          style={{ display: "flex", gap: 6, marginLeft: "auto" }}
-        >
+        <div className="sep" />
+        <div className="seg" role="tablist" aria-label={t("tasks.view")}>
           <button
             type="button"
             role="tab"
             aria-selected={view === "list"}
+            className={view === "list" ? "is-active" : undefined}
             onClick={() => switchView("list")}
-            style={taskViewButtonStyle(view === "list")}
           >
             <List size={13} /> {t("tasks.viewList")}
           </button>
@@ -1727,50 +1580,52 @@ export function TaskViews({
             type="button"
             role="tab"
             aria-selected={view === "board"}
+            className={view === "board" ? "is-active" : undefined}
             onClick={() => switchView("board")}
-            style={taskViewButtonStyle(view === "board")}
           >
             <Kanban size={13} /> {t("tasks.viewBoard")}
           </button>
         </div>
       </div>
       {error && (
-        <div style={{ marginBottom: 12, color: "var(--error)", fontSize: 12 }}>
+        <div
+          style={{ margin: "10px 20px 0", color: "var(--error)", fontSize: 12 }}
+        >
           {error}
         </div>
       )}
 
-      {tasks.length === 0 ? (
-        <div
-          style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}
-        >
-          {t("tasks.emptyHint")}
-        </div>
-      ) : view === "list" ? (
-        <TaskList
-          tasks={tasks}
-          currentMemberId={currentMemberId}
-          busy={busy}
-          onAction={onAction}
-          onOpenThread={onOpenThread}
-        />
-      ) : (
-        <TaskBoard
-          tasks={tasks}
-          currentMemberId={currentMemberId}
-          busy={busy}
-          onAction={onAction}
-          onOpenThread={onOpenThread}
-          onInvalidDrop={(task, status) =>
-            onNotice(
-              t("tasks.dropInvalid", {
-                from: t(`task.status.${task.status}`),
-                to: t(`task.status.${status}`),
-              }),
-            )
-          }
-        />
-      )}
+      <div className="board">
+        {tasks.length === 0 ? (
+          <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
+            {t("tasks.emptyHint")}
+          </div>
+        ) : view === "list" ? (
+          <TaskList
+            tasks={tasks}
+            currentMemberId={currentMemberId}
+            busy={busy}
+            onAction={onAction}
+            onOpenThread={onOpenThread}
+          />
+        ) : (
+          <TaskBoard
+            tasks={tasks}
+            currentMemberId={currentMemberId}
+            busy={busy}
+            onAction={onAction}
+            onOpenThread={onOpenThread}
+            onInvalidDrop={(task, status) =>
+              onNotice(
+                t("tasks.dropInvalid", {
+                  from: t(`task.status.${task.status}`),
+                  to: t(`task.status.${status}`),
+                }),
+              )
+            }
+          />
+        )}
+      </div>
     </div>
   );
 }

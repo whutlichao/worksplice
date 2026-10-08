@@ -1067,3 +1067,51 @@ span.linenumber {
 /* ─── card（拖拽态跟随任务板：票 06） ──────────────────────────────────── */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 11px; cursor: grab; transition: border-color var(--dur), box-shadow var(--dur), transform var(--dur); }
 .card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-card); }
+
+/* ==========================================================================
+   任务板 class 块（票 06，spec D7 组件表第 4 行）——逐字搬自 worksplice-design-system/
+   ui_kits/app/app.css 的 task board 段。`.card` / `.card:hover` 已由票 04 的原语段落位
+   （同一 class 只留一处声明，形态来源不分叉），本段补它的拖拽态 `.card.dragging` 与
+   列/卡片/工具条其余部分。
+
+   三处逐字保留但本票无渲染点（逐字搬运优先于裁剪，登记在票 06 的 Answer）：
+   ① `.col-head .col-add`（按列新建任务，本仓任务板没有这条创建途径）；
+   ② `.filter-chip`（本仓任务板没有筛选功能；渲染点归票 09 的 SearchView facet）；
+   ③ `.drop-hint`（空列提示需要新 i18n key，而本 effort 的红线是「i18n key 一字不动」）。
+   拖拽态 `.col.drag-over` / `.col.invalid-over` / `.card.dragging` 的 class 由
+   `ChannelView.tsx` 的任务板段按 `reachable` 落点裁决与 `dragging` 态挂上。
+   ========================================================================== */
+
+/* ─── task board ─────────────────────────────────────────────────────────── */
+.board-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.board-toolbar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-5) var(--sp-9); border-bottom: 1px solid var(--border); background: var(--bg); }
+.board-toolbar .sep { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
+.seg button { padding: 0 11px; height: var(--icon-btn); font-size: 12px; font-weight: var(--fw-medium); color: var(--muted); border-right: 1px solid var(--border); }
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--fg-soft); color: var(--fg); }
+.seg button.is-active { background: var(--fg); color: oklch(98% 0.005 250); }
+.filter-chip { display: inline-flex; align-items: center; gap: var(--sp-3); height: var(--icon-btn); padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--muted); font-size: 12px; }
+.filter-chip:hover { border-color: var(--border-strong); color: var(--fg); }
+.filter-chip.is-on { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
+
+.board { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-6) var(--sp-7) var(--sp-10); }
+.board-cols { display: flex; gap: var(--sp-5); align-items: flex-start; min-width: min-content; }
+.col { width: var(--board-col-w); flex: 0 0 var(--board-col-w); background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg); display: flex; flex-direction: column; max-height: calc(100dvh - 168px); }
+.col-head { display: flex; align-items: center; gap: var(--sp-4); padding: 10px var(--sp-5) var(--sp-4); }
+.col-head .st-dot { width: 8px; height: 8px; border-radius: var(--r-pill); }
+.col-head b { font-size: 12.5px; font-weight: var(--fw-bold); }
+.col-head .col-count { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0 6px; }
+.col-head .col-add { margin-left: auto; color: var(--faint); width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; }
+.col-head .col-add:hover { background: var(--surface); color: var(--fg); }
+.col-body { padding: 2px var(--sp-4) 10px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; min-height: 44px; }
+.col.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+.col.invalid-over { border-color: var(--error); }
+.card.dragging { opacity: .4; cursor: grabbing; }
+.card-title { font-size: 12.5px; font-weight: var(--fw-semi); line-height: var(--lh-snug); margin-bottom: 7px; overflow-wrap: anywhere; }
+.card-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.card-num { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); }
+.card-tag { font-family: var(--mono); font-size: var(--fs-mono-micro); padding: 1px 5px; border-radius: 4px; background: var(--panel-2); color: var(--muted); }
+.card-owner { margin-left: auto; display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
+.card-owner.unassigned { font-style: italic; color: var(--faint); }
+.drop-hint { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 9px; text-align: center; font-size: 11px; color: var(--faint); }
