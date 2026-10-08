@@ -66,6 +66,37 @@ function assertNotDM(channel: ChannelRow): void {
 }
 
 /**
+ * 接续同名 DM（§R7 重建路径）：删除身份会归档其 DM 并移出成员（deleteAgent），而 DM id 由
+ * 名字确定性派生——同名 agent 重建（新 member id）命中的是同一条 DM，必须就地接续：
+ * 解档、成员补回 owner + 本 agent、本 agent 对 DM 的消费游标推到修复时刻的 max(seq)
+ * （新身份不被旧对话唤醒，§R4 人类新消息才是确定信号；历史消息一条不动）。
+ * 幂等：已在预期态（非归档 + 两名成员）时一行不写；DM 尚未懒创建时不建行。
+ * 三条写入同事务，不留「解档了但成员没加回」「成员加了但游标没推」这类半修复状态。
+ */
+export function resumeDirectChannel(agentId: string): void {
+  const agent = assertMember(agentId);
+  if (agent.type !== "agent" || agent.deleted === 1) {
+    throw new Error("Agent not found");
+  }
+  const dm = getDb().getChannel(directChannelId(agent.name));
+  if (!dm || dm.type !== "dm") return;
+  // 预期态判定：开库期步骤用同一谓词选行（非归档 + 两名成员）
+  const ownerJoined = getDb().isChannelMember(dm.id, OWNER_MEMBER_ID);
+  const agentJoined = getDb().isChannelMember(dm.id, agent.id);
+  if (dm.archived === 0 && ownerJoined && agentJoined) return;
+  getDb().withTransaction(() => {
+    // 成员缺失 ⇔ 重建出来的新身份（旧身份的成员行随 deleteAgent 一并清空）：游标推到当前房间版本，
+    // 旧对话不重放；仍在成员里的身份保留自己的未读游标。
+    if (!agentJoined) {
+      getDb().setConsumedSeq(agent.id, dm.id, getDb().maxSeq(dm.id));
+    }
+    getDb().addChannelMember(dm.id, OWNER_MEMBER_ID);
+    getDb().addChannelMember(dm.id, agent.id);
+    getDb().setChannelArchived(dm.id, 0);
+  });
+}
+
+/**
  * 创建 channel 并自动加入创建者（Owner）+ 初始成员（§3.2 创建 channel 规则）。
  * 私有 channel 的初始成员也由创建者（Owner）直接指定，属合法路径。
  */
