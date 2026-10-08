@@ -21,7 +21,7 @@
 
 ### 交付物
 
-**PR**：https://github.com/whutlichao/worksplice/pull/109（分支 `whutlichao/design-system-refactor`；首轮 commit `f9767dd`，本轮 commit 见 `git log`）
+**PR**：https://github.com/whutlichao/worksplice/pull/109（分支 `whutlichao/design-system-refactor`；首轮 commit `f9767dd`，本轮收敛 commit `2961616`）
 
 | 交付 | 位置 |
 | --- | --- |
