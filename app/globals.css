@@ -1237,3 +1237,47 @@ span.linenumber {
 .card-owner { margin-left: auto; display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
 .card-owner.unassigned { font-style: italic; color: var(--faint); }
 .drop-hint { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 9px; text-align: center; font-size: 11px; color: var(--faint); }
+
+/* ==========================================================================
+   模态族 class 块（票 08：spec 组件表第 10–15 行）
+   —— `.overlay` / `.modal*` / `.member-pick` / `.member-opt` / `.radio-*` / `.kv`
+   逐字搬自 worksplice-design-system/ui_kits/app/app.css（`.overlay`/`.modal` 段 +
+   `.field` 段后半）；`.directory-picker-*` 是票 08 的形态收口（票 10 的 token 换皮保留、不重复）。
+   按票 04 先例裁掉三个**零消费者**槽位（本仓无 sub 槽 / radio-card 无副标题 / 提醒行取 .kv）：
+   `.modal-head .sub`、`.radio-card span`、`.reminder-row*`。
+   `.kv` 与票 07 的 dock 段同源（上游只有一处定义）：两票合并后保留其一即可，规则逐字相同。
+   ============================================================================ */
+
+/* ─── overlay / modal ────────────────────────────────────────────────────── */
+.overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: start center; padding: 12vh var(--sp-7) var(--sp-10); background: oklch(21% 0.02 255 / 0.42); backdrop-filter: blur(2px); }
+.overlay[hidden] { display: none; }
+.modal { width: 100%; max-width: var(--modal-max); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-pop); overflow: hidden; }
+.modal.wide { max-width: var(--modal-wide-max); }
+.modal-head { display: flex; align-items: center; gap: 10px; padding: var(--sp-7) var(--sp-8) var(--sp-5); }
+.modal-head h2 { font-size: 15px; font-weight: var(--fw-heavy); flex: 1; }
+.modal-body { padding: 0 var(--sp-8) var(--sp-2); }
+.modal-foot { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-6) var(--sp-8) var(--sp-7); }
+.modal-foot .sep { flex: 1; }
+
+/* ─── 模态内的字段与拣选（`.field` / `.input` / `.textarea` / `.select` 已在票 04 原语段） ── */
+.member-pick { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.member-opt { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px 5px var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); font-size: 12px; }
+.member-opt:hover { border-color: var(--border-strong); }
+.member-opt.is-on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.radio-row { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.radio-card { flex: 1; min-width: 130px; border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 11px; text-align: left; }
+.radio-card:hover { border-color: var(--border-strong); }
+.radio-card.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.radio-card b { font-size: 12.5px; display: block; }
+
+/* ─── kv 行（MyRemindersModal / 提醒列表：频道名 + 锚点 seq mono + 下次触发 mono） ── */
+.kv { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-5); padding: 5px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
+.kv:last-child { border-bottom: 0; }
+.kv .k { color: var(--muted); }
+.kv .v { font-family: var(--mono); font-size: 11.5px; color: var(--fg); text-align: right; overflow-wrap: anywhere; }
+
+/* ─── DirectoryPicker 形态收口（票 08） ───────────────────────────────────
+   行 hover 走 --fg-soft（ED-7：表面往亮处走、文字往 --fg 走；不降对比）。
+   行本身是导航入口（无选中态），门面底色/文字从 inline 移到这里以便 hover 生效。 */
+.directory-picker-entry { background: none; color: var(--muted); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
+.directory-picker-entry:hover { background: var(--fg-soft); color: var(--fg); }

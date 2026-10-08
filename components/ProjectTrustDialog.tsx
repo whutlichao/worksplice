@@ -39,7 +39,7 @@ export function ProjectTrustDialog({
         aria-modal="true"
         aria-labelledby="project-trust-title"
         style={{
-          width: 440,
+          width: "var(--modal-max)",
           maxWidth: "100%",
           border: "1px solid var(--border)",
           borderRadius: "var(--r-md)",
@@ -105,37 +105,17 @@ export function ProjectTrustDialog({
         >
           <button
             type="button"
+            className="btn"
             onClick={onCancel}
             disabled={busy}
-            style={{
-              height: "var(--control-h)",
-              padding: "0 12px",
-              border: "1px solid var(--border-strong)",
-              borderRadius: "var(--r-md)",
-              background: "transparent",
-              color: "var(--muted)",
-              cursor: busy ? "not-allowed" : "pointer",
-              fontSize: "var(--fs-sm)",
-            }}
           >
             {t("trust.cancel")}
           </button>
           <button
             type="button"
+            className="btn btn-primary"
             onClick={onConfirm}
             disabled={busy}
-            style={{
-              height: "var(--control-h)",
-              padding: "0 12px",
-              border: "1px solid var(--accent)",
-              borderRadius: "var(--r-md)",
-              background: "var(--accent)",
-              color: "oklch(99% 0.01 256)",
-              cursor: busy ? "wait" : "pointer",
-              opacity: busy ? 0.7 : 1,
-              fontSize: "var(--fs-sm)",
-              fontWeight: 600,
-            }}
           >
             {busy ? t("trust.trusting") : t("trust.trustProject")}
           </button>
