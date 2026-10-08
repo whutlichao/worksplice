@@ -4,6 +4,18 @@
    ../colors_and_type.css and ../tokens.css. Contains the AppShell layout and
    every product component class. Preview cards and screens reuse this file so
    there is exactly one implementation of each component.
+
+   Cross-layer dependency (registered, not moved — ticket 04): this kit also
+   consumes three *product* role families — `--selected*` (16 refs, e.g.
+   .nav-row.is-active / .filter-chip.is-on / .reaction.mine), `--unread*`
+   (2 refs, .badge / .result mark) and `--warn*` (4 refs, .meter.warn i /
+   .lv.warn / .tt-log li.warn) — whose definitions live in the product
+   extension layer (`app/globals.css`), not in the two foundations above.
+   Dropping this kit into a product therefore means loading that layer too (or
+   declaring the three role families yourself). The same shape already existed
+   at baseline for `--online-text` (1 ref, .lv.ok); the three families are the
+   ADR-0015 product vocabulary (当前位置 / 未读 / 警示), deliberately kept in
+   the app layer instead of the reusable foundations.
    ========================================================================== */
 
 /* ─── reset ──────────────────────────────────────────────────────────────── */
@@ -286,8 +298,8 @@ code, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .lv.err { background: var(--error-soft); color: var(--error); }
 .log-row .msg { flex: 1; color: var(--muted); overflow-wrap: anywhere; }
 .switch { appearance: none; width: 34px; height: 20px; border-radius: var(--r-pill); background: var(--panel-2); position: relative; transition: background var(--dur); flex: 0 0 auto; cursor: pointer; }
-.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: var(--r-pill); background: var(--surface); box-shadow: 0 1px 2px oklch(21% .02 255/.2); transition: transform var(--dur); }
-.switch:checked { background: var(--accent); }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: var(--r-pill); background: var(--surface); box-shadow: 0 1px 2px oklch(33% .045 300/.2); transition: transform var(--dur); }
+.switch:checked { background: var(--accent-graphic); }
 .switch:checked::after { transform: translateX(14px); }
 
 /* ─── search view ────────────────────────────────────────────────────────── */
