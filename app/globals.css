@@ -1198,7 +1198,8 @@ span.linenumber {
 
    两处逐字保留但本票无渲染点（逐字搬运优先于裁剪，登记在票 06 的 Answer）：
    ① `.col-head .col-add`（按列新建任务，本仓任务板没有这条创建途径）；
-   ② `.filter-chip`（本仓任务板没有筛选功能；渲染点归票 09 的 SearchView facet）。
+   ② `.filter-chip`（本仓任务板没有筛选功能；票 09 核查后作废：本仓没有 facet 实体，
+      渲染点不成立，见搜索视图段头的零消费者登记）。
    `.drop-hint` 由本票的看板空列真渲染（上游原型同形）。
    拖拽态 `.col.drag-over` / `.col.invalid-over` / `.card.dragging` 的 class 由
    `ChannelView.tsx` 的任务板段按 `reachable` 落点裁决与 `dragging` 态挂上。
@@ -1396,3 +1397,63 @@ span.linenumber {
    行本身是导航入口（无选中态），门面底色/文字从 inline 移到这里以便 hover 生效。 */
 .directory-picker-entry { background: none; color: var(--muted); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
 .directory-picker-entry:hover { background: var(--fg-soft); color: var(--fg); }
+
+/* ==========================================================================
+   搜索视图 class 块（票 09，spec §3 组件表第 16 行）——逐字搬自
+   worksplice-design-system/ui_kits/app/app.css 的 search view 段（与
+   worksplice-app.html 的同名段逐字对照；两者冲突时以原型为准）。
+
+   消费点全部有现成实体：`.search-view` / `.search-scroll` / `.search-inner`（列 + 760px 内栏）、
+   `.search-field`（+ `input`：焦点环的落点）、`.result*`（命中行）、`.empty*`（空态）。
+
+   零消费者登记（coordinator 裁决 3；与本 effort「判据是有没有现成实体」一致——
+   docs/spec.md §6.4 只锁消息正文，本仓没有 facet 状态、结果平铺、i18n 也没有 facet 键）：
+   ① `.facet-row` 逐字搬入作词汇表，**不渲染**；`.filter-chip*`（票 06 落位）的渲染点同样作废
+      ——票 06 的「渲染点归票 09 的 SearchView facet」是当时的假设，已被本票的事实核查推翻；
+   ② 结果分组（`.group` / `.group-label`）**不搬也不渲染**：它们属 rail（票 03 已落位并在
+      WorkspaceSidebar 消费），搜索结果没有分组实体。
+
+   裁剪登记（无消费者，按票 03 / 08 先例裁掉，避免死规则）：
+   `.search-field kbd`（原型是 ESC 键帽提示，本仓的关闭入口是真实按钮）/
+   `.result .r-title`（本仓命中行的「标题」位置是作者名，落在 `.r-top` 元信息行）/
+   `.empty p`（本仓两处空态各只有一条文案，无副标题槽位）。
+
+   字面量登记（逐字上游优先于 ED-3 / ED-5 标尺，同票 08 的偏离登记 5）：`.search-field input`
+   的 `14px`、`.result .r-top` 的 `12px`、`.result .r-snip` 的 `12.5px`、`.result mark` 的
+   `border-radius: 2px` 都是上游原值，不换 `--fs-*` / `--r-*`（换就不是「逐字搬运」了）。
+
+   三处本仓收口：
+   ① `.search-field input:focus-visible{box-shadow:none}` —— 内层 input 不再叠第二圈
+      （同票 03 的 `.search-btn input` 处置；字段环由 reset 段与本段的 `:focus-within` 落在容器上）；
+   ② `.result .r-top .hash` 多一条 `font-variant-numeric: tabular-nums`（ED-6 + 票面验收
+      「#seq 用 var(--mono) + tabular-nums」）；
+   ③ `.result .r-snip` 多一条 `overflow-wrap: anywhere` —— 命中行原先 inline 的
+      `wordBreak: break-word` 随 class 化退场，长无空格 token（URL / 长标识符）需要这条兜住横向溢出
+      （与 `.msg-text` 的同名处置对齐）。
+   命中行的线程徐标借票 06 的 `.card-tag`（mono micro + `--panel-2` 底 + `--muted` 字）：原型搜索结果
+   的 kind 槽位就是 `.card-tag`，旧实现那个 accent-soft 小胶囊没有上游对应物（形态变化已入票 09 Answer）。
+   ========================================================================== */
+
+/* ─── search view ────────────────────────────────────────────────────────── */
+.search-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.search-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8) var(--sp-9) var(--sp-11); }
+.search-inner { max-width: 760px; margin: 0 auto; }
+.search-field { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); }
+.search-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-field input { flex: 1; border: 0; background: none; outline: none; font-size: 14px; }
+.search-field input:focus-visible { box-shadow: none; }
+
+/* 零消费者：本仓 SearchView 无 facet 实体（见段头登记①），逐字搬入作词汇表。 */
+.facet-row { display: flex; gap: 7px; margin: var(--sp-5) 0 var(--sp-3); flex-wrap: wrap; }
+
+.result { display: block; width: 100%; text-align: left; padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); margin-bottom: 7px; }
+.result:hover { border-color: var(--border-strong); background: var(--panel); }
+.result .r-top { display: flex; align-items: center; gap: var(--sp-4); font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.result .r-top .hash { font-family: var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.result .r-snip { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+.result mark { background: color-mix(in oklch, var(--working) 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+/* empty states */
+.empty { text-align: center; padding: var(--sp-12) var(--sp-9); color: var(--faint); }
+.empty svg { margin-bottom: var(--sp-5); opacity: .7; }
+.empty b { display: block; color: var(--muted); font-weight: var(--fw-semi); font-size: var(--fs-body-lg); margin-bottom: var(--sp-2); }
