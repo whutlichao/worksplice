@@ -424,6 +424,7 @@ export const enLocale: LocalePlugin = {
     "i18n.before": "Before",
     "i18n.after": "After",
     "shell.brand": "worksplice",
+    "shell.brandSub": "Local workspace",
     "shell.channels": "Channels",
     "shell.dm": "Direct messages",
     "shell.createChannel": "New channel",

@@ -415,6 +415,7 @@ export const zhCNLocale: LocalePlugin = {
     "i18n.before": "之前",
     "i18n.after": "之后",
     "shell.brand": "worksplice",
+    "shell.brandSub": "本地工作区",
     "shell.channels": "频道",
     "shell.dm": "私信",
     "shell.createChannel": "新建频道",

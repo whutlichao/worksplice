@@ -53,8 +53,18 @@ test("reminder entry is a compact icon-only button (§5.6): no label to wrap or 
     // 回归：40px 宽 flex:1 按钮内 "My reminders" 折行、AlarmClock 被 flex-shrink 压到 7px
     assert.doesNotMatch(inner, /My reminders/);
     assert.doesNotMatch(tag, /flex:/);
-    assert.match(tag, /width:34px/);
+    // 票 03：按钮从「34px 内联宽高 + 内联边框/底色」改为 `.icon-btn` 原语（`--icon-btn` 30px 固定网格，
+    // 透明边框 + hover 换 --surface）。守卫不变：宽度固定、不被 flex 拉伸、图标 18px 不被压缩
+    // （`.icon-btn` 的形态断言在 components/primitives.test.mjs）。
+    assert.match(tag, /class="icon-btn"/);
     assert.match(inner, /width="18" height="18"/);
+});
+
+test("reminder entry marks the scheduled state with the primitive's .is-on", () => {
+    const { tag, inner } = reminderButtonHtml(2);
+    assert.match(tag, /class="icon-btn is-on"/);
+    assert.match(inner, /class="badge"/);
+    assert.match(inner, />2<\/span>/);
 });
 
 test("reminder entry shows a count badge when scheduled reminders exist", () => {
@@ -68,13 +78,13 @@ test("reminder entry stays icon-only when count is 0 (no stub label)", () => {
     assert.doesNotMatch(inner, /<span/);
 });
 
-function sidebarHtml(channels) {
+function sidebarHtml(channels, { agents = [], selectedChannelId = null } = {}) {
     return renderI18n(
         React.createElement(WorkspaceSidebar, {
             channels,
-            agents: [],
+            agents,
             error: null,
-            selectedChannelId: null,
+            selectedChannelId,
             onSelectChannel: () => undefined,
             onOpenAgent: () => undefined,
             onNewChannel: () => undefined,
@@ -224,4 +234,73 @@ test("懒创建：软删 agent 的有消息 DM 仍显示为归档可读（archiv
     ]);
     const row = channelRow(html, "Retired");
     assert.match(row, /Archived/);
+});
+
+// ─── 票 03：rail 行的形态（class 在 markup，形态在 globals.css 的 .nav-row / .avatar 块） ──
+
+// ─── 票 03：rail 行的形态（class 在 markup，形态在 globals.css 的 .nav-row / .avatar 块） ──
+
+test("票 03：rail 的控制面在形态重构后一个不少（行为面回归网）", () => {
+    const html = sidebarHtml([]);
+    // 创建入口 / 搜索入口 / 收集入口 / 语言 / 紧凑端关闭按钮——两两对应 rail-actions /
+    // search-shell / rail-foot / rail-head，任何一个在形态重构中掉队都会被这条钉住。
+    for (const label of [
+        "New channel",
+        "New agent",
+        "Search messages…",
+        "My reminders",
+        "Models",
+        "Skills",
+        "Language",
+        "Close panel",
+    ]) {
+        assert.ok(html.includes(label), `rail 缺少 \`${label}\``);
+    }
+    assert.match(html, /class="rail-actions"/);
+    assert.match(html, /class="search-shell"/);
+    assert.match(html, /class="rail-foot"/);
+    // 搜索入口仍是「输入框 + 提交按钮」（Enter/Escape 行为不动；形态取上游 .search-btn）
+    assert.match(html, /<input type="search"[^>]*placeholder="Search messages…"/);
+    assert.match(html, /<button[^>]*title="Search"[^>]*>\s*<svg/);
+});
+
+/** 按名字取一条 `.nav-row`（行内无嵌套按钮，非貪婪匹配到本行自己的 `</button>`）。 */
+function navRow(html, name) {
+    const rows =
+        html.match(/<button[^>]*class="nav-row[^"]*"[^>]*>[\s\S]*?<\/button>/g) ?? [];
+    const row = rows.find((candidate) => candidate.includes(name));
+    assert.ok(row, `nav row for ${name} should render`);
+    return row;
+}
+
+test("票 03：rail 频道行 = .nav-row / .hash / .grow；选中的行挂 is-active（其余行不挂）", () => {
+    const html = sidebarHtml(
+        [
+            { id: "c1", name: "reads", type: "public", unread: 0, messageCount: 1 },
+            { id: "c2", name: "other", type: "public", unread: 0, messageCount: 1 },
+        ],
+        { selectedChannelId: "c1" },
+    );
+    const active = navRow(html, "reads");
+    assert.match(active, /class="nav-row is-active"/);
+    assert.match(active, /class="hash"/);
+    assert.match(active, /class="grow"/);
+
+    const inactive = navRow(html, "other");
+    assert.match(inactive, /class="nav-row"/);
+    assert.doesNotMatch(inactive, /is-active/);
+});
+
+test("票 03：rail agent 行头像 = .avatar.sm（--avatar-sm 22px，票 04 迁到 Avatar）+ .presence", () => {
+    const html = sidebarHtml([], {
+        agents: [{ id: "a1", name: "Nova", status: "online" }],
+    });
+    const row = html.match(
+        /<button[^>]*class="nav-row"[^>]*>[\s\S]*?Nova[\s\S]*?<\/button>/,
+    )?.[0];
+    assert.ok(row, "agent row should render");
+    // 28 → 22px 的尺寸变化：行内头像走 .avatar.sm 档（尺寸 token 与行高重校见
+    // components/AppShell.test.mjs 的 .nav-row / .avatar 断言）
+    assert.match(row, /class="avatar sm /);
+    assert.match(row, /class="presence online"/);
 });
