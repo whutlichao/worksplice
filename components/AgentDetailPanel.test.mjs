@@ -101,7 +101,10 @@ test("an unbound agent shows the not-bound label and workspace hint", () => {
 test("a working agent shows the working status label", () => {
     const html = renderPanel({ ...AGENT, status: "working" });
     assert.match(html, /Working/);
-    assert.match(html, /ws-status-pulse/);
+    // 票 04：脉冲形态由内联 `ws-status-pulse` 迁到 `.presence.working` class（形态在 class，
+    // 语义 token 仍在 markup）；断言按同一意图改写法，护栏（working 态可辨识）不变。
+    assert.match(html, /presence working/);
+    assert.match(html, /var\(--working\)/);
 });
 
 test("ModelPicker groups models by provider and shows the current model", () => {

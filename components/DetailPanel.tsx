@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { ThreadPanel } from "./ThreadPanel";
-import { PixelAvatar } from "./PixelAvatar";
+import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import type { ChannelWithMeta } from "./ChannelView";
 import type { MemberRow } from "@/lib/data/types";
@@ -112,7 +112,7 @@ function HumanProfileCard({
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-          <PixelAvatar seed={member.id} name={member.name} size={44} />
+          <Avatar name={member.name} type={member.type} size="lg" colorKey={member.id} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span

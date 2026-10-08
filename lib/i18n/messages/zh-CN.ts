@@ -604,6 +604,7 @@ export const zhCNLocale: LocalePlugin = {
     "shell.menu": "切换频道列表",
     "shell.selectChannel": "选择一个频道",
     "role.owner": "Owner",
+    "avatar.you": "我",
     "memberProfile.description": "简介",
     "memberProfile.noDescription": "这位成员还没有简介",
     "role.member": "Member",

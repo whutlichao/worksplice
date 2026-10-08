@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
-import { PixelAvatar } from "./PixelAvatar";
+import { Avatar } from "./Avatar";
 import type { MessageSearchHit } from "@/lib/domain/collab";
 
 const DEBOUNCE_MS = 250;
@@ -198,7 +198,12 @@ export function SearchView({
                   opacity: hit.channel ? 1 : 0.6,
                 }}
               >
-                <PixelAvatar seed={hit.author_id} name={hit.author?.name} size={28} />
+                <Avatar
+                  name={hit.author?.name}
+                  type={hit.author?.type}
+                  size="sm"
+                  colorKey={hit.author_id}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{

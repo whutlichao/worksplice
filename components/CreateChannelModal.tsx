@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
-import { PixelAvatar } from "./PixelAvatar";
+import { Avatar } from "./Avatar";
 import { liveSusanMemberId, precheckSusanForPrivateChannel } from "@/lib/secretary-bootstrap";
 import type { MemberRow } from "@/lib/data/types";
 
@@ -153,7 +153,7 @@ export function CreateChannelModal({
                 overflowY: "auto",
               }}
             >
-              {agents.map((agent) => {
+              {agents.map((agent, index) => {
                 const selected = memberIds.includes(agent.id);
                 return (
                   <button
@@ -176,7 +176,7 @@ export function CreateChannelModal({
                       boxShadow: selected ? "2px 2px 0 0 rgba(20, 17, 17, 0.4)" : "none",
                     }}
                   >
-                    <PixelAvatar seed={agent.id} name={agent.name} size={28} />
+                    <Avatar name={agent.name} size="sm" colorKey={index} />
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {agent.name}
                     </span>

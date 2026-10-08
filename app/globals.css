@@ -77,12 +77,8 @@ pre, code {
   font-family: var(--font-mono);
 }
 
-/* §4.4 像素头像 */
-.pixelated {
-  image-rendering: pixelated;
-}
-
-/* §3.6 状态点：黄脉冲（正在干活） */
+/* §3.6 状态点脉冲：`.presence.working` 消费下面的 `pulse`；`ws-status-pulse` 是票 04 之前的
+   内联动画名，保留它只为 T-C「@keyframes 只增不减」的护栏（不得为了清死代码让它递减）。 */
 @keyframes ws-status-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
@@ -770,7 +766,7 @@ span.linenumber {
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.3; }
 }
 
 @keyframes notice-shelf-in {
@@ -994,3 +990,80 @@ span.linenumber {
     padding-left: 52px !important;
   }
 }
+
+/* ==========================================================================
+   原语 class 块（票 04，spec D7 的原语层）——逐字搬自 worksplice-design-system/
+   ui_kits/app/app.css。搬运时按票面事实做了三处裁剪（见票 04 Answer 的偏离登记）：
+   ① `.avatar img{image-rendering:pixelated}` 不搬（D6 退役像素头像）；
+   ② `.tag` 上游不存在（tag 家族只有 `.msg-tag` / `.card-tag`，归票 05/06），未发明；
+   ③ 拖拽态（`.card.dragging` / `.drag-over` / `.invalid-over`）归票 06。
+   后半部分的 `.presence` / `.avatar` 由 StatusDot / Avatar 消费；`.input` / `.textarea` /
+   `.select` / `.composer-box` 的 `--accent-soft` 焦点环已在文件顶部的 reset 段（票 02）。
+   ============================================================================ */
+
+/* ─── buttons ────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  height: var(--control-h); padding: 0 var(--sp-5); border-radius: var(--r-md);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg);
+  font-size: 12.5px; font-weight: var(--fw-medium); white-space: nowrap;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.btn:hover { background: var(--fg-soft); border-color: var(--faint); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: oklch(99% 0.01 256); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: oklch(99% 0.01 256); }
+.btn-ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn-ghost:hover { background: var(--fg-soft); color: var(--fg); }
+.btn-danger { border-color: color-mix(in oklch, var(--error) 45%, transparent); color: var(--error); }
+.btn-danger:hover { background: color-mix(in oklch, var(--error) 10%, transparent); border-color: var(--error); color: var(--error); }
+.btn-sm { height: var(--control-h-sm); padding: 0 9px; font-size: 12px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn svg { flex: 0 0 auto; }
+
+/* ─── icon button ────────────────────────────────────────────────────────── */
+.icon-btn {
+  width: var(--icon-btn); height: var(--icon-btn); flex: 0 0 var(--icon-btn);
+  display: grid; place-items: center; border-radius: var(--r-sm);
+  color: var(--muted); border: 1px solid transparent; position: relative;
+}
+.icon-btn:hover { background: var(--surface); border-color: var(--border); color: var(--fg); }
+.icon-btn.is-on { background: var(--accent-soft); color: var(--accent); }
+.icon-btn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--error); border: 1.5px solid var(--panel); }
+
+/* ─── badge ──────────────────────────────────────────────────────────────── */
+.badge {
+  font-family: var(--mono); font-size: 10px; font-weight: var(--fw-black); line-height: 1.5;
+  min-width: 18px; padding: 0 5px; border-radius: var(--r-pill); text-align: center;
+  background: var(--accent); color: oklch(99% 0.01 256);
+}
+.badge.soft { background: var(--fg-soft); color: var(--muted); }
+
+/* ─── presence + avatar ──────────────────────────────────────────────────── */
+.presence { width: 7px; height: 7px; border-radius: var(--r-pill); flex: 0 0 7px; }
+.presence.online { background: var(--online); }
+.presence.working { background: var(--working); animation: pulse 1.5s ease-in-out infinite; }
+.presence.error { background: var(--error); }
+.presence.offline { background: var(--offline); }
+@media (prefers-reduced-motion: reduce) { .presence.working { animation: none; } }
+
+.avatar {
+  width: var(--avatar-md); height: var(--avatar-md); flex: 0 0 var(--avatar-md);
+  border-radius: 7px; display: grid; place-items: center;
+  font-size: 11px; font-weight: var(--fw-black); color: var(--fg); overflow: hidden;
+}
+.avatar.sm { width: var(--avatar-sm); height: var(--avatar-sm); flex-basis: var(--avatar-sm); font-size: 10px; }
+.avatar.lg { width: var(--avatar-lg); height: var(--avatar-lg); flex-basis: var(--avatar-lg); font-size: 16px; border-radius: var(--r-md); }
+.av-0 { background: var(--av-0); } .av-1 { background: var(--av-1); } .av-2 { background: var(--av-2); }
+.av-3 { background: var(--av-3); } .av-4 { background: var(--av-4); }
+
+/* ─── fields ─────────────────────────────────────────────────────────────── */
+.field { margin-bottom: 13px; }
+.field label { display: block; font-size: 12px; font-weight: var(--fw-semi); color: var(--fg); margin-bottom: 5px; }
+.field .hint { font-size: 11.5px; color: var(--faint); margin-top: 5px; }
+.input, .textarea, .select { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4) 10px; font-size: var(--fs-body); outline: none; transition: border-color var(--dur), box-shadow var(--dur); }
+.textarea { resize: vertical; min-height: 70px; line-height: var(--lh-body); }
+.input::placeholder, .textarea::placeholder { color: var(--faint); }
+
+/* ─── card（拖拽态跟随任务板：票 06） ──────────────────────────────────── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 11px; cursor: grab; transition: border-color var(--dur), box-shadow var(--dur), transform var(--dur); }
+.card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-card); }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlarmClock, MessageSquare, Search, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
-import { PixelAvatar } from "./PixelAvatar";
+import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import type { ChannelWithMeta } from "./ChannelView";
 import type { MemberRow } from "@/lib/data/types";
@@ -447,7 +447,7 @@ export function WorkspaceSidebar({
             {t("shell.noAgents")}
           </div>
         )}
-        {agents.map((agent) => {
+        {agents.map((agent, index) => {
           // ticket 13：agent 行无选中态——点击打开右栏面板，中央频道不动
           return (
             <button
@@ -456,7 +456,7 @@ export function WorkspaceSidebar({
               onClick={() => onOpenAgent(agent.id)}
               style={rowStyle(false)}
             >
-              <PixelAvatar seed={agent.id} name={agent.name} size={28} />
+              <Avatar name={agent.name} size="sm" colorKey={index} />
               <span
                 style={{
                   flex: 1,
