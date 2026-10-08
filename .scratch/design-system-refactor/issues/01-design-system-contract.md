@@ -13,12 +13,14 @@
 - [x] `.scratch/design-system-refactor/issues/02…11` 十张实施票落盘，含 Blocked by 边与验收清单
 - [x] 零源码改动（`app/**` / `components/**` / `hooks/**` / `lib/**` / `package.json` 一字不动）
 - [x] `git status --porcelain` 为空（`.pi-lens.json` 进 `.git/info/exclude`，不出现在 untracked 列表）
-- [x] 分支推送 + PR（中文标题与正文），PR 号回填本 Answer
+- [x] 分支推送 + PR（中文标题与正文）：`whutlichao/design-system-refactor` → **PR #109**
 - [x] grilling 轮次记录落本 Answer（每轮问题、每条最终答案、谁给的答复）
 
 ## Answer
 
 ### 交付物
+
+**PR**：https://github.com/whutlichao/worksplice/pull/109（分支 `whutlichao/design-system-refactor`，commit `f9767dd`）
 
 | 交付 | 位置 |
 | --- | --- |
