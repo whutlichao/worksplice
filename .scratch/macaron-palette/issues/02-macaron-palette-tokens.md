@@ -106,3 +106,7 @@ base = `9ce948e`（`--bg #fbfcfd` · `--accent #2072d5` · `--error #db423c` · 
 ### 未获答复的提问（知情项）
 
 `ui_kits/app/app.css` 要不要跟着迁移——`orca orchestration ask`（msg_675e9b1b9905）两次 30 分钟超时未获答复。我按提问里的推荐项执行（镜像迁移，保住两条「逐字搬运」断言的不变量），理由与代价见票 03 的 Answer「偏离 4」。若最终裁定为「不迁移 + 收窄断言」，回退面就是那一个文件的 diff。
+
+### 勘误（票 04 追加，只补两条数字，不改本票结论）
+
+「交付后的对比度表」的 `-deep` 档那一行里，`--online-text` / `--working-text` 的两对值（6.87 / 5.94 与 7.01 / 6.06）是**改判前**的 `color-mix` 派生值，不是交付值。交付态实测（票 04 的 `app/globals.contrast.test.mjs` + spec 轴评审的独立复算 + spec 矩阵自称的 `--panel-2` 4.51）是 **5.23 / 4.52** 与 **5.24 / 4.53**（两档纸张 = `--bg` / `--panel-2`）。两族仍达标，但 `--panel-2` 上的余量只有 0.02–0.03，登记为契约最薄的两格。正文其余数字不受影响；来龙去脉见 `.scratch/macaron-palette/issues/04-macaron-palette-contract.md` 的 Answer §9.2。
