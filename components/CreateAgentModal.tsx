@@ -8,28 +8,6 @@ import type { ModelsData } from "@/lib/models-cache";
 import type { MemberRow } from "@/lib/data/types";
 import { hasLiveSusan, resolveBootstrapModel } from "@/lib/secretary-bootstrap";
 
-const FIELD_STYLE: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  border: `1px solid var(--border)`,
-  background: "var(--surface)",
-  color: "var(--fg)",
-  fontFamily: "var(--font)",
-  fontSize: 13,
-  outline: "none",
-};
-
-const LABEL_STYLE: React.CSSProperties = {
-  display: "block",
-  fontFamily: "var(--mono)",
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.06em",
-  textTransform: "uppercase",
-  color: "var(--muted)",
-  margin: "12px 0 5px",
-};
-
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 /** 创建默认推理强度：模型 pin 优先，否则 medium（ADR-0001 创建时必选但预选默认）。 */
@@ -95,7 +73,7 @@ export function ModelsEmptyHint({
   if (loading) return null;
   if ((models?.modelList?.length ?? 0) !== 0) return null;
   return (
-    <div style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}>
+    <div style={{ marginTop: 6, fontSize: "var(--fs-caption)", color: "var(--faint)" }}>
       {t("agent.modelsEmpty")}
     </div>
   );
@@ -221,13 +199,16 @@ export function CreateAgentModal({
 
   return (
     <BrutalModal title={t("agent.create")} onClose={onClose}>
-      <div style={{ padding: "4px 16px 16px" }}>
+      {/* 形态（票 08）：`.field` + `.input` / `.textarea` + `.modal-foot`；模型 / 推理
+          选择仍由 `ModelPicker` 承担（不在本票 Ownership，形态归票 09/10）。 */}
+      <div className="modal-body">
         {showBootstrap && (
           <div
             style={{
               marginTop: 12,
               padding: "12px 12px 10px",
-              border: `1px dashed var(--border-strong)`,
+              border: "1px dashed var(--border-strong)",
+              borderRadius: "var(--r-md)",
               background: "var(--panel)",
               display: "flex",
               alignItems: "center",
@@ -236,123 +217,84 @@ export function CreateAgentModal({
           >
             <button
               type="button"
+              className="btn btn-primary"
               disabled={bootstrapBusy || modelsLoading}
               onClick={() => void bootstrap()}
-              style={{
-                flexShrink: 0,
-                padding: "8px 12px",
-                fontFamily: "var(--font)",
-                fontWeight: 700,
-                fontSize: 13,
-                background: "var(--accent)",
-                color: "oklch(99% 0.01 256)",
-                border: `1px solid var(--border)`,
-                boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-                cursor: bootstrapBusy || modelsLoading ? "wait" : "pointer",
-                opacity: bootstrapBusy || modelsLoading ? 0.7 : 1,
-              }}
+              style={{ flexShrink: 0 }}
             >
               {bootstrapBusy ? "…" : t("agent.bootstrap")}
             </button>
-            <span style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>
+            <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)", lineHeight: 1.45 }}>
               {t("agent.bootstrapHint")}
             </span>
           </div>
         )}
 
-        <label style={LABEL_STYLE} htmlFor="agent-name">
-          {t("agent.name")}
-        </label>
-        <input
-          id="agent-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void submit();
-          }}
-          placeholder="bob"
-          style={FIELD_STYLE}
-          autoFocus
-        />
+        <div className="field">
+          <label htmlFor="agent-name">{t("agent.name")}</label>
+          <input
+            id="agent-name"
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void submit();
+            }}
+            placeholder="bob"
+            autoFocus
+          />
+        </div>
 
-        <label style={LABEL_STYLE} htmlFor="agent-description">
-          {t("agent.description")}
-        </label>
-        <textarea
-          id="agent-description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          style={{ ...FIELD_STYLE, resize: "vertical" }}
-        />
+        <div className="field">
+          <label htmlFor="agent-description">{t("agent.description")}</label>
+          <textarea
+            id="agent-description"
+            className="textarea"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+          />
+        </div>
 
-        <label style={LABEL_STYLE}>{t("agent.modelAndThinking")}</label>
-        <ModelPicker
-          models={models}
-          loading={modelsLoading}
-          model={model}
-          thinkingLevel={thinkingLevel}
-          onModelChange={(provider, modelId) => {
-            setModel({ provider, modelId });
-            setThinkingLevel(defaultThinkingLevel(models, provider, modelId));
-          }}
-          onClearModel={() => setModel(null)}
-          onThinkingChange={setThinkingLevel}
-          onClearThinking={() => setThinkingLevel(null)}
-        />
-        <ModelsEmptyHint models={models} loading={modelsLoading} />
-        <div style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}>
-          {t("agent.homeHint")}
+        <div className="field">
+          <label>{t("agent.modelAndThinking")}</label>
+          <ModelPicker
+            models={models}
+            loading={modelsLoading}
+            model={model}
+            thinkingLevel={thinkingLevel}
+            onModelChange={(provider, modelId) => {
+              setModel({ provider, modelId });
+              setThinkingLevel(defaultThinkingLevel(models, provider, modelId));
+            }}
+            onClearModel={() => setModel(null)}
+            onThinkingChange={setThinkingLevel}
+            onClearThinking={() => setThinkingLevel(null)}
+          />
+          <ModelsEmptyHint models={models} loading={modelsLoading} />
+          <div className="hint">{t("agent.homeHint")}</div>
         </div>
 
         {error && (
-          <div style={{ marginTop: 10, color: "var(--error)", fontSize: 12 }}>{error}</div>
+          <div style={{ marginTop: 10, color: "var(--error)", fontSize: "var(--fs-sm)" }}>
+            {error}
+          </div>
         )}
+      </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 16,
-          }}
+      <div className="modal-foot">
+        <span className="sep" />
+        <button type="button" className="btn" onClick={onClose}>
+          {t("agent.cancel")}
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!canSubmit}
+          onClick={() => void submit()}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: "8px 16px",
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 13,
-              background: "var(--surface)",
-              color: "var(--fg)",
-              border: `1px solid var(--border)`,
-              cursor: "pointer",
-            }}
-          >
-            {t("agent.cancel")}
-          </button>
-          <button
-            type="button"
-            disabled={!canSubmit}
-            onClick={() => void submit()}
-            style={{
-              padding: "8px 16px",
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 13,
-              background: "var(--accent)",
-              color: "oklch(99% 0.01 256)",
-              border: `1px solid var(--border)`,
-              boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor: canSubmit ? "pointer" : "not-allowed",
-              opacity: canSubmit ? 1 : 0.55,
-            }}
-          >
-            {t("agent.create")}
-          </button>
-        </div>
+          {t("agent.create")}
+        </button>
       </div>
     </BrutalModal>
   );

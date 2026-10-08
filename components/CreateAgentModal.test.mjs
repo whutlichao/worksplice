@@ -8,8 +8,22 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { ModelsEmptyHint, normalizeModelsBody } = await jiti.import("./CreateAgentModal.tsx");
+const { ModelsEmptyHint, normalizeModelsBody, CreateAgentModal } = await jiti.import("./CreateAgentModal.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
+
+function renderAgentModal(agents = []) {
+  return renderToStaticMarkup(
+    React.createElement(I18nProvider, null, [
+      React.createElement(CreateAgentModal, {
+        key: "modal",
+        agents,
+        onClose: () => undefined,
+        onCreated: () => undefined,
+        onOpenModelsConfig: () => undefined,
+      }),
+    ]),
+  );
+}
 
 /** /api/models 的错误 body（app/api/models/route.ts：cwd 校验失败 → 400/403，无 modelList 字段）。 */
 const ERROR_BODY = { error: "Access denied" };
@@ -105,4 +119,39 @@ test("normalizeModelsBody：局部残缺 body 补缺省而非整体丢弃", () =
   assert.equal(out.modelList.length, 1);
   assert.deepEqual(out.thinkingLevelPins, {});
   assert.equal(out.defaultModel, null);
+});
+
+// ─── 票 08：模态内容形态（.modal-body / .modal-foot + 字段 + 底按钮） ──────────
+
+test("票 08 形态：CreateAgentModal 走 .modal-body / .modal-foot，字段走 .field + .input / .textarea", () => {
+  const html = renderAgentModal([]);
+  assert.match(html, /class="modal-body"/);
+  assert.match(html, /class="modal-foot"/);
+  assert.match(html, /class="sep"/);
+  assert.match(html, /class="field"/);
+  assert.match(html, /class="input"/);
+  assert.match(html, /class="textarea"/);
+  assert.match(html, /for="agent-name"/);
+  assert.match(html, /for="agent-description"/);
+});
+
+test("票 08 形态：底部动作走 .btn / .btn.btn-primary，启动助手入口走同一 .btn-primary 形态", () => {
+  const html = renderAgentModal([]);
+  assert.match(html, /class="btn"/);
+  assert.match(html, /class="btn btn-primary"/);
+  // 无存活 Susan 时启动助手入口在场（行为未变）
+  assert.match(html, /Create secretary/);
+  const primary = html.match(/class="btn btn-primary"/g) ?? [];
+  assert.ok(primary.length >= 2, "启动助手入口与底部主按钮都走 .btn.btn-primary");
+});
+
+test("票 08 形态：旧硬偏移阴影退场，且可聚焦元素不压掉焦点环", () => {
+  const html = renderAgentModal([]);
+  assert.doesNotMatch(html, /rgba\(20,\s*17,\s*17/);
+  assert.doesNotMatch(html, /\d+px \d+px 0 0/);
+  const focusables = html.match(/<(?:button|input|select|textarea)\b[^>]*>/g) ?? [];
+  assert.ok(focusables.length > 0);
+  for (const tag of focusables) {
+    assert.doesNotMatch(tag, /outline/i, `可聚焦元素不得压掉焦点环：${tag}`);
+  }
 });

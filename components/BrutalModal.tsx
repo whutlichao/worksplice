@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 
-/** 马卡龙 × brutalist 模态框外壳：白卡片 + 2px ink 边框 + 硬偏移阴影 + 0 圆角（§4.2/§4.4）。 */
+/**
+ * 模态外壳（票 08）：`.overlay`（scrim + blur）+ `.modal`（`--r-xl` + `--shadow-pop`）
+ * + `.modal-head` / `.modal-body` / `.modal-foot`。形态在 globals.css 的模态族 class 块。
+ *
+ * 模块名与对外 props 保持（spec 组件表第 10 行：改名不产生视觉收益，不做）——
+ * `width` 仅作**档位选择器**：旧稿是逐调用点尺寸（400 / 460 / 520），新契约只有两档
+ * （`--modal-max` 440 / `--modal-wide-max` 560），故 `> 440` 走 `.modal.wide`。
+ * 开关逻辑、焦点陷阱期望、Esc 关闭、backdrop 点击关闭、`role` / `aria-*` 一字不动。
+ */
 export function BrutalModal({
   title,
   onClose,
@@ -17,7 +25,7 @@ export function BrutalModal({
   width?: number;
 }) {
   const { t } = useI18n();
-  const ref = useRef<HTMLDivElement>(null);
+  const wide = width > 440;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -29,6 +37,7 @@ export function BrutalModal({
 
   return (
     <div
+      className="overlay"
       role="presentation"
       onClick={(e) => {
         // 只响应 backdrop 自身的点击；子组件（含 createPortal 到 body 的
@@ -36,77 +45,25 @@ export function BrutalModal({
         // 对 portal 内容恒为 false，会误关整个 modal。
         if (e.target === e.currentTarget) onClose();
       }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 600,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(20, 17, 17, 0.45)",
-        padding: 24,
-      }}
     >
       <div
-        ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        style={{
-          width: "100%",
-          maxWidth: width,
-          maxHeight: "min(640px, 90dvh)",
-          overflowY: "auto",
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "6px 6px 0 0 rgba(20, 17, 17, 0.55)",
-        }}
+        className={wide ? "modal wide" : "modal"}
+        // `.modal` 的 `overflow: hidden` 是上游形态；这里显式覆盖成整体纵向滚动，
+        // 保住旧外壳「超高内容可滚动」的行为（形态改动不带行为回归）。
+        style={{ maxHeight: "min(640px, 90dvh)", overflowY: "auto" }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 16px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--surface)",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 15,
-              color: "var(--fg)",
-            }}
-          >
-            {title}
-          </span>
+        <div className="modal-head">
+          <h2>{title}</h2>
           <button
             type="button"
+            className="icon-btn"
             aria-label={t("common.close")}
             onClick={onClose}
-            style={{
-              width: 26,
-              height: 26,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor: "pointer",
-              color: "var(--fg)",
-              fontSize: 13,
-              lineHeight: 1,
-            }}
-            onMouseDown={(e) => {
-              e.currentTarget.style.boxShadow = "1px 1px 0 0 rgba(20, 17, 17, 0.45)";
-              e.currentTarget.style.transform = "translate(1px, 1px)";
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.boxShadow = "2px 2px 0 0 rgba(20, 17, 17, 0.45)";
-              e.currentTarget.style.transform = "none";
-            }}
           >
-            <X size={13} style={{ display: "block", margin: "auto" }} />
+            <X size={13} />
           </button>
         </div>
         {children}
