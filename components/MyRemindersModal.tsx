@@ -28,26 +28,24 @@ interface ReminderView {
 }
 
 const REFRESH_MS = 15_000;
-const INK = "#141111";
-
 const rowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
   padding: "7px 9px",
-  background: "#fffaef",
-  border: `2px solid ${INK}`,
+  background: "var(--bg)",
+  border: `1px solid var(--border)`,
   fontSize: 12,
   flexWrap: "wrap",
 };
 
 const actionStyle: React.CSSProperties = {
   padding: "2px 7px",
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 11,
-  border: `2px solid ${INK}`,
-  background: "#ffffff",
+  border: `1px solid var(--border)`,
+  background: "var(--surface)",
   cursor: "pointer",
 };
 
@@ -138,9 +136,9 @@ export function MyRemindersModal({
             style={{
               padding: "7px 10px",
               background: "#ffe3df",
-              border: `2px solid ${INK}`,
+              border: `1px solid var(--border)`,
               fontSize: 12,
-              color: "var(--coral)",
+              color: "var(--error)",
             }}
           >
             {error}
@@ -151,7 +149,7 @@ export function MyRemindersModal({
             style={{
               padding: "7px 10px",
               background: "#e4f7e9",
-              border: `2px solid ${INK}`,
+              border: `1px solid var(--border)`,
               fontSize: 12,
             }}
           >
@@ -159,7 +157,7 @@ export function MyRemindersModal({
           </div>
         )}
         {reminders.length === 0 ? (
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("reminders.allEmpty")}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("reminders.allEmpty")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {reminders.map((reminder) => (
@@ -176,30 +174,30 @@ export function MyRemindersModal({
                 >
                   {reminder.title}
                 </span>
-                <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 11, color: "var(--text-muted)" }}>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
                   {formatFireAt(reminder.fire_at)}
                 </span>
                 {reminder.recurrence && (
                   <span
                     style={{
-                      fontFamily: "var(--font-space-mono)",
+                      fontFamily: "var(--mono)",
                       fontSize: 10,
                       padding: "1px 5px",
-                      border: `2px solid ${INK}`,
-                      background: "var(--yellow)",
+                      border: `1px solid var(--border)`,
+                      background: "var(--panel-2)",
                     }}
                   >
                     {reminder.recurrence}
                   </span>
                 )}
-                <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{targetLabel(reminder)}</span>
+                <span style={{ fontSize: 11, color: "var(--faint)" }}>{targetLabel(reminder)}</span>
                 <span
                   style={{
-                    fontFamily: "var(--font-space-mono)",
+                    fontFamily: "var(--mono)",
                     fontSize: 10,
                     padding: "1px 5px",
-                    border: `2px solid ${INK}`,
-                    background: reminder.status === "scheduled" ? "var(--lime)" : "#c9c7c2",
+                    border: `1px solid var(--border)`,
+                    background: reminder.status === "scheduled" ? "var(--online)" : "var(--offline)",
                   }}
                 >
                   {t(`reminders.status.${reminder.status}`)}
@@ -237,7 +235,7 @@ export function MyRemindersModal({
             ))}
           </div>
         )}
-        <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("reminders.allHint")}</div>
+        <div style={{ fontSize: 11, color: "var(--faint)" }}>{t("reminders.allHint")}</div>
       </div>
     </BrutalModal>
   );

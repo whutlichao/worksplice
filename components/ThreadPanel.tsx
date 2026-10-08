@@ -12,7 +12,6 @@ import type { MemberRow } from "@/lib/data/types";
 import { memberPanel, type PanelContent } from "@/lib/panel-state";
 import { composerMentionCandidates } from "@/lib/mention";
 
-const INK = "#141111";
 /** 面板线程轮询间隔（与中央轮询同纪律：3s、后台 tab 暂停、卸载清理）。 */
 const THREAD_POLL_MS = 3000;
 
@@ -292,16 +291,16 @@ export function ThreadPanel({
           alignItems: "center",
           gap: 8,
           padding: "10px 14px",
-          borderBottom: `2px solid ${INK}`,
-          background: "var(--yellow)",
+          borderBottom: `1px solid var(--border)`,
+          background: "var(--surface)",
           flexShrink: 0,
         }}
       >
-        <span style={{ fontFamily: "var(--font-hanken)", fontWeight: 700, fontSize: 14 }}>
+        <span style={{ fontFamily: "var(--font)", fontWeight: 700, fontSize: 14 }}>
           {t("message.thread")} {anchor ? `#${anchor.seq}` : ""}
         </span>
         {error && (
-          <span style={{ fontFamily: "var(--font-space-mono)", fontSize: 10, color: "var(--coral)" }}>
+          <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--error)" }}>
             {error}
           </span>
         )}
@@ -313,8 +312,8 @@ export function ThreadPanel({
             marginLeft: "auto",
             width: 24,
             height: 24,
-            background: "#ffffff",
-            border: `2px solid ${INK}`,
+            background: "var(--surface)",
+            border: `1px solid var(--border)`,
             cursor: "pointer",
             fontSize: 12,
             lineHeight: 1,
@@ -341,7 +340,7 @@ export function ThreadPanel({
           />
         )}
         {loading ? (
-          <div style={{ padding: 16, color: "var(--text-dim)", fontSize: 12 }}>
+          <div style={{ padding: 16, color: "var(--faint)", fontSize: 12 }}>
             {t("message.threadLoading")}
           </div>
         ) : (

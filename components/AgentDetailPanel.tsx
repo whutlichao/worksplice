@@ -11,18 +11,16 @@ import { ModelPicker } from "./ModelPicker";
 import type { MemberRow, MemberStatus, TaskStatus } from "@/lib/data/types";
 import type { ModelsData } from "@/lib/models-cache";
 
-const INK = "#141111";
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontFamily: "var(--font-space-mono)",
+        fontFamily: "var(--mono)",
         fontSize: 11,
         fontWeight: 700,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
-        color: "var(--text-dim)",
+        color: "var(--faint)",
         margin: "16px 2px 6px",
       }}
     >
@@ -35,9 +33,9 @@ function Card({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        background: "#ffffff",
-        border: `2px solid ${INK}`,
-        boxShadow: "var(--shadow-sm)",
+        background: "var(--surface)",
+        border: `1px solid var(--border)`,
+        boxShadow: "var(--shadow-card)",
         padding: "10px 12px",
       }}
     >
@@ -56,14 +54,14 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
         gap: 10,
       }}
     >
-      <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0 }}>
+      <span style={{ fontSize: 12, color: "var(--muted)", flexShrink: 0 }}>
         {label}
       </span>
       <span
         style={{
-          fontFamily: "var(--font-space-mono)",
+          fontFamily: "var(--mono)",
           fontSize: 12,
-          color: "var(--text)",
+          color: "var(--fg)",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -79,19 +77,19 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 const ACTION_BUTTON: React.CSSProperties = {
   flex: 1,
   padding: "7px 6px",
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 12,
-  background: "#ffffff",
-  color: "var(--text)",
-  border: `2px solid ${INK}`,
+  background: "var(--surface)",
+  color: "var(--fg)",
+  border: `1px solid var(--border)`,
   cursor: "pointer",
 };
 
 const DANGER_BUTTON: React.CSSProperties = {
   ...ACTION_BUTTON,
-  background: "var(--coral)",
-  color: "var(--ink)",
+  background: "var(--error)",
+  color: "oklch(99% 0.01 256)",
   boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
 };
 
@@ -103,12 +101,12 @@ const DM_BUTTON: React.CSSProperties = {
   gap: 8,
   margin: "12px 12px 0",
   padding: "10px 12px",
-  fontFamily: "var(--font-hanken)",
+  fontFamily: "var(--font)",
   fontWeight: 700,
   fontSize: 14,
-  background: "var(--yellow)",
-  color: "var(--ink)",
-  border: `2px solid ${INK}`,
+  background: "var(--accent)",
+  color: "oklch(99% 0.01 256)",
+  border: `1px solid var(--border)`,
   boxShadow: "3px 3px 0 0 rgba(20, 17, 17, 0.45)",
   cursor: "pointer",
 };
@@ -265,17 +263,17 @@ export function TaskHistoryList({
             alignItems: "center",
             gap: 8,
             padding: "6px 8px",
-            border: `2px solid ${INK}`,
-            background: "var(--bg-panel)",
+            border: `1px solid var(--border)`,
+            background: "var(--panel)",
             fontSize: 12,
           }}
         >
           <span
             style={{
-              fontFamily: "var(--font-space-mono)",
+              fontFamily: "var(--mono)",
               fontWeight: 700,
-              background: "var(--yellow)",
-              border: `2px solid ${INK}`,
+              background: "var(--accent-soft)",
+              border: `1px solid var(--border)`,
               padding: "1px 5px",
               fontSize: 11,
               flexShrink: 0,
@@ -296,12 +294,12 @@ export function TaskHistoryList({
           </span>
           <span
             style={{
-              fontFamily: "var(--font-space-mono)",
+              fontFamily: "var(--mono)",
               fontSize: 10,
               padding: "1px 5px",
-              border: `2px solid ${INK}`,
+              border: `1px solid var(--border)`,
               background:
-                task.status === "done" ? "var(--success, #a9d877)" : "#ffffff",
+                task.status === "done" ? "var(--online)" : "var(--surface)",
               flexShrink: 0,
             }}
           >
@@ -345,23 +343,23 @@ export function RoundLogsList({
               alignItems: "center",
               gap: 8,
               padding: "6px 8px",
-              border: `2px solid ${INK}`,
-              background: failed ? "#ffe9e9" : "var(--bg-panel)",
+              border: `1px solid var(--border)`,
+              background: failed ? "#ffe9e9" : "var(--panel)",
               fontSize: 11,
             }}
           >
             <span
               style={{
                 flexShrink: 0,
-                fontFamily: "var(--font-space-mono)",
+                fontFamily: "var(--mono)",
                 fontWeight: 700,
                 padding: "1px 5px",
-                border: `2px solid ${INK}`,
+                border: `1px solid var(--border)`,
                 background: failed
                   ? "#ff6b6b"
                   : round.status === "replied"
-                    ? "var(--success, #a9d877)"
-                    : "#ffffff",
+                    ? "var(--online)"
+                    : "var(--surface)",
               }}
             >
               {t("observability.roundStatus." + round.status)}
@@ -373,7 +371,7 @@ export function RoundLogsList({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                color: "var(--text-muted)",
+                color: "var(--muted)",
               }}
               title={round.reason}
             >
@@ -382,8 +380,8 @@ export function RoundLogsList({
             <span
               style={{
                 flexShrink: 0,
-                fontFamily: "var(--font-space-mono)",
-                color: "var(--text-dim)",
+                fontFamily: "var(--mono)",
+                color: "var(--faint)",
                 maxWidth: "30%",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -396,8 +394,8 @@ export function RoundLogsList({
             <span
               style={{
                 flexShrink: 0,
-                fontFamily: "var(--font-space-mono)",
-                color: "var(--text-dim)",
+                fontFamily: "var(--mono)",
+                color: "var(--faint)",
               }}
             >
               #{round.baseSeq} · {formatTime(round.createdAt)}
@@ -454,7 +452,7 @@ export function RuntimeProbeFeedback({ probe }: { probe: RuntimeProbeSummary }) 
     <div
       style={{
         fontSize: 11,
-        color: failed ? "var(--coral)" : "var(--success, #2e8b57)",
+        color: failed ? "var(--error)" : "var(--online)",
         marginTop: 8,
       }}
     >
@@ -700,8 +698,8 @@ export function AgentDetailPanel({
         style={{
           flexShrink: 0,
           padding: "14px 16px 12px",
-          borderBottom: `2px solid ${INK}`,
-          background: "var(--bg-panel)",
+          borderBottom: `1px solid var(--border)`,
+          background: "var(--panel)",
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -710,7 +708,7 @@ export function AgentDetailPanel({
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span
                 style={{
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 17,
                   overflow: "hidden",
@@ -723,13 +721,13 @@ export function AgentDetailPanel({
               <StatusDot status={agent.status} />
               <span
                 style={{
-                  fontFamily: "var(--font-space-mono)",
+                  fontFamily: "var(--mono)",
                   fontSize: 10,
                   padding: "1px 6px",
-                  border: `2px solid ${INK}`,
+                  border: `1px solid var(--border)`,
                   background:
-                    agent.role === "owner" ? "var(--yellow)" : "#ffffff",
-                  color: "var(--text)",
+                    agent.role === "owner" ? "var(--accent-soft)" : "var(--surface)",
+                  color: "var(--fg)",
                 }}
               >
                 {agent.role === "owner" ? t("role.owner") : t("role.member")}
@@ -739,7 +737,7 @@ export function AgentDetailPanel({
               <div
                 style={{
                   fontSize: 12,
-                  color: "var(--text-muted)",
+                  color: "var(--muted)",
                   marginTop: 4,
                 }}
               >
@@ -756,11 +754,11 @@ export function AgentDetailPanel({
               flexShrink: 0,
               width: 26,
               height: 26,
-              background: "#ffffff",
-              border: `2px solid ${INK}`,
+              background: "var(--surface)",
+              border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: "pointer",
-              color: "var(--text)",
+              color: "var(--fg)",
               fontSize: 13,
               lineHeight: 1,
             }}
@@ -799,7 +797,7 @@ export function AgentDetailPanel({
             </span>
           </div>
           <div
-            style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}
+            style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}
           >
             {agent.status === "offline"
               ? t("agent.stoppedHint")
@@ -815,7 +813,7 @@ export function AgentDetailPanel({
           />
           {isHomeWorkspace && (
             <div
-              style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}
+              style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}
             >
               {t("agent.workspaceHomeHint")}
             </div>
@@ -856,21 +854,21 @@ export function AgentDetailPanel({
           />
           {!agent.workspace_path && (
             <div
-              style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}
+              style={{ fontSize: 11, color: "var(--faint)", marginTop: 8 }}
             >
               {t("runtime.noWorkspace")}
             </div>
           )}
           {draftModel === null && draftThinking === null && (
             <div
-              style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}
+              style={{ fontSize: 11, color: "var(--faint)", marginTop: 8 }}
             >
               {t("runtime.inheritGlobal")}
             </div>
           )}
           {draftModel === null && draftThinking !== null && (
             <div
-              style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}
+              style={{ fontSize: 11, color: "var(--faint)", marginTop: 8 }}
             >
               {t("runtime.onlyThinking")}
             </div>
@@ -880,11 +878,11 @@ export function AgentDetailPanel({
               style={{
                 marginTop: 8,
                 padding: "6px 8px",
-                background: "var(--bg-hover)",
-                border: `2px solid ${INK}`,
+                background: "var(--fg-soft)",
+                border: `1px solid var(--border)`,
                 fontSize: 11,
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-space-mono)",
+                color: "var(--muted)",
+                fontFamily: "var(--mono)",
               }}
             >
               {t("runtime.liveModel")}: {runtime.live.model?.provider}/
@@ -898,7 +896,7 @@ export function AgentDetailPanel({
             <div
               style={{
                 fontSize: 11,
-                color: "var(--success, #2e8b57)",
+                color: "var(--online)",
                 marginTop: 8,
               }}
             >
@@ -923,7 +921,8 @@ export function AgentDetailPanel({
                 ...ACTION_BUTTON,
                 flex: 0,
                 padding: "6px 14px",
-                background: "var(--yellow)",
+                background: "var(--accent)",
+                color: "oklch(99% 0.01 256)",
               }}
             >
               {busyOp === "runtime" ? t("runtime.saving") : t("runtime.save")}
@@ -940,11 +939,11 @@ export function AgentDetailPanel({
             {t("observability.tokensCost")}
           </div>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>
               {t("runtime.loading")}
             </div>
           ) : obs.stats.sessions.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>
               {t("observability.noSessions")}
             </div>
           ) : (
@@ -987,10 +986,10 @@ export function AgentDetailPanel({
                 <summary
                   style={{
                     fontSize: 11,
-                    fontFamily: "var(--font-space-mono)",
+                    fontFamily: "var(--mono)",
                     fontWeight: 700,
                     cursor: "pointer",
-                    color: "var(--text-muted)",
+                    color: "var(--muted)",
                   }}
                 >
                   {t("observability.sessions")} ({obs.stats.sessions.length})
@@ -1008,8 +1007,8 @@ export function AgentDetailPanel({
                       key={s.path}
                       style={{
                         padding: "6px 8px",
-                        border: `2px solid ${INK}`,
-                        background: "var(--bg-panel)",
+                        border: `1px solid var(--border)`,
+                        background: "var(--panel)",
                         fontSize: 11,
                       }}
                     >
@@ -1024,7 +1023,7 @@ export function AgentDetailPanel({
                       >
                         {s.path.split("/").slice(-2).join("/")}
                       </div>
-                      <div style={{ color: "var(--text-muted)", marginTop: 3 }}>
+                      <div style={{ color: "var(--muted)", marginTop: 3 }}>
                         {formatNumber(s.totalTokens)} tok ·{" "}
                         {formatCost(s.costTotal)} · {s.compactionCount}×{" "}
                         {t("observability.compactions").toLowerCase()}
@@ -1044,13 +1043,13 @@ export function AgentDetailPanel({
             {t("observability.taskHistory")}
           </div>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>
               {t("runtime.loading")}
             </div>
           ) : (
             <>
               {obs.tasks.length === 0 ? (
-                <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                <div style={{ fontSize: 12, color: "var(--faint)" }}>
                   {t("observability.tasksEmpty")}
                 </div>
               ) : (
@@ -1063,7 +1062,7 @@ export function AgentDetailPanel({
                 <div
                   style={{
                     fontSize: 12,
-                    color: "var(--text-dim)",
+                    color: "var(--faint)",
                     marginTop: 4,
                   }}
                 >
@@ -1076,7 +1075,7 @@ export function AgentDetailPanel({
                     display: "flex",
                     flexDirection: "column",
                     gap: 0,
-                    borderLeft: `2px solid ${INK}`,
+                    borderLeft: `1px solid var(--border)`,
                     paddingLeft: 10,
                     maxHeight: 320,
                     overflowY: "auto",
@@ -1102,7 +1101,7 @@ export function AgentDetailPanel({
                           >
                             <span
                               style={{
-                                color: "var(--text-dim)",
+                                color: "var(--faint)",
                                 flexShrink: 0,
                               }}
                             >
@@ -1111,11 +1110,11 @@ export function AgentDetailPanel({
                             <span
                               style={{
                                 flexShrink: 0,
-                                fontFamily: "var(--font-space-mono)",
+                                fontFamily: "var(--mono)",
                                 fontWeight: 700,
                                 color: entry.inTaskThread
                                   ? "var(--accent)"
-                                  : "var(--text-muted)",
+                                  : "var(--muted)",
                               }}
                             >
                               {entry.inTaskThread
@@ -1128,7 +1127,7 @@ export function AgentDetailPanel({
                           </div>
                           <div
                             style={{
-                              color: "var(--text)",
+                              color: "var(--fg)",
                               marginTop: 2,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
@@ -1140,8 +1139,8 @@ export function AgentDetailPanel({
                           </div>
                         </>
                       ) : (
-                        <div style={{ color: "var(--text-muted)" }}>
-                          <span style={{ color: "var(--text-dim)" }}>
+                        <div style={{ color: "var(--muted)" }}>
+                          <span style={{ color: "var(--faint)" }}>
                             {formatTime(entry.at)}
                           </span>{" "}
                           {t("observability.taskPoint", {
@@ -1153,7 +1152,7 @@ export function AgentDetailPanel({
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
-                              color: "var(--text)",
+                              color: "var(--fg)",
                             }}
                           >
                             {entry.title}
@@ -1174,11 +1173,11 @@ export function AgentDetailPanel({
             {t("observability.rounds")}
           </div>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>
               {t("runtime.loading")}
             </div>
           ) : obs.rounds.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>
               {t("observability.roundsEmpty")}
             </div>
           ) : (
@@ -1210,7 +1209,7 @@ export function AgentDetailPanel({
                 <div
                   style={{
                     fontSize: 11,
-                    color: "var(--text-dim)",
+                    color: "var(--faint)",
                     marginBottom: 6,
                   }}
                 >
@@ -1233,14 +1232,14 @@ export function AgentDetailPanel({
                     {t("observability.exportAction")}
                   </a>
                 ) : (
-                  <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                  <span style={{ fontSize: 11, color: "var(--faint)" }}>
                     {t("observability.exportUnavailable")}
                   </span>
                 )}
               </div>
             </>
           ) : (
-            <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>
               {t("observability.noSessions")}
             </div>
           )}
@@ -1286,7 +1285,7 @@ export function AgentDetailPanel({
           </div>
           {fullResetBlocked && (
             <div
-              style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}
+              style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}
             >
               {t("agent.fullResetSharedHint")}
             </div>
@@ -1304,7 +1303,7 @@ export function AgentDetailPanel({
         </Card>
 
         {error && (
-          <div style={{ marginTop: 12, color: "var(--coral)", fontSize: 12 }}>
+          <div style={{ marginTop: 12, color: "var(--error)", fontSize: 12 }}>
             {t("agent.opError", { message: error })}
           </div>
         )}
@@ -1318,7 +1317,7 @@ export function AgentDetailPanel({
         >
           <div style={{ padding: "16px" }}>
             <div
-              style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text)" }}
+              style={{ fontSize: 13, lineHeight: 1.6, color: "var(--fg)" }}
             >
               {t(CONFIRM_TITLE[confirming])}
             </div>
@@ -1336,12 +1335,12 @@ export function AgentDetailPanel({
                 onClick={() => setConfirming(null)}
                 style={{
                   padding: "8px 16px",
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 13,
-                  background: "#ffffff",
-                  color: "var(--text)",
-                  border: `2px solid ${INK}`,
+                  background: "var(--surface)",
+                  color: "var(--fg)",
+                  border: `1px solid var(--border)`,
                   cursor: isBusy ? "not-allowed" : "pointer",
                 }}
               >
@@ -1353,12 +1352,12 @@ export function AgentDetailPanel({
                 onClick={() => void run(confirming, confirmRequest(confirming))}
                 style={{
                   padding: "8px 16px",
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 13,
-                  background: "var(--coral)",
-                  color: "var(--ink)",
-                  border: `2px solid ${INK}`,
+                  background: "var(--error)",
+                  color: "var(--fg)",
+                  border: `1px solid var(--border)`,
                   boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
                   cursor: isBusy ? "not-allowed" : "pointer",
                 }}

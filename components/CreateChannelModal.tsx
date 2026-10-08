@@ -8,27 +8,25 @@ import { PixelAvatar } from "./PixelAvatar";
 import { liveSusanMemberId, precheckSusanForPrivateChannel } from "@/lib/secretary-bootstrap";
 import type { MemberRow } from "@/lib/data/types";
 
-const INK = "#141111";
-
 const FIELD_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",
-  border: `2px solid ${INK}`,
-  background: "#ffffff",
-  color: "var(--text)",
-  fontFamily: "var(--font-space-grotesk)",
+  border: `1px solid var(--border)`,
+  background: "var(--surface)",
+  color: "var(--fg)",
+  fontFamily: "var(--font)",
   fontSize: 13,
   outline: "none",
 };
 
 const LABEL_STYLE: React.CSSProperties = {
   display: "block",
-  fontFamily: "var(--font-space-mono)",
+  fontFamily: "var(--mono)",
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: "0.06em",
   textTransform: "uppercase",
-  color: "var(--text-muted)",
+  color: "var(--muted)",
   margin: "12px 0 5px",
 };
 
@@ -117,13 +115,13 @@ export function CreateChannelModal({
               style={{
                 flex: 1,
                 padding: "7px 10px",
-                fontFamily: "var(--font-hanken)",
+                fontFamily: "var(--font)",
                 fontWeight: 700,
                 fontSize: 12,
                 cursor: "pointer",
-                background: type === value ? "var(--yellow)" : "#ffffff",
-                color: "var(--text)",
-                border: `2px solid ${INK}`,
+                background: type === value ? "var(--accent-soft)" : "var(--surface)",
+                color: "var(--fg)",
+                border: `1px solid var(--border)`,
                 boxShadow: type === value ? "2px 2px 0 0 rgba(20, 17, 17, 0.45)" : "none",
               }}
             >
@@ -169,12 +167,12 @@ export function CreateChannelModal({
                       padding: "6px 8px",
                       cursor: "pointer",
                       textAlign: "left",
-                      fontFamily: "var(--font-space-grotesk)",
+                      fontFamily: "var(--font)",
                       fontSize: 13,
                       fontWeight: selected ? 700 : 500,
-                      color: "var(--text)",
-                      background: selected ? "var(--yellow)" : "#ffffff",
-                      border: `2px solid ${INK}`,
+                      color: "var(--fg)",
+                      background: selected ? "var(--accent-soft)" : "var(--surface)",
+                      border: `1px solid var(--border)`,
                       boxShadow: selected ? "2px 2px 0 0 rgba(20, 17, 17, 0.4)" : "none",
                     }}
                   >
@@ -184,9 +182,9 @@ export function CreateChannelModal({
                     </span>
                     <span
                       style={{
-                        fontFamily: "var(--font-space-mono)",
+                        fontFamily: "var(--mono)",
                         fontSize: 11,
-                        color: selected ? "var(--text)" : "var(--text-dim)",
+                        color: selected ? "var(--fg)" : "var(--faint)",
                       }}
                     >
                       {selected ? <Check size={11} style={{ verticalAlign: "-2px" }} /> : "+"}
@@ -199,7 +197,7 @@ export function CreateChannelModal({
         )}
 
         {error && (
-          <div style={{ marginTop: 10, color: "var(--coral)", fontSize: 12 }}>{error}</div>
+          <div style={{ marginTop: 10, color: "var(--error)", fontSize: 12 }}>{error}</div>
         )}
 
         <div
@@ -215,12 +213,12 @@ export function CreateChannelModal({
             onClick={onClose}
             style={{
               padding: "8px 16px",
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
-              background: "#ffffff",
-              color: "var(--text)",
-              border: `2px solid ${INK}`,
+              background: "var(--surface)",
+              color: "var(--fg)",
+              border: `1px solid var(--border)`,
               cursor: "pointer",
             }}
           >
@@ -232,12 +230,12 @@ export function CreateChannelModal({
             onClick={() => void submit()}
             style={{
               padding: "8px 16px",
-              fontFamily: "var(--font-hanken)",
+              fontFamily: "var(--font)",
               fontWeight: 700,
               fontSize: 13,
-              background: "var(--pink)",
-              color: "var(--ink)",
-              border: `2px solid ${INK}`,
+              background: "var(--accent)",
+              color: "oklch(99% 0.01 256)",
+              border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: canSubmit ? "pointer" : "not-allowed",
               opacity: canSubmit ? 1 : 0.55,

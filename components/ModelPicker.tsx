@@ -5,8 +5,6 @@ import { Brain, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { ModelsData } from "@/lib/models-cache";
 
-const INK = "#141111";
-
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 const THINKING_KEY: Record<(typeof THINKING_LEVELS)[number], string> = {
@@ -107,11 +105,11 @@ export function ModelPicker({
     gap: 6,
     width: "100%",
     padding: "7px 10px",
-    background: "#ffffff",
-    color: "var(--text)",
-    border: `2px solid ${INK}`,
+    background: "var(--surface)",
+    color: "var(--fg)",
+    border: `1px solid var(--border)`,
     cursor: disabled ? "not-allowed" : "pointer",
-    fontFamily: "var(--font-space-grotesk)",
+    fontFamily: "var(--font)",
     fontSize: 12,
     fontWeight: 600,
     textAlign: "left",
@@ -125,8 +123,8 @@ export function ModelPicker({
     zIndex: 600,
     minWidth: 260,
     maxWidth: "min(340px, calc(100vw - 16px))",
-    background: "var(--bg-panel)",
-    border: `2px solid ${INK}`,
+    background: "var(--panel)",
+    border: `1px solid var(--border)`,
     boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.45)",
     display: open ? "block" : "none",
   });
@@ -162,7 +160,7 @@ export function ModelPicker({
         </button>
         <div ref={panelRef} style={panelStyle(modelOpen)}>
           {modelOptions.length > 6 && (
-            <div style={{ padding: 6, borderBottom: `2px solid ${INK}` }}>
+            <div style={{ padding: 6, borderBottom: `1px solid var(--border)` }}>
               <input
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
@@ -176,17 +174,17 @@ export function ModelPicker({
                   fontSize: 11,
                   fontFamily: "var(--font-mono)",
                   padding: "5px 8px",
-                  border: `2px solid ${INK}`,
+                  border: `1px solid var(--border)`,
                   outline: "none",
-                  background: "#ffffff",
-                  color: "var(--text)",
+                  background: "var(--surface)",
+                  color: "var(--fg)",
                 }}
               />
             </div>
           )}
           <div style={{ maxHeight: 280, overflowY: "auto" }}>
             {groups.size === 0 ? (
-              <div style={{ padding: "10px 12px", color: "var(--text-dim)", fontSize: 12 }}>
+              <div style={{ padding: "10px 12px", color: "var(--faint)", fontSize: 12 }}>
                 {loading ? t("runtime.loading") : t("chat.noMatchingModels")}
               </div>
             ) : (
@@ -194,12 +192,12 @@ export function ModelPicker({
                 <div key={provider}>
                   <div
                     style={{
-                      fontFamily: "var(--font-space-mono)",
+                      fontFamily: "var(--mono)",
                       fontSize: 10,
                       fontWeight: 700,
                       letterSpacing: "0.06em",
                       textTransform: "uppercase",
-                      color: "var(--text-dim)",
+                      color: "var(--faint)",
                       padding: "6px 10px 2px",
                     }}
                   >
@@ -220,22 +218,22 @@ export function ModelPicker({
                           width: "100%",
                           textAlign: "left",
                           padding: "6px 10px",
-                          background: active ? "var(--yellow)" : "transparent",
+                          background: active ? "var(--accent-soft)" : "transparent",
                           border: "none",
                           cursor: "pointer",
-                          fontFamily: "var(--font-space-grotesk)",
+                          fontFamily: "var(--font)",
                           fontSize: 12,
-                          color: "var(--text)",
+                          color: "var(--fg)",
                         }}
                         onMouseEnter={(e) => {
-                          if (!active) e.currentTarget.style.background = "var(--bg-hover)";
+                          if (!active) e.currentTarget.style.background = "var(--fg-soft)";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = active ? "var(--yellow)" : "transparent";
+                          e.currentTarget.style.background = active ? "var(--accent-soft)" : "transparent";
                         }}
                       >
                         <span style={{ fontWeight: active ? 700 : 500 }}>{opt.name || opt.id}</span>
-                        <span style={{ color: "var(--text-dim)", fontSize: 10, marginLeft: 6 }}>
+                        <span style={{ color: "var(--faint)", fontSize: 10, marginLeft: 6 }}>
                           {opt.id}
                         </span>
                       </button>
@@ -257,14 +255,14 @@ export function ModelPicker({
                 width: "100%",
                 textAlign: "left",
                 padding: "7px 10px",
-                background: "#ffffff",
+                background: "var(--surface)",
                 border: "none",
-                borderTop: `2px solid ${INK}`,
+                borderTop: `1px solid var(--border)`,
                 cursor: "pointer",
-                fontFamily: "var(--font-space-mono)",
+                fontFamily: "var(--mono)",
                 fontSize: 11,
                 fontWeight: 700,
-                color: "var(--text-muted)",
+                color: "var(--muted)",
               }}
             >
               <X size={12} style={{ verticalAlign: "-2px" }} /> {t("runtime.inheritGlobal")}
@@ -309,14 +307,14 @@ export function ModelPicker({
               width: "100%",
               textAlign: "left",
               padding: "7px 10px",
-              background: !thinkingLevel ? "var(--yellow)" : "transparent",
+              background: !thinkingLevel ? "var(--accent-soft)" : "transparent",
               border: "none",
-              borderBottom: `2px solid ${INK}`,
+              borderBottom: `1px solid var(--border)`,
               cursor: "pointer",
-              fontFamily: "var(--font-space-grotesk)",
+              fontFamily: "var(--font)",
               fontSize: 12,
               fontWeight: !thinkingLevel ? 700 : 500,
-              color: "var(--text)",
+              color: "var(--fg)",
             }}
           >
             {t("runtime.thinkingDefault")}
@@ -336,19 +334,19 @@ export function ModelPicker({
                   width: "100%",
                   textAlign: "left",
                   padding: "7px 10px",
-                  background: active ? "var(--yellow)" : "transparent",
+                  background: active ? "var(--accent-soft)" : "transparent",
                   border: "none",
                   cursor: "pointer",
-                  fontFamily: "var(--font-space-grotesk)",
+                  fontFamily: "var(--font)",
                   fontSize: 12,
                   fontWeight: active ? 700 : 500,
-                  color: "var(--text)",
+                  color: "var(--fg)",
                 }}
                 onMouseEnter={(e) => {
-                  if (!active) e.currentTarget.style.background = "var(--bg-hover)";
+                  if (!active) e.currentTarget.style.background = "var(--fg-soft)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = active ? "var(--yellow)" : "transparent";
+                  e.currentTarget.style.background = active ? "var(--accent-soft)" : "transparent";
                 }}
               >
                 {t(THINKING_KEY[level])}

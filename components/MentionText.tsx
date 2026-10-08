@@ -50,8 +50,8 @@ export function MentionText({
           padding: "0 2px",
           border: "1px solid transparent",
           borderRadius: 4,
-          background: "var(--yellow)",
-          color: "var(--text)",
+          background: "var(--accent-soft)",
+          color: "var(--accent)",
           font: "inherit",
           fontSize: "inherit",
           fontWeight: 700,
@@ -60,13 +60,13 @@ export function MentionText({
           outline: "none",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "var(--ink)";
+          e.currentTarget.style.borderColor = "var(--border-strong)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.borderColor = "transparent";
         }}
         onFocus={(e) => {
-          e.currentTarget.style.borderColor = "var(--ink)";
+          e.currentTarget.style.borderColor = "var(--border-strong)";
         }}
         onBlur={(e) => {
           e.currentTarget.style.borderColor = "transparent";

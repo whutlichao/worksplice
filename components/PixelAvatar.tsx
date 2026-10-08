@@ -60,7 +60,7 @@ export function PixelAvatar({
         height: size,
         flexShrink: 0,
         background: bg,
-        border: `2px solid ${ink}`,
+        border: `1px solid var(--border)`,
         boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
       }}
       dangerouslySetInnerHTML={{ __html: svg }}

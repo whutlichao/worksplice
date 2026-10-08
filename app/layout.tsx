@@ -1,28 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import "katex/dist/katex.min.css";
 import "./globals.css";
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  display: "swap",
-});
-
-const hankenGrotesk = Hanken_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "700", "800"],
-  variable: "--font-hanken-grotesk",
-  display: "swap",
-});
-
-const spaceMono = Space_Mono({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-space-mono",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "worksplice",
@@ -60,7 +39,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: "#fffaef",
+  // --bg = oklch(99% 0.002 240) 的 sRGB 近似（meta 标签不接受 oklch）。
+  themeColor: "#fbfcfd",
 };
 
 export default function RootLayout({
@@ -69,12 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      translate="no"
-      className={`${spaceGrotesk.variable} ${hankenGrotesk.variable} ${spaceMono.variable} notranslate`}
-      suppressHydrationWarning
-    >
+    <html lang="en" translate="no" className="notranslate" suppressHydrationWarning>
       <head>
         <meta name="google" content="notranslate" />
       </head>

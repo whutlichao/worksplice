@@ -10,8 +10,6 @@ import type { ChannelWithMeta } from "./ChannelView";
 import type { MemberRow } from "@/lib/data/types";
 import type { PanelContent } from "@/lib/panel-state";
 
-const INK = "#141111";
-
 /**
  * 右栏单槽容器（ticket 13）：按 kind 分派——agent → AgentDetailPanel（内容原样），
  * human → 薄资料卡，thread → 线程面板。非长驻：panelContent 为 null 时整栏不渲染（AppShell 侧）。
@@ -109,8 +107,8 @@ function HumanProfileCard({
         style={{
           flexShrink: 0,
           padding: "14px 16px 12px",
-          borderBottom: `2px solid ${INK}`,
-          background: "var(--bg-panel)",
+          borderBottom: `1px solid var(--border)`,
+          background: "var(--panel)",
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -119,7 +117,7 @@ function HumanProfileCard({
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span
                 style={{
-                  fontFamily: "var(--font-hanken)",
+                  fontFamily: "var(--font)",
                   fontWeight: 700,
                   fontSize: 17,
                   overflow: "hidden",
@@ -132,20 +130,20 @@ function HumanProfileCard({
               <StatusDot status={member.status} />
               <span
                 style={{
-                  fontFamily: "var(--font-space-mono)",
+                  fontFamily: "var(--mono)",
                   fontSize: 10,
                   padding: "1px 6px",
-                  border: `2px solid ${INK}`,
+                  border: `1px solid var(--border)`,
                   background:
-                    member.role === "owner" ? "var(--yellow)" : "#ffffff",
-                  color: "var(--text)",
+                    member.role === "owner" ? "var(--accent-soft)" : "var(--surface)",
+                  color: "var(--fg)",
                 }}
               >
                 {member.role === "owner" ? t("role.owner") : t("role.member")}
               </span>
             </div>
             <div
-              style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}
+              style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}
             >
               {t("status." + member.status)}
             </div>
@@ -159,11 +157,11 @@ function HumanProfileCard({
               flexShrink: 0,
               width: 26,
               height: 26,
-              background: "#ffffff",
-              border: `2px solid ${INK}`,
+              background: "var(--surface)",
+              border: `1px solid var(--border)`,
               boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
               cursor: "pointer",
-              color: "var(--text)",
+              color: "var(--fg)",
               fontSize: 13,
               lineHeight: 1,
             }}
@@ -183,12 +181,12 @@ function HumanProfileCard({
       >
         <div
           style={{
-            fontFamily: "var(--font-space-mono)",
+            fontFamily: "var(--mono)",
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
-            color: "var(--text-dim)",
+            color: "var(--faint)",
             margin: "16px 2px 6px",
           }}
         >
@@ -196,19 +194,19 @@ function HumanProfileCard({
         </div>
         <div
           style={{
-            background: "#ffffff",
-            border: `2px solid ${INK}`,
-            boxShadow: "var(--shadow-sm)",
+            background: "var(--surface)",
+            border: `1px solid var(--border)`,
+            boxShadow: "var(--shadow-card)",
             padding: "10px 12px",
             fontSize: 13,
             lineHeight: 1.6,
-            color: "var(--text)",
+            color: "var(--fg)",
           }}
         >
           {member.description?.trim() ? (
             member.description.trim()
           ) : (
-            <span style={{ color: "var(--text-dim)" }}>
+            <span style={{ color: "var(--faint)" }}>
               {t("memberProfile.noDescription")}
             </span>
           )}

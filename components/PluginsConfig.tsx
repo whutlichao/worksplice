@@ -61,8 +61,8 @@ function findInstalledPackage(
 function statusColor(status: PluginPackageInfo["status"]): string {
   if (status === "loaded") return "var(--accent)";
   if (status === "installed") return "#f59e0b";
-  if (status === "disabled") return "var(--text-dim)";
-  return "#ef4444";
+  if (status === "disabled") return "var(--faint)";
+  return "var(--error)";
 }
 
 function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
@@ -82,7 +82,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
 
   if (groups.length === 0) {
     return (
-      <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+      <div style={{ fontSize: 12, color: "var(--faint)" }}>
         {pkg.disabled ? t("i18n.packageDisabled") : t("i18n.noResolvedResources")}
       </div>
     );
@@ -108,7 +108,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
             style={{
               fontSize: 10,
               fontWeight: 700,
-              color: "var(--text-dim)",
+              color: "var(--faint)",
               textTransform: "uppercase",
               marginBottom: 6,
             }}
@@ -121,7 +121,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                 <div
                   style={{
                     fontSize: 12,
-                    color: "var(--text)",
+                    color: "var(--fg)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -134,7 +134,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                 <div
                   style={{
                     fontSize: 10,
-                    color: "var(--text-dim)",
+                    color: "var(--faint)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -163,7 +163,7 @@ function ScopeTag({ scope }: { scope: PluginScope }) {
         borderRadius: 3,
         flexShrink: 0,
         background: scope === "project" ? "rgba(99,102,241,0.12)" : "rgba(120,120,120,0.12)",
-        color: scope === "project" ? "rgba(99,102,241,0.85)" : "var(--text-dim)",
+        color: scope === "project" ? "rgba(99,102,241,0.85)" : "var(--faint)",
       }}
     >
       {scope}
@@ -177,7 +177,7 @@ function buttonStyle(disabled?: boolean, danger?: boolean): React.CSSProperties 
     background: danger ? "rgba(239,68,68,0.08)" : "none",
     border: "1px solid var(--border)",
     borderRadius: 6,
-    color: danger ? "#ef4444" : "var(--text-muted)",
+    color: danger ? "var(--error)" : "var(--muted)",
     cursor: disabled ? "not-allowed" : "pointer",
     fontSize: 12,
     opacity: disabled ? 0.5 : 1,
@@ -270,8 +270,8 @@ function SegmentedScope({
               width: 76,
               border: "none",
               borderRight: scope === "global" ? "1px solid var(--border)" : "none",
-              background: active ? "var(--bg-selected)" : "none",
-              color: active ? "var(--text)" : "var(--text-muted)",
+              background: active ? "var(--accent-soft)" : "none",
+              color: active ? "var(--accent)" : "var(--muted)",
               cursor: disabled ? "not-allowed" : "pointer",
               opacity: disabled ? 0.45 : 1,
               fontSize: 12,
@@ -318,7 +318,7 @@ function AddPluginPanel({
     <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 660, minHeight: "100%" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg)" }}>
             {t("i18n.addPlugin")}
           </div>
           <a
@@ -346,13 +346,13 @@ function AddPluginPanel({
             pi.dev/packages
           </a>
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+        <div style={{ fontSize: 12, color: "var(--faint)", fontFamily: "var(--font-mono)" }}>
           {installLocation(scope, cwd)}
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <label htmlFor="plugin-source" style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+        <label htmlFor="plugin-source" style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
           Source
         </label>
         <input
@@ -375,8 +375,8 @@ function AddPluginPanel({
             padding: "0 11px",
             border: "1px solid var(--border)",
             borderRadius: 6,
-            background: "var(--bg-panel)",
-            color: "var(--text)",
+            background: "var(--panel)",
+            color: "var(--fg)",
             fontFamily: "var(--font-mono)",
             fontSize: 13,
             outline: "none",
@@ -409,7 +409,7 @@ function AddPluginPanel({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
           Examples
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -425,19 +425,19 @@ function AddPluginPanel({
                 padding: "6px 9px",
                 border: "1px solid var(--border)",
                 borderRadius: 6,
-                background: "var(--bg-panel)",
-                color: "var(--text-dim)",
+                background: "var(--panel)",
+                color: "var(--faint)",
                 cursor: "pointer",
                 fontFamily: "var(--font-mono)",
                 fontSize: 11,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--bg-hover)";
-                e.currentTarget.style.color = "var(--text-muted)";
+                e.currentTarget.style.background = "var(--fg-soft)";
+                e.currentTarget.style.color = "var(--muted)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--bg-panel)";
-                e.currentTarget.style.color = "var(--text-dim)";
+                e.currentTarget.style.background = "var(--panel)";
+                e.currentTarget.style.color = "var(--faint)";
               }}
             >
               {example}
@@ -447,7 +447,7 @@ function AddPluginPanel({
       </div>
 
       {actionError && (
-        <div style={{ fontSize: 12, color: "#ef4444", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: 12, color: "var(--error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -498,7 +498,7 @@ function PackageDetail({
                 padding: "1px 5px",
                 borderRadius: 3,
                 background: "rgba(120,120,120,0.12)",
-                color: "var(--text-dim)",
+                color: "var(--faint)",
               }}
             >
               {t("i18n.disabled")}
@@ -520,7 +520,7 @@ function PackageDetail({
             style={{
               fontFamily: "var(--font-mono)",
               fontSize: 12,
-              color: "var(--text)",
+              color: "var(--fg)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -565,34 +565,34 @@ function PackageDetail({
           lineHeight: 1.45,
         }}
       >
-        <div style={{ color: "var(--text-dim)" }}>{t("i18n.status")}</div>
+        <div style={{ color: "var(--faint)" }}>{t("i18n.status")}</div>
         <div style={{ color: statusColor(pkg.status), textTransform: "capitalize" }}>{pkg.status}</div>
-        <div style={{ color: "var(--text-dim)" }}>{t("i18n.version")}</div>
-         <div style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{versionSummary(pkg, t)}</div>
-        <div style={{ color: "var(--text-dim)" }}>{t("i18n.package")}</div>
-        <div style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
+        <div style={{ color: "var(--faint)" }}>{t("i18n.version")}</div>
+         <div style={{ color: "var(--muted)", fontFamily: "var(--font-mono)" }}>{versionSummary(pkg, t)}</div>
+        <div style={{ color: "var(--faint)" }}>{t("i18n.package")}</div>
+        <div style={{ color: "var(--muted)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
           {pkg.packageName ?? t("i18n.unknown")}
         </div>
-        <div style={{ color: "var(--text-dim)" }}>{t("i18n.resources")}</div>
-         <div style={{ color: "var(--text-muted)" }}>{resourceSummary(pkg, t)}</div>
-        <div style={{ color: "var(--text-dim)" }}>{t("i18n.installedPath")}</div>
+        <div style={{ color: "var(--faint)" }}>{t("i18n.resources")}</div>
+         <div style={{ color: "var(--muted)" }}>{resourceSummary(pkg, t)}</div>
+        <div style={{ color: "var(--faint)" }}>{t("i18n.installedPath")}</div>
         <div
           style={{
-            color: pkg.installedPath ? "var(--text-muted)" : "#ef4444",
+            color: pkg.installedPath ? "var(--muted)" : "var(--error)",
             fontFamily: "var(--font-mono)",
             overflowWrap: "anywhere",
           }}
         >
           {pkg.installedPath ? shortenPath(pkg.installedPath) : t("i18n.notFound")}
         </div>
-        <div style={{ color: "var(--text-dim)" }}>{t("i18n.cwd")}</div>
-        <div style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
+        <div style={{ color: "var(--faint)" }}>{t("i18n.cwd")}</div>
+        <div style={{ color: "var(--faint)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
           {shortenPath(cwd)}
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg)" }}>
           {t("i18n.resolvedResources")}
         </div>
         <ResourceList pkg={pkg} />
@@ -604,7 +604,7 @@ function PackageDetail({
         </div>
       )}
       {actionError && (
-        <div style={{ fontSize: 12, color: "#ef4444", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: 12, color: "var(--error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -793,13 +793,13 @@ export function PluginsConfig({
           }}
         >
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>
               {t("common.plugins")}
             </span>
             <code
               style={{
                 fontSize: 11,
-                color: "var(--text-muted)",
+                color: "var(--muted)",
                 fontFamily: "var(--font-mono)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -814,7 +814,7 @@ export function PluginsConfig({
             style={{
               background: "none",
               border: "none",
-              color: "var(--text-muted)",
+              color: "var(--muted)",
               cursor: "pointer",
               fontSize: 20,
               lineHeight: 1,
@@ -831,8 +831,8 @@ export function PluginsConfig({
             style={{
               padding: "8px 18px",
               borderBottom: "1px solid var(--border)",
-              background: "var(--bg-panel)",
-              color: "var(--text-muted)",
+              background: "var(--panel)",
+              color: "var(--muted)",
               fontSize: 12,
             }}
           >
@@ -850,20 +850,20 @@ export function PluginsConfig({
               display: "flex",
               flexDirection: "column",
               flexShrink: 0,
-              background: "var(--bg-panel)",
+              background: "var(--panel)",
             }}
           >
             <div style={{ flex: 1, overflowY: "auto", padding: "8px 6px" }}>
               {loading ? (
-                <div style={{ padding: "10px 8px", fontSize: 12, color: "var(--text-muted)" }}>
+                <div style={{ padding: "10px 8px", fontSize: 12, color: "var(--muted)" }}>
                   Loading...
                 </div>
               ) : error ? (
-                <div style={{ padding: "10px 8px", fontSize: 11, color: "#ef4444" }}>
+                <div style={{ padding: "10px 8px", fontSize: 11, color: "var(--error)" }}>
                   {error}
                 </div>
               ) : packages.length === 0 ? (
-                <div style={{ padding: "10px 8px", fontSize: 11, color: "var(--text-dim)" }}>
+                <div style={{ padding: "10px 8px", fontSize: 11, color: "var(--faint)" }}>
                   No plugins configured
                 </div>
               ) : (
@@ -874,7 +874,7 @@ export function PluginsConfig({
                         padding: "4px 8px 3px",
                         fontSize: 10,
                         fontWeight: 600,
-                        color: "var(--text-dim)",
+                        color: "var(--faint)",
                         textTransform: "uppercase",
                       }}
                     >
@@ -899,10 +899,11 @@ export function PluginsConfig({
                             padding: "8px 8px",
                             borderRadius: 5,
                             cursor: "pointer",
-                            background: isSelected ? "var(--bg-selected)" : "none",
+                            background: isSelected ? "var(--accent-soft)" : "none",
+                            color: isSelected ? "var(--accent)" : "var(--fg)",
                           }}
                           onMouseEnter={(e) => {
-                            if (!isSelected) e.currentTarget.style.background = "var(--bg-hover)";
+                            if (!isSelected) e.currentTarget.style.background = "var(--fg-soft)";
                           }}
                           onMouseLeave={(e) => {
                             if (!isSelected) e.currentTarget.style.background = "none";
@@ -922,7 +923,7 @@ export function PluginsConfig({
                               style={{
                                 fontSize: 12,
                                 fontWeight: isSelected ? 600 : 400,
-                                color: "var(--text)",
+                                color: "var(--fg)",
                                 fontFamily: "var(--font-mono)",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
@@ -934,7 +935,7 @@ export function PluginsConfig({
                             <div
                               style={{
                                 fontSize: 10,
-                                color: "var(--text-dim)",
+                                color: "var(--faint)",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
@@ -947,7 +948,7 @@ export function PluginsConfig({
                               <div
                                 style={{
                                   fontSize: 10,
-                                  color: "var(--text-dim)",
+                                  color: "var(--faint)",
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
                                   whiteSpace: "nowrap",
@@ -982,12 +983,12 @@ export function PluginsConfig({
                   border: "none",
                   width: "100%",
                   cursor: "pointer",
-                  background: addMode ? "var(--bg-selected)" : "none",
-                  color: addMode ? "var(--accent)" : "var(--text-dim)",
+                  background: addMode ? "var(--accent-soft)" : "none",
+                  color: addMode ? "var(--accent)" : "var(--faint)",
                   fontSize: 12,
                 }}
                 onMouseEnter={(e) => {
-                  if (!addMode) e.currentTarget.style.background = "var(--bg-hover)";
+                  if (!addMode) e.currentTarget.style.background = "var(--fg-soft)";
                 }}
                 onMouseLeave={(e) => {
                   if (!addMode) e.currentTarget.style.background = "none";
@@ -1043,7 +1044,7 @@ export function PluginsConfig({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "var(--text-dim)",
+                  color: "var(--faint)",
                   fontSize: 13,
                 }}
               >
@@ -1064,11 +1065,11 @@ export function PluginsConfig({
             flexShrink: 0,
           }}
         >
-          <div style={{ minWidth: 0, flex: 1, fontSize: 11, color: "var(--text-dim)", overflow: "hidden" }}>
+          <div style={{ minWidth: 0, flex: 1, fontSize: 11, color: "var(--faint)", overflow: "hidden" }}>
             {data?.diagnostics.length ? (
               <span
                 title={data.diagnostics.map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`).join("\n")}
-                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "#ef4444" : "#d97706" }}
+                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "var(--error)" : "#d97706" }}
               >
                 {data.diagnostics.length} diagnostic{data.diagnostics.length === 1 ? "" : "s"}
               </span>
