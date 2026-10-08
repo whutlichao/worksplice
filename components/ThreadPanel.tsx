@@ -21,6 +21,10 @@ const THREAD_POLL_MS = 3000;
  * 锚点 + 消息列表 + composer + 引用 + 轮询（agent 在任务线程里的回复自动冒出）；
  * freshness baseSeq 按线程自己的 seq 空间（最后一条消息的 seq），并发下收到 held 提示而非静默丢消息。
  * 引用态是面板局部的——与中央 composer 互不污染。
+ *
+ * 形态（票 07）：根是 fragment——头（`.tt-summary` sticky）/ 滚动区（`.tt-scroll`）/ composer 槽
+ * （`.tt-reply`）是 `.dock` 单槽容器（DetailPanel）的 flex 子项（与上游 `.dock` 内含 `.dock-head` /
+ * `.dock-scroll` 同形）。**零行为改动**：轮询 / freshness / 引用态 / 动作栏门控一字未动。
  */
 export function ThreadPanel({
   anchorId,
@@ -284,45 +288,39 @@ export function ThreadPanel({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+    <>
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "10px 14px",
-          borderBottom: `1px solid var(--border)`,
-          background: "var(--surface)",
-          flexShrink: 0,
-        }}
+        className="tt-summary"
+        style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}
       >
-        <span style={{ fontFamily: "var(--font)", fontWeight: 700, fontSize: 14 }}>
+        <span className="tt-title">
           {t("message.thread")} {anchor ? `#${anchor.seq}` : ""}
         </span>
         {error && (
-          <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--error)" }}>
+          <span
+            style={{
+              fontFamily: "var(--mono)",
+              fontSize: "var(--fs-mono-xs)",
+              color: "var(--error)",
+            }}
+          >
             {error}
           </span>
         )}
         <button
           type="button"
+          className="icon-btn"
           aria-label={t("detail.close")}
+          title={t("detail.close")}
           onClick={onClose}
-          style={{
-            marginLeft: "auto",
-            width: 24,
-            height: 24,
-            background: "var(--surface)",
-            border: `1px solid var(--border)`,
-            cursor: "pointer",
-            fontSize: 12,
-            lineHeight: 1,
-          }}
+          style={{ marginLeft: "auto" }}
         >
-          <X size={13} style={{ display: "block", margin: "auto" }} />
+          <X size={15} style={{ display: "block" }} />
         </button>
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+      {/* `.tt-scroll` 的内边距是给 `.tt-log` 条目的；此处装的是 `.ws-message-row`（自带 `10px 16px`），
+          再叠一层会双重缩进——故只取滚动职责，内边距归零（见 globals.css 裁剪登记 ④）。 */}
+      <div className="tt-scroll" style={{ padding: 0 }}>
         {anchor && (
           <MessageRow
             message={anchor}
@@ -340,9 +338,7 @@ export function ThreadPanel({
           />
         )}
         {loading ? (
-          <div style={{ padding: 16, color: "var(--faint)", fontSize: 12 }}>
-            {t("message.threadLoading")}
-          </div>
+          <div className="tt-empty">{t("message.threadLoading")}</div>
         ) : (
           messages.map((m) => (
             <MessageRow
@@ -360,15 +356,17 @@ export function ThreadPanel({
           ))
         )}
       </div>
-      <Composer
-        targetId={anchor?.id ?? anchorId}
-        disabled={composerDisabled}
-        disabledHint={composerDisabledHint}
-        quoting={quoting}
-        onClearQuote={() => setQuoting(null)}
-        onSend={handleSend}
-        members={mentionable}
-      />
+      <div className="tt-reply">
+        <Composer
+          targetId={anchor?.id ?? anchorId}
+          disabled={composerDisabled}
+          disabledHint={composerDisabledHint}
+          quoting={quoting}
+          onClearQuote={() => setQuoting(null)}
+          onSend={handleSend}
+          members={mentionable}
+        />
+      </div>
       {reminderTarget && (
         <ReminderModal
           targetId={reminderTarget.targetId}
@@ -379,6 +377,6 @@ export function ThreadPanel({
           onChanged={() => void loadThread(anchorId)}
         />
       )}
-    </div>
+    </>
   );
 }

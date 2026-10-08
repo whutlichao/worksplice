@@ -11,105 +11,20 @@ import { ModelPicker } from "./ModelPicker";
 import type { MemberRow, MemberStatus, TaskStatus } from "@/lib/data/types";
 import type { ModelsData } from "@/lib/models-cache";
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontFamily: "var(--mono)",
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        color: "var(--faint)",
-        margin: "16px 2px 6px",
-      }}
-    >
-      {children}
-    </div>
-  );
+/** 分节标题（`.d-sec-title`，票 07）：mono 大写分组标签（形态在 globals.css 的 `.d-sec-title`）。 */
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <div className="d-sec-title">{children}</div>;
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: `1px solid var(--border)`,
-        boxShadow: "var(--shadow-card)",
-        padding: "10px 12px",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
+/** key/value 行（`.kv`，票 07）：点线引导 + 值走 mono（ED-6）。 */
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        gap: 10,
-      }}
-    >
-      <span style={{ fontSize: 12, color: "var(--muted)", flexShrink: 0 }}>
-        {label}
-      </span>
-      <span
-        style={{
-          fontFamily: "var(--mono)",
-          fontSize: 12,
-          color: "var(--fg)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          maxWidth: "62%",
-        }}
-      >
-        {value}
-      </span>
+    <div className="kv">
+      <span className="k">{label}</span>
+      <span className="v">{value}</span>
     </div>
   );
 }
-
-const ACTION_BUTTON: React.CSSProperties = {
-  flex: 1,
-  padding: "7px 6px",
-  fontFamily: "var(--font)",
-  fontWeight: 700,
-  fontSize: 12,
-  background: "var(--surface)",
-  color: "var(--fg)",
-  border: `1px solid var(--border)`,
-  cursor: "pointer",
-};
-
-const DANGER_BUTTON: React.CSSProperties = {
-  ...ACTION_BUTTON,
-  background: "var(--error)",
-  color: "oklch(99% 0.01 256)",
-  boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-};
-
-/** DM 懒创建入口主按钮（身份头正下方）：醒目黄色底 + MessageSquare 图标（与侧栏 DM 图标一致）。 */
-const DM_BUTTON: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  margin: "12px 12px 0",
-  padding: "10px 12px",
-  fontFamily: "var(--font)",
-  fontWeight: 700,
-  fontSize: 14,
-  background: "var(--accent)",
-  color: "oklch(99% 0.01 256)",
-  border: `1px solid var(--border)`,
-  boxShadow: "3px 3px 0 0 rgba(20, 17, 17, 0.45)",
-  cursor: "pointer",
-};
 
 type ConfirmKind = "sessionReset" | "fullReset" | "delete";
 type BusyOp =
@@ -264,18 +179,21 @@ export function TaskHistoryList({
             gap: 8,
             padding: "6px 8px",
             border: `1px solid var(--border)`,
+            borderRadius: "var(--r-sm)",
             background: "var(--panel)",
-            fontSize: 12,
+            fontSize: "var(--fs-sm)",
           }}
         >
           <span
             style={{
               fontFamily: "var(--mono)",
+              fontVariantNumeric: "tabular-nums",
               fontWeight: 700,
               background: "var(--accent-soft)",
               border: `1px solid var(--border)`,
+              borderRadius: "var(--r-sm)",
               padding: "1px 5px",
-              fontSize: 11,
+              fontSize: "var(--fs-mono-micro)",
               flexShrink: 0,
             }}
           >
@@ -295,8 +213,10 @@ export function TaskHistoryList({
           <span
             style={{
               fontFamily: "var(--mono)",
-              fontSize: 10,
+              fontVariantNumeric: "tabular-nums",
+              fontSize: "var(--fs-mono-micro)",
               padding: "1px 5px",
+              borderRadius: "var(--r-sm)",
               border: `1px solid var(--border)`,
               background:
                 task.status === "done" ? "var(--online)" : "var(--surface)",
@@ -312,9 +232,77 @@ export function TaskHistoryList({
 }
 
 /**
+ * token / 成本聚合（§6.5）——2×2 `.stat-grid` + 余量 `.kv` 行；纯展示，数据与 i18n 由调用方传入。
+ * 与 TaskHistoryList / RoundLogsList 同款拆出：node 侧测试能直接渲染真实 markup，断言
+ * 「统计数字渲染在 `.stat .n` 里」（`mono` + `tabular-nums` 的形态在 globals.css 的规则体）。
+ */
+export function TokensCostStats({
+  totals,
+  t,
+}: {
+  totals: ObservabilityData["stats"]["totals"];
+  t: (key: string) => string;
+}) {
+  return (
+    <>
+      <div className="stat-grid">
+        <div className="stat">
+          <div className="n">{formatNumber(totals.totalTokens)}</div>
+          <div className="l">{t("observability.totalTokens")}</div>
+        </div>
+        <div className="stat">
+          <div className="n">{formatCost(totals.costTotal)}</div>
+          <div className="l">{t("observability.cost")}</div>
+        </div>
+        <div className="stat">
+          <div className="n">{formatNumber(totals.messageCount)}</div>
+          <div className="l">{t("observability.messages")}</div>
+        </div>
+        <div className="stat">
+          <div className="n">{formatNumber(totals.compactionCount)}</div>
+          <div className="l">{t("observability.compactions")}</div>
+        </div>
+      </div>
+      <div style={{ marginTop: "var(--sp-5)" }}>
+        <Row
+          label={t("observability.cachedTokens")}
+          value={formatNumber(totals.cachedTokens)}
+        />
+        <Row
+          label={t("observability.uncachedTokens")}
+          value={formatNumber(totals.uncachedTokens)}
+        />
+        <Row
+          label={t("observability.compactionTokens")}
+          value={formatNumber(totals.compactionTokens)}
+        />
+      </div>
+    </>
+  );
+}
+
+/** `.lv` 级别档（四态 token：ok → `--online` / warn → `--working` / err → `--error` / info → accent）。 */
+type RoundLevel = "ok" | "warn" | "err" | "info";
+
+/** 轮次状态 → `.lv` 级别档。 */
+const ROUND_LEVEL: Record<
+  ObservabilityData["rounds"][number]["status"],
+  RoundLevel
+> = {
+  replied: "ok",
+  error: "err",
+  yielded: "warn",
+  "busy-cwd": "warn",
+  ignored: "info",
+  silent: "info",
+  anyway: "info",
+};
+
+/**
  * 轮次记录列表（§07）：纯展示——数据与 i18n 由调用方传入。
  * 与 TaskHistoryList 同款拆出：node 侧测试可直接渲染真实 markup，断言失败原因与
  * 时间可读（D2：snake_case 透传时期渲染出空白 target、光秃秃的 `#` 与 "Invalid Date"）。
+ * 形态（票 07）：`.log-row` + `.lv` 级别标签 + `.ts` 时间戳。
  */
 export function RoundLogsList({
   rounds,
@@ -324,85 +312,27 @@ export function RoundLogsList({
   t: (key: string) => string;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        maxHeight: 260,
-        overflowY: "auto",
-      }}
-    >
-      {rounds.map((round) => {
-        const failed = round.status === "error";
-        return (
-          <div
-            key={round.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "6px 8px",
-              border: `1px solid var(--border)`,
-              background: failed ? "#ffe9e9" : "var(--panel)",
-              fontSize: 11,
-            }}
+    <div style={{ maxHeight: 260, overflowY: "auto" }}>
+      {rounds.map((round) => (
+        <div key={round.id} className="log-row">
+          <span
+            className="ts"
+            title={`target: ${round.targetId}`}
+            style={{ maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis" }}
           >
-            <span
-              style={{
-                flexShrink: 0,
-                fontFamily: "var(--mono)",
-                fontWeight: 700,
-                padding: "1px 5px",
-                border: `1px solid var(--border)`,
-                background: failed
-                  ? "#ff6b6b"
-                  : round.status === "replied"
-                    ? "var(--online)"
-                    : "var(--surface)",
-              }}
-            >
-              {t("observability.roundStatus." + round.status)}
-            </span>
-            <span
-              style={{
-                flex: 1,
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                color: "var(--muted)",
-              }}
-              title={round.reason}
-            >
-              {round.reason || "—"}
-            </span>
-            <span
-              style={{
-                flexShrink: 0,
-                fontFamily: "var(--mono)",
-                color: "var(--faint)",
-                maxWidth: "30%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-              title={`target: ${round.targetId}`}
-            >
-              {round.targetId}
-            </span>
-            <span
-              style={{
-                flexShrink: 0,
-                fontFamily: "var(--mono)",
-                color: "var(--faint)",
-              }}
-            >
-              #{round.baseSeq} · {formatTime(round.createdAt)}
-            </span>
-          </div>
-        );
-      })}
+            {round.targetId}
+          </span>
+          <span className={`lv ${ROUND_LEVEL[round.status] ?? "info"}`}>
+            {t("observability.roundStatus." + round.status)}
+          </span>
+          <span className="msg" title={round.reason}>
+            {round.reason || "—"}
+          </span>
+          <span className="ts">
+            #{round.baseSeq} · {formatTime(round.createdAt)}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -685,32 +615,16 @@ export function AgentDetailPanel({
     : null;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        minHeight: 0,
-      }}
-    >
-      {/* 身份头 */}
-      <header
-        style={{
-          flexShrink: 0,
-          padding: "14px 16px 12px",
-          borderBottom: `1px solid var(--border)`,
-          background: "var(--panel)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <>
+      {/* 身份头（`.dock-head` / `.dock-id` / `.avatar.lg` / `.dock-name` / `.dock-role`，票 07） */}
+      <header className="dock-head">
+        <div className="dock-id">
           <Avatar name={agent.name} type={agent.type} size="lg" colorKey={agent.id} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="meta">
+            <div className="dock-name">
               <span
                 style={{
-                  fontFamily: "var(--font)",
-                  fontWeight: 700,
-                  fontSize: 17,
+                  minWidth: 0,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -718,127 +632,109 @@ export function AgentDetailPanel({
               >
                 {agent.name}
               </span>
-              <StatusDot status={agent.status} />
-              <span
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 10,
-                  padding: "1px 6px",
-                  border: `1px solid var(--border)`,
-                  background:
-                    agent.role === "owner" ? "var(--accent-soft)" : "var(--surface)",
-                  color: "var(--fg)",
-                }}
-              >
+              <span className="badge soft">
                 {agent.role === "owner" ? t("role.owner") : t("role.member")}
               </span>
             </div>
-            {agent.description ? (
-              <div
+            <div className="dock-role">
+              <StatusDot status={agent.status} />
+              <span
                 style={{
-                  fontSize: 12,
-                  color: "var(--muted)",
-                  marginTop: 4,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                {agent.description}
-              </div>
-            ) : null}
+                {agent.description
+                  ? `${t("status." + agent.status)} · ${agent.description}`
+                  : t("status." + agent.status)}
+              </span>
+            </div>
           </div>
           <button
             type="button"
+            className="icon-btn"
             aria-label={t("detail.close")}
             title={t("detail.close")}
             onClick={onClose}
-            style={{
-              flexShrink: 0,
-              width: 26,
-              height: 26,
-              background: "var(--surface)",
-              border: `1px solid var(--border)`,
-              boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor: "pointer",
-              color: "var(--fg)",
-              fontSize: 13,
-              lineHeight: 1,
-            }}
           >
-            <X size={13} style={{ display: "block", margin: "auto" }} />
+            <X size={15} style={{ display: "block" }} />
           </button>
         </div>
       </header>
 
       {/* DM 懒创建入口：身份头正下方醒目主按钮；文案动态（无消息 → 发送消息，有消息 → 打开私信） */}
-      <button
-        type="button"
-        aria-label={hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
-        onClick={() => onOpenDM(agent.id)}
-        style={DM_BUTTON}
-      >
-        <MessageSquare size={15} style={{ display: "block", flexShrink: 0 }} />
-        {hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
-      </button>
+      <div style={{ padding: "var(--sp-5) var(--sp-7) 0" }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ width: "100%" }}
+          aria-label={hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
+          onClick={() => onOpenDM(agent.id)}
+        >
+          <MessageSquare size={15} style={{ display: "block", flexShrink: 0 }} />
+          {hasMessages ? t("agent.openDM") : t("agent.sendMessage")}
+        </button>
+      </div>
 
       {/* 主体：状态 / workspace / runtime / 可观测性 / 重置 */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          padding: "0 12px 20px",
-        }}
-      >
-        <SectionLabel>{t("status." + agent.status)}</SectionLabel>
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="dock-scroll">
+        <section className="d-sec">
+          <SectionTitle>{t("status." + agent.status)}</SectionTitle>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-4)" }}>
             <StatusDot status={agent.status} />
-            <span style={{ fontSize: 13, fontWeight: 600 }}>
+            <span style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-semi)" }}>
               {t("status." + agent.status)}
             </span>
           </div>
           <div
-            style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}
+            style={{
+              fontSize: "var(--fs-caption)",
+              color: "var(--faint)",
+              marginTop: 6,
+            }}
           >
             {agent.status === "offline"
               ? t("agent.stoppedHint")
               : t("agent.workspaceHint")}
           </div>
-        </Card>
+        </section>
 
-        <SectionLabel>{t("agent.workspace")}</SectionLabel>
-        <Card>
+        <section className="d-sec">
+          <SectionTitle>{t("agent.workspace")}</SectionTitle>
           <Row
             label={t("agent.workspace")}
             value={agent.workspace_path ?? t("agent.workspaceNotBound")}
           />
           {isHomeWorkspace && (
             <div
-              style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}
+              style={{ marginTop: 6, fontSize: "var(--fs-caption)", color: "var(--faint)" }}
             >
               {t("agent.workspaceHomeHint")}
             </div>
           )}
           <div
             style={{
-              marginTop: 8,
+              marginTop: "var(--sp-5)",
               display: "flex",
               justifyContent: "flex-end",
             }}
           >
             <button
               type="button"
+              className="btn btn-sm"
               disabled={isBusy}
               onClick={() => setPickerOpen(true)}
-              style={{ ...ACTION_BUTTON, flex: 0, padding: "6px 14px" }}
             >
               {t("agent.change")}
             </button>
           </div>
-        </Card>
+        </section>
 
         {/* §3.10 runtime：per-agent 模型 / provider / thinking，覆盖全局默认 */}
-        <SectionLabel>{t("agent.runtime")}</SectionLabel>
-        <Card>
+        <section className="d-sec">
+          <SectionTitle>{t("agent.runtime")}</SectionTitle>
           <ModelPicker
             models={models}
             loading={modelsLoading}
@@ -854,40 +750,31 @@ export function AgentDetailPanel({
           />
           {!agent.workspace_path && (
             <div
-              style={{ fontSize: 11, color: "var(--faint)", marginTop: 8 }}
+              style={{ fontSize: "var(--fs-caption)", color: "var(--faint)", marginTop: 8 }}
             >
               {t("runtime.noWorkspace")}
             </div>
           )}
           {draftModel === null && draftThinking === null && (
             <div
-              style={{ fontSize: 11, color: "var(--faint)", marginTop: 8 }}
+              style={{ fontSize: "var(--fs-caption)", color: "var(--faint)", marginTop: 8 }}
             >
               {t("runtime.inheritGlobal")}
             </div>
           )}
           {draftModel === null && draftThinking !== null && (
             <div
-              style={{ fontSize: 11, color: "var(--faint)", marginTop: 8 }}
+              style={{ fontSize: "var(--fs-caption)", color: "var(--faint)", marginTop: 8 }}
             >
               {t("runtime.onlyThinking")}
             </div>
           )}
           {runtime?.live && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: "6px 8px",
-                background: "var(--fg-soft)",
-                border: `1px solid var(--border)`,
-                fontSize: 11,
-                color: "var(--muted)",
-                fontFamily: "var(--mono)",
-              }}
-            >
-              {t("runtime.liveModel")}: {runtime.live.model?.provider}/
-              {runtime.live.model?.modelId ?? "—"} ·{" "}
-              {runtime.live.thinkingLevel ?? "—"}
+            <div style={{ marginTop: "var(--sp-4)" }}>
+              <Row
+                label={t("runtime.liveModel")}
+                value={`${runtime.live.model?.provider}/${runtime.live.model?.modelId ?? "—"} · ${runtime.live.thinkingLevel ?? "—"}`}
+              />
             </div>
           )}
           {runtimeProbe ? (
@@ -895,7 +782,7 @@ export function AgentDetailPanel({
           ) : runtimeMsg ? (
             <div
               style={{
-                fontSize: 11,
+                fontSize: "var(--fs-caption)",
                 color: "var(--online)",
                 marginTop: 8,
               }}
@@ -905,87 +792,45 @@ export function AgentDetailPanel({
           ) : null}
           <div
             style={{
-              marginTop: 10,
+              marginTop: "var(--sp-5)",
               display: "flex",
-              gap: 6,
+              gap: "var(--sp-3)",
               justifyContent: "flex-end",
             }}
           >
             <button
               type="button"
+              className="btn btn-primary btn-sm"
               disabled={
                 isBusy || (draftModel === null && draftThinking === null)
               }
               onClick={saveRuntime}
-              style={{
-                ...ACTION_BUTTON,
-                flex: 0,
-                padding: "6px 14px",
-                background: "var(--accent)",
-                color: "oklch(99% 0.01 256)",
-              }}
             >
               {busyOp === "runtime" ? t("runtime.saving") : t("runtime.save")}
             </button>
           </div>
-        </Card>
+        </section>
 
-        {/* §6.5 可观测性：① 状态点（上方）② token/成本 ③ 任务历史 ④ 会话导出与上下文状态 */}
-        <SectionLabel>{t("agent.observability")}</SectionLabel>
+        {/* §6.5 可观测性：状态点（首节）/ token、成本 / 任务历史 + 时间线 / 轮次记录 / 会话导出 */}
 
         {/* ② token / 成本（session jsonl 只读解析聚合，不落库） */}
-        <Card>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-            {t("observability.tokensCost")}
-          </div>
+        <section className="d-sec">
+          <SectionTitle>{t("observability.tokensCost")}</SectionTitle>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--faint)" }}>
+            <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
               {t("runtime.loading")}
             </div>
           ) : obs.stats.sessions.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--faint)" }}>
+            <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
               {t("observability.noSessions")}
             </div>
           ) : (
             <>
-              <Row
-                label={t("observability.totalTokens")}
-                value={formatNumber(obs.stats.totals.totalTokens)}
-              />
-              <div style={{ height: 6 }} />
-              <Row
-                label={t("observability.cachedTokens")}
-                value={formatNumber(obs.stats.totals.cachedTokens)}
-              />
-              <div style={{ height: 6 }} />
-              <Row
-                label={t("observability.uncachedTokens")}
-                value={formatNumber(obs.stats.totals.uncachedTokens)}
-              />
-              <div style={{ height: 6 }} />
-              <Row
-                label={t("observability.cost")}
-                value={formatCost(obs.stats.totals.costTotal)}
-              />
-              <div style={{ height: 6 }} />
-              <Row
-                label={t("observability.compactions")}
-                value={String(obs.stats.totals.compactionCount)}
-              />
-              <div style={{ height: 6 }} />
-              <Row
-                label={t("observability.compactionTokens")}
-                value={formatNumber(obs.stats.totals.compactionTokens)}
-              />
-              <div style={{ height: 6 }} />
-              <Row
-                label={t("observability.messages")}
-                value={formatNumber(obs.stats.totals.messageCount)}
-              />
-              <details style={{ marginTop: 10 }}>
+              <TokensCostStats totals={obs.stats.totals} t={t} />
+              <details style={{ marginTop: "var(--sp-5)" }}>
                 <summary
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--fs-caption)",
                     fontFamily: "var(--mono)",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -1008,13 +853,15 @@ export function AgentDetailPanel({
                       style={{
                         padding: "6px 8px",
                         border: `1px solid var(--border)`,
+                        borderRadius: "var(--r-sm)",
                         background: "var(--panel)",
-                        fontSize: 11,
+                        fontSize: "var(--fs-caption)",
                       }}
                     >
                       <div
                         style={{
-                          fontFamily: "var(--font-mono)",
+                          fontFamily: "var(--mono)",
+                          fontVariantNumeric: "tabular-nums",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -1035,35 +882,33 @@ export function AgentDetailPanel({
               </details>
             </>
           )}
-        </Card>
+        </section>
 
         {/* ③ 任务历史（该 agent 参与的任务 + 时间线，直接查 messages/tasks） */}
-        <Card>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-            {t("observability.taskHistory")}
-          </div>
+        <section className="d-sec">
+          <SectionTitle>{t("observability.taskHistory")}</SectionTitle>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--faint)" }}>
+            <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
               {t("runtime.loading")}
             </div>
           ) : (
             <>
               {obs.tasks.length === 0 ? (
-                <div style={{ fontSize: 12, color: "var(--faint)" }}>
+                <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
                   {t("observability.tasksEmpty")}
                 </div>
               ) : (
                 <TaskHistoryList tasks={obs.tasks} t={t} />
               )}
-              <div style={{ marginTop: 12, fontWeight: 700, fontSize: 12 }}>
+              <div className="d-sec-title" style={{ marginTop: "var(--sp-6)" }}>
                 {t("observability.timeline")}
               </div>
               {obs.timeline.length === 0 ? (
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "var(--fs-sm)",
                     color: "var(--faint)",
-                    marginTop: 4,
+                    marginTop: "var(--sp-2)",
                   }}
                 >
                   {t("observability.timelineEmpty")}
@@ -1075,7 +920,7 @@ export function AgentDetailPanel({
                     display: "flex",
                     flexDirection: "column",
                     gap: 0,
-                    borderLeft: `1px solid var(--border)`,
+                    borderLeft: "1px solid var(--border)",
                     paddingLeft: 10,
                     maxHeight: 320,
                     overflowY: "auto",
@@ -1087,7 +932,7 @@ export function AgentDetailPanel({
                       style={{
                         padding: "5px 0",
                         borderBottom: "1px dashed var(--border)",
-                        fontSize: 11,
+                        fontSize: "var(--fs-caption)",
                       }}
                     >
                       {entry.kind === "message" ? (
@@ -1165,92 +1010,97 @@ export function AgentDetailPanel({
               )}
             </>
           )}
-        </Card>
+        </section>
 
         {/* ③b §07 轮次记录：有结论的轮次（区分自判 ignore 与处理失败；cap-ack 的 (capped) 标记在此） */}
-        <Card>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-            {t("observability.rounds")}
-          </div>
+        <section className="d-sec">
+          <SectionTitle>{t("observability.rounds")}</SectionTitle>
           {obsLoading || !obs ? (
-            <div style={{ fontSize: 12, color: "var(--faint)" }}>
+            <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
               {t("runtime.loading")}
             </div>
           ) : obs.rounds.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--faint)" }}>
+            <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
               {t("observability.roundsEmpty")}
             </div>
           ) : (
             <RoundLogsList rounds={obs.rounds} t={t} />
           )}
-        </Card>
+        </section>
 
         {/* ④ 会话导出与上下文状态（export/context，cost/compaction 可见性） */}
-        <Card>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-            {t("observability.export")}
-          </div>
+        <section className="d-sec">
+          <SectionTitle>{t("observability.export")}</SectionTitle>
           {obs?.session?.file ? (
             <>
               <Row
                 label={t("observability.sessionFile")}
                 value={obs.session.file.split("/").slice(-2).join("/")}
               />
-              <div style={{ height: 6 }} />
               {obs.session.live?.contextUsage ? (
                 <>
                   <Row
                     label={t("observability.contextUsage")}
                     value={`${obs.session.live.contextUsage.percent}% (${formatNumber(obs.session.live.contextUsage.tokens)} / ${formatNumber(obs.session.live.contextUsage.contextWindow)})`}
                   />
-                  <div style={{ height: 6 }} />
+                  <div className="meter">
+                    <i
+                      style={{
+                        width: `${obs.session.live.contextUsage.percent}%`,
+                      }}
+                    />
+                  </div>
                 </>
               ) : (
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--fs-caption)",
                     color: "var(--faint)",
-                    marginBottom: 6,
+                    marginTop: "var(--sp-2)",
                   }}
                 >
                   {t("observability.contextNone")}
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: "var(--sp-5)",
+                }}
+              >
                 {exportUrl ? (
                   <a
                     href={exportUrl}
                     target="_blank"
                     rel="noreferrer"
-                    style={{
-                      ...ACTION_BUTTON,
-                      flex: 0,
-                      padding: "6px 14px",
-                      textDecoration: "none",
-                    }}
+                    className="btn btn-sm"
+                    style={{ textDecoration: "none" }}
                   >
                     {t("observability.exportAction")}
                   </a>
                 ) : (
-                  <span style={{ fontSize: 11, color: "var(--faint)" }}>
+                  <span style={{ fontSize: "var(--fs-caption)", color: "var(--faint)" }}>
                     {t("observability.exportUnavailable")}
                   </span>
                 )}
               </div>
             </>
           ) : (
-            <div style={{ fontSize: 12, color: "var(--faint)" }}>
+            <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
               {t("observability.noSessions")}
             </div>
           )}
-        </Card>
+        </section>
 
         {/* §3.6 重置粒度 */}
-        <SectionLabel>{t("agent.reset")}</SectionLabel>
-        <Card>
-          <div style={{ display: "flex", gap: 6 }}>
+        <section className="d-sec">
+          <SectionTitle>{t("agent.reset")}</SectionTitle>
+          <div style={{ display: "flex", gap: "var(--sp-3)" }}>
             <button
               type="button"
+              className="btn btn-sm"
+              style={{ flex: 1 }}
               disabled={isBusy}
               onClick={() =>
                 void run("restart", () =>
@@ -1260,7 +1110,6 @@ export function AgentDetailPanel({
                   ),
                 )
               }
-              style={ACTION_BUTTON}
             >
               {busyOp === "restart"
                 ? t("agent.restarting")
@@ -1268,42 +1117,47 @@ export function AgentDetailPanel({
             </button>
             <button
               type="button"
+              className="btn btn-sm"
+              style={{ flex: 1 }}
               disabled={isBusy}
               onClick={() => setConfirming("sessionReset")}
-              style={ACTION_BUTTON}
             >
               {t("agent.sessionReset")}
             </button>
             <button
               type="button"
+              className="btn btn-sm"
+              style={{ flex: 1 }}
               disabled={isBusy || fullResetBlocked}
               onClick={() => setConfirming("fullReset")}
-              style={ACTION_BUTTON}
             >
               {t("agent.fullReset")}
             </button>
           </div>
           {fullResetBlocked && (
             <div
-              style={{ marginTop: 6, fontSize: 11, color: "var(--faint)" }}
+              style={{ marginTop: 6, fontSize: "var(--fs-caption)", color: "var(--faint)" }}
             >
               {t("agent.fullResetSharedHint")}
             </div>
           )}
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: "var(--sp-4)" }}>
             <button
               type="button"
+              className="btn btn-sm btn-danger"
+              style={{ width: "100%" }}
               disabled={isBusy}
               onClick={() => setConfirming("delete")}
-              style={DANGER_BUTTON}
             >
               {t("agent.delete")}
             </button>
           </div>
-        </Card>
+        </section>
 
         {error && (
-          <div style={{ marginTop: 12, color: "var(--error)", fontSize: 12 }}>
+          <div
+            style={{ marginTop: "var(--sp-6)", color: "var(--error)", fontSize: "var(--fs-sm)" }}
+          >
             {t("agent.opError", { message: error })}
           </div>
         )}
@@ -1331,36 +1185,17 @@ export function AgentDetailPanel({
             >
               <button
                 type="button"
+                className="btn"
                 disabled={isBusy}
                 onClick={() => setConfirming(null)}
-                style={{
-                  padding: "8px 16px",
-                  fontFamily: "var(--font)",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  background: "var(--surface)",
-                  color: "var(--fg)",
-                  border: `1px solid var(--border)`,
-                  cursor: isBusy ? "not-allowed" : "pointer",
-                }}
               >
                 {t("agent.cancelOp")}
               </button>
               <button
                 type="button"
+                className="btn btn-danger"
                 disabled={isBusy}
                 onClick={() => void run(confirming, confirmRequest(confirming))}
-                style={{
-                  padding: "8px 16px",
-                  fontFamily: "var(--font)",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  background: "var(--error)",
-                  color: "var(--fg)",
-                  border: `1px solid var(--border)`,
-                  boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-                  cursor: isBusy ? "not-allowed" : "pointer",
-                }}
               >
                 {t("agent.confirm")}
               </button>
@@ -1385,6 +1220,6 @@ export function AgentDetailPanel({
           }}
         />
       )}
-    </div>
+    </>
   );
 }
