@@ -256,7 +256,7 @@ function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: s
         alignItems: "center",
         gap: 8,
         padding: "3px 10px",
-        fontSize: 12,
+        fontSize: "var(--fs-sm)",
         color: "var(--muted)",
         minWidth: 0,
       }}
@@ -264,11 +264,11 @@ function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: s
       <span
         style={{
           flexShrink: 0,
-          fontSize: 10,
+          fontSize: "var(--fs-mono-xs)",
           fontFamily: "var(--font-mono)",
           padding: "1px 7px",
-          borderRadius: 999,
-          border: `1px solid ${kind === "steer" ? "color-mix(in srgb, var(--accent) 45%, transparent)" : "var(--border)"}`,
+          borderRadius: "var(--r-pill)",
+          border: `1px solid ${kind === "steer" ? "var(--accent-line)" : "var(--border-strong)"}`,
           color: kind === "steer" ? "var(--accent)" : "var(--faint)",
         }}
       >
@@ -280,7 +280,7 @@ function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: s
 }
 
 function ModelNoticeBanner({ tone, title, body }: { tone: "error" | "warning"; title: string; body: string }) {
-  const color = tone === "error" ? "239,68,68" : "234,179,8";
+  const color = tone === "error" ? "var(--error)" : "var(--working)";
   return (
     <div
       role="alert"
@@ -292,11 +292,11 @@ function ModelNoticeBanner({ tone, title, body }: { tone: "error" | "warning"; t
         marginBottom: 8,
         padding: "7px 10px",
         overflowY: "auto",
-        border: `1px solid rgba(${color},0.3)`,
-        borderRadius: 6,
-        background: `rgba(${color},0.07)`,
-        color: `rgb(${color})`,
-        fontSize: 11,
+        border: `1px solid color-mix(in oklch, ${color} 30%, transparent)`,
+        borderRadius: "var(--r-sm)",
+        background: `color-mix(in oklch, ${color} 7%, transparent)`,
+        color: tone === "error" ? "var(--error)" : "var(--working-text)",
+        fontSize: "var(--fs-caption)",
         lineHeight: 1.45,
       }}
     >
@@ -1178,7 +1178,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
           <div style={{
             marginBottom: 8,
             border: "1px solid var(--border)",
-            borderRadius: 6,
+            borderRadius: "var(--r-sm)",
             background: "var(--panel)",
             padding: "5px 0",
           }}>
@@ -1190,11 +1190,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               padding: "2px 8px 4px 10px",
             }}>
               <span style={{
-                fontSize: 10,
+                fontSize: "var(--fs-mono-xs)",
                 fontFamily: "var(--font-mono)",
                 color: "var(--faint)",
                 textTransform: "uppercase",
-                letterSpacing: 0.4,
+                letterSpacing: "var(--ls-wide)",
               }}>
                 {t("chat.queued", { count: (queuedMessages?.steering.length ?? 0) + (queuedMessages?.followUp.length ?? 0) })}
               </span>
@@ -1207,18 +1207,18 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     alignItems: "center",
                     gap: 6,
                     padding: "4px 12px",
-                    fontSize: 12,
+                    fontSize: "var(--fs-sm)",
                     color: "var(--fg)",
                     background: "transparent",
-                    border: "1px solid var(--border)",
-                    borderRadius: 7,
+                    border: "1px solid var(--border-strong)",
+                    borderRadius: "var(--r-md)",
                     cursor: "pointer",
-                    transition: "background 0.12s, border-color 0.12s",
+                    transition: "background var(--dur), border-color var(--dur)",
                     whiteSpace: "nowrap",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--fg-soft)";
-                    e.currentTarget.style.borderColor = "color-mix(in srgb, var(--accent) 45%, var(--border))";
+                    e.currentTarget.style.borderColor = "color-mix(in oklch, var(--accent) 45%, var(--border))";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = "transparent";
@@ -1245,8 +1245,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         {retryInfo && (
           <div style={{
             marginBottom: 8, padding: "5px 10px",
-            background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.25)",
-            borderRadius: 6, fontSize: 12, color: "rgba(180,130,0,0.9)",
+            background: "color-mix(in oklch, var(--working) 8%, transparent)", border: "1px solid color-mix(in oklch, var(--working) 25%, transparent)",
+            borderRadius: "var(--r-sm)", fontSize: "var(--fs-sm)", color: "var(--working-text)",
             display: "flex", alignItems: "center", gap: 6,
           }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -1259,8 +1259,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
         {compactResultText && (
           <div style={{
             marginBottom: 8, padding: "5px 10px",
-            background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.24)",
-            borderRadius: 6, fontSize: 12, color: "rgba(5,150,105,0.95)",
+            background: "color-mix(in oklch, var(--online) 8%, transparent)", border: "1px solid color-mix(in oklch, var(--online) 24%, transparent)",
+            borderRadius: "var(--r-sm)", fontSize: "var(--fs-sm)", color: "var(--online-text)",
             display: "flex", alignItems: "center", gap: 6,
           }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -1275,12 +1275,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
             style={{
               marginBottom: 8,
               padding: "7px 10px",
-              background: "rgba(239,68,68,0.07)",
-              border: "1px solid rgba(239,68,68,0.3)",
-              borderRadius: 6,
+              background: "color-mix(in oklch, var(--error) 7%, transparent)",
+              border: "1px solid color-mix(in oklch, var(--error) 30%, transparent)",
+              borderRadius: "var(--r-sm)",
               color: "var(--error)",
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
               lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               overflowWrap: "anywhere",
@@ -1298,13 +1298,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 <img
                   src={img.previewUrl}
                   alt=""
-                  style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)", display: "block" }}
+                  style={{ width: 56, height: 56, objectFit: "cover", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", display: "block" }}
                 />
                 <button
                   onClick={() => removeImage(i)}
                   style={{
                     position: "absolute", top: -4, right: -4,
-                    width: 16, height: 16, borderRadius: "50%",
+                    width: 16, height: 16, borderRadius: "var(--r-pill)",
                     background: "var(--panel)", border: "1px solid var(--border)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", padding: 0, color: "var(--muted)",
@@ -1332,8 +1332,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 zIndex: 120,
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
-                borderRadius: 8,
-                boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
+                borderRadius: "var(--r-md)",
+                boxShadow: "var(--shadow-pop)",
                 overflow: "hidden",
                 maxHeight: "min(44vh, 360px)",
               }}
@@ -1387,16 +1387,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                         gap: 8,
                         padding: "7px 8px",
                         border: "none",
-                        borderRadius: 6,
+                        borderRadius: "var(--r-sm)",
                         background: active ? "var(--accent-soft)" : "none",
                         color: active ? "var(--accent)" : "var(--fg)",
                         cursor: "pointer",
                         textAlign: "left",
-                        fontSize: 12.5,
+                        fontSize: "var(--fs-sm)",
                         lineHeight: 1.45,
                       }}
                     >
-                      <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--faint)", paddingTop: 1 }}>
+                      <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "var(--fs-caption)", color: "var(--faint)", paddingTop: 1 }}>
                         {index + 1}
                       </span>
                       <span style={{ minWidth: 0, display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden", overflowWrap: "anywhere" }}>
@@ -1418,8 +1418,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 zIndex: 120,
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
-                borderRadius: 8,
-                boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
+                borderRadius: "var(--r-md)",
+                boxShadow: "var(--shadow-pop)",
                 overflow: "hidden",
                 maxHeight: "min(56vh, 460px)",
               }}
@@ -1432,7 +1432,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: 8,
-                  fontSize: 11,
+                  fontSize: "var(--fs-caption)",
                   color: "var(--faint)",
                 }}
               >
@@ -1441,7 +1441,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               </div>
               <div style={{ maxHeight: "calc(min(56vh, 460px) - 34px)", overflowY: "auto", padding: 10 }}>
                 {!slashCommandsLoading && filteredSlashCommands.length === 0 ? (
-                  <div style={{ padding: "2px 2px 4px", fontSize: 12, color: "var(--faint)" }}>
+                  <div style={{ padding: "2px 2px 4px", fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
                      {t("chat.noCommands")}
                   </div>
                 ) : (
@@ -1459,7 +1459,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                           padding: "4px 0 6px",
                           background: "var(--bg)",
                           color: "var(--faint)",
-                          fontSize: 10,
+                          fontSize: "var(--fs-mono-xs)",
                           fontWeight: 600,
                           textTransform: "uppercase",
                         }}
@@ -1499,16 +1499,16 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                                 justifyContent: "center",
                                 padding: "9px 10px",
                                 border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-                                borderRadius: 7,
+                                borderRadius: "var(--r-md)",
                                 background: active ? "var(--accent-soft)" : "var(--panel)",
                                 color: active ? "var(--accent)" : "var(--fg)",
                                 cursor: "pointer",
                                 textAlign: "left",
-                                boxShadow: active ? "0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent)" : "none",
+                                boxShadow: active ? "0 0 0 1px var(--accent-line)" : "none",
                               }}
                             >
                               <span style={{
-                                fontSize: 13,
+                                fontSize: "var(--fs-body)",
                                 fontFamily: "var(--font-mono)",
                                 overflowWrap: "anywhere",
                                 wordBreak: "break-word",
@@ -1520,8 +1520,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                                     marginLeft: 6,
                                     padding: "0 4px",
                                     border: "1px solid var(--border)",
-                                    borderRadius: 3,
-                                    fontSize: 9,
+                                    borderRadius: "var(--r-sm)",
+                                    fontSize: "var(--fs-mono-micro)",
                                     color: "var(--faint)",
                                     whiteSpace: "nowrap",
                                   }}>
@@ -1535,7 +1535,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                                   WebkitBoxOrient: "vertical",
                                   WebkitLineClamp: 2,
                                   overflow: "hidden",
-                                  fontSize: 11,
+                                  fontSize: "var(--fs-caption)",
                                   lineHeight: 1.35,
                                   color: "var(--faint)",
                                 }}>
@@ -1570,8 +1570,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   zIndex: 120,
                   background: "var(--bg)",
                   border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
+                  borderRadius: "var(--r-md)",
+                  boxShadow: "var(--shadow-pop)",
                   overflow: "hidden",
                   maxHeight: "min(48vh, 400px)",
                 }}
@@ -1584,7 +1584,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 8,
-                    fontSize: 11,
+                    fontSize: "var(--fs-caption)",
                     color: "var(--faint)",
                   }}
                 >
@@ -1597,7 +1597,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 </div>
                 <div style={{ maxHeight: "calc(min(48vh, 400px) - 34px)", overflowY: "auto", padding: 4 }}>
                   {!indexLoading && atMatches.length === 0 ? (
-                    <div style={{ padding: "6px 8px", fontSize: 12, color: "var(--faint)" }}>
+                    <div style={{ padding: "6px 8px", fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
                        {needsServerSearch && !serverResultInUse ? t("chat.searching") : t("chat.noMatchingFiles")}
                     </div>
                   ) : (
@@ -1624,12 +1624,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             gap: 8,
                             padding: "6px 8px",
                             border: "none",
-                            borderRadius: 6,
+                            borderRadius: "var(--r-sm)",
                             background: active ? "var(--accent-soft)" : "none",
                             color: active ? "var(--accent)" : "var(--fg)",
                             cursor: "pointer",
                             textAlign: "left",
-                            fontSize: 12.5,
+                            fontSize: "var(--fs-sm)",
                             fontFamily: "var(--font-mono)",
                           }}
                         >
@@ -1655,14 +1655,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               display: "flex",
               gap: 8,
               alignItems: "center",
-              background: "var(--bg)",
-              border: `1px solid ${bashMode ? "var(--panel)" : isStreaming && (onSteer || onFollowUp)
-                ? "rgba(234,179,8,0.4)"
-                : "color-mix(in srgb, var(--border) 70%, transparent)"}`,
-              borderRadius: 14,
+              background: "var(--surface)",
+              border: `1px solid ${bashMode ? "var(--border-strong)" : isStreaming && (onSteer || onFollowUp)
+                ? "color-mix(in oklch, var(--working) 40%, transparent)"
+                : "var(--border-strong)"}`,
+              borderRadius: "var(--r-lg)",
               padding: "10px 10px 10px 14px",
-              boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.10)",
-              transition: "border-color 0.15s, background 0.15s, box-shadow 0.15s",
+              boxShadow: "var(--shadow-composer)",
+              transition: "border-color var(--dur), background var(--dur), box-shadow var(--dur)",
             } as React.CSSProperties}
           >
           <textarea
@@ -1705,7 +1705,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
               outline: "none",
               resize: "none",
               color: "var(--fg)",
-              fontSize: 14,
+              fontSize: "var(--fs-title)",
               lineHeight: 1.6,
               fontFamily: "inherit",
               minHeight: 24,
@@ -1724,13 +1724,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     padding: "7px 12px",
-                    background: canQueueStreamingMessage ? "rgba(234,179,8,0.12)" : "none",
-                    border: "1px solid rgba(234,179,8,0.35)",
-                    borderRadius: 8,
-                    color: canQueueStreamingMessage ? "rgba(180,130,0,1)" : "var(--faint)",
+                    background: canQueueStreamingMessage ? "color-mix(in oklch, var(--working) 12%, transparent)" : "none",
+                    border: "1px solid color-mix(in oklch, var(--working) 35%, transparent)",
+                    borderRadius: "var(--r-md)",
+                    color: canQueueStreamingMessage ? "var(--working-text)" : "var(--faint)",
                     cursor: canQueueStreamingMessage ? "pointer" : "not-allowed",
-                    fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-                    transition: "background 0.12s",
+                    fontSize: "var(--fs-body)", fontWeight: 600, letterSpacing: "var(--ls-snug)",
+                    transition: "background var(--dur)",
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1747,13 +1747,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     padding: "7px 12px",
-                    background: canQueueStreamingMessage ? "rgba(129,140,248,0.12)" : "none",
-                    border: "1px solid rgba(129,140,248,0.35)",
-                    borderRadius: 8,
-                    color: canQueueStreamingMessage ? "rgba(99,102,241,1)" : "var(--faint)",
+                    background: canQueueStreamingMessage ? "color-mix(in oklch, var(--accent) 12%, transparent)" : "none",
+                    border: "1px solid color-mix(in oklch, var(--accent) 35%, transparent)",
+                    borderRadius: "var(--r-md)",
+                    color: canQueueStreamingMessage ? "var(--accent)" : "var(--faint)",
                     cursor: canQueueStreamingMessage ? "pointer" : "not-allowed",
-                    fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-                    transition: "background 0.12s",
+                    fontSize: "var(--fs-body)", fontWeight: 600, letterSpacing: "var(--ls-snug)",
+                    transition: "background var(--dur)",
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1775,14 +1775,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 padding: "7px 14px",
                 background: (value.trim() || attachedImages.length) ? "var(--accent)" : "var(--panel)",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: "var(--r-md)",
                 color: (value.trim() || attachedImages.length) ? "oklch(99% 0.01 256)" : "var(--faint)",
                 cursor: (value.trim() || attachedImages.length) ? "pointer" : "not-allowed",
-                fontSize: 13,
+                fontSize: "var(--fs-body)",
                 fontWeight: 600,
-                letterSpacing: "-0.01em",
-                boxShadow: (value.trim() || attachedImages.length) ? "0 1px 3px rgba(37,99,235,0.25)" : "none",
-                transition: "background 0.15s, box-shadow 0.15s",
+                letterSpacing: "var(--ls-snug)",
+                boxShadow: (value.trim() || attachedImages.length) ? "var(--shadow-composer)" : "none",
+                transition: "background var(--dur), box-shadow var(--dur)",
               }}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1797,7 +1797,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
 
         {/* Bash mode status label */}
         {bashMode && (
-          <div style={{ fontSize: 12, padding: "4px 8px", color: bashExcluded ? "var(--muted)" : "var(--accent)", marginTop: 4 }}>
+          <div style={{ fontSize: "var(--fs-sm)", padding: "4px 8px", color: bashExcluded ? "var(--muted)" : "var(--accent)", marginTop: 4 }}>
              {t("chat.shell")} · {bashExcluded ? t("chat.outputLocal") : t("chat.outputModel")}
           </div>
         )}
@@ -1821,11 +1821,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
                 width: 32, height: "var(--control-h)", padding: 0,
                 background: "none", border: "none",
-                borderRadius: 9,
+                borderRadius: "var(--r-md)",
                 color: attachedImages.length ? "var(--accent)" : "var(--muted)",
                 cursor: isStreaming ? "not-allowed" : "pointer",
                 opacity: isStreaming ? 0.5 : 1,
-                transition: "background 0.12s, color 0.12s",
+                transition: "background var(--dur), color var(--dur)",
               }}
               onMouseEnter={(e) => {
                 if (isStreaming) return;
@@ -1866,12 +1866,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                       overflow: "hidden",
                       background: modelDropdownOpen ? "var(--fg-soft)" : "none",
                       border: "none",
-                      borderRadius: 9,
+                      borderRadius: "var(--r-md)",
                       color: "var(--muted)",
                       cursor: isStreaming ? "not-allowed" : "pointer",
-                      fontSize: 12,
+                      fontSize: "var(--fs-sm)",
                       opacity: isStreaming ? 0.5 : 1,
-                      transition: "background 0.12s, color 0.12s",
+                      transition: "background var(--dur), color var(--dur)",
                     }}
                     onMouseEnter={(e) => {
                       if (isStreaming) return;
@@ -1911,7 +1911,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                       bottom,
                       ...panelPos,
                       zIndex: 500, background: "var(--bg)", border: "1px solid var(--border)",
-                      borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
+                      borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)",
                       overflow: "hidden", maxHeight: maxH, display: "flex", flexDirection: "column",
                       }}>
                       {showModelFilter && (
@@ -1933,11 +1933,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             style={{
                               width: "100%",
                               minWidth: isMobile ? 0 : 220,
-                              fontSize: 11,
+                              fontSize: "var(--fs-caption)",
                               fontFamily: "var(--font-mono)",
                               padding: "5px 8px",
-                              border: "1px solid var(--border)",
-                              borderRadius: 5,
+                              border: "1px solid var(--border-strong)",
+                              borderRadius: "var(--r-md)",
                               outline: "none",
                               background: "var(--bg)",
                               color: "var(--fg)",
@@ -1948,7 +1948,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                       )}
                       <div style={{ minHeight: 0, overflowY: "auto" }}>
                         {modelsByProvider.length === 0 ? (
-                          <div style={{ padding: "8px 12px", color: "var(--faint)", fontSize: 12, whiteSpace: "nowrap" }}>
+                          <div style={{ padding: "8px 12px", color: "var(--faint)", fontSize: "var(--fs-sm)", whiteSpace: "nowrap" }}>
                             {modelFilter.trim() ? t("chat.noMatchingModels") : "No available models"}
                           </div>
                         ) : modelsByProvider.map((group, gi) => (
@@ -1956,8 +1956,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             {(modelsByProvider.length > 1) && (
                               <div style={{
                                 padding: "6px 12px 4px",
-                                fontSize: 10, fontWeight: 600, color: "var(--faint)",
-                                textTransform: "uppercase", letterSpacing: "0.07em",
+                                fontSize: "var(--fs-mono-xs)", fontWeight: 600, color: "var(--faint)",
+                                textTransform: "uppercase", letterSpacing: "var(--ls-wider)",
                                 borderTop: gi > 0 ? "1px solid var(--border)" : "none",
                               }}>
                                 {group.provider}
@@ -1979,7 +1979,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                                     background: isActive ? "var(--accent-soft)" : "none",
                                     border: "none",
                                     color: isActive ? "var(--accent)" : "var(--muted)",
-                                    cursor: "pointer", fontSize: 12, textAlign: "left",
+                                    cursor: "pointer", fontSize: "var(--fs-sm)", textAlign: "left",
                                     fontWeight: isActive ? 600 : 400,
                                     whiteSpace: "nowrap",
                                   }}
@@ -2037,14 +2037,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   padding: "8px 10px",
                   background: "none",
                   border: "none",
-                  borderRadius: 9,
+                  borderRadius: "var(--r-md)",
                   color: "var(--muted)",
                   cursor: controlsMenuOpen ? "default" : "pointer",
-                  fontSize: 12,
+                  fontSize: "var(--fs-sm)",
                   fontWeight: 500,
                   visibility: controlsMenuOpen ? "hidden" : "visible",
                   pointerEvents: controlsMenuOpen ? "none" : "auto",
-                  transition: "background 0.12s, color 0.12s",
+                  transition: "background var(--dur), color var(--dur)",
                 }}
                 onMouseEnter={(e) => {
                   if (controlsMenuOpen) return;
@@ -2074,10 +2074,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                 maxWidth: "calc(100vw - 32px)",
                 flexWrap: "nowrap",
                 justifyContent: "flex-end",
-                border: "1px solid color-mix(in srgb, var(--border) 72%, transparent)",
-                borderRadius: 10,
-                background: "color-mix(in srgb, var(--panel) 92%, var(--bg))",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
+                border: "1px solid color-mix(in oklch, var(--border) 72%, transparent)",
+                borderRadius: "var(--r-md)",
+                background: "color-mix(in oklch, var(--panel) 92%, var(--bg))",
+                boxShadow: "var(--shadow-pop)",
                 backdropFilter: "blur(10px)",
               } : null),
             }}>
@@ -2095,12 +2095,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     height: "var(--control-h)",
                     background: thinkingDropdownOpen ? "var(--fg-soft)" : "none",
                     border: "none",
-                    borderRadius: 9,
+                    borderRadius: "var(--r-md)",
                     color: "var(--muted)",
                     cursor: isStreaming ? "not-allowed" : "pointer",
-                    fontSize: 12,
+                    fontSize: "var(--fs-sm)",
                     opacity: isStreaming ? 0.5 : 1,
-                    transition: "background 0.12s, color 0.12s",
+                    transition: "background var(--dur), color var(--dur)",
                   }}
                   onMouseEnter={(e) => {
                     if (isStreaming) return;
@@ -2123,7 +2123,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   <div style={{
                     position: "absolute", bottom: "calc(100% + 6px)", right: 0,
                     zIndex: 100, background: "var(--bg)", border: "1px solid var(--border)",
-                    borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
+                    borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)",
                     overflow: "hidden", minWidth: 180,
                   }}>
                     {THINKING_LEVELS.filter((lvl) => {
@@ -2146,7 +2146,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             background: isActive ? "var(--accent-soft)" : "none",
                             border: "none",
                             color: isActive ? "var(--accent)" : "var(--muted)",
-                            cursor: "pointer", fontSize: 12, textAlign: "left",
+                            cursor: "pointer", fontSize: "var(--fs-sm)", textAlign: "left",
                             fontWeight: isActive ? 600 : 400,
                             whiteSpace: "nowrap",
                           }}
@@ -2158,9 +2158,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             : <span style={{ width: 10, flexShrink: 0 }} />}
                           <span style={{ flex: 1 }}>
                             {displayLabel}
-                            {showOriginal && <span style={{ fontSize: 10, color: "var(--faint)", fontFamily: "var(--font-mono)", marginLeft: 5 }}>({lvl})</span>}
+                            {showOriginal && <span style={{ fontSize: "var(--fs-mono-xs)", color: "var(--faint)", fontFamily: "var(--font-mono)", marginLeft: 5 }}>({lvl})</span>}
                           </span>
-                          <span style={{ fontSize: 11, color: "var(--faint)", marginLeft: 8 }}>{desc}</span>
+                          <span style={{ fontSize: "var(--fs-caption)", color: "var(--faint)", marginLeft: 8 }}>{desc}</span>
                         </button>
                       );
                     })}
@@ -2182,12 +2182,12 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     height: "var(--control-h)",
                     background: toolDropdownOpen ? "var(--fg-soft)" : "none",
                     border: "none",
-                    borderRadius: 9,
+                    borderRadius: "var(--r-md)",
                     color: "var(--muted)",
                     cursor: isStreaming ? "not-allowed" : "pointer",
-                    fontSize: 12,
+                    fontSize: "var(--fs-sm)",
                     opacity: isStreaming ? 0.5 : 1,
-                    transition: "background 0.12s, color 0.12s",
+                    transition: "background var(--dur), color var(--dur)",
                   }}
                   onMouseEnter={(e) => {
                     if (isStreaming) return;
@@ -2208,7 +2208,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   <div style={{
                     position: "absolute", bottom: "calc(100% + 6px)", right: 0,
                     zIndex: 100, background: "var(--bg)", border: "1px solid var(--border)",
-                    borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
+                    borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)",
                     overflow: "hidden", minWidth: 120,
                   }}>
                     {TOOL_PRESETS.map((lvl) => {
@@ -2225,7 +2225,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             background: isActive ? "var(--accent-soft)" : "none",
                             border: "none",
                             color: isActive ? "var(--accent)" : "var(--muted)",
-                            cursor: "pointer", fontSize: 12, textAlign: "left",
+                            cursor: "pointer", fontSize: "var(--fs-sm)", textAlign: "left",
                             fontWeight: isActive ? 600 : 400,
                             whiteSpace: "nowrap",
                           }}
@@ -2236,7 +2236,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                             ? <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="1.5 5 4 7.5 8.5 2.5" /></svg>
                             : <span style={{ width: 10, flexShrink: 0 }} />}
                           <span style={{ flex: 1 }}>{lvl}</span>
-                          <span style={{ fontSize: 11, color: "var(--faint)", marginLeft: 8 }}>{desc}</span>
+                          <span style={{ fontSize: "var(--fs-caption)", color: "var(--faint)", marginLeft: 8 }}>{desc}</span>
                         </button>
                       );
                     })}
@@ -2255,21 +2255,21 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                     padding: isMobile ? "0 6px" : "8px 12px",
                     width: isMobile ? "auto" : undefined,
                     height: "var(--control-h)",
-                    background: isCompacting ? "rgba(239,68,68,0.08)" : "none",
+                    background: isCompacting ? "color-mix(in oklch, var(--error) 8%, transparent)" : "none",
                     border: "none",
-                    borderRadius: 9,
+                    borderRadius: "var(--r-md)",
                     color: isCompacting ? "var(--error)" : "var(--muted)",
                     cursor: (isStreaming && !isCompacting) ? "not-allowed" : "pointer",
-                    fontSize: 12, opacity: (isStreaming && !isCompacting) ? 0.5 : 1,
-                    transition: "background 0.12s, color 0.12s",
+                    fontSize: "var(--fs-sm)", opacity: (isStreaming && !isCompacting) ? 0.5 : 1,
+                    transition: "background var(--dur), color var(--dur)",
                   }}
                   onMouseEnter={(e) => {
                     if (isStreaming && !isCompacting) return;
-                    e.currentTarget.style.background = isCompacting ? "rgba(239,68,68,0.16)" : "var(--fg-soft)";
+                    e.currentTarget.style.background = isCompacting ? "color-mix(in oklch, var(--error) 16%, transparent)" : "var(--fg-soft)";
                     e.currentTarget.style.color = isCompacting ? "var(--error)" : "var(--fg)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = isCompacting ? "rgba(239,68,68,0.08)" : "none";
+                    e.currentTarget.style.background = isCompacting ? "color-mix(in oklch, var(--error) 8%, transparent)" : "none";
                     e.currentTarget.style.color = isCompacting ? "var(--error)" : "var(--muted)";
                   }}
                    title={isCompacting ? t("chat.stopCompaction") : t("chat.compactContext")}
@@ -2295,17 +2295,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "8px 14px",
                   height: "var(--control-h)",
-                  background: "rgba(239,68,68,0.08)",
-                  border: "1px solid rgba(239,68,68,0.3)",
-                  borderRadius: 9,
+                  background: "color-mix(in oklch, var(--error) 8%, transparent)",
+                  border: "1px solid color-mix(in oklch, var(--error) 30%, transparent)",
+                  borderRadius: "var(--r-md)",
                   color: "var(--error)",
                   cursor: "pointer",
-                  fontSize: 12, fontWeight: 600,
-                  whiteSpace: "nowrap", letterSpacing: "-0.01em",
-                  transition: "background 0.12s",
+                  fontSize: "var(--fs-sm)", fontWeight: 600,
+                  whiteSpace: "nowrap", letterSpacing: "var(--ls-snug)",
+                  transition: "background var(--dur)",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.16)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in oklch, var(--error) 16%, transparent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "color-mix(in oklch, var(--error) 8%, transparent)"; }}
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" fill="currentColor" />
@@ -2326,11 +2326,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   padding: 0,
                   background: "none",
                   border: "none",
-                  borderRadius: 9,
+                  borderRadius: "var(--r-md)",
                   color: soundEnabled ? "var(--muted)" : "var(--faint)",
                   cursor: "pointer",
                   opacity: soundEnabled ? 1 : 0.55,
-                  transition: "background 0.12s, color 0.12s, opacity 0.12s",
+                  transition: "background var(--dur), color var(--dur), opacity var(--dur)",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "var(--fg-soft)";
@@ -2379,11 +2379,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput({
                   marginLeft: 0,
                   background: "var(--fg-soft)",
                   border: "none",
-                  borderLeft: "1px solid color-mix(in srgb, var(--border) 72%, transparent)",
-                  borderRadius: "0 9px 9px 0",
+                  borderLeft: "1px solid color-mix(in oklch, var(--border) 72%, transparent)",
+                  borderRadius: "0 var(--r-md) var(--r-md) 0",
                   color: "var(--fg)",
                   cursor: "pointer",
-                  transition: "background 0.12s, color 0.12s",
+                  transition: "background var(--dur), color var(--dur)",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "var(--accent-soft)";

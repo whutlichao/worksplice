@@ -50,6 +50,8 @@ test("renders a single status line without identifier keys", () => {
   assert.match(html, /border-top:1px solid var\(--border\)/);
   assert.match(html, /background:transparent/);
   assert.match(html, /font-family:var\(--font-mono\)/);
+  // 票 10：遗留面（扩展状态条）字号取自 --fs-* 标尺，不再是裸 px。
+  assert.match(html, /font-size:var\(--fs-caption\)/);
   assert.match(html, />ponytail <\/span>/);
   assert.match(html, />memory</);
   assert.doesNotMatch(html, /05-ponytail|20-memory/);

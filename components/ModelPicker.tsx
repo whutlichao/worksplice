@@ -30,7 +30,7 @@ function filterModelOptions(
 
 /**
  * §3.10 per-agent runtime 模型选择器：按 provider 分组的模型下拉 + 思考级别下拉，
- * 交互与 ChatInput 模型选择器一致（过滤框 + provider 分组），视觉走马卡龙 × brutalist。
+ * 交互与 ChatInput 模型选择器一致（过滤框 + provider 分组），视觉走现代极简（modern-minimal）契约。
  * value 为 null 表示"继承全局默认"。
  */
 export function ModelPicker({
@@ -107,10 +107,10 @@ export function ModelPicker({
     padding: "7px 10px",
     background: "var(--surface)",
     color: "var(--fg)",
-    border: `1px solid var(--border)`,
+    border: `1px solid var(--border-strong)`,
     cursor: disabled ? "not-allowed" : "pointer",
     fontFamily: "var(--font)",
-    fontSize: 12,
+    fontSize: "var(--fs-sm)",
     fontWeight: 600,
     textAlign: "left",
     opacity: disabled ? 0.6 : 1,
@@ -125,7 +125,7 @@ export function ModelPicker({
     maxWidth: "min(340px, calc(100vw - 16px))",
     background: "var(--panel)",
     border: `1px solid var(--border)`,
-    boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.45)",
+    boxShadow: "var(--shadow-pop)",
     display: open ? "block" : "none",
   });
 
@@ -171,11 +171,12 @@ export function ModelPicker({
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
-                  fontSize: 11,
+                  fontSize: "var(--fs-caption)",
                   fontFamily: "var(--font-mono)",
                   padding: "5px 8px",
-                  border: `1px solid var(--border)`,
+                  border: `1px solid var(--border-strong)`,
                   outline: "none",
+                  borderRadius: "var(--r-md)",
                   background: "var(--surface)",
                   color: "var(--fg)",
                 }}
@@ -184,7 +185,7 @@ export function ModelPicker({
           )}
           <div style={{ maxHeight: 280, overflowY: "auto" }}>
             {groups.size === 0 ? (
-              <div style={{ padding: "10px 12px", color: "var(--faint)", fontSize: 12 }}>
+              <div style={{ padding: "10px 12px", color: "var(--faint)", fontSize: "var(--fs-sm)" }}>
                 {loading ? t("runtime.loading") : t("chat.noMatchingModels")}
               </div>
             ) : (
@@ -193,9 +194,9 @@ export function ModelPicker({
                   <div
                     style={{
                       fontFamily: "var(--mono)",
-                      fontSize: 10,
+                      fontSize: "var(--fs-mono-xs)",
                       fontWeight: 700,
-                      letterSpacing: "0.06em",
+                      letterSpacing: "var(--ls-wider)",
                       textTransform: "uppercase",
                       color: "var(--faint)",
                       padding: "6px 10px 2px",
@@ -222,7 +223,7 @@ export function ModelPicker({
                           border: "none",
                           cursor: "pointer",
                           fontFamily: "var(--font)",
-                          fontSize: 12,
+                          fontSize: "var(--fs-sm)",
                           color: "var(--fg)",
                         }}
                         onMouseEnter={(e) => {
@@ -233,7 +234,7 @@ export function ModelPicker({
                         }}
                       >
                         <span style={{ fontWeight: active ? 700 : 500 }}>{opt.name || opt.id}</span>
-                        <span style={{ color: "var(--faint)", fontSize: 10, marginLeft: 6 }}>
+                        <span style={{ color: "var(--faint)", fontSize: "var(--fs-mono-xs)", marginLeft: 6 }}>
                           {opt.id}
                         </span>
                       </button>
@@ -260,7 +261,7 @@ export function ModelPicker({
                 borderTop: `1px solid var(--border)`,
                 cursor: "pointer",
                 fontFamily: "var(--mono)",
-                fontSize: 11,
+                fontSize: "var(--fs-caption)",
                 fontWeight: 700,
                 color: "var(--muted)",
               }}
@@ -312,7 +313,7 @@ export function ModelPicker({
               borderBottom: `1px solid var(--border)`,
               cursor: "pointer",
               fontFamily: "var(--font)",
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
               fontWeight: !thinkingLevel ? 700 : 500,
               color: "var(--fg)",
             }}
@@ -338,7 +339,7 @@ export function ModelPicker({
                   border: "none",
                   cursor: "pointer",
                   fontFamily: "var(--font)",
-                  fontSize: 12,
+                  fontSize: "var(--fs-sm)",
                   fontWeight: active ? 700 : 500,
                   color: "var(--fg)",
                 }}

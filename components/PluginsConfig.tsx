@@ -60,7 +60,7 @@ function findInstalledPackage(
 
 function statusColor(status: PluginPackageInfo["status"]): string {
   if (status === "loaded") return "var(--accent)";
-  if (status === "installed") return "#f59e0b";
+  if (status === "installed") return "var(--working-text)";
   if (status === "disabled") return "var(--faint)";
   return "var(--error)";
 }
@@ -82,7 +82,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
 
   if (groups.length === 0) {
     return (
-      <div style={{ fontSize: 12, color: "var(--faint)" }}>
+      <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
         {pkg.disabled ? t("i18n.packageDisabled") : t("i18n.noResolvedResources")}
       </div>
     );
@@ -106,7 +106,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
         >
           <div
             style={{
-              fontSize: 10,
+              fontSize: "var(--fs-mono-xs)",
               fontWeight: 700,
               color: "var(--faint)",
               textTransform: "uppercase",
@@ -120,7 +120,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
               <div key={`${resource.kind}:${resource.path}`} style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "var(--fs-sm)",
                     color: "var(--fg)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
@@ -133,7 +133,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                 </div>
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: "var(--fs-mono-xs)",
                     color: "var(--faint)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
@@ -158,12 +158,12 @@ function ScopeTag({ scope }: { scope: PluginScope }) {
   return (
     <span
       style={{
-        fontSize: 10,
+        fontSize: "var(--fs-mono-xs)",
         padding: "1px 5px",
-        borderRadius: 3,
+        borderRadius: "var(--r-sm)",
         flexShrink: 0,
-        background: scope === "project" ? "rgba(99,102,241,0.12)" : "rgba(120,120,120,0.12)",
-        color: scope === "project" ? "rgba(99,102,241,0.85)" : "var(--faint)",
+        background: scope === "project" ? "color-mix(in oklch, var(--accent) 12%, transparent)" : "var(--fg-soft)",
+        color: scope === "project" ? "var(--accent)" : "var(--faint)",
       }}
     >
       {scope}
@@ -174,12 +174,12 @@ function ScopeTag({ scope }: { scope: PluginScope }) {
 function buttonStyle(disabled?: boolean, danger?: boolean): React.CSSProperties {
   return {
     padding: "6px 12px",
-    background: danger ? "rgba(239,68,68,0.08)" : "none",
-    border: "1px solid var(--border)",
-    borderRadius: 6,
+    background: danger ? "color-mix(in oklch, var(--error) 8%, transparent)" : "none",
+    border: "1px solid var(--border-strong)",
+    borderRadius: "var(--r-md)",
     color: danger ? "var(--error)" : "var(--muted)",
     cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: 12,
+    fontSize: "var(--fs-sm)",
     opacity: disabled ? 0.5 : 1,
   };
 }
@@ -207,14 +207,13 @@ function Toggle({
         flexShrink: 0,
         width: 40,
         height: 22,
-        borderRadius: 11,
+        borderRadius: "var(--r-lg)",
         border: "none",
         padding: 0,
         cursor: loading ? "wait" : "pointer",
         background: enabled ? "var(--accent)" : "var(--border)",
         position: "relative",
-        transition: "background 0.18s",
-        outline: "none",
+        transition: "background var(--dur-drawer)",
         opacity: loading ? 0.65 : 1,
       }}
     >
@@ -225,10 +224,10 @@ function Toggle({
           left: enabled ? 21 : 3,
           width: 16,
           height: 16,
-          borderRadius: "50%",
+          borderRadius: "var(--r-pill)",
           background: "var(--bg)",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.22)",
-          transition: "left 0.18s cubic-bezier(.4,0,.2,1)",
+          boxShadow: "var(--shadow-composer)",
+          transition: "left var(--dur-drawer) var(--ease)",
         }}
       />
     </button>
@@ -249,8 +248,8 @@ function SegmentedScope({
     <div
       style={{
         display: "inline-flex",
-        border: "1px solid var(--border)",
-        borderRadius: 7,
+        border: "1px solid var(--border-strong)",
+        borderRadius: "var(--r-md)",
         overflow: "hidden",
         height: 30,
       }}
@@ -274,7 +273,7 @@ function SegmentedScope({
               color: active ? "var(--accent)" : "var(--muted)",
               cursor: disabled ? "not-allowed" : "pointer",
               opacity: disabled ? 0.45 : 1,
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
             }}
           >
             {scope}
@@ -318,7 +317,7 @@ function AddPluginPanel({
     <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 660, minHeight: "100%" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--fg)" }}>
+          <div style={{ fontSize: "var(--fs-title)", fontWeight: 700, color: "var(--fg)" }}>
             {t("i18n.addPlugin")}
           </div>
           <a
@@ -330,29 +329,29 @@ function AddPluginPanel({
               alignItems: "center",
               gap: 5,
               color: "var(--accent)",
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
               textDecoration: "none",
               whiteSpace: "nowrap",
             }}
           >
-            <svg width="28" height="28" viewBox="0 0 800 800" aria-hidden="true" focusable="false" style={{ flexShrink: 0 }}>
+            <svg width="28" height="28" viewBox="0 0 800 800" aria-hidden="true" focusable="false" style={{ flexShrink: 0, color: "var(--fg)" }}>
               <path
-                fill="#000"
+                fill="currentColor"
                 fillRule="evenodd"
                 d="M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29ZM282.65 282.65V400H400V282.65Z"
               />
-              <path fill="#000" d="M517.36 400H634.72V634.72H517.36Z" />
+              <path fill="currentColor" d="M517.36 400H634.72V634.72H517.36Z" />
             </svg>
             pi.dev/packages
           </a>
         </div>
-        <div style={{ fontSize: 12, color: "var(--faint)", fontFamily: "var(--font-mono)" }}>
+        <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)", fontFamily: "var(--font-mono)" }}>
           {installLocation(scope, cwd)}
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <label htmlFor="plugin-source" style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
+        <label htmlFor="plugin-source" style={{ fontSize: "var(--fs-sm)", fontWeight: 600, color: "var(--muted)" }}>
           Source
         </label>
         <input
@@ -373,12 +372,12 @@ function AddPluginPanel({
             width: "100%",
             height: 36,
             padding: "0 11px",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
+            border: "1px solid var(--border-strong)",
+            borderRadius: "var(--r-md)",
             background: "var(--panel)",
             color: "var(--fg)",
             fontFamily: "var(--font-mono)",
-            fontSize: 13,
+            fontSize: "var(--fs-body)",
             outline: "none",
           }}
           onKeyDown={(e) => {
@@ -400,7 +399,7 @@ function AddPluginPanel({
           style={{
             ...buttonStyle(busy || !source.trim()),
             background: "var(--accent)",
-            color: "white",
+            color: "oklch(99% 0.01 256)",
             borderColor: "var(--accent)",
           }}
         >
@@ -409,7 +408,7 @@ function AddPluginPanel({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
+        <div style={{ fontSize: "var(--fs-sm)", fontWeight: 600, color: "var(--muted)" }}>
           Examples
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -423,13 +422,13 @@ function AddPluginPanel({
                 minHeight: 30,
                 textAlign: "left",
                 padding: "6px 9px",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
+                border: "1px solid var(--border-strong)",
+                borderRadius: "var(--r-md)",
                 background: "var(--panel)",
                 color: "var(--faint)",
                 cursor: "pointer",
                 fontFamily: "var(--font-mono)",
-                fontSize: 11,
+                fontSize: "var(--fs-caption)",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "var(--fg-soft)";
@@ -447,7 +446,7 @@ function AddPluginPanel({
       </div>
 
       {actionError && (
-        <div style={{ fontSize: 12, color: "var(--error)", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: "var(--fs-sm)", color: "var(--error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -494,10 +493,10 @@ function PackageDetail({
           {pkg.disabled ? (
             <span
               style={{
-                fontSize: 10,
+                fontSize: "var(--fs-mono-xs)",
                 padding: "1px 5px",
-                borderRadius: 3,
-                background: "rgba(120,120,120,0.12)",
+                borderRadius: "var(--r-sm)",
+                background: "var(--fg-soft)",
                 color: "var(--faint)",
               }}
             >
@@ -506,11 +505,11 @@ function PackageDetail({
           ) : pkg.filtered && (
             <span
               style={{
-                fontSize: 10,
+                fontSize: "var(--fs-mono-xs)",
                 padding: "1px 5px",
-                borderRadius: 3,
-                background: "rgba(245,158,11,0.12)",
-                color: "#d97706",
+                borderRadius: "var(--r-sm)",
+                background: "color-mix(in oklch, var(--working) 12%, transparent)",
+                color: "var(--working-text)",
               }}
             >
               {t("i18n.filtered")}
@@ -519,7 +518,7 @@ function PackageDetail({
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
               color: "var(--fg)",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -561,7 +560,7 @@ function PackageDetail({
           display: "grid",
           gridTemplateColumns: "minmax(96px, 130px) minmax(0, 1fr)",
           gap: "9px 14px",
-          fontSize: 12,
+          fontSize: "var(--fs-sm)",
           lineHeight: 1.45,
         }}
       >
@@ -592,19 +591,19 @@ function PackageDetail({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--fg)" }}>
+        <div style={{ fontSize: "var(--fs-sm)", fontWeight: 700, color: "var(--fg)" }}>
           {t("i18n.resolvedResources")}
         </div>
         <ResourceList pkg={pkg} />
       </div>
 
       {actionMessage && (
-        <div style={{ fontSize: 12, color: "#16a34a" }}>
+        <div style={{ fontSize: "var(--fs-sm)", color: "var(--online-text)" }}>
           {actionMessage}
         </div>
       )}
       {actionError && (
-        <div style={{ fontSize: 12, color: "var(--error)", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: "var(--fs-sm)", color: "var(--error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -758,7 +757,7 @@ export function PluginsConfig({
         position: "fixed",
         inset: 0,
         zIndex: 1000,
-        background: "rgba(0,0,0,0.35)",
+        background: "color-mix(in oklch, var(--fg) 35%, transparent)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -775,10 +774,10 @@ export function PluginsConfig({
           maxHeight: "calc(100dvh - 16px)",
           background: "var(--bg)",
           border: "1px solid var(--border)",
-          borderRadius: 8,
+          borderRadius: "var(--r-md)",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+          boxShadow: "var(--shadow-pop)",
           overflow: "hidden",
         }}
       >
@@ -793,12 +792,12 @@ export function PluginsConfig({
           }}
         >
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>
+            <span style={{ fontSize: "var(--fs-title)", fontWeight: 700, color: "var(--fg)" }}>
               {t("common.plugins")}
             </span>
             <code
               style={{
-                fontSize: 11,
+                fontSize: "var(--fs-caption)",
                 color: "var(--muted)",
                 fontFamily: "var(--font-mono)",
                 overflow: "hidden",
@@ -816,7 +815,7 @@ export function PluginsConfig({
               border: "none",
               color: "var(--muted)",
               cursor: "pointer",
-              fontSize: 20,
+              fontSize: "var(--fs-heading)",
               lineHeight: 1,
               padding: "2px 6px",
             }}
@@ -833,7 +832,7 @@ export function PluginsConfig({
               borderBottom: "1px solid var(--border)",
               background: "var(--panel)",
               color: "var(--muted)",
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
             }}
           >
             {t("trust.pluginsNotLoaded")}
@@ -855,15 +854,15 @@ export function PluginsConfig({
           >
             <div style={{ flex: 1, overflowY: "auto", padding: "8px 6px" }}>
               {loading ? (
-                <div style={{ padding: "10px 8px", fontSize: 12, color: "var(--muted)" }}>
+                <div style={{ padding: "10px 8px", fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
                   Loading...
                 </div>
               ) : error ? (
-                <div style={{ padding: "10px 8px", fontSize: 11, color: "var(--error)" }}>
+                <div style={{ padding: "10px 8px", fontSize: "var(--fs-caption)", color: "var(--error)" }}>
                   {error}
                 </div>
               ) : packages.length === 0 ? (
-                <div style={{ padding: "10px 8px", fontSize: 11, color: "var(--faint)" }}>
+                <div style={{ padding: "10px 8px", fontSize: "var(--fs-caption)", color: "var(--faint)" }}>
                   No plugins configured
                 </div>
               ) : (
@@ -872,7 +871,7 @@ export function PluginsConfig({
                     <div
                       style={{
                         padding: "4px 8px 3px",
-                        fontSize: 10,
+                        fontSize: "var(--fs-mono-xs)",
                         fontWeight: 600,
                         color: "var(--faint)",
                         textTransform: "uppercase",
@@ -897,7 +896,7 @@ export function PluginsConfig({
                             alignItems: "center",
                             gap: 7,
                             padding: "8px 8px",
-                            borderRadius: 5,
+                            borderRadius: "var(--r-sm)",
                             cursor: "pointer",
                             background: isSelected ? "var(--accent-soft)" : "none",
                             color: isSelected ? "var(--accent)" : "var(--fg)",
@@ -914,14 +913,14 @@ export function PluginsConfig({
                               flexShrink: 0,
                               width: 7,
                               height: 7,
-                              borderRadius: "50%",
+                              borderRadius: "var(--r-pill)",
                               background: statusColor(pkg.status),
                             }}
                           />
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div
                               style={{
-                                fontSize: 12,
+                                fontSize: "var(--fs-sm)",
                                 fontWeight: isSelected ? 600 : 400,
                                 color: "var(--fg)",
                                 fontFamily: "var(--font-mono)",
@@ -934,7 +933,7 @@ export function PluginsConfig({
                             </div>
                             <div
                               style={{
-                                fontSize: 10,
+                                fontSize: "var(--fs-mono-xs)",
                                 color: "var(--faint)",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
@@ -947,7 +946,7 @@ export function PluginsConfig({
                             {(pkg.version || pkg.configuredVersion) && (
                               <div
                                 style={{
-                                  fontSize: 10,
+                                  fontSize: "var(--fs-mono-xs)",
                                   color: "var(--faint)",
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
@@ -979,13 +978,13 @@ export function PluginsConfig({
                   alignItems: "center",
                   gap: 6,
                   padding: "7px 8px",
-                  borderRadius: 5,
+                  borderRadius: "var(--r-md)",
                   border: "none",
                   width: "100%",
                   cursor: "pointer",
                   background: addMode ? "var(--accent-soft)" : "none",
                   color: addMode ? "var(--accent)" : "var(--faint)",
-                  fontSize: 12,
+                  fontSize: "var(--fs-sm)",
                 }}
                 onMouseEnter={(e) => {
                   if (!addMode) e.currentTarget.style.background = "var(--fg-soft)";
@@ -1045,7 +1044,7 @@ export function PluginsConfig({
                   alignItems: "center",
                   justifyContent: "center",
                   color: "var(--faint)",
-                  fontSize: 13,
+                  fontSize: "var(--fs-body)",
                 }}
               >
                 {t("i18n.selectPackage")}
@@ -1065,11 +1064,11 @@ export function PluginsConfig({
             flexShrink: 0,
           }}
         >
-          <div style={{ minWidth: 0, flex: 1, fontSize: 11, color: "var(--faint)", overflow: "hidden" }}>
+          <div style={{ minWidth: 0, flex: 1, fontSize: "var(--fs-caption)", color: "var(--faint)", overflow: "hidden" }}>
             {data?.diagnostics.length ? (
               <span
                 title={data.diagnostics.map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`).join("\n")}
-                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "var(--error)" : "#d97706" }}
+                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "var(--error)" : "var(--working-text)" }}
               >
                 {data.diagnostics.length} diagnostic{data.diagnostics.length === 1 ? "" : "s"}
               </span>

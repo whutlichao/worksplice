@@ -58,6 +58,18 @@ test("MermaidBlock renders empty graph without error", () => {
   assert.match(html, /mermaid-block-loading/);
 });
 
+// 票 10（遗留面换皮）的渲染级判据：代码块真的在消费新契约，而不是「旧 token 名恰好不在源码里」。
+test("legacy code block consumes the ticket-10 surface contract", () => {
+  const html = renderMermaid({ code: mermaidSrc });
+
+  // ED-1：代码块是嵌套 well → --panel-2，不是画布底色。
+  assert.match(html, /background:var\(--panel-2\)/);
+  // ED-5：字号取自 --fs-* 标尺，代码块走 --fs-sm。
+  assert.match(html, /font-size:var\(--fs-sm\)/);
+  // ED-2：发丝由外层 .markdown-code-block 提供，语法高亮主题不再塞第二条硬编码边框。
+  assert.match(html, /border:none/);
+});
+
 test("MermaidBlock handles Chinese characters in diagram", () => {
   const chineseMermaid = `sequenceDiagram
     participant PC as PC客户端
