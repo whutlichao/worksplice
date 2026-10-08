@@ -99,4 +99,4 @@ git diff d387cfa HEAD --numstat -- app/globals.css → 44 0（只追加）
 
 残留风险（登记，不阻塞）：一次全量跑出现环境性 flake——`lib/bash-containment-extension.test.mjs` 的沙箱用例在并行负载下 172s 超时并连带 `lib/domain/collab/observability-route.test.mjs` 失败；两份文件单独重跑全绿，其后两次全量跑均 1195 / 0。与本次改动面（`components/**` + `app/globals.css`）无关。
 
-**PR:** <!--PR-->
+**PR:** [#115](https://github.com/whutlichao/worksplice/pull/115)
