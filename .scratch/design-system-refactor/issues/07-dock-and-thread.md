@@ -44,7 +44,7 @@
 
 | 文件 | 改动 |
 | --- | --- |
-| `app/globals.css` | +118 / −0（**纯追加**）：右栏 class 块 `.dock*` / `.d-sec*` / `.kv` / `.meter` / `.stat*` / `.log-row` / `.lv` / `.tt-*` |
+| `app/globals.css` | +120 / −5：右栏 class 块 `.dock*` / `.d-sec*` / `.kv` / `.meter` / `.stat*` / `.log-row` / `.lv` / `.tt-*`（首批 +118 / −0 纯追加；并入 `origin/main` 后因 `.kv` 去重改为 +120 / −5，见下「合并冲突处置」） |
 | `components/DetailPanel.tsx` | `.dock` 单槽容器 + 人类资料卡按 `.dock-head` / `.kv` 收形态 |
 | `components/ThreadPanel.tsx` | `.tt-summary` / `.tt-scroll` / `.tt-reply` |
 | `components/AgentDetailPanel.tsx` | `.dock-head` / `.dock-scroll` / `.d-sec`+`.d-sec-title` / `.kv` / `.meter` / `.stat-grid`+`.stat` / `.log-row`+`.lv`；新增 `TokensCostStats`（纯展示，测试 seam） |
@@ -85,7 +85,7 @@ $ npm test
 ℹ tests 1211 / ℹ pass 1211 / ℹ fail 0     (real 13.9s)
 $ node_modules/.bin/tsc --noEmit           → 退出 0
 $ npm run lint                             → 0 error / 1 warning（与基线同一条，非本票文件）
-$ git diff --numstat                       → globals.css 118/0，三组件 239/404、66/113、35/37（无整文件重写）
+$ git diff --numstat                       → globals.css 118/0（首版纯追加），三组件 239/404、66/113、35/37（无整文件重写）
 ```
 
 ### 偏离与判断（逐条）
@@ -154,6 +154,25 @@ $ git diff --numstat                       → globals.css 118/0，三组件 239
   若复核认为必须保留，回滚点很小（在 tokens/cost 之上插回一行 `.d-sec-title`）。
 - **实现可疑处 2（已处置）**：`.meter` 是**同一份数据换形态**（`contextUsage.percent` 早就在 `.kv` 行里
   以百分比文字出现），不是新显示面；百分比为 100+ 时靠 `.meter{overflow:hidden}` 兜住，不做 clamp（不发明逻辑）。
+
+### 合并冲突处置（推 PR 后发现 `origin/main` 进了票 08）
+
+PR 建好后 `origin/main` 合入了票 08（#115），而**两票都往 `app/globals.css` 末尾追加 class 块**
+⇒ PR 变 `CONFLICTING`（冲突只有 `app/globals.css` 一处，append vs append）。按
+`resolving-merge-conflicts` 的纪律**按意图解**（不 `--abort`、不 invent）：
+
+1. `git merge origin/main`，两段 class 块**全部保留**（票 08 的模态族段 § 票 07 的右栏段）。
+2. **`.kv` 去重**：上游 app.css 里 `.kv` / `.k` / `.v` **只有一处定义**（就在 right dock 段），
+   两票各自搬了一份；票 08 自己的块首注释也写明「两票合并后保留其一即可」⇒ 归票 07 的右栏段
+   （它的上游原位），票 08 段留一行指针，差值就是那 **−5 行**（4 条规则 + 1 行子块注释）。
+   **语义零变化**：存活的那份除 `font-variant-numeric: tabular-nums`（ED-6 要求）与
+   `11.5px → var(--fs-caption)`（同值）外逐字相同；票 08 的三个消费方（MyRemindersModal /
+   提醒列表 / 成员面）拿到的仍是同一份规则。这一处**是合并被动产生的**，不是本票主动改票 08 的段：
+   它只删重复定义，不删任何一条票 08 特有的规则（`.overlay` / `.modal*` / `.member-pick` /
+   `.member-opt` / `.radio-*` / `.directory-picker-*` 逐字未动）。
+3. 合并后重跑门禁：`npm test` **1244 pass / 0 fail**（基线 1188 + 本票 23 + 票 08 的 33）、
+   `tsc --noEmit` 退出 0、`npm run lint` 仍只剩那条既有 warning。
+4. squash 合入 main：commit `e3b6af2`（PR #116），之后 `git diff origin/main whutlichao/ds-07-dock` 为空。
 
 ### 红线自查
 
