@@ -10,6 +10,9 @@ import { OWNER_MEMBER_ID } from "@/lib/data/schema";
  * - 创建：title + fire_at（datetime-local）+ recurrence DSL（预设 chips 或手输）；
  * - 管理：列出锚定在该 target 的提醒，scheduled 可 snooze（15m）/ cancel；
  * - 触发后的系统消息自然落入消息流（轮询合并可见，§5.4 demo）。
+ *
+ * 形态（票 08）：`.modal-body` + `.modal-foot` + `.field` / `.input` / `.select`；
+ * 既有提醒行取 `.kv` 形态（ReminderRow），cancel 是破坏性动作 → `.btn-danger`。
  */
 
 interface ReminderView {
@@ -32,17 +35,6 @@ const RECURRENCE_PRESETS = [
   "weekly:mon,fri@09:00",
 ];
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "7px 9px",
-  fontFamily: "var(--font)",
-  fontSize: 13,
-  border: `1px solid var(--border)`,
-  background: "var(--surface)",
-  color: "var(--fg)",
-};
-
 function toLocalInputValue(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -57,6 +49,79 @@ function formatFireAt(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * 既有提醒的一行（票 08：`.kv` 形态 = 标题 + 下一次触发 mono + 状态胶囊 + 动作）。
+ * 单独导出成渲染面：`renderToStaticMarkup` 不跑 effect，列表来自 fetch，渲染级断言
+ * 只能从这里进入——与 CreateAgentModal 的 `ModelsEmptyHint` 同一条 seam。
+ */
+export function ReminderRow({
+  reminder,
+  onAction,
+}: {
+  reminder: ReminderView;
+  onAction: (reminder: ReminderView, action: "snooze" | "cancel") => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="kv">
+      <span className="k" style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {reminder.title}
+        </span>
+        {reminder.recurrence && (
+          <span
+            style={{
+              flex: "0 0 auto",
+              fontFamily: "var(--mono)",
+              fontSize: "var(--fs-mono-xs)",
+              padding: "1px 5px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-sm)",
+              background: "var(--panel-2)",
+              color: "var(--muted)",
+            }}
+          >
+            {reminder.recurrence}
+          </span>
+        )}
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 7, flex: "0 0 auto" }}>
+        <span className="v">{formatFireAt(reminder.fire_at)}</span>
+        <span
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: "var(--fs-mono-xs)",
+            padding: "1px 5px",
+            borderRadius: "var(--r-sm)",
+            background: reminder.status === "scheduled" ? "var(--online)" : "var(--offline)",
+            color: "var(--fg)",
+          }}
+        >
+          {t(`reminders.status.${reminder.status}`)}
+        </span>
+        {reminder.status === "scheduled" && (
+          <>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => onAction(reminder, "snooze")}
+            >
+              {t("reminders.snooze")}
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={() => onAction(reminder, "cancel")}
+            >
+              {t("reminders.cancel")}
+            </button>
+          </>
+        )}
+      </span>
+    </div>
+  );
 }
 
 export function ReminderModal({
@@ -168,44 +233,57 @@ export function ReminderModal({
       .finally(() => setBusy(false));
   };
 
+  // 紧凑 chip 行（ED-3：chip 用 --r-sm；ED-5：字号取标尺），选中 = accent 淡底 + accent 字/边（不是黄色实心）。
   const chipStyle = (active: boolean): React.CSSProperties => ({
     padding: "3px 8px",
     fontFamily: "var(--mono)",
-    fontSize: 11,
+    fontSize: "var(--fs-sm)",
     background: active ? "var(--accent-soft)" : "var(--surface)",
-    color: "var(--fg)",
-    border: `1px solid var(--border)`,
+    color: active ? "var(--accent)" : "var(--muted)",
+    border: `1px solid ${active ? "var(--accent-line)" : "var(--border)"}`,
+    borderRadius: "var(--r-sm)",
     cursor: "pointer",
   });
 
+  const feedbackStyle = (tone: "error" | "notice"): React.CSSProperties => ({
+    padding: "7px 10px",
+    borderRadius: "var(--r-sm)",
+    border: "1px solid var(--border)",
+    background:
+      tone === "error"
+        ? "color-mix(in oklch, var(--error) 12%, transparent)"
+        : "color-mix(in oklch, var(--online) 14%, transparent)",
+    fontSize: "var(--fs-sm)",
+    ...(tone === "error" ? { color: "var(--error)" } : {}),
+  });
+
   return (
-    <BrutalModal
-      title={t("reminders.set")}
-      onClose={onClose}
-      width={460}
-    >
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+    <BrutalModal title={t("reminders.set")} onClose={onClose} width={460}>
+      <div className="modal-body">
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--fs-sm)", marginTop: 4 }}>
           <span style={{ fontWeight: 700 }}>{t("reminders.for")}</span>
           <span
             style={{
               fontFamily: "var(--mono)",
-              fontSize: 12,
+              fontSize: "var(--fs-caption)",
               padding: "2px 7px",
-              border: `1px solid var(--border)`,
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-sm)",
               background: "var(--panel-2)",
+              color: "var(--fg)",
             }}
           >
             {targetLabel}
           </span>
         </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 700 }}>
-          {t("reminders.forWhom")}
+        <div className="field">
+          <label htmlFor="reminder-author">{t("reminders.forWhom")}</label>
           <select
+            id="reminder-author"
+            className="select"
             value={authorId}
             onChange={(e) => setAuthorId(e.target.value)}
-            style={inputStyle}
           >
             <option value={OWNER_MEMBER_ID}>{t("reminders.owner")}</option>
             {agents.map((agent) => (
@@ -214,39 +292,44 @@ export function ReminderModal({
               </option>
             ))}
           </select>
-        </label>
+        </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 700 }}>
-          {t("reminders.titleField")}
+        <div className="field">
+          <label htmlFor="reminder-title">{t("reminders.titleField")}</label>
           <input
+            id="reminder-title"
+            className="input"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t("reminders.titlePlaceholder")}
-            style={inputStyle}
           />
-        </label>
+        </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 700 }}>
-          {t("reminders.fireAt")}
+        <div className="field">
+          <label htmlFor="reminder-fire-at">{t("reminders.fireAt")}</label>
           <input
+            id="reminder-fire-at"
+            className="input"
             type="datetime-local"
             value={fireAt}
             onChange={(e) => setFireAt(e.target.value)}
-            style={{ ...inputStyle, fontFamily: "var(--mono)" }}
+            style={{ fontFamily: "var(--mono)" }}
           />
-        </label>
+        </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 700 }}>
-          {t("reminders.recurrence")}
+        <div className="field">
+          <label htmlFor="reminder-recurrence">{t("reminders.recurrence")}</label>
           <input
+            id="reminder-recurrence"
+            className="input"
             type="text"
             value={recurrence}
             onChange={(e) => setRecurrence(e.target.value)}
             placeholder="every:15m / daily@09:00 / weekly:mon,fri@09:00"
-            style={{ ...inputStyle, fontFamily: "var(--mono)" }}
+            style={{ fontFamily: "var(--mono)" }}
           />
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
             {RECURRENCE_PRESETS.map((preset) => (
               <button
                 key={preset}
@@ -258,113 +341,44 @@ export function ReminderModal({
               </button>
             ))}
           </div>
-        </label>
+        </div>
 
-        {error && (
+        {error && <div style={feedbackStyle("error")}>{error}</div>}
+        {notice && <div style={feedbackStyle("notice")}>{notice}</div>}
+
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 4 }}>
           <div
             style={{
-              padding: "7px 10px",
-              background: "#ffe3df",
-              border: `1px solid var(--border)`,
-              fontSize: 12,
-              color: "var(--error)",
+              fontFamily: "var(--mono)",
+              fontSize: "var(--fs-mono-micro)",
+              letterSpacing: "var(--ls-wider)",
+              textTransform: "uppercase",
+              color: "var(--faint)",
+              fontWeight: "var(--fw-semi)",
+              marginBottom: 4,
             }}
           >
-            {error}
-          </div>
-        )}
-        {notice && (
-          <div
-            style={{
-              padding: "7px 10px",
-              background: "#e4f7e9",
-              border: `1px solid var(--border)`,
-              fontSize: 12,
-            }}
-          >
-            {notice}
-          </div>
-        )}
-
-        <button
-          type="button"
-          disabled={busy}
-          onClick={submitCreate}
-          style={{
-            alignSelf: "flex-start",
-            padding: "7px 16px",
-            fontFamily: "var(--font)",
-            fontWeight: 700,
-            fontSize: 13,
-            background: "var(--accent)",
-            color: "oklch(99% 0.01 256)",
-            border: `1px solid var(--border)`,
-            boxShadow: "3px 3px 0 0 rgba(20, 17, 17, 0.4)",
-            cursor: "pointer",
-          }}
-        >
-          {t("reminders.create")}
-        </button>
-
-        <div style={{ borderTop: `1px solid var(--border)`, paddingTop: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
             {t("reminders.existing")}
           </div>
           {reminders.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>{t("reminders.empty")}</div>
+            <div style={{ fontSize: "var(--fs-sm)", color: "var(--muted)", padding: "4px 0" }}>
+              {t("reminders.empty")}
+            </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               {reminders.map((reminder) => (
-                <div
-                  key={reminder.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 8px",
-                    background: "var(--bg)",
-                    border: `1px solid var(--border)`,
-                    fontSize: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span style={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {reminder.title}
-                  </span>
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                    {formatFireAt(reminder.fire_at)}
-                  </span>
-                  {reminder.recurrence && (
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 10, padding: "1px 5px", border: `1px solid var(--border)`, background: "var(--panel-2)" }}>
-                      {reminder.recurrence}
-                    </span>
-                  )}
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, padding: "1px 5px", border: `1px solid var(--border)`, background: reminder.status === "scheduled" ? "var(--online)" : "var(--offline)" }}>
-                    {t(`reminders.status.${reminder.status}`)}
-                  </span>
-                  {reminder.status === "scheduled" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => runAction(reminder, "snooze")}
-                        style={{ marginLeft: "auto", padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "var(--surface)", cursor: "pointer" }}
-                      >
-                        {t("reminders.snooze")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => runAction(reminder, "cancel")}
-                        style={{ padding: "2px 7px", fontFamily: "var(--font)", fontWeight: 700, fontSize: 11, border: `1px solid var(--border)`, background: "var(--surface)", cursor: "pointer" }}
-                      >
-                        {t("reminders.cancel")}
-                      </button>
-                    </>
-                  )}
-                </div>
+                <ReminderRow key={reminder.id} reminder={reminder} onAction={runAction} />
               ))}
             </div>
           )}
         </div>
+      </div>
+
+      <div className="modal-foot">
+        <span className="sep" />
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={submitCreate}>
+          {t("reminders.create")}
+        </button>
       </div>
     </BrutalModal>
   );

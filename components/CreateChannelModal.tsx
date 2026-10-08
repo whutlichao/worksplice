@@ -8,28 +8,6 @@ import { Avatar } from "./Avatar";
 import { liveSusanMemberId, precheckSusanForPrivateChannel } from "@/lib/secretary-bootstrap";
 import type { MemberRow } from "@/lib/data/types";
 
-const FIELD_STYLE: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  border: `1px solid var(--border)`,
-  background: "var(--surface)",
-  color: "var(--fg)",
-  fontFamily: "var(--font)",
-  fontSize: 13,
-  outline: "none",
-};
-
-const LABEL_STYLE: React.CSSProperties = {
-  display: "block",
-  fontFamily: "var(--mono)",
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.06em",
-  textTransform: "uppercase",
-  color: "var(--muted)",
-  margin: "12px 0 5px",
-};
-
 export function CreateChannelModal({
   agents,
   onClose,
@@ -88,71 +66,56 @@ export function CreateChannelModal({
   };
 
   return (
-    <BrutalModal title={t("channel.create")} onClose={onClose}>
-      <div style={{ padding: "4px 16px 16px" }}>
-        <label style={LABEL_STYLE} htmlFor="channel-name">
-          {t("channel.name")}
-        </label>
-        <input
-          id="channel-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void submit();
-          }}
-          placeholder="# general"
-          style={FIELD_STYLE}
-          autoFocus
-        />
-
-        <div style={LABEL_STYLE}>{t("channel.type")}</div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {(["public", "private"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => selectType(value)}
-              style={{
-                flex: 1,
-                padding: "7px 10px",
-                fontFamily: "var(--font)",
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: "pointer",
-                background: type === value ? "var(--accent-soft)" : "var(--surface)",
-                color: "var(--fg)",
-                border: `1px solid var(--border)`,
-                boxShadow: type === value ? "2px 2px 0 0 rgba(20, 17, 17, 0.45)" : "none",
-              }}
-            >
-              {value === "public" ? t("channel.public") : t("channel.private")}
-            </button>
-          ))}
+    <BrutalModal title={t("channel.create")} onClose={onClose} width={520}>
+      {/* 形态（票 08）：`.field` + `.input` / `.textarea` + `.radio-row` / `.radio-card`
+          + `.member-pick` / `.member-opt`；动作收在 `.modal-foot`。逻辑与字段关联不动。 */}
+      <div className="modal-body">
+        <div className="field">
+          <label htmlFor="channel-name">{t("channel.name")}</label>
+          <input
+            id="channel-name"
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void submit();
+            }}
+            placeholder="# general"
+            autoFocus
+          />
         </div>
 
-        <label style={LABEL_STYLE} htmlFor="channel-description">
-          {t("channel.description")}
-        </label>
-        <textarea
-          id="channel-description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          style={{ ...FIELD_STYLE, resize: "vertical" }}
-        />
+        <div className="field">
+          <label>{t("channel.type")}</label>
+          <div className="radio-row">
+            {(["public", "private"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => selectType(value)}
+                className={type === value ? "radio-card is-on" : "radio-card"}
+              >
+                <b>{value === "public" ? t("channel.public") : t("channel.private")}</b>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="channel-description">{t("channel.description")}</label>
+          <textarea
+            id="channel-description"
+            className="textarea"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+          />
+        </div>
 
         {agents.length > 0 && (
-          <>
-            <div style={LABEL_STYLE}>{t("channel.initialMembers")}</div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                maxHeight: 180,
-                overflowY: "auto",
-              }}
-            >
+          <div className="field">
+            <label>{t("channel.initialMembers")}</label>
+            <div className="member-pick">
               {agents.map((agent, index) => {
                 const selected = memberIds.includes(agent.id);
                 return (
@@ -160,31 +123,24 @@ export function CreateChannelModal({
                     key={agent.id}
                     type="button"
                     onClick={() => toggleMember(agent.id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "6px 8px",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      fontFamily: "var(--font)",
-                      fontSize: 13,
-                      fontWeight: selected ? 700 : 500,
-                      color: "var(--fg)",
-                      background: selected ? "var(--accent-soft)" : "var(--surface)",
-                      border: `1px solid var(--border)`,
-                      boxShadow: selected ? "2px 2px 0 0 rgba(20, 17, 17, 0.4)" : "none",
-                    }}
+                    className={selected ? "member-opt is-on" : "member-opt"}
                   >
                     <Avatar name={agent.name} size="sm" colorKey={index} />
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span
+                      style={{
+                        maxWidth: 160,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {agent.name}
                     </span>
                     <span
                       style={{
                         fontFamily: "var(--mono)",
                         fontSize: 11,
-                        color: selected ? "var(--fg)" : "var(--faint)",
+                        color: selected ? "var(--accent)" : "var(--faint)",
                       }}
                     >
                       {selected ? <Check size={11} style={{ verticalAlign: "-2px" }} /> : "+"}
@@ -193,57 +149,29 @@ export function CreateChannelModal({
                 );
               })}
             </div>
-          </>
+          </div>
         )}
 
         {error && (
-          <div style={{ marginTop: 10, color: "var(--error)", fontSize: 12 }}>{error}</div>
+          <div style={{ marginTop: 10, color: "var(--error)", fontSize: "var(--fs-sm)" }}>
+            {error}
+          </div>
         )}
+      </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 16,
-          }}
+      <div className="modal-foot">
+        <span className="sep" />
+        <button type="button" className="btn" onClick={onClose}>
+          {t("channel.cancel")}
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!canSubmit}
+          onClick={() => void submit()}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: "8px 16px",
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 13,
-              background: "var(--surface)",
-              color: "var(--fg)",
-              border: `1px solid var(--border)`,
-              cursor: "pointer",
-            }}
-          >
-            {t("channel.cancel")}
-          </button>
-          <button
-            type="button"
-            disabled={!canSubmit}
-            onClick={() => void submit()}
-            style={{
-              padding: "8px 16px",
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 13,
-              background: "var(--accent)",
-              color: "oklch(99% 0.01 256)",
-              border: `1px solid var(--border)`,
-              boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor: canSubmit ? "pointer" : "not-allowed",
-              opacity: canSubmit ? 1 : 0.55,
-            }}
-          >
-            {t("channel.create")}
-          </button>
-        </div>
+          {t("channel.create")}
+        </button>
       </div>
     </BrutalModal>
   );
