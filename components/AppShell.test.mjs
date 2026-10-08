@@ -201,7 +201,8 @@ test("rail 形态落盘：rail-head / brand* / search-btn / rail-actions / rail-
   assert.match(ruleBody(".search-btn"), /border-radius:\s*var\(--r-md\)/);
   assert.match(ruleBody(".search-btn"), /background:\s*var\(--surface\)/);
   // 搜索入口的焦点环（ED-8）：字段环落在 shell 上，不是内层 input
-  assert.match(ruleBody(".search-btn:focus-within"), /border-color:\s*var\(--accent\)/);
+  // 票 03：字段环走图形档（≥3:1）。判据（环存在且是 accent 族）不变。
+  assert.match(ruleBody(".search-btn:focus-within"), /border-color:\s*var\(--accent-graphic\)/);
   assert.match(
     ruleBody(".search-btn:focus-within"),
     /box-shadow:\s*0 0 0 3px var\(--accent-soft\)/,
@@ -224,17 +225,19 @@ test(".group-label：mono 9.5px + letter-spacing .1em + 大写（--faint）", ()
   assert.match(label, /color:\s*var\(--faint\)/);
 });
 
-test("导航激活态 = --surface 填充 + inset 发丝 + 2px accent 竖条 + accent mono #（不是黄色实心）", () => {
+test("导航激活态 = --surface 填充 + inset 发丝 + 2px 选中族竖条 + 选中族 mono #（不是黄色实心）", () => {
   const active = ruleBody(".nav-row.is-active");
   assert.match(active, /background:\s*var\(--surface\)/);
   assert.match(active, /color:\s*var\(--fg\)/);
   assert.match(active, /box-shadow:\s*inset 0 0 0 1px var\(--border\)/);
 
+  // 票 03：导航激活是「当前位置」→ 选中族（竖条走图形档、mono # 走文字档）。
+  // 判据（不是黄色实心、竖条可见、mono # 可读）不变。
   const bar = ruleBody(".nav-row.is-active::before");
   assert.match(bar, /content:\s*""/);
   assert.match(bar, /width:\s*2px/);
-  assert.match(bar, /background:\s*var\(--accent\)/);
-  assert.match(ruleBody(".nav-row.is-active .hash"), /color:\s*var\(--accent\)/);
+  assert.match(bar, /background:\s*var\(--selected-graphic\)/);
+  assert.match(ruleBody(".nav-row.is-active .hash"), /color:\s*var\(--selected-deep\)/);
 
   // 行形态（含行高重校：22px 头像 + 6px 上下 padding = 34px 行，取代旧的 28px 头像 + 4px 外距）
   const row = ruleBody(".nav-row");

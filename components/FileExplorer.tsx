@@ -118,7 +118,7 @@ const GIT_STATUS_COLORS: Record<GitFileStatusKind, string> = {
   modified: "var(--working-text)",
   added: "var(--online-text)",
   deleted: "var(--error)",
-  renamed: "var(--accent)",
+  renamed: "var(--accent-deep)",
   untracked: "var(--online-text)",
   conflict: "var(--error)",
 };
@@ -332,7 +332,7 @@ function TreeNode({
             aria-label={t("files.newlyUploaded")}
             style={{ width: 14, height: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
           >
-            <span style={{ width: 6, height: 6, borderRadius: "var(--r-pill)", background: "var(--accent)" }} />
+            <span style={{ width: 6, height: 6, borderRadius: "var(--r-pill)", background: "var(--accent-graphic)" }} />
           </span>
         )}
         {!hovered && !node.isDir && gitStatus && (
@@ -380,7 +380,7 @@ function TreeNode({
               background: "var(--panel)",
               border: "1px solid var(--border-strong)",
               borderRadius: "var(--r-sm)",
-              color: "var(--accent)",
+              color: "var(--accent-deep)",
               cursor: "pointer",
               fontSize: "var(--fs-caption)",
               fontWeight: 600,
@@ -756,12 +756,12 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
         )}
 
         {pendingConflict && (
-          <div role="alert" style={{ padding: 7, border: "1px solid color-mix(in oklch, var(--working) 55%, var(--border))", borderRadius: "var(--r-sm)", background: "color-mix(in oklch, var(--working) 9%, var(--panel))" }}>
+          <div role="alert" style={{ padding: 7, border: "1px solid color-mix(in oklch, var(--warn-graphic) 55%, var(--border))", borderRadius: "var(--r-sm)", background: "color-mix(in oklch, var(--warn-graphic) 9%, var(--panel))" }}>
             <div style={{ fontSize: "var(--fs-caption)", color: "var(--fg)", lineHeight: 1.35, overflowWrap: "anywhere" }}>
               {t("files.conflictSummary", { count: pendingConflict.conflicts.length, countSuffix: pendingConflict.conflicts.length === 1 ? "" : "s", files: pendingConflict.conflicts.join(", ") })}
             </div>
             {pendingConflict.nonReplaceable.length > 0 && (
-              <div style={{ marginTop: 3, fontSize: "var(--fs-mono-xs)", color: "var(--working-text)", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+              <div style={{ marginTop: 3, fontSize: "var(--fs-mono-xs)", color: "var(--warn-deep)", lineHeight: 1.35, overflowWrap: "anywhere" }}>
                 {t("files.cannotReplace", { files: pendingConflict.nonReplaceable.join(", ") })}
               </div>
             )}
@@ -824,7 +824,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
                   onClick={addUploadedFilesToChat}
                   title={uploadSummary.uploaded.length === 1 ? t("files.addUploadedFile") : t("files.addAllUploadedFiles")}
                   aria-label={uploadSummary.uploaded.length === 1 ? t("files.addUploadedFile") : t("files.addAllUploadedFiles")}
-                  style={{ height: 22, padding: "0 7px", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", background: "var(--panel)", color: "var(--accent)", cursor: "pointer", fontSize: "var(--fs-caption)", fontWeight: 600, whiteSpace: "nowrap" }}
+                  style={{ height: 22, padding: "0 7px", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", background: "var(--panel)", color: "var(--accent-deep)", cursor: "pointer", fontSize: "var(--fs-caption)", fontWeight: 600, whiteSpace: "nowrap" }}
                 >
                   <MentionIcon />
                   {t("files.mention")}

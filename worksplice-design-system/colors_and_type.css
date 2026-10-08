@@ -58,6 +58,11 @@
   --error-soft:    color-mix(in oklch, var(--error-fill) 20%, transparent);
   --offline-soft:  color-mix(in oklch, var(--offline-fill) 20%, transparent);
 
+  /* 零消费者登记（与本仓既有先例同形：矩阵先落词汇、消费点随后票接；不删——删了就不成矩阵）：
+     `--working-soft` / `--offline-soft` / `--offline-deep` 当前全仓无 var() 消费者。
+     四态各自的 `-text` 名（--online-text / --working-text）与 `--error`（deep 档，点/描边同值）
+     已有消费点，故不在此列。 */
+
   /* ─── avatar palette (deterministic per member index) ────────────────── */
   --av-0: oklch(84.9% 0.081 299.9);        /* lavender               */
   --av-1: oklch(80.8% 0.108 159.6);        /* mint                   */

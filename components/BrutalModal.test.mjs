@@ -88,8 +88,8 @@ test("模态外壳：每个可聚焦元素都不带 inline outline（焦点环�
   for (const tag of focusables) {
     assert.doesNotMatch(tag, /outline/i, `可聚焦元素不得压掉焦点环：${tag}`);
   }
-  // reset 段的 :focus-visible 环仍在（ED-8）
-  assert.match(globalsCss, /:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--accent\)/);
+  // reset 段的 :focus-visible 环仍在（ED-8）；票 03：落点改指图形档（≥3:1）。
+  assert.match(globalsCss, /:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--accent-graphic\)/);
 });
 
 // ─── globals.css 面：class 块形态逐字取自上游 ────────────────────────────────
@@ -100,7 +100,8 @@ test(".overlay：fixed 全屏 + --z-overlay + scrim + blur", () => {
   assert.match(body, /inset:\s*0/);
   assert.match(body, /z-index:\s*var\(--z-overlay\)/);
   assert.match(body, /backdrop-filter:\s*blur\(2px\)/);
-  assert.match(body, /oklch\(21% 0\.02 255 \/ 0\.42\)/);
+  // 票 03：scrim 的 ink 换梅墨族（D10：几何与透明度档位不动）。
+  assert.match(body, /oklch\(33% 0\.045 300 \/ 0\.42\)/);
   // 逐字搬上游：顶部对齐的居中网格（12vh 起）
   assert.match(body, /place-items:\s*start center/);
 });

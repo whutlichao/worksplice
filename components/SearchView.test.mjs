@@ -132,9 +132,10 @@ test("`.search-field` 形态：--border-strong 发丝 + --r-lg + --surface；无
   assert.doesNotMatch(field, /--ink|2px solid/);
 });
 
-test("焦点环在字段容器上：`:focus-within` = accent 边 + accent-soft 3px 环", () => {
+test("焦点环在字段容器上：`:focus-within` = accent 族图形档边 + accent-soft 3px 环", () => {
   const focus = blockBody(globalsCss, ".search-field:focus-within");
-  assert.match(focus, /border-color:\s*var\(--accent\)/);
+  // 票 03：边框走图形档（≥3:1）。判据（字段容器上有可见焦点环）不变。
+  assert.match(focus, /border-color:\s*var\(--accent-graphic\)/);
   assert.match(focus, /box-shadow:\s*0 0 0 3px var\(--accent-soft\)/);
   assert.doesNotMatch(focus, /--ink/);
 });
@@ -156,7 +157,8 @@ test("命中行形态：`.result` 卡片 + `.r-top` 元信息 + `.r-snip` 摘要
   assert.match(html, /design-system/);
   assert.match(html, /class="hash">#4</);
   // 作者名是 accent（票面：命中摘要的 #seq 与作者名——mono / accent）
-  assert.match(html, /style="color:var\(--accent\)[^"]*">Sentry</);
+  // 票 03：命中作者名是文字 → 文字档。
+  assert.match(html, /style="color:var\(--accent-deep\)[^"]*">Sentry</);
 });
 
 test("`.result` 形态：--surface + 发丝 + --r-md；hover = 边框强化 + 落到更深的 --panel 表面", () => {
@@ -183,7 +185,8 @@ test("`#seq` 走 `var(--mono)` + `tabular-nums`（ED-6 / 票面验收）", () =>
   const hash = blockBody(globalsCss, ".result .r-top .hash");
   assert.match(hash, /font-family:\s*var\(--mono\)/);
   assert.match(hash, /font-variant-numeric:\s*tabular-nums/);
-  assert.match(hash, /color:\s*var\(--accent\)/);
+  // 票 03：#seq 是文字 → 文字档。
+  assert.match(hash, /color:\s*var\(--accent-deep\)/);
 });
 
 // ─── 命中作者头像：22px（`.avatar.sm`）+ `?` 占位分支 ───────────────────────
@@ -213,7 +216,9 @@ test("命中摘要按 JSX 渲染：`<mark>` 保留、其余标签当文本、实
 
 test("命中摘要在 `.result mark` 上有高亮形态（票面的 mark 高亮仍在）", () => {
   const mark = blockBody(globalsCss, ".result mark");
-  assert.match(mark, /background:\s*color-mix\(in oklch, var\(--working\) 45%, transparent\)/);
+  // 票 03：命中高亮从「借 --working（进行中）」改为未读族——命中/未读都是**注意力**信号，
+  // 与「进行中」无关。取填充档（`--unread`），其上 --muted 文字实测 5.53:1（≥4.5）。
+  assert.match(mark, /background:\s*var\(--unread\)/);
   assert.match(mark, /color:\s*inherit/);
 });
 

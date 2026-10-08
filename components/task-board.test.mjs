@@ -75,7 +75,8 @@ function renderI18n(children) {
 
 const TASK_STATUS_COLOR = {
     todo: "var(--faint)",
-    in_progress: "var(--accent)",
+    // 票 03：点档改名（--accent 今为填充档，点上看不见）→ 图形档。
+    in_progress: "var(--accent-graphic)",
     in_review: "var(--working)",
     done: "var(--online)",
     closed: "var(--offline)",
@@ -169,10 +170,11 @@ test("任务板骨架：.board-wrap 竖排不溢出；.board 独自滚动；列�
     assert.match(body, /min-height:\s*44px/);
 });
 
-test("任务板拖拽态：.drag-over 走 --accent、.invalid-over 走 --error、拖拽中 opacity .4", () => {
+test("任务板拖拽态：.drag-over 走 --accent-graphic、.invalid-over 走 --error、拖拽中 opacity .4", () => {
+    // 票 03：拖拽落点是**边界**语义 → 图形档（≥3:1）。判据（落点边界可见）不变。
     assert.match(
         blockBody(globalsCss, ".col.drag-over"),
-        /border-color:\s*var\(--accent\)/,
+        /border-color:\s*var\(--accent-graphic\)/,
     );
     assert.match(
         blockBody(globalsCss, ".col.drag-over"),
@@ -233,9 +235,11 @@ test("任务板工具条：.seg 分段控件（is-active 走 --fg 实底）/ .fi
     const chip = blockBody(globalsCss, ".filter-chip");
     assert.match(chip, /height:\s*var\(--icon-btn\)/);
     assert.match(chip, /border-radius:\s*var\(--r-md\)/);
+    // 票 03：选中 chip 归选中族（`--accent-line` 退役、淡底与边界都改族）。
+    // 判据（选中态 = 淡底 + 可见边界，成对出现）不变。
     const chipOn = blockBody(globalsCss, ".filter-chip.is-on");
-    assert.match(chipOn, /border-color:\s*var\(--accent-line\)/);
-    assert.match(chipOn, /background:\s*var\(--accent-soft\)/);
+    assert.match(chipOn, /border-color:\s*var\(--selected-graphic\)/);
+    assert.match(chipOn, /background:\s*var\(--selected-soft\)/);
 });
 
 test("任务板空槽 .drop-hint：虚线 + --r-md + --faint（无 2px 结构线）", () => {

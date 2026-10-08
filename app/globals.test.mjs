@@ -200,9 +200,11 @@ test("T-C: 旧方向的 2px ink 结构线与 ink 阴影全部退场", () => {
 });
 
 test("T-C: 焦点环与字段/composer 的 accent-soft 环按设计系统 reset 落位", () => {
+  // 环走**图形档**（ADR-0015 的档位规则：环 ≥3:1）——票 03 把落点从 --accent 改指
+  // --accent-graphic（后者 on 底纸 3.03–3.65）；判据（「环必须存在且是 accent 族」）不变。
   assert.match(
     globalsCss,
-    /:focus-visible\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--accent\)/,
+    /:focus-visible\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--accent-graphic\)/,
   );
   assert.match(globalsCss, /outline-offset:\s*2px/);
   assert.match(globalsCss, /0 0 0 3px var\(--accent-soft\)/);

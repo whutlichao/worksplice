@@ -600,7 +600,7 @@ function MessageActions({
           <button
             type="button"
             title={t("message.addReaction")}
-            style={reactOpen ? { background: "var(--accent-soft)", color: "var(--accent)" } : undefined}
+            style={reactOpen ? { background: "var(--accent-soft)", color: "var(--accent-deep)" } : undefined}
             onClick={onToggleReactOpen}
           >
             <SmilePlus size={13} />
@@ -646,7 +646,7 @@ function MessageActions({
           <button
             type="button"
             title={pinned ? t("message.unpin") : t("message.pin")}
-            style={pinned ? { background: "var(--accent-soft)", color: "var(--accent)" } : undefined}
+            style={pinned ? { background: "var(--accent-soft)", color: "var(--accent-deep)" } : undefined}
             onClick={() => onTogglePin(message)}
           >
             <Pin size={13} />
@@ -1020,13 +1020,26 @@ export const MessageRow = memo(function MessageRow({
  *  两档中性/强调色，无第二强调色。看板列头状态点与 List 分组徽标共用同一份映射。 */
 const TASK_STATUS_COLOR: Record<TaskStatus, string> = {
   todo: "var(--faint)",
-  in_progress: "var(--accent)",
+  in_progress: "var(--accent-graphic)",
   in_review: "var(--working)",
   done: "var(--online)",
   closed: "var(--offline)",
 };
 
-/** §3.7 任务状态徽标样式（List 分组标题）：形态不变，色取 ED-10 映射。 */
+/** §3.7 任务状态徽标底色（List 分组标题）：**填充档**。同一个状态在两个消费点上要不同档
+ *  ——点（`TASK_STATUS_COLOR`）是图形档（≥3:1），徽标底压的是深墨文字（≥4.5:1），
+ *  所以底取 D7「徽标 / 横幅底走填充档」那一档；中性态（todo）取中性 chip 底。
+ *  实测（spec 口径）：`--panel-2` 10.12 · `--accent` 7.74 · `--working-fill` 7.57 ·
+ *  `--online-fill` 7.13 · `--offline-fill` 7.17。 */
+const TASK_STATUS_BADGE_BG: Record<TaskStatus, string> = {
+  todo: "var(--panel-2)",
+  in_progress: "var(--accent)",
+  in_review: "var(--working-fill)",
+  done: "var(--online-fill)",
+  closed: "var(--offline-fill)",
+};
+
+/** §3.7 任务状态徽标样式（List 分组标题）：形态不变，色取上面的填充档表。 */
 const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => ({
   fontFamily: "var(--mono)",
   fontSize: 10,
@@ -1034,9 +1047,8 @@ const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => ({
   letterSpacing: "0.06em",
   padding: "2px 7px",
   border: `1px solid var(--border)`,
-  background: TASK_STATUS_COLOR[status],
-  // accent 实底是全表唯一的深色底，字用浅 ink；其余状态底都是浅色，字用 --fg。
-  color: status === "in_progress" ? "oklch(99% 0.01 256)" : "var(--fg)",
+  background: TASK_STATUS_BADGE_BG[status],
+  color: "var(--on-accent)",
   whiteSpace: "nowrap",
 });
 
@@ -2055,7 +2067,7 @@ export function Composer({
                   checked={Boolean(asTask)}
                   disabled={disabled}
                   onChange={(e) => onAsTaskChange(e.target.checked)}
-                  style={{ cursor: "pointer", accentColor: "var(--accent)" }}
+                  style={{ cursor: "pointer", accentColor: "var(--selected-graphic)" }}
                 />
                 {t("tasks.asTask")}
               </label>

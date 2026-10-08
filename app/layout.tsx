@@ -39,8 +39,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  // --bg = oklch(99% 0.002 240) 的 sRGB 近似（meta 标签不接受 oklch）。
-  themeColor: "#fbfcfd",
+  // --bg = oklch(98% 0.011 85) 的 sRGB 近似（meta 标签不接受 oklch）。
+  themeColor: "#fcf8f0",
 };
 
 export default function RootLayout({

@@ -59,7 +59,7 @@ function findInstalledPackage(
 }
 
 function statusColor(status: PluginPackageInfo["status"]): string {
-  if (status === "loaded") return "var(--accent)";
+  if (status === "loaded") return "var(--accent-deep)";
   if (status === "installed") return "var(--working-text)";
   if (status === "disabled") return "var(--faint)";
   return "var(--error)";
@@ -162,8 +162,8 @@ function ScopeTag({ scope }: { scope: PluginScope }) {
         padding: "1px 5px",
         borderRadius: "var(--r-sm)",
         flexShrink: 0,
-        background: scope === "project" ? "color-mix(in oklch, var(--accent) 12%, transparent)" : "var(--fg-soft)",
-        color: scope === "project" ? "var(--accent)" : "var(--faint)",
+        background: scope === "project" ? "var(--accent-soft)" : "var(--fg-soft)",
+        color: scope === "project" ? "var(--accent-deep)" : "var(--faint)",
       }}
     >
       {scope}
@@ -211,7 +211,7 @@ function Toggle({
         border: "none",
         padding: 0,
         cursor: loading ? "wait" : "pointer",
-        background: enabled ? "var(--accent)" : "var(--border)",
+        background: enabled ? "var(--accent-graphic)" : "var(--border)",
         position: "relative",
         transition: "background var(--dur-drawer)",
         opacity: loading ? 0.65 : 1,
@@ -270,7 +270,7 @@ function SegmentedScope({
               border: "none",
               borderRight: scope === "global" ? "1px solid var(--border)" : "none",
               background: active ? "var(--accent-soft)" : "none",
-              color: active ? "var(--accent)" : "var(--muted)",
+              color: active ? "var(--accent-deep)" : "var(--muted)",
               cursor: disabled ? "not-allowed" : "pointer",
               opacity: disabled ? 0.45 : 1,
               fontSize: "var(--fs-sm)",
@@ -328,7 +328,7 @@ function AddPluginPanel({
               display: "inline-flex",
               alignItems: "center",
               gap: 5,
-              color: "var(--accent)",
+              color: "var(--accent-deep)",
               fontSize: "var(--fs-sm)",
               textDecoration: "none",
               whiteSpace: "nowrap",
@@ -399,7 +399,7 @@ function AddPluginPanel({
           style={{
             ...buttonStyle(busy || !source.trim()),
             background: "var(--accent)",
-            color: "oklch(99% 0.01 256)",
+            color: "var(--on-accent)",
             borderColor: "var(--accent)",
           }}
         >
@@ -899,7 +899,7 @@ export function PluginsConfig({
                             borderRadius: "var(--r-sm)",
                             cursor: "pointer",
                             background: isSelected ? "var(--accent-soft)" : "none",
-                            color: isSelected ? "var(--accent)" : "var(--fg)",
+                            color: isSelected ? "var(--accent-deep)" : "var(--fg)",
                           }}
                           onMouseEnter={(e) => {
                             if (!isSelected) e.currentTarget.style.background = "var(--fg-soft)";
@@ -983,7 +983,7 @@ export function PluginsConfig({
                   width: "100%",
                   cursor: "pointer",
                   background: addMode ? "var(--accent-soft)" : "none",
-                  color: addMode ? "var(--accent)" : "var(--faint)",
+                  color: addMode ? "var(--accent-deep)" : "var(--faint)",
                   fontSize: "var(--fs-sm)",
                 }}
                 onMouseEnter={(e) => {

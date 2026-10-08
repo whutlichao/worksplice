@@ -140,7 +140,7 @@ export function CreateChannelModal({
                       style={{
                         fontFamily: "var(--mono)",
                         fontSize: 11,
-                        color: selected ? "var(--accent)" : "var(--faint)",
+                        color: selected ? "var(--accent-deep)" : "var(--faint)",
                       }}
                     >
                       {selected ? <Check size={11} style={{ verticalAlign: "-2px" }} /> : "+"}

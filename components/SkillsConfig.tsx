@@ -68,7 +68,7 @@ function Toggle({
         border: "none",
         padding: 0,
         cursor: loading ? "wait" : "pointer",
-        background: enabled ? "var(--accent)" : "var(--border)",
+        background: enabled ? "var(--accent-graphic)" : "var(--border)",
         position: "relative",
         transition: "background var(--dur-drawer)",
       }}
@@ -140,10 +140,10 @@ function SkillDetail({
               flexShrink: 0,
               background:
                 label === "project"
-                  ? "color-mix(in oklch, var(--accent) 12%, transparent)"
+                  ? "var(--accent-soft)"
                   : "var(--fg-soft)",
               color:
-                label === "project" ? "var(--accent)" : "var(--faint)",
+                label === "project" ? "var(--accent-deep)" : "var(--faint)",
             }}
           >
             {label}
@@ -209,7 +209,7 @@ function SkillDetail({
               gap: 8,
               width: "fit-content",
               maxWidth: "100%",
-              color: "var(--accent)",
+              color: "var(--accent-deep)",
               textDecoration: "none",
             }}
           >
@@ -287,7 +287,7 @@ function SkillDetail({
                 style={{
                   fontSize: "var(--fs-sm)",
                   color: checkingUpdate
-                    ? "var(--accent)"
+                    ? "var(--accent-deep)"
                     : updateStatus?.state === "up-to-date"
                       ? "var(--online-text)"
                       : updateStatus?.state === "error"
@@ -313,7 +313,7 @@ function SkillDetail({
                   border: "none",
                   borderRadius: "var(--r-md)",
                   background: "var(--accent)",
-                  color: "oklch(99% 0.01 256)",
+                  color: "var(--on-accent)",
                   cursor: updating || checkingUpdate ? "not-allowed" : "pointer",
                   opacity: updating || checkingUpdate ? 0.5 : 1,
                   fontSize: "var(--fs-caption)",
@@ -499,7 +499,7 @@ function AddSkillPanel({
               borderRadius: "var(--r-md)",
               border: "none",
               background: "var(--accent)",
-              color: "oklch(99% 0.01 256)",
+              color: "var(--on-accent)",
               cursor: searching || !query.trim() ? "not-allowed" : "pointer",
               opacity: searching || !query.trim() ? 0.5 : 1,
               flexShrink: 0,
@@ -534,7 +534,7 @@ function AddSkillPanel({
                   border: "none",
                   cursor: s === "project" && !projectResourcesLoaded ? "not-allowed" : "pointer",
                   background: scope === s ? "var(--accent-soft)" : "none",
-                  color: scope === s ? "var(--accent)" : "var(--faint)",
+                  color: scope === s ? "var(--accent-deep)" : "var(--faint)",
                   fontWeight: scope === s ? 600 : 400,
                   opacity: s === "project" && !projectResourcesLoaded ? 0.45 : 1,
                   borderRight:
@@ -641,7 +641,7 @@ function AddSkillPanel({
                         rel="noreferrer"
                         style={{
                           fontSize: "var(--fs-sm)",
-                          color: "var(--accent)",
+                          color: "var(--accent-deep)",
                           textDecoration: "none",
                         }}
                       >
@@ -670,7 +670,7 @@ function AddSkillPanel({
                     color: isInstalled
                       ? "var(--online-text)"
                       : isInstalling
-                        ? "var(--accent)"
+                        ? "var(--accent-deep)"
                         : "var(--muted)",
                     transition: "color var(--dur)",
                   }}
@@ -700,7 +700,7 @@ function AddSkillPanel({
               href="https://skills.sh"
               target="_blank"
               rel="noreferrer"
-              style={{ color: "var(--accent)", textDecoration: "none" }}
+              style={{ color: "var(--accent-deep)", textDecoration: "none" }}
             >
               skills.sh
             </a>{" "}
@@ -1100,7 +1100,7 @@ export function SkillsConfig({
                           background: isSelected
                             ? "var(--accent-soft)"
                             : "none",
-                          color: isSelected ? "var(--accent)" : "var(--fg)",
+                          color: isSelected ? "var(--accent-deep)" : "var(--fg)",
                         }}
                         onMouseEnter={(e) => {
                           if (!isSelected)
@@ -1120,10 +1120,10 @@ export function SkillsConfig({
                             borderRadius: "var(--r-pill)",
                             background: disabled
                               ? "var(--border)"
-                              : "var(--accent)",
+                              : "var(--accent-graphic)",
                             boxShadow: disabled
                               ? "none"
-                              : "0 0 4px var(--accent)",
+                              : "0 0 4px var(--accent-graphic)",
                             transition:
                               "background var(--dur), box-shadow var(--dur)",
                           }}
@@ -1245,7 +1245,7 @@ export function SkillsConfig({
                   borderRadius: "var(--r-sm)",
                   cursor: "pointer",
                   background: addMode ? "var(--accent-soft)" : "none",
-                  color: addMode ? "var(--accent)" : "var(--faint)",
+                  color: addMode ? "var(--accent-deep)" : "var(--faint)",
                   fontSize: "var(--fs-sm)",
                 }}
                 onMouseEnter={(e) => {
