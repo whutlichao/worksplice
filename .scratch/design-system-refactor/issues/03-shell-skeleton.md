@@ -192,8 +192,9 @@ lib/i18n/messages/zh-CN.ts
 
 ### 交付物
 
-- 分支：`feat/ds-03-shell-skeleton`（推 origin）
-- PR：见下（`gh pr create` 后回填）
+- 分支：`whutlichao/ds-03-shell`（已推 origin）
+- 收敛 commit：`0078429`（Status + Answer + 代码 + 测试）
+- PR：**#114** —— https://github.com/whutlichao/worksplice/pull/114
 
 ### 门禁
 
