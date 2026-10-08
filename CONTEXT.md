@@ -179,3 +179,7 @@ _Avoid_: 浅封装（仅做 re-export 转发）、大杂烩模块
 **唯一导入面 (Single Entry / Facade)**:
 一域对外唯一的 `index.ts` 聚合出口（如 `lib/domain/collab/index.ts: export *`），消费方只经此单口导入，域内子模块互相直引；测试缝以此单口 mock 整域。
 _Avoid_: 散导入（直引子模块）、桶文件（仅为缩短路径）
+
+**视觉契约 (Visual Contract)**:
+下游按**名字**消费的 token 名集合（`--bg` / `--surface` / `--panel` / `--panel-2` / `--fg` / `--muted` / `--faint` / `--border` / `--border-strong` / `--accent` / `--accent-hover` / `--accent-soft` / `--accent-line` / `--online` / `--working` / `--error` / `--offline` / `--av-0…--av-4` 等）。改名不是改一处定义，而是同时扯断全部消费点，所以它是**承诺**而不是实现细节。正本是 `worksplice-design-system/colors_and_type.css` + `tokens.css`，产品经 `app/globals.css` 的 `@import` 直接消费它（ADR-0014）。
+_Avoid_: 主题变量（会被读成可自由改值的一层）、设计 token（泛指，不说清「按名消费」这条约束）

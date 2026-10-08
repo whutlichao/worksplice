@@ -1,0 +1,91 @@
+/* ============================================================================
+   worksplice — colors_and_type.css
+   Canonical reusable color + typography foundations, extracted from
+   worksplice-app.html. Direction: modern-minimal (Linear / Vercel register).
+   All colors use oklch(). This file is the single source of truth for the
+   --bg / --surface / --fg / --muted / --border / --accent contract that the
+   existing Next.js components already depend on.
+   ========================================================================== */
+
+:root {
+  /* ─── surface & text ─────────────────────────────────────────────────── */
+  --bg:            oklch(99% 0.002 240);   /* page canvas                */
+  --surface:       oklch(100% 0 0);        /* cards, panels, chrome      */
+  --panel:         oklch(97.4% 0.004 250); /* rails, columns, wells      */
+  --panel-2:       oklch(95.6% 0.006 250); /* nested wells, chips        */
+  --fg:            oklch(21% 0.014 255);   /* primary text               */
+  --muted:         oklch(50% 0.014 255);   /* secondary text             */
+  --faint:         oklch(56% 0.013 255);   /* tertiary / meta text       */
+  --border:        oklch(92% 0.006 250);   /* hairline separators        */
+  --border-strong: oklch(85% 0.008 250);   /* inputs, focus containers   */
+
+  /* ─── accent (indigo-blue, single brand hue) ─────────────────────────── */
+  --accent:        oklch(56% 0.17 256);    /* primary action, agent hue  */
+  --accent-hover:  oklch(50% 0.17 256);    /* pressed / hover surface    */
+  --accent-soft:   color-mix(in oklch, var(--accent) 11%, transparent);
+  --accent-line:   color-mix(in oklch, var(--accent) 40%, transparent);
+
+  /* ─── semantic status ────────────────────────────────────────────────── */
+  --online:  oklch(64% 0.15 152);          /* agent idle / success       */
+  --working: oklch(74% 0.15 78);           /* agent busy / pending       */
+  --error:   oklch(60% 0.19 27);           /* failure / destructive      */
+  --offline: oklch(78% 0.008 250);         /* agent offline              */
+
+  /* ─── avatar palette (deterministic per member index) ────────────────── */
+  --av-0: oklch(88% 0.055 256);            /* blue    */
+  --av-1: oklch(89% 0.06 168);             /* teal    */
+  --av-2: oklch(90% 0.075 82);             /* amber   */
+  --av-3: oklch(89% 0.055 30);             /* coral   */
+  --av-4: oklch(90% 0.012 250);            /* neutral (you) */
+
+  /* ─── misc ───────────────────────────────────────────────────────────── */
+  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
+
+  /* ─── type families ──────────────────────────────────────────────────── */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* ─── type scale (UI density: 13px base) ─────────────────────────────── */
+  --fs-mono-micro: 9.5px;  /* uppercase group labels, tags            */
+  --fs-mono-xs:    10.5px; /* timestamps, counts, kbd                 */
+  --fs-caption:    11.5px; /* hints, card metadata                    */
+  --fs-sm:         12px;   /* chips, list rows, helper text           */
+  --fs-body:       13px;   /* default message + UI body               */
+  --fs-body-lg:    13.5px; /* brand name, empty-state title           */
+  --fs-title:      14px;   /* dock / thread titles                    */
+  --fs-heading:    16px;   /* channel title (h1)                      */
+  --fs-stat:       17px;   /* stat block numerals (mono, 700)         */
+
+  --lh-tight: 1.15;  --lh-snug: 1.4;  --lh-body: 1.5;
+  --lh-text:  1.55;  --lh-code: 1.6;
+
+  --fw-regular: 400; --fw-medium: 560; --fw-semi: 600;
+  --fw-bold: 650;    --fw-heavy: 680;  --fw-black: 700;
+  --ls-tight: -0.02em; --ls-snug: -0.01em;
+  --ls-wide: 0.08em;   --ls-wider: 0.1em;
+
+  /* ─── radii (map onto --r-* consumed by components) ──────────────────── */
+  --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 99px;
+
+  /* ─── elevation ──────────────────────────────────────────────────────── */
+  --shadow-pop: 0 10px 30px -12px oklch(21% 0.02 255 / 0.28),
+                0 2px 6px -2px oklch(21% 0.02 255 / 0.12);
+  --shadow-card: 0 2px 8px -4px oklch(21% 0.02 255 / 0.18);
+  --shadow-composer: 0 1px 2px oklch(21% 0.02 255 / 0.04);
+
+  /* ─── spacing scale (4px base) ───────────────────────────────────────── */
+  --sp-1: 2px;  --sp-2: 4px;  --sp-3: 6px;  --sp-4: 8px;
+  --sp-5: 12px; --sp-6: 14px; --sp-7: 16px; --sp-8: 18px;
+  --sp-9: 20px; --sp-10: 24px; --sp-11: 30px; --sp-12: 56px;
+
+  /* ─── layout constants ───────────────────────────────────────────────── */
+  --rail-w: 252px;
+  --dock-w: 380px;
+  --dock-w-md: 340px;
+  --stream-max: 880px;
+  --board-col-w: 236px;
+  --control-h: 32px;      /* default button / input height          */
+  --control-h-sm: 27px;   /* compact button                         */
+  --tap-min: 44px;        /* minimum touch target                   */
+}
