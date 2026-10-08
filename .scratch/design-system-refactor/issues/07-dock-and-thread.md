@@ -174,4 +174,4 @@ $ git diff --name-only origin/main...HEAD | grep -E "^(lib/|app/api/)"   → 空
 ### 交付物持久化
 
 - 分支：`whutlichao/ds-07-dock`；commit：`feat(design-system): 右栏单槽/线程/agent 详情按原型收形态（票 07）`。
-- PR：（见下一行回填）。
+- PR：**#116**（https://github.com/whutlichao/worksplice/pull/116）。
