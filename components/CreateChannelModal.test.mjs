@@ -91,10 +91,10 @@ test("票 08 形态：公开/私有走 .radio-row + .radio-card（旧硬阴影�
   assert.equal((html.match(/class="radio-card[^"]*"/g) ?? []).length, 2);
   assert.doesNotMatch(html, /rgba\(20,\s*17,\s*17/);
   assert.doesNotMatch(html, /\d+px \d+px 0 0/);
-  // 选中态 = accent 淡底 + accent 边（不是黄色实心）
+  // 选中态 = 选中族淡底 + 图形档边（不是黄色实心）；票 03 改族，判据（成对出现、边界可见）不变。
   const on = blockBody(".radio-card.is-on");
-  assert.match(on, /border-color:\s*var\(--accent\)/);
-  assert.match(on, /background:\s*var\(--accent-soft\)/);
+  assert.match(on, /border-color:\s*var\(--selected-graphic\)/);
+  assert.match(on, /background:\s*var\(--selected-soft\)/);
 });
 
 test("票 08 形态：成员挑选项 = .member-pick / .member-opt，头像 22px（--avatar-sm）", () => {
@@ -108,9 +108,10 @@ test("票 08 形态：成员挑选项 = .member-pick / .member-opt，头像 22px
   // 22px 由票 04 的 `.avatar.sm` 规则承担（本票只把头像放进挑选项）
   assert.match(blockBody(".avatar.sm"), /width:\s*var\(--avatar-sm\)/);
   assert.match(blockBody(".member-opt"), /border-radius:\s*var\(--r-pill\)/);
+  // 票 03：选中 chip 归选中族（淡底 + 文字档）；判据（选中态可读、成对出现）不变。
   const on = blockBody(".member-opt.is-on");
-  assert.match(on, /background:\s*var\(--accent-soft\)/);
-  assert.match(on, /color:\s*var\(--accent\)/);
+  assert.match(on, /background:\s*var\(--selected-soft\)/);
+  assert.match(on, /color:\s*var\(--selected-deep\)/);
 });
 
 test("票 08 形态：模态内可聚焦元素都不压掉焦点环（无 inline outline）", () => {

@@ -190,16 +190,17 @@ test("消息行 hover 走 --fg-soft；锚点行不再是黄色实心且带左侧
     assert.doesNotMatch(hover, /--yellow/);
 
     // 锚点 fill 归票 03 的骨架钩子；本票补的是左侧 accent 条（spec D3 的「当前位置」处置）。
+    // 票 03：锚点是「当前位置」→ 选中族（淡底 + 图形档竖条）。判据（不是黄色实心、竖条可见）不变。
     const anchorFill = blockBody(globalsCss, ".ws-message-row-anchor");
-    assert.match(anchorFill, /background:\s*var\(--accent-soft\)/);
+    assert.match(anchorFill, /background:\s*var\(--selected-soft\)/);
     assert.doesNotMatch(anchorFill, /--yellow|var\(--accent\);/);
     const anchorBar = blockBody(globalsCss, ".ws-message-row-anchor::before");
-    assert.match(anchorBar, /background:\s*var\(--accent\)/);
+    assert.match(anchorBar, /background:\s*var\(--selected-graphic\)/);
     assert.match(anchorBar, /width:\s*2px/);
     // 锚点行的 hover 也要留在「当前位置」色：`.msg:hover` 与票 03 的锚点 hover 同特异度、后者会被吃掉。
     assert.match(
         blockBody(globalsCss, ".msg.ws-message-row-anchor:hover"),
-        /background:\s*var\(--accent-soft\)/,
+        /background:\s*var\(--selected-soft\)/,
     );
 });
 
@@ -287,9 +288,10 @@ test("MessageRow 的 agent 作者带 .msg-author.is-agent（accent）", () => {
         }),
     );
     assert.match(html, /class="msg-author is-agent"/);
+    // 票 03：agent 作者名是**文字** → 文字档。判据（agent 与人类作者可区分）不变。
     assert.match(
         blockBody(globalsCss, ".msg-author.is-agent"),
-        /color:\s*var\(--accent\)/,
+        /color:\s*var\(--accent-deep\)/,
     );
 });
 
@@ -325,9 +327,10 @@ test("reaction 聚合条走 .reactions / .reaction（我点过 → .mine）", ()
     assert.match(html, /class="reactions"/);
     assert.match(html, /class="reaction mine"/);
     assert.match(html, /class="reaction"/);
+    // 票 03：`mine` = 我点过 = 选中态 → 选中族淡底。判据（我的反应与别人的可区分）不变。
     assert.match(
         blockBody(globalsCss, ".reaction.mine"),
-        /background:\s*var\(--accent-soft\)/,
+        /background:\s*var\(--selected-soft\)/,
     );
 });
 
@@ -404,7 +407,8 @@ test("频道头走 .chan-head/.chan-top/.chan-title（# 号 accent mono）/.chan
     assert.match(title, /font-weight:\s*var\(--fw-heavy\)/);
     assert.match(title, /letter-spacing:\s*var\(--ls-tight\)/);
     const hash = blockBody(globalsCss, ".chan-title .hash");
-    assert.match(hash, /color:\s*var\(--accent\)/);
+    // 票 03：频道名的 # 是文字 → 文字档。判据（mono + accent 族强调色）不变。
+    assert.match(hash, /color:\s*var\(--accent-deep\)/);
     assert.match(hash, /font-family:\s*var\(--mono\)/);
 });
 

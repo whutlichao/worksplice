@@ -95,7 +95,7 @@ export function ReminderRow({
             fontSize: "var(--fs-mono-xs)",
             padding: "1px 5px",
             borderRadius: "var(--r-sm)",
-            background: reminder.status === "scheduled" ? "var(--online)" : "var(--offline)",
+            background: reminder.status === "scheduled" ? "var(--online-fill)" : "var(--offline-fill)",
             color: "var(--fg)",
           }}
         >
@@ -239,8 +239,8 @@ export function ReminderModal({
     fontFamily: "var(--mono)",
     fontSize: "var(--fs-sm)",
     background: active ? "var(--accent-soft)" : "var(--surface)",
-    color: active ? "var(--accent)" : "var(--muted)",
-    border: `1px solid ${active ? "var(--accent-line)" : "var(--border)"}`,
+    color: active ? "var(--accent-deep)" : "var(--muted)",
+    border: `1px solid ${active ? "var(--accent-graphic)" : "var(--border)"}`,
     borderRadius: "var(--r-sm)",
     cursor: "pointer",
   });

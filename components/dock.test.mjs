@@ -215,13 +215,16 @@ test("`.kv`：点线引导（`1px dashed`）的 key/value 行，值走 mono", ()
   assert.match(value, /color:\s*var\(--fg\)/);
 });
 
-test("`.meter`：6px 药丸槽 + accent 填充（`.warn` 走 `--working`）", () => {
+test("`.meter`：6px 药丸槽 + accent 填充（`.warn` 走警示族 `--warn`）", () => {
   const body = blockBody(".meter");
   assert.match(body, /height:\s*6px/);
   assert.match(body, /border-radius:\s*var\(--r-pill\)/);
   assert.match(body, /background:\s*var\(--panel-2\)/);
-  assert.match(blockBody(".meter i"), /background:\s*var\(--accent\)/);
-  assert.match(blockBody(".meter.warn i"), /background:\s*var\(--working\)/);
+  // 票 03：条状指示器走**图形档**（D6：图形边界 ≥3:1；填充档落在槽上只有 1.30:1）。
+  assert.match(blockBody(".meter i"), /background:\s*var\(--accent-graphic\)/);
+  // 票 03 / D9：警示语义从「借 --working」改为警示族；且 `.meter i` 与 `.meter.warn i`
+  // 都是**指示条**（不是压文字的填充底），故取各族图形档。判据（条状指示器可见）不变。
+  assert.match(blockBody(".meter.warn i"), /background:\s*var\(--warn-graphic\)/);
 });
 
 test("`.dock-tab`（零消费的词汇表）：下划线 tab，mono 计数转 accent", () => {
@@ -232,7 +235,8 @@ test("`.dock-tab`（零消费的词汇表）：下划线 tab，mono 计数转 ac
   assert.match(blockBody(".dock-tab.is-active"), /border-bottom-color:\s*var\(--fg\)/);
   const count = blockBody(".dock-tab .count");
   assert.match(count, /font-family:\s*var\(--mono\)/);
-  assert.match(count, /color:\s*var\(--accent\)/);
+  // 票 03：tab 的 mono 计数是「当前位置」语义 → 选中族文字档。判据（mono 计数走高对比族色）不变。
+  assert.match(count, /color:\s*var\(--selected-deep\)/);
 });
 
 // ─── ① class 块：线程面板 ──────────────────────────────────────────────────
@@ -270,7 +274,9 @@ test("`.tt-status` 胶囊：`--border-strong` 发丝 + 药丸；点色由 ED-10 
   // 本仓那份映射在 ChannelView 的 TASK_STATUS_COLOR（票 06 落盘），逐条比对 spec ED-10 表。
   const expected = {
     todo: "--faint",
-    in_progress: "--accent",
+    // 票 03：in_progress 的**点档**从 --accent（今为填充档，点上看不见）改为图形档；
+    // 其余四态的名字不变（它们的 base 名本就持有各自的点档值）。
+    in_progress: "--accent-graphic",
     in_review: "--working",
     done: "--online",
     closed: "--offline",
@@ -314,11 +320,13 @@ test("`.tt-log` 时间线的四种点色逐条取四态 token", () => {
 
   // 逐条比对 ED-10 的四态映射：ok → --online / warn → --working / err → --error / is-now → --accent。
   assert.match(blockBody(".tt-log li.ok::before"), /background:\s*var\(--online\)/);
-  assert.match(blockBody(".tt-log li.warn::before"), /background:\s*var\(--working\)/);
+  // 票 03：`.warn` 级别与 `.lv.warn` 同一份警示词汇 → 警示族图形档（点 ≥3:1）。
+  assert.match(blockBody(".tt-log li.warn::before"), /background:\s*var\(--warn-graphic\)/);
   assert.match(blockBody(".tt-log li.err::before"), /background:\s*var\(--error\)/);
   const now = blockBody(".tt-log li.is-now::before");
-  assert.match(now, /background:\s*var\(--accent\)/);
-  assert.match(now, /box-shadow:\s*0 0 0 3px var\(--accent-soft\)/);
+  // 票 03：`is-now` = 时间线上的「当前位置」→ 选中族（图形档 + 选中淡底）。判据（now 点可见 + 有光环）不变。
+  assert.match(now, /background:\s*var\(--selected-graphic\)/);
+  assert.match(now, /box-shadow:\s*0 0 0 3px var\(--selected-soft\)/);
 });
 
 // ─── ① class 块：`.log-row` + `.lv` 级别标签（AgentDetailPanel 的轮次记录） ──
@@ -331,9 +339,11 @@ test("`.log-row` / `.lv`：级别标签的行内形态与四档前景色", () =>
   const lv = blockBody(".log-row .lv");
   assert.match(lv, /font-family:\s*var\(--mono\)/);
   assert.match(lv, /display:\s*inline-flex/);
-  assert.match(blockBody(".lv.info"), /color:\s*var\(--accent\)/);
+  // 票 03：`.lv.info` 是文字 → 文字档（填充档作字只有 1.4:1）。判据（四档前景色各自可读）不变。
+  assert.match(blockBody(".lv.info"), /color:\s*var\(--accent-deep\)/);
   assert.match(blockBody(".lv.ok"), /color:\s*var\(--online-text\)/);
-  assert.match(blockBody(".lv.warn"), /color:\s*var\(--working-text\)/);
+  // 票 03 / D9：`.lv.warn` 的警示语义改为警示族（淡底 + 文字档）。判据（级别标签高对比）不变。
+  assert.match(blockBody(".lv.warn"), /color:\s*var\(--warn-deep\)/);
   assert.match(blockBody(".lv.err"), /color:\s*var\(--error\)/);
   assert.match(blockBody(".log-row .msg"), /color:\s*var\(--muted\)/);
 });

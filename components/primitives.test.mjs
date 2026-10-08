@@ -38,15 +38,17 @@ test("原语 .btn：32px / --surface / --border-strong / --r-md", () => {
   assert.match(body, /color:\s*var\(--fg\)/);
 });
 
-test("原语 .btn-primary：accent 实底 + 浅 ink，hover 两个通道一起换（不降对比）", () => {
+test("原语 .btn-primary：accent 实底 + --on-accent 深墨，hover 两个通道一起换（不降对比）", () => {
   const body = blockBody(".btn-primary");
   assert.match(body, /background:\s*var\(--accent\)/);
-  assert.match(body, /color:\s*oklch\(99%/);
+  // 票 03：填充档上的字从 `oklch(99% .01 256)` 浅墨改为 `var(--on-accent)`（深梅墨）——
+  // 马卡龙亮档 + 白字只有 1.4:1；深墨 7.74:1。判据（填充 + 其上文字达 AA）不变。
+  assert.match(body, /color:\s*var\(--on-accent\)/);
 
   const hover = blockBody(".btn-primary:hover");
   assert.match(hover, /background:\s*var\(--accent-hover\)/);
   assert.match(hover, /border-color:\s*var\(--accent-hover\)/);
-  assert.match(hover, /color:\s*oklch\(99%/);
+  assert.match(hover, /color:\s*var\(--on-accent\)/);
 });
 
 test("原语 .btn-ghost / .btn-danger / .btn-sm / .btn:disabled", () => {
@@ -76,15 +78,18 @@ test("原语 .icon-btn：30px 透明边框，hover 换 --surface + --border，.i
 
   const on = blockBody(".icon-btn.is-on");
   assert.match(on, /background:\s*var\(--accent-soft\)/);
-  assert.match(on, /color:\s*var\(--accent\)/);
+  // 文字走文字档（票 03）：填充保持不变，只把不可读的填充档字改成 --accent-deep。
+  assert.match(on, /color:\s*var\(--accent-deep\)/);
 });
 
 // ─── badge / fields / card ───────────────────────────────────────────────────
 
-test("原语 .badge：pill + accent 实底", () => {
+test("原语 .badge：pill + 未读族实底", () => {
   const body = blockBody(".badge");
   assert.match(body, /border-radius:\s*var\(--r-pill\)/);
-  assert.match(body, /background:\s*var\(--accent\)/);
+  // 票 03：未读角标从「借 --accent」改为未读族（D3：未读是注意力信号，与行动不同族）；
+  // 判据（实底 + 深墨达 AA，9.52:1）不变。
+  assert.match(body, /background:\s*var\(--unread\)/);
 });
 
 test("原语 .input / .textarea / .select / .field：发丝边框 + r-md（焦点环在 reset 段）", () => {

@@ -295,7 +295,7 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
   return (
     <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 13, height: 13, accentColor: "var(--accent)", cursor: "pointer" }} />
+        style={{ width: 13, height: 13, accentColor: "var(--selected-graphic)", cursor: "pointer" }} />
       {label}
     </label>
   );
@@ -414,7 +414,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, onAddMod
         <TextInput value={editingName} onChange={setEditingName} placeholder="provider-name" mono />
         {editingName !== name && editingName.trim() && (
           <button onClick={() => onRename(editingName.trim())}
-            style={{ marginTop: 4, padding: "3px 10px", background: "var(--accent)", border: "none", borderRadius: "var(--r-sm)", color: "oklch(99% 0.01 256)", cursor: "pointer", fontSize: "var(--fs-caption)", alignSelf: "flex-start" }}>
+            style={{ marginTop: 4, padding: "3px 10px", background: "var(--accent)", border: "none", borderRadius: "var(--r-sm)", color: "var(--on-accent)", cursor: "pointer", fontSize: "var(--fs-caption)", alignSelf: "flex-start" }}>
              {t("i18n.rename")}
           </button>
         )}
@@ -483,7 +483,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, onAddMod
                   checked={allShownSelected}
                   disabled={selectableShownIds.length === 0}
                   onChange={toggleShownModels}
-                  style={{ width: 13, height: 13, accentColor: "var(--accent)", flexShrink: 0 }}
+                  style={{ width: 13, height: 13, accentColor: "var(--selected-graphic)", flexShrink: 0 }}
                 />
                 {t("models.discoverySelectShown")}
               </label>
@@ -506,7 +506,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, onAddMod
                       checked={checked || alreadyAdded}
                       disabled={alreadyAdded}
                       onChange={() => toggleDiscoveredModel(model.id)}
-                      style={{ width: 13, height: 13, accentColor: "var(--accent)", flexShrink: 0 }}
+                      style={{ width: 13, height: 13, accentColor: "var(--selected-graphic)", flexShrink: 0 }}
                     />
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--fg)", fontSize: "var(--fs-caption)" }}>{model.name ?? model.id}</span>
@@ -527,7 +527,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, onAddMod
               <button
                 onClick={addSelectedModels}
                 disabled={selectedCount === 0}
-                style={{ height: 28, padding: "0 11px", border: "none", borderRadius: "var(--r-md)", background: selectedCount ? "var(--accent)" : "var(--panel)", color: selectedCount ? "oklch(99% 0.01 256)" : "var(--faint)", cursor: selectedCount ? "pointer" : "not-allowed", fontSize: "var(--fs-caption)", fontWeight: 600, whiteSpace: "nowrap" }}
+                style={{ height: 28, padding: "0 11px", border: "none", borderRadius: "var(--r-md)", background: selectedCount ? "var(--accent)" : "var(--panel)", color: selectedCount ? "var(--on-accent)" : "var(--faint)", cursor: selectedCount ? "pointer" : "not-allowed", fontSize: "var(--fs-caption)", fontWeight: 600, whiteSpace: "nowrap" }}
               >
                 {selectedCount
                   ? t("models.discoveryAddSelectedCount", { count: selectedCount })
@@ -549,8 +549,8 @@ type ThinkingLevel = typeof THINKING_LEVELS[number];
 const LEVEL_COLORS: Record<ThinkingLevel, string> = {
   off:     "var(--offline)",
   minimal: "var(--faint)",
-  low:     "var(--accent)",
-  medium:  "var(--accent)",
+  low:     "var(--accent-graphic)",
+  medium:  "var(--accent-graphic)",
   high:    "var(--working)",
   xhigh:   "var(--working)",
   max:     "var(--error)",
@@ -597,12 +597,12 @@ function ThinkingLevelMapEditor({
         };
         const btnActive: React.CSSProperties = {
           background: "var(--accent)",
-          color: "oklch(99% 0.01 256)",
+          color: "var(--on-accent)",
           fontWeight: 600,
         };
         const btnActiveDisabled: React.CSSProperties = {
-          background: "var(--error)",
-          color: "oklch(99% 0.01 256)",
+          background: "var(--error-fill)",
+          color: "var(--on-accent)",
           fontWeight: 600,
         };
 
@@ -649,7 +649,7 @@ function ThinkingLevelMapEditor({
             </div>
 
             {/* Custom button + input fused */}
-            <div style={{ display: "flex", borderRadius: "var(--r-md)", border: `1px solid ${state === "string" ? "var(--accent)" : "var(--border-strong)"}`, overflow: "hidden", transition: "border-color var(--dur-fast)" }}>
+            <div style={{ display: "flex", borderRadius: "var(--r-md)", border: `1px solid ${state === "string" ? "var(--accent-graphic)" : "var(--border-strong)"}`, overflow: "hidden", transition: "border-color var(--dur-fast)" }}>
               <button
                 onClick={() => setLevel(level, strVal || level)}
                 style={{ ...btnBase, ...(state === "string" ? btnActive : {}), borderRight: "1px solid var(--border)", flexShrink: 0 }}
@@ -934,10 +934,10 @@ function ModelDetail({
             style={{
               height: 24,
               padding: "0 8px",
-              background: testState.phase === "success" ? "var(--online)" : "none",
-              border: `1px solid ${testState.phase === "success" ? "var(--online)" : "var(--border)"}`,
+              background: testState.phase === "success" ? "var(--online-fill)" : "none",
+              border: `1px solid ${testState.phase === "success" ? "var(--online-fill)" : "var(--border)"}`,
               borderRadius: "var(--r-sm)",
-              color: testState.phase === "success" ? "oklch(99% 0.01 256)" : (!model.id.trim() || testState.phase === "testing") ? "var(--faint)" : "var(--muted)",
+              color: testState.phase === "success" ? "var(--on-accent)" : (!model.id.trim() || testState.phase === "testing") ? "var(--faint)" : "var(--muted)",
               cursor: (!model.id.trim() || testState.phase === "testing") ? "not-allowed" : "pointer",
               fontSize: "var(--fs-caption)",
               display: "inline-flex",
@@ -1007,7 +1007,7 @@ function ModelDetail({
           {catalogUndoRef.current && (
             <button
               onClick={undoCatalogFill}
-              style={{ flexShrink: 0, padding: "0 2px", border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: "var(--fs-mono-xs)" }}
+              style={{ flexShrink: 0, padding: "0 2px", border: "none", background: "none", color: "var(--accent-deep)", cursor: "pointer", fontSize: "var(--fs-mono-xs)" }}
             >
               {t("models.catalogUndo")}
             </button>
@@ -1253,7 +1253,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
             {loginState.phase === "auth" && (
               <p style={{ margin: 0, fontSize: "var(--fs-caption)", color: "var(--faint)", lineHeight: 1.5 }}>
                 If the browser window did not open,{" "}
-                <a href={loginState.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
+                <a href={loginState.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-deep)", wordBreak: "break-all" }}>
                   click here to open the login page
                 </a>
                 .
@@ -1271,7 +1271,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
               <button
                 onClick={() => submitCode(loginState.token, inputValue)}
                 disabled={!inputValue.trim()}
-                style={{ padding: "6px 12px", background: inputValue.trim() ? "var(--accent)" : "var(--panel)", border: "none", borderRadius: "var(--r-md)", color: inputValue.trim() ? "oklch(99% 0.01 256)" : "var(--faint)", cursor: inputValue.trim() ? "pointer" : "not-allowed", fontSize: "var(--fs-sm)", fontWeight: 600, flexShrink: 0 }}
+                style={{ padding: "6px 12px", background: inputValue.trim() ? "var(--accent)" : "var(--panel)", border: "none", borderRadius: "var(--r-md)", color: inputValue.trim() ? "var(--on-accent)" : "var(--faint)", cursor: inputValue.trim() ? "pointer" : "not-allowed", fontSize: "var(--fs-sm)", fontWeight: 600, flexShrink: 0 }}
               >
                  {t("i18n.submit")}
               </button>
@@ -1287,7 +1287,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
               {loginState.userCode}
             </div>
             <p style={{ margin: 0, fontSize: "var(--fs-caption)", color: "var(--faint)", lineHeight: 1.5 }}>
-              <a href={loginState.verificationUri} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
+              <a href={loginState.verificationUri} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-deep)", wordBreak: "break-all" }}>
                 {loginState.verificationUri}
               </a>
               {loginState.expiresInSeconds ? ` Expires in ${Math.ceil(loginState.expiresInSeconds / 60)} minutes.` : ""}
@@ -1318,7 +1318,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
           <>
             <button
               onClick={handleLogin}
-              style={{ padding: "5px 14px", background: "var(--accent)", border: "none", borderRadius: "var(--r-md)", color: "oklch(99% 0.01 256)", cursor: "pointer", fontSize: "var(--fs-sm)", fontWeight: 600 }}
+              style={{ padding: "5px 14px", background: "var(--accent)", border: "none", borderRadius: "var(--r-md)", color: "var(--on-accent)", cursor: "pointer", fontSize: "var(--fs-sm)", fontWeight: 600 }}
             >
                {provider.loggedIn ? t("i18n.relogin") : t("i18n.login")}
             </button>
@@ -1435,9 +1435,9 @@ function ApiKeyDetail({ provider, onRefresh }: { provider: ApiKeyProvider; onRef
             disabled={saving || !apiKey.trim() || savedOk}
             style={{
               padding: "6px 12px",
-              background: savedOk ? "var(--online)" : apiKey.trim() ? "var(--accent)" : "var(--panel)",
+              background: savedOk ? "var(--online-fill)" : apiKey.trim() ? "var(--accent)" : "var(--panel)",
               border: "none", borderRadius: "var(--r-md)",
-              color: (apiKey.trim() || savedOk) ? "oklch(99% 0.01 256)" : "var(--faint)",
+              color: (apiKey.trim() || savedOk) ? "var(--on-accent)" : "var(--faint)",
               cursor: (saving || !apiKey.trim() || savedOk) ? "not-allowed" : "pointer",
               fontSize: "var(--fs-sm)", fontWeight: 600, flexShrink: 0,
               display: "flex", alignItems: "center", gap: 5,
@@ -1592,7 +1592,7 @@ function AddProviderPicker({
                 <button
                   onClick={() => { onAddCustom(); onClose(); }}
                   style={cardStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-graphic)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--panel)"; }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1613,7 +1613,7 @@ function AddProviderPicker({
               {availableOAuth.map((p) => (
                 <button key={p.id} onClick={() => { onSelectOAuth(p.id); onClose(); }}
                   style={cardStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-graphic)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--panel)"; }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1630,7 +1630,7 @@ function AddProviderPicker({
               {availableApiKey.map((p) => (
                 <button key={p.id} onClick={() => { onSelectApiKey(p.id); onClose(); }}
                   style={cardStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-graphic)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--panel)"; }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1889,7 +1889,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
                   <div
                     key={p.id}
                     onClick={() => setSelection({ type: "oauth", providerId: p.id })}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isSelected ? "var(--accent-soft)" : "none", color: isSelected ? "var(--accent)" : "var(--fg)" }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isSelected ? "var(--accent-soft)" : "none", color: isSelected ? "var(--accent-deep)" : "var(--fg)" }}
                     onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "var(--fg-soft)"; }}
                     onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "none"; }}
                   >
@@ -1906,7 +1906,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
                   <div
                     key={p.id}
                     onClick={() => setSelection({ type: "apikey", providerId: p.id })}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isSelected ? "var(--accent-soft)" : "none", color: isSelected ? "var(--accent)" : "var(--fg)" }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isSelected ? "var(--accent-soft)" : "none", color: isSelected ? "var(--accent-deep)" : "var(--fg)" }}
                     onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "var(--fg-soft)"; }}
                     onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "none"; }}
                   >
@@ -1932,7 +1932,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
                     {/* Provider row */}
                     <div
                       onClick={() => setSelection({ type: "provider", name: pName })}
-                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 8px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isProviderSelected ? "var(--accent-soft)" : "none", color: isProviderSelected ? "var(--accent)" : "var(--fg)" }}
+                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 8px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isProviderSelected ? "var(--accent-soft)" : "none", color: isProviderSelected ? "var(--accent-deep)" : "var(--fg)" }}
                       onMouseEnter={(e) => { if (!isProviderSelected) e.currentTarget.style.background = "var(--fg-soft)"; }}
                       onMouseLeave={(e) => { if (!isProviderSelected) e.currentTarget.style.background = "none"; }}
                     >
@@ -1955,7 +1955,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
                         <div
                           key={i}
                           onClick={() => setSelection({ type: "model", providerName: pName, index: i })}
-                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px 5px 26px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isModelSelected ? "var(--accent-soft)" : "none", color: isModelSelected ? "var(--accent)" : "var(--fg)" }}
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px 5px 26px", borderRadius: "var(--r-sm)", cursor: "pointer", background: isModelSelected ? "var(--accent-soft)" : "none", color: isModelSelected ? "var(--accent-deep)" : "var(--fg)" }}
                           onMouseEnter={(e) => { if (!isModelSelected) e.currentTarget.style.background = "var(--fg-soft)"; }}
                           onMouseLeave={(e) => { if (!isModelSelected) e.currentTarget.style.background = "none"; }}
                         >
@@ -1963,7 +1963,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
                              {m.id || t("i18n.newModel")}
                           </span>
                           {m.reasoning && (
-                            <span style={{ fontSize: "var(--fs-mono-micro)", padding: "1px 4px", background: "var(--accent-soft)", color: "var(--accent)", borderRadius: "var(--r-sm)", flexShrink: 0 }}>T</span>
+                            <span style={{ fontSize: "var(--fs-mono-micro)", padding: "1px 4px", background: "var(--accent-soft)", color: "var(--accent-deep)", borderRadius: "var(--r-sm)", flexShrink: 0 }}>T</span>
                           )}
                         </div>
                       );
@@ -1973,7 +1973,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
                     <div
                       onClick={(e) => { e.stopPropagation(); addModel(pName); }}
                       style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px 4px 26px", borderRadius: "var(--r-sm)", cursor: "pointer", color: "var(--faint)" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent-deep)"; e.currentTarget.style.background = "var(--fg-soft)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.color = "var(--faint)"; e.currentTarget.style.background = "none"; }}
                     >
                        <span style={{ fontSize: "var(--fs-caption)" }}>+ {t("i18n.model")}</span>
@@ -1990,7 +1990,7 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
                 width: "100%", padding: "6px 0", background: "none", border: "1px dashed var(--border)", borderRadius: "var(--r-md)",
                 color: "var(--muted)", cursor: "pointer", fontSize: "var(--fs-sm)",
               }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-graphic)"; e.currentTarget.style.color = "var(--accent-deep)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}
               >
                  + {t("i18n.addProvider")}
@@ -2018,9 +2018,9 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
             position: "relative",
             padding: "6px 16px",
             minWidth: 92,
-            background: savedOk ? "var(--online)" : saving ? "var(--panel)" : "var(--accent)",
+            background: savedOk ? "var(--online-fill)" : saving ? "var(--panel)" : "var(--accent)",
             border: "none", borderRadius: "var(--r-md)",
-            color: savedOk ? "oklch(99% 0.01 256)" : saving ? "var(--muted)" : "oklch(99% 0.01 256)",
+            color: savedOk ? "var(--on-accent)" : saving ? "var(--muted)" : "var(--on-accent)",
             cursor: (saving || savedOk) ? "default" : "pointer", fontSize: "var(--fs-body)", fontWeight: 600,
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
             transition: "background-color var(--dur-drawer) var(--ease), color var(--dur-drawer) var(--ease)",

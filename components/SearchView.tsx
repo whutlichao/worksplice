@@ -259,7 +259,7 @@ export function SearchHitRow({
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="r-top">
-            <span style={{ color: "var(--accent)", fontWeight: "var(--fw-semi)" }}>
+            <span style={{ color: "var(--accent-deep)", fontWeight: "var(--fw-semi)" }}>
               {hit.author?.name ?? hit.author_id}
             </span>
             {hit.channel ? (

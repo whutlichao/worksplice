@@ -219,7 +219,7 @@ export function TaskHistoryList({
               borderRadius: "var(--r-sm)",
               border: `1px solid var(--border)`,
               background:
-                task.status === "done" ? "var(--online)" : "var(--surface)",
+                task.status === "done" ? "var(--online-fill)" : "var(--surface)",
               flexShrink: 0,
             }}
           >
@@ -382,7 +382,7 @@ export function RuntimeProbeFeedback({ probe }: { probe: RuntimeProbeSummary }) 
     <div
       style={{
         fontSize: 11,
-        color: failed ? "var(--error)" : "var(--online)",
+        color: failed ? "var(--error)" : "var(--online-text)",
         marginTop: 8,
       }}
     >
@@ -783,7 +783,7 @@ export function AgentDetailPanel({
             <div
               style={{
                 fontSize: "var(--fs-caption)",
-                color: "var(--online)",
+                color: "var(--online-text)",
                 marginTop: 8,
               }}
             >
@@ -958,7 +958,7 @@ export function AgentDetailPanel({
                                 fontFamily: "var(--mono)",
                                 fontWeight: 700,
                                 color: entry.inTaskThread
-                                  ? "var(--accent)"
+                                  ? "var(--accent-deep)"
                                   : "var(--muted)",
                               }}
                             >

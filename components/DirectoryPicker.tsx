@@ -216,7 +216,7 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
             onClick={() => onSelect(currentPath)}
             disabled={!canSelect}
             title={hasUncommittedPath ? t("directoryPicker.openBeforeSelecting") : t("directoryPicker.selectCurrentDirectory")}
-            style={{ padding: "6px 16px", border: 0, borderRadius: "var(--r-md)", background: "var(--accent)", color: "oklch(99% 0.01 256)", fontSize: "var(--fs-body)", fontWeight: 600, opacity: canSelect ? 1 : 0.6, cursor: canSelect ? "pointer" : "default" }}
+            style={{ padding: "6px 16px", border: 0, borderRadius: "var(--r-md)", background: "var(--accent)", color: "var(--on-accent)", fontSize: "var(--fs-body)", fontWeight: 600, opacity: canSelect ? 1 : 0.6, cursor: canSelect ? "pointer" : "default" }}
           >
             {busy ? t("i18n.checking") : t("directoryPicker.selectThisFolder")}
           </button>

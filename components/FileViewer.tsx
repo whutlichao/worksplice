@@ -1075,7 +1075,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
                     className="file-viewer-mode-button"
                     style={{
                       background: active ? "var(--accent-soft)" : "transparent",
-                      color: active ? "var(--accent)" : "var(--muted)",
+                      color: active ? "var(--accent-deep)" : "var(--muted)",
                     }}
                   >
                     {DISPLAY_MODE_LABELS[mode]}

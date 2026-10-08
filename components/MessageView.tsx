@@ -249,13 +249,13 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                 padding: "3px 8px", height: 22,
                 background: "none", border: "none",
                 borderRadius: "var(--r-sm)",
-                color: copied ? "var(--accent)" : "var(--faint)",
+                color: copied ? "var(--accent-deep)" : "var(--faint)",
                 cursor: "pointer",
                 fontSize: "var(--fs-caption)", fontWeight: 400,
                 whiteSpace: "nowrap",
                 transition: "color var(--dur)",
               }}
-              onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "var(--accent)"; }}
+              onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "var(--accent-deep)"; }}
               onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = "var(--faint)"; }}
             >
               {copied ? (
@@ -293,7 +293,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                     whiteSpace: "nowrap",
                     transition: "color var(--dur)",
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent-deep)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.color = "var(--faint)"; }}
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -313,13 +313,13 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                     padding: "3px 8px", height: 22,
                     background: "none", border: "none",
                     borderRadius: "var(--r-sm)",
-                    color: forking ? "var(--accent)" : "var(--faint)",
+                    color: forking ? "var(--accent-deep)" : "var(--faint)",
                     cursor: forking ? "not-allowed" : "pointer",
                     fontSize: "var(--fs-caption)", fontWeight: 400,
                     whiteSpace: "nowrap",
                     transition: "color var(--dur)",
                   }}
-                  onMouseEnter={(e) => { if (!forking) e.currentTarget.style.color = "var(--accent)"; }}
+                  onMouseEnter={(e) => { if (!forking) e.currentTarget.style.color = "var(--accent-deep)"; }}
                   onMouseLeave={(e) => { if (!forking) e.currentTarget.style.color = "var(--faint)"; }}
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -515,9 +515,9 @@ function AssistantMessageView({
                     {est}
                   </span>
                   {tps !== null && (() => {
-                    const bg = tps >= 30 ? "var(--online)" : tps >= 15 ? "var(--working)" : "var(--error)";
+                    const bg = tps >= 30 ? "var(--online-fill)" : tps >= 15 ? "var(--working-fill)" : "var(--error-fill)";
                     return (
-                      <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: "var(--r-sm)", background: bg, color: "var(--fg)", fontSize: "var(--fs-caption)", fontWeight: 400 }}>
+                      <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: "var(--r-sm)", background: bg, color: "var(--on-accent)", fontSize: "var(--fs-caption)", fontWeight: 400 }}>
                         {tps.toFixed(1)} t/s
                       </span>
                     );
@@ -573,7 +573,7 @@ function AssistantMessageView({
               padding: "3px 8px", height: 22,
               background: "none", border: "none",
               borderRadius: "var(--r-sm)",
-              color: copied ? "var(--accent)" : "var(--faint)",
+              color: copied ? "var(--accent-deep)" : "var(--faint)",
               cursor: "pointer",
               fontSize: "var(--fs-caption)", fontWeight: 400,
               whiteSpace: "nowrap",
@@ -581,7 +581,7 @@ function AssistantMessageView({
               pointerEvents: hovered ? "auto" : "none",
               transition: "opacity var(--dur), color var(--dur)",
             }}
-            onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "var(--accent)"; }}
+            onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "var(--accent-deep)"; }}
             onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = "var(--faint)"; }}
           >
             {copied ? (
@@ -973,12 +973,12 @@ function PatchTextView({ text }: { text: string }) {
         const bg =
           kind === "added" ? "color-mix(in oklch, var(--online) 12%, transparent)" :
           kind === "removed" ? "color-mix(in oklch, var(--error) 13%, transparent)" :
-          kind === "hunk" ? "color-mix(in oklch, var(--accent) 12%, transparent)" :
+          kind === "hunk" ? "var(--accent-soft)" :
           "transparent";
         const color =
           kind === "added" ? "var(--online-text)" :
           kind === "removed" ? "var(--error)" :
-          kind === "hunk" ? "var(--accent)" :
+          kind === "hunk" ? "var(--accent-deep)" :
           "var(--fg)";
 
         return (
@@ -992,7 +992,7 @@ function PatchTextView({ text }: { text: string }) {
                 : kind === "removed"
                 ? "3px solid var(--error)"
                 : kind === "hunk"
-                ? "3px solid var(--accent)"
+                ? "3px solid var(--accent-graphic)"
                 : "3px solid transparent",
             }}
           >
@@ -1272,7 +1272,7 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
                 padding: "3px 7px",
                 border: "none",
                 background: "none",
-                color: copied ? "var(--accent)" : "var(--faint)",
+                color: copied ? "var(--accent-deep)" : "var(--faint)",
                 cursor: "pointer",
                 fontSize: "var(--fs-caption)",
               }}
@@ -1467,14 +1467,14 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
             <button
               onClick={loadFullOutput}
               disabled={loadingFull}
-              style={{ background: "none", border: "none", color: "var(--accent)", cursor: loadingFull ? "default" : "pointer", fontSize: "var(--fs-caption)", padding: 0, textDecoration: "underline" }}
+              style={{ background: "none", border: "none", color: "var(--accent-deep)", cursor: loadingFull ? "default" : "pointer", fontSize: "var(--fs-caption)", padding: 0, textDecoration: "underline" }}
             >
               {loadingFull ? "loading…" : "view full output"}
             </button>
           )}
           <a
             href={`${fullOutputUrl}&download=1`}
-            style={{ marginLeft: showFullButton ? 10 : 0, color: "var(--accent)", fontSize: "var(--fs-caption)", textDecoration: "underline" }}
+            style={{ marginLeft: showFullButton ? 10 : 0, color: "var(--accent-deep)", fontSize: "var(--fs-caption)", textDecoration: "underline" }}
           >
             download full output
           </a>

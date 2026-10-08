@@ -1,5 +1,5 @@
 /* ============================================================================
-   worksplice — 视觉契约入口（modern-minimal，ADR-0014 / ticket 02）
+   worksplice — 视觉契约入口（macaron，ADR-0015 / ticket 02）
 
    设计系统即运行时真源：`worksplice-design-system/` 的 token 文件被顶层 @import，
    本仓只叠扩展层。改 token 只有一处可改（上游），此处不复制它的 :root。
@@ -38,7 +38,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 input, textarea, select { font: inherit; color: inherit; }
 h1, h2, h3 { margin: 0; font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); }
 code, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+:focus-visible { outline: 2px solid var(--accent-graphic); outline-offset: 2px; border-radius: 2px; }
 [hidden] { display: none !important; }
 
 /* 字段与 composer 的焦点环（ED-8；搬自 design kit 的字段规则）：
@@ -52,7 +52,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--accent-graphic);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
@@ -73,6 +73,34 @@ select:focus-visible {
   --font-mono: var(--mono);
 }
 
+/* ─── 扩展层：三个**产品角色**族（ADR-0015；spec 的族 × 档位矩阵） ─────────────
+   色板原语（纸族 / 墨族 / 五个既有族的 fill·soft·deep·graphic）在上游
+   `colors_and_type.css`；`--selected*` / `--unread*` / `--warn*` 是产品角色词汇
+   （当前位置 / 未读 / 警示），不进通用资料，落本仓。四档与上游同义：
+   fill 填充（--on-accent 压其上）· soft 淡底 · deep 文字 · graphic 环·点。 */
+:root {
+  /* 选中 / 导航激活 / 锚点行 / tab / 选中 chip */
+  --selected:         oklch(84.9% 0.081 299.9);
+  --selected-soft:    color-mix(in oklch, var(--selected) 21%, transparent);
+  --selected-deep:    oklch(52.4% 0.081 299.8);
+  --selected-graphic: oklch(62.4% 0.081 300.5);
+
+  /* 未读角标 / 未读点 / 命中高亮 */
+  --unread:         oklch(91% 0.100 94.8);
+  --unread-soft:    color-mix(in oklch, var(--unread) 36%, transparent);
+  --unread-deep:    oklch(51.8% 0.100 94.5);
+  --unread-graphic: oklch(61.6% 0.099 94.7);
+
+  /* 零消费者登记：`--unread-soft` / `--unread-graphic` —— 未读族的实际消费点是
+     「未读角标 fill」（`.badge`）与「命中高亮 fill」（`.result mark`），soft / graphic
+     两档按矩阵落值、暂无消费者（同上：矩阵先落词汇，不删）。 */
+  /* 警示 / 待审提示 / 警告横幅（今天借 --working 的那些站点） */
+  --warn:         oklch(86.3% 0.084 52.2);
+  --warn-soft:    color-mix(in oklch, var(--warn) 24%, transparent);
+  --warn-deep:    oklch(52.6% 0.084 51.9);
+  --warn-graphic: oklch(62.1% 0.083 51.6);
+}
+
 pre, code {
   font-family: var(--font-mono);
 }
@@ -84,13 +112,14 @@ pre, code {
   50% { opacity: 0.35; }
 }
 
-/* ─── 遗留面（票 10）：状态色作**文字**时的浅底高对比派生 ──────────────────
-   四态色本身是点 / chip 色（--online 64% / --working 74% 亮度），直接当正文色
-   落在浅色底上低于 4.5:1（ED-7 与 SKILL §5 的对比要求）。这里按**同色系**往
-   --fg 混出可读前景，不引入第二强调色、不引入新色相（ED-10）。 */
+/* ─── 遗留面（票 10）：状态色作**文字**时的同色系深档 ────────────────────
+   四态色里 `--online` / `--working` 是点 / 条 / 标记档（graphic），直接当正文色落在
+   浅色底上低于 4.5:1（ED-7 与 SKILL §5 的对比要求）。这里是它们的**文字档实值**
+   （= spec 矩阵里同族的 deep 档；票 03 起不再用 `color-mix` 派生，值可审计、
+   不再随两个输入漂移）。 */
 :root {
-  --online-text: color-mix(in oklch, var(--online) 45%, var(--fg));
-  --working-text: color-mix(in oklch, var(--working) 45%, var(--fg));
+  --online-text: oklch(50.6% 0.107 159.9);
+  --working-text: oklch(52.3% 0.110 75.2);
 }
 
 /* ED-9：遗留面把动效时长写在 inline style 里（消息动作栏 / 菜单 / 开关 /
@@ -147,22 +176,22 @@ pre, code {
 .markdown-body ol > li { list-style-type: decimal; }
 .markdown-body li > p { margin: 0; }
 .markdown-body li::marker {
-  color: color-mix(in srgb, var(--accent) 72%, var(--muted));
+  color: color-mix(in srgb, var(--accent-deep) 72%, var(--muted));
   font-weight: 600;
 }
 .markdown-body strong {
-  color: color-mix(in srgb, var(--fg) 88%, var(--accent));
+  color: color-mix(in srgb, var(--fg) 88%, var(--accent-deep));
   font-weight: 700;
 }
 .markdown-body em { color: var(--muted); }
 .markdown-body a {
-  color: var(--accent);
+  color: var(--accent-deep);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--accent-deep) 45%, transparent);
 }
-.markdown-body a:hover { text-decoration-color: var(--accent); }
+.markdown-body a:hover { text-decoration-color: var(--accent-deep); }
 .markdown-body img {
   display: block;
   max-width: 100%;
@@ -206,15 +235,15 @@ pre, code {
 }
 .markdown-body .task-list-item > input[type="checkbox"]:checked,
 .markdown-body .task-list-item > p:first-child > input[type="checkbox"]:first-child:checked {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  border-color: var(--accent-graphic);
+  background: var(--accent-soft);
 }
 .markdown-body .task-list-item > input[type="checkbox"]:checked::before,
 .markdown-body .task-list-item > p:first-child > input[type="checkbox"]:first-child:checked::before {
   content: "";
   width: 4px;
   height: 8px;
-  border: solid var(--accent);
+  border: solid var(--accent-graphic);
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(45deg) translateY(-1px);
 }
@@ -422,7 +451,7 @@ pre, code {
 }
 .markdown-code-action.is-active {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-deep);
 }
 
 /* ED-1：mermaid 画布是内容面 → --surface（不是 --panel）。 */
@@ -455,7 +484,7 @@ pre, code {
   opacity: 0.85;
 }
 .mermaid-preview-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-graphic);
   outline-offset: -2px;
 }
 
@@ -549,7 +578,7 @@ pre, code {
 }
 .mermaid-zoom-stepper button:focus-visible,
 .mermaid-zoom-icon-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-graphic);
   outline-offset: -2px;
 }
 .mermaid-zoom-value {
@@ -710,12 +739,12 @@ pre, code {
 
 .file-viewer-mode-button:focus-visible,
 .file-viewer-icon-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-graphic);
   outline-offset: -2px;
 }
 
 .directory-picker-path:focus-visible {
-  border-color: var(--accent) !important;
+  border-color: var(--accent-graphic) !important;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
@@ -947,19 +976,19 @@ span.linenumber {
   padding-left: 16px;
 }
 
-/* §3.3 消息行：无分割线，hover 整行高亮；锚点（thread 打开的消息）用 accent 淡底表示「当前位置」 */
+/* §3.3 消息行：无分割线，hover 整行高亮；锚点（thread 打开的消息）用选中族淡底表示「当前位置」 */
 .ws-message-row {
   background: var(--surface);
   transition: background var(--dur) var(--ease);
 }
 .ws-message-row-anchor {
-  background: var(--accent-soft);
+  background: var(--selected-soft);
 }
 .ws-message-row:hover {
   background: var(--fg-soft);
 }
 .ws-message-row-anchor:hover {
-  background: var(--accent-soft);
+  background: var(--selected-soft);
 }
 
 /* §3.3 消息动作栏：hover 才显示；emoji 二级层展开（ws-message-actions-open）时保持可见 */
@@ -1018,7 +1047,7 @@ span.linenumber {
     position: fixed;
     inset: 0;
     z-index: var(--z-scrim);
-    background: oklch(21% 0.02 255 / 0.4);
+    background: oklch(33% 0.045 300 / 0.4);
   }
 
   .ws-mobile-toggle {
@@ -1056,7 +1085,7 @@ span.linenumber {
 .brand { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
 .brand-mark {
   width: 26px; height: 26px; flex: 0 0 26px; display: grid; place-items: center;
-  color: oklch(99% 0.01 256); background: var(--accent); border-radius: 7px;
+  color: var(--on-accent); background: var(--accent); border-radius: 7px;
 }
 .brand-name {
   font-size: var(--fs-body-lg); font-weight: var(--fw-black);
@@ -1075,13 +1104,13 @@ span.linenumber {
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .search-btn:hover { border-color: var(--border-strong); color: var(--fg); }
-.search-btn:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-btn:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 3px var(--accent-soft); }
 .search-btn input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--fg); font-size: var(--fs-sm); }
 /* 字段环已在 shell（`:focus-within`）上；内层 input 自己的环会让这两层叠成双环。 */
 .search-btn input:focus-visible { box-shadow: none; }
 .search-btn input::placeholder { color: var(--faint); }
 .search-btn button { display: grid; place-items: center; color: var(--muted); flex: 0 0 auto; }
-.search-btn button:hover { color: var(--accent); }
+.search-btn button:hover { color: var(--accent-deep); }
 
 .rail-actions { display: flex; gap: var(--sp-4); padding: 0 var(--sp-5) var(--sp-5); border-bottom: 1px solid var(--border); }
 .rail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-4) var(--sp-4) var(--sp-7); }
@@ -1107,9 +1136,9 @@ span.linenumber {
 .nav-row.is-active { background: var(--surface); color: var(--fg); font-weight: var(--fw-semi); box-shadow: inset 0 0 0 1px var(--border); }
 .nav-row.is-active::before {
   content: ""; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 2px;
-  background: var(--accent); border-radius: var(--r-pill);
+  background: var(--selected-graphic); border-radius: var(--r-pill);
 }
-.nav-row.is-active .hash { color: var(--accent); }
+.nav-row.is-active .hash { color: var(--selected-deep); }
 
 .rail-foot { border-top: 1px solid var(--border); padding: var(--sp-4); display: flex; gap: var(--sp-3); align-items: center; }
 
@@ -1132,8 +1161,8 @@ span.linenumber {
   transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 .btn:hover { background: var(--fg-soft); border-color: var(--faint); }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: oklch(99% 0.01 256); }
-.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: oklch(99% 0.01 256); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
 .btn-ghost { border-color: transparent; background: transparent; color: var(--muted); }
 .btn-ghost:hover { background: var(--fg-soft); color: var(--fg); }
 .btn-danger { border-color: color-mix(in oklch, var(--error) 45%, transparent); color: var(--error); }
@@ -1149,14 +1178,14 @@ span.linenumber {
   color: var(--muted); border: 1px solid transparent; position: relative;
 }
 .icon-btn:hover { background: var(--surface); border-color: var(--border); color: var(--fg); }
-.icon-btn.is-on { background: var(--accent-soft); color: var(--accent); }
+.icon-btn.is-on { background: var(--accent-soft); color: var(--accent-deep); }
 .icon-btn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--error); border: 1.5px solid var(--panel); }
 
 /* ─── badge ──────────────────────────────────────────────────────────────── */
 .badge {
   font-family: var(--mono); font-size: 10px; font-weight: var(--fw-black); line-height: 1.5;
   min-width: 18px; padding: 0 5px; border-radius: var(--r-pill); text-align: center;
-  background: var(--accent); color: oklch(99% 0.01 256);
+  background: var(--unread); color: var(--on-accent);
 }
 .badge.soft { background: var(--fg-soft); color: var(--muted); }
 
@@ -1216,7 +1245,7 @@ span.linenumber {
 .seg button.is-active { background: var(--fg); color: oklch(98% 0.005 250); }
 .filter-chip { display: inline-flex; align-items: center; gap: var(--sp-3); height: var(--icon-btn); padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--muted); font-size: 12px; }
 .filter-chip:hover { border-color: var(--border-strong); color: var(--fg); }
-.filter-chip.is-on { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
+.filter-chip.is-on { border-color: var(--selected-graphic); color: var(--selected-deep); background: var(--selected-soft); }
 
 .board { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-6) var(--sp-7) var(--sp-10); }
 .board-cols { display: flex; gap: var(--sp-5); align-items: flex-start; min-width: min-content; }
@@ -1228,7 +1257,7 @@ span.linenumber {
 .col-head .col-add { margin-left: auto; color: var(--faint); width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; }
 .col-head .col-add:hover { background: var(--surface); color: var(--fg); }
 .col-body { padding: 2px var(--sp-4) 10px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; min-height: 44px; }
-.col.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+.col.drag-over { border-color: var(--accent-graphic); background: var(--accent-soft); }
 .col.invalid-over { border-color: var(--error); }
 .card.dragging { opacity: .4; cursor: grabbing; }
 .card-title { font-size: 12.5px; font-weight: var(--fw-semi); line-height: var(--lh-snug); margin-bottom: 7px; overflow-wrap: anywhere; }
@@ -1262,7 +1291,7 @@ span.linenumber {
 .chan-head { padding: 13px var(--sp-9) 0; border-bottom: 1px solid var(--border); background: var(--surface); }
 .chan-top { display: flex; align-items: center; gap: 10px; }
 .chan-title { font-size: var(--fs-heading); font-weight: var(--fw-heavy); letter-spacing: var(--ls-tight); display: flex; align-items: center; gap: 7px; min-width: 0; }
-.chan-title .hash { font-family: var(--mono); color: var(--accent); font-weight: var(--fw-black); flex: 0 0 auto; }
+.chan-title .hash { font-family: var(--mono); color: var(--accent-deep); font-weight: var(--fw-black); flex: 0 0 auto; }
 .chan-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chan-desc { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
 .chan-tools { margin-left: auto; display: flex; align-items: center; gap: var(--sp-3); }
@@ -1273,8 +1302,8 @@ span.linenumber {
   font-size: 12px; color: var(--muted);
 }
 .pin-strip b { color: var(--fg); font-weight: var(--fw-semi); }
-.pin-strip .icon { color: var(--accent); flex: 0 0 auto; display: grid; place-items: center; }
-.pin-strip a { color: var(--accent); text-decoration: none; margin-left: auto; white-space: nowrap; }
+.pin-strip .icon { color: var(--accent-deep); flex: 0 0 auto; display: grid; place-items: center; }
+.pin-strip a { color: var(--accent-deep); text-decoration: none; margin-left: auto; white-space: nowrap; }
 .pin-strip a:hover { text-decoration: underline; }
 
 /* ─── stream ─────────────────────────────────────────────────────────────── */
@@ -1291,8 +1320,8 @@ span.linenumber {
 .msg-body { flex: 1; min-width: 0; }
 .msg-head { display: flex; align-items: baseline; gap: var(--sp-4); margin-bottom: 1px; }
 .msg-author { font-size: var(--fs-body); font-weight: var(--fw-bold); letter-spacing: var(--ls-snug); }
-.msg-author.is-agent { color: var(--accent); }
-.msg-tag { font-family: var(--mono); font-size: var(--fs-mono-micro); font-weight: var(--fw-semi); letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+.msg-author.is-agent { color: var(--accent-deep); }
+.msg-tag { font-family: var(--mono); font-size: var(--fs-mono-micro); font-weight: var(--fw-semi); letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent-deep); }
 .msg-time { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); }
 .msg-text { color: var(--fg); font-size: var(--fs-body); line-height: var(--lh-text); overflow-wrap: anywhere; }
 .msg-text p { margin: 0 0 var(--sp-3); }
@@ -1301,30 +1330,30 @@ span.linenumber {
 .msg-text pre { margin: var(--sp-3) 0; padding: 10px 12px; background: oklch(24% 0.015 255); color: oklch(94% 0.01 250); border-radius: var(--r-md); overflow: auto; font-family: var(--mono); font-size: 11.5px; line-height: var(--lh-code); }
 .msg-text pre .cmt { color: oklch(66% 0.02 250); }
 .msg-text pre .kw { color: oklch(78% 0.11 256); }
-.msg-text .mention { color: var(--accent); font-weight: var(--fw-semi); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; }
+.msg-text .mention { color: var(--accent-deep); font-weight: var(--fw-semi); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; }
 .msg-tools { position: absolute; top: -12px; right: var(--sp-4); display: flex; gap: 2px; opacity: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); padding: 2px; transition: opacity var(--dur) var(--ease); }
 .msg-tools button { width: 26px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }
 .msg-tools button:hover { background: var(--fg-soft); color: var(--fg); }
-.task-chip { display: inline-flex; align-items: center; gap: 7px; margin: var(--sp-3) 0 0; padding: var(--sp-3) 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent-line); border-radius: var(--r-sm); background: var(--surface); font-size: 12px; }
-.task-chip:hover { border-color: var(--border-strong); border-left-color: var(--accent); }
-.task-chip b { font-family: var(--mono); font-weight: var(--fw-black); color: var(--accent); }
+.task-chip { display: inline-flex; align-items: center; gap: 7px; margin: var(--sp-3) 0 0; padding: var(--sp-3) 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent-graphic); border-radius: var(--r-sm); background: var(--surface); font-size: 12px; }
+.task-chip:hover { border-color: var(--border-strong); border-left-color: var(--accent-graphic); }
+.task-chip b { font-family: var(--mono); font-weight: var(--fw-black); color: var(--accent-deep); }
 .task-chip .num { font-family: var(--mono); color: var(--faint); }
 .reactions { display: flex; gap: 5px; margin-top: var(--sp-3); }
 .reaction { display: inline-flex; align-items: center; gap: var(--sp-2); padding: 1px 7px; border: 1px solid var(--border); border-radius: var(--r-pill); font-size: 11.5px; color: var(--muted); }
 .reaction b { font-family: var(--mono); font-size: var(--fs-mono-xs); }
-.reaction.mine { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.reaction.mine { border-color: var(--selected-graphic); background: var(--selected-soft); color: var(--selected-deep); }
 
-/* 锚点行（thread 打开的消息）：fill 归票 03 的骨架钩子 `.ws-message-row-anchor`（已是 --accent-soft，
-   不是黄色实心），本段只补左侧 accent 竖条——与 `.nav-row.is-active::before` 同源（spec D3 的「当前位置」）。
+/* 锚点行（thread 打开的消息）：fill 归票 03 的骨架钩子 `.ws-message-row-anchor`（已是 --selected-soft，
+   不是黄色实心），本段只补左侧选中竖条——与 `.nav-row.is-active::before` 同源（spec D3 的「当前位置」）。
    竖条站在行自己的左边缘（不是 -4px 的沟槽里）：右栏线程面板的滚动容器没有内边距，
    站在负数位会被它裁掉。 */
 .ws-message-row-anchor::before {
   content: ""; position: absolute; left: 0; top: 5px; bottom: 5px;
-  width: 2px; background: var(--accent); border-radius: var(--r-pill);
+  width: 2px; background: var(--selected-graphic); border-radius: var(--r-pill);
 }
 /* 锚点行的 hover 也要留在「当前位置」色（票 03 的 `.ws-message-row-anchor:hover` 与 `.msg:hover`
    同特异度，后者在后会吃掉前者）：补一条更特异的组合，让锚点行 hover 不变灰。 */
-.msg.ws-message-row-anchor:hover { background: var(--accent-soft); }
+.msg.ws-message-row-anchor:hover { background: var(--selected-soft); }
 /* `.msg` 的 `margin: 0 -8px` 是逐字形态，前提是容器有 ≥8px 内边距（`.stream` 是 20px）；
    右栏线程面板的滚动容器（票 07 的 `.tt-scroll`，ThreadPanel 侧用 inline `padding: 0` 只取滚动职责）没有——
    在 dock 作用域把负外边距收回，否则播上 `overflow-y: auto` 后会多出一条横向滚动条。
@@ -1344,8 +1373,8 @@ span.linenumber {
 .composer { padding: 10px var(--sp-9) var(--sp-7); background: var(--bg); }
 .composer-inner { max-width: var(--stream-max); margin: 0 auto; }
 .composer-box { border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-composer); transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
-.composer-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .composer-input { width: 100%; border: 0; background: none; resize: none; padding: 11px 13px var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); outline: none; max-height: 160px; }
+.composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* 字段环已在 shell（`:focus-within`）上；内层 textarea 自己的环会落在外壳环内侧 1px 处叠成双环，
    而且它的 `:focus-visible` 圆角是 reset 的 2px、角上不跟外壳的 `--r-lg`。
    同 `.search-btn input`（票 03）与 `.search-field input`（票 09）的处置。 */
@@ -1354,7 +1383,7 @@ span.linenumber {
 .composer-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 5px var(--sp-3) var(--sp-3) var(--sp-4); }
 .composer-bar .sep { flex: 1; }
 .composer-hint { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); margin-right: var(--sp-4); }
-.composer-send { width: var(--icon-btn); height: var(--icon-btn); border-radius: var(--r-sm); display: grid; place-items: center; background: var(--accent); color: oklch(99% .01 256); }
+.composer-send { width: var(--icon-btn); height: var(--icon-btn); border-radius: var(--r-sm); display: grid; place-items: center; background: var(--accent); color: var(--on-accent); }
 .composer-send:hover { background: var(--accent-hover); }
 .composer-send:disabled { background: var(--panel-2); color: var(--faint); cursor: not-allowed; }
 /* 右栏线程的 composer 槽（票 07 的 `.tt-reply`）自己带 `11px 16px 14px` 内边距；本仓 Composer 在
@@ -1371,7 +1400,7 @@ span.linenumber {
 .tab:hover { color: var(--fg); }
 .tab.is-active { color: var(--fg); border-bottom-color: var(--fg); }
 .tab .count { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); margin-left: 5px; }
-.tab.is-active .count { color: var(--accent); }
+.tab.is-active .count { color: var(--selected-deep); }
 
 /* ==========================================================================
    右栏 class 块（票 07，spec §3 组件表第 5–7 行）——逐字搬自 worksplice-design-system/
@@ -1429,8 +1458,8 @@ span.linenumber {
 .kv .k { color: var(--muted); }
 .kv .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-caption); color: var(--fg); text-align: right; overflow-wrap: anywhere; }
 .meter { height: 6px; border-radius: var(--r-pill); background: var(--panel-2); overflow: hidden; margin-top: var(--sp-2); }
-.meter i { display: block; height: 100%; background: var(--accent); border-radius: var(--r-pill); }
-.meter.warn i { background: var(--working); }
+.meter i { display: block; height: 100%; background: var(--accent-graphic); border-radius: var(--r-pill); }
+.meter.warn i { background: var(--warn-graphic); }
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
 .stat { border: 1px solid var(--border); border-radius: var(--r-md); padding: 9px 10px; background: var(--panel); }
 .stat .n { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-stat); font-weight: var(--fw-black); letter-spacing: var(--ls-tight); }
@@ -1440,10 +1469,10 @@ span.linenumber {
 .log-row { display: flex; gap: 9px; font-size: var(--fs-caption); padding: 5px 0; }
 .log-row .ts { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-xs); color: var(--faint); flex: 0 0 auto; padding-top: 1px; }
 .log-row .lv { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-micro); font-weight: var(--fw-black); padding: 0 5px; border-radius: 4px; height: 16px; display: inline-flex; align-items: center; flex: 0 0 auto; }
-.lv.info { background: var(--accent-soft); color: var(--accent); }
-.lv.ok { background: color-mix(in oklch, var(--online) 16%, transparent); color: var(--online-text); }
-.lv.warn { background: color-mix(in oklch, var(--working) 22%, transparent); color: var(--working-text); }
-.lv.err { background: color-mix(in oklch, var(--error) 14%, transparent); color: var(--error); }
+.lv.info { background: var(--accent-soft); color: var(--accent-deep); }
+.lv.ok { background: var(--online-soft); color: var(--online-text); }
+.lv.warn { background: var(--warn-soft); color: var(--warn-deep); }
+.lv.err { background: var(--error-soft); color: var(--error); }
 .log-row .msg { flex: 1; color: var(--muted); overflow-wrap: anywhere; }
 
 /* ─── 线程面板（ThreadPanel 消费 `.tt-summary` / `.tt-scroll` / `.tt-reply`；
@@ -1455,7 +1484,7 @@ span.linenumber {
 /* 常驻阴影退场（ED-4：静止内容不加阴影），焦点环保留 accent（ED-8）——后一条必须显式重声明：
    它与文件顶部 reset 的 `.composer-box:focus-within` 同特异度，靠顺序决胜。 */
 .tt-reply .composer-box { box-shadow: none; }
-.tt-reply .composer-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tt-reply .composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 3px var(--accent-soft); }
 .tt-reply textarea { min-height: 38px; }
 .tt-empty { padding: 26px var(--sp-2); text-align: center; color: var(--faint); font-size: var(--fs-sm); }
 
@@ -1463,7 +1492,7 @@ span.linenumber {
 /* 任务状态胶囊：点色由消费点按 ED-10 映射给（与 ChannelView 的 TASK_STATUS_COLOR 同源），
    本票没有消费点，故这里只有形态。 */
 .tt-status { display: inline-flex; align-items: center; gap: var(--sp-3); height: 26px; padding: 0 10px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg); font-size: var(--fs-caption); font-weight: var(--fw-semi); font-family: var(--mono); }
-.tt-status:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.tt-status:hover { border-color: var(--accent-graphic); background: var(--accent-soft); color: var(--accent-deep); }
 .tt-status .dot { width: 7px; height: 7px; border-radius: var(--r-pill); flex: 0 0 auto; }
 /* owner 胶囊（内嵌 `.avatar.sm` 的槽位）。 */
 .assignee { display: inline-flex; align-items: center; gap: var(--sp-3); height: 26px; padding: 0 9px 0 var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); font-size: var(--fs-caption); color: var(--muted); }
@@ -1483,15 +1512,15 @@ span.linenumber {
 .tt-log li b { color: var(--fg); font-weight: var(--fw-semi); }
 .tt-log li .ts { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-xs); color: var(--faint); margin-left: var(--sp-3); }
 .tt-log li.ok::before { background: var(--online); }
-.tt-log li.warn::before { background: var(--working); }
+.tt-log li.warn::before { background: var(--warn-graphic); }
 .tt-log li.err::before { background: var(--error); }
-.tt-log li.is-now::before { box-shadow: 0 0 0 3px var(--accent-soft); background: var(--accent); }
+.tt-log li.is-now::before { box-shadow: 0 0 0 3px var(--selected-soft); background: var(--selected-graphic); }
 /* 下划线 tab（mono 计数转 accent）。 */
 .dock-tabs { display: flex; gap: 2px; padding: 0 var(--sp-5); border-bottom: 1px solid var(--border); }
 .dock-tab { padding: 9px 10px; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .dock-tab:hover { color: var(--fg); }
 .dock-tab.is-active { color: var(--fg); border-bottom-color: var(--fg); }
-.dock-tab .count { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--accent); }
+.dock-tab .count { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--selected-deep); }
 /* ==========================================================================
    模态族 class 块（票 08：spec 组件表第 10–15 行）
    —— `.overlay` / `.modal*` / `.member-pick` / `.member-opt` / `.radio-*` / `.kv`
@@ -1503,7 +1532,7 @@ span.linenumber {
    ============================================================================ */
 
 /* ─── overlay / modal ────────────────────────────────────────────────────── */
-.overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: start center; padding: 12vh var(--sp-7) var(--sp-10); background: oklch(21% 0.02 255 / 0.42); backdrop-filter: blur(2px); }
+.overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: start center; padding: 12vh var(--sp-7) var(--sp-10); background: oklch(33% 0.045 300 / 0.42); backdrop-filter: blur(2px); }
 .overlay[hidden] { display: none; }
 .modal { width: 100%; max-width: var(--modal-max); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-pop); overflow: hidden; }
 .modal.wide { max-width: var(--modal-wide-max); }
@@ -1517,11 +1546,11 @@ span.linenumber {
 .member-pick { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
 .member-opt { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px 5px var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); font-size: 12px; }
 .member-opt:hover { border-color: var(--border-strong); }
-.member-opt.is-on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.member-opt.is-on { border-color: var(--selected-graphic); background: var(--selected-soft); color: var(--selected-deep); }
 .radio-row { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
 .radio-card { flex: 1; min-width: 130px; border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 11px; text-align: left; }
 .radio-card:hover { border-color: var(--border-strong); }
-.radio-card.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.radio-card.is-on { border-color: var(--selected-graphic); background: var(--selected-soft); }
 .radio-card b { font-size: 12.5px; display: block; }
 
 /* ─── kv 行：上游只有一处定义（在右 dock 段），归票 07 的右栏 class 块 ──
@@ -1574,7 +1603,7 @@ span.linenumber {
 .search-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8) var(--sp-9) var(--sp-11); }
 .search-inner { max-width: 760px; margin: 0 auto; }
 .search-field { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); }
-.search-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-field:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 3px var(--accent-soft); }
 .search-field input { flex: 1; border: 0; background: none; outline: none; font-size: 14px; }
 .search-field input:focus-visible { box-shadow: none; }
 
@@ -1584,9 +1613,9 @@ span.linenumber {
 .result { display: block; width: 100%; text-align: left; padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); margin-bottom: 7px; }
 .result:hover { border-color: var(--border-strong); background: var(--panel); }
 .result .r-top { display: flex; align-items: center; gap: var(--sp-4); font-size: 12px; color: var(--muted); margin-bottom: 3px; }
-.result .r-top .hash { font-family: var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.result .r-top .hash { font-family: var(--mono); color: var(--accent-deep); font-variant-numeric: tabular-nums; }
 .result .r-snip { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: var(--lh-snug); overflow-wrap: anywhere; }
-.result mark { background: color-mix(in oklch, var(--working) 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+.result mark { background: var(--unread); color: inherit; border-radius: 2px; padding: 0 1px; }
 
 /* empty states */
 .empty { text-align: center; padding: var(--sp-12) var(--sp-9); color: var(--faint); }

@@ -102,7 +102,7 @@ export function MyReminderRow({
             fontSize: "var(--fs-mono-xs)",
             padding: "1px 5px",
             borderRadius: "var(--r-sm)",
-            background: reminder.status === "scheduled" ? "var(--online)" : "var(--offline)",
+            background: reminder.status === "scheduled" ? "var(--online-fill)" : "var(--offline-fill)",
             color: "var(--fg)",
           }}
         >

@@ -51,7 +51,7 @@ export function MentionText({
           border: "1px solid transparent",
           borderRadius: "var(--r-sm)",
           background: "var(--accent-soft)",
-          color: "var(--accent)",
+          color: "var(--accent-deep)",
           font: "inherit",
           fontSize: "inherit",
           fontWeight: 700,
