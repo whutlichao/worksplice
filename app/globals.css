@@ -1240,6 +1240,136 @@ span.linenumber {
 .drop-hint { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 9px; text-align: center; font-size: 11px; color: var(--faint); }
 
 /* ==========================================================================
+   频道面 class 块（票 05，spec D7 组件表第 3 行）——逐字搬自 worksplice-design-system/
+   ui_kits/app/app.css 的 `.chan-*` / `.pin-strip` / `.stream*` / `.day-sep` / `.msg*` /
+   `.reactions` / `.reaction` / `.composer*` / `.tabs` 段。
+
+   裁剪登记（coordinator 开工前裁决：判据是「本仓有没有现成实体」，不是「票面有没有列」）：
+   ① `.day-sep` / `.task-chip` / `.composer-hint` / `.msg-tag` **只作词汇表**——四条都属**新增可见实体**
+      （本仓消息流没有按日分组的实体、没有消息下挂任务的 chip、Enter 提示由 placeholder 承担、
+      没有 Agent 胶囊这一可见元素）：按「只换皮、不扩面」不渲染（其存在性由本段守）。
+      （注：频道面的 4 处切换胶囊用票 08 的 `.member-opt` —— 票 09 的「零消费者」断言全局锁死了
+      `.filter-chip`，本票不动跨票文件；理由与待追认事项见票据 Answer 的 Rebase 节。）
+   ② `.tabs` / `.tab` **落位**：本仓已有 Messages|Tasks 实体，原形态带硬偏移阴影，属旧方向残留。
+   ③ 不搬 `.msg.sys` / `.sys-avatar`：本仓没有「系统消息」实体（提醒消息以作者署名，是普通消息）。
+
+   与上游 app.css 的逐字差异只有一处：`.msg:hover` 的填充取契约 token `--fg-soft`
+   （上游是 `color-mix(in oklch, var(--fg) 3.5%, transparent)`；票面明写 `--fg-soft`，
+   与票 03 的 `.ws-message-row:hover` 同源，值差 3.5% vs 5%）。
+   ========================================================================== */
+
+/* ─── channel header ─────────────────────────────────────────────────────── */
+.chan-head { padding: 13px var(--sp-9) 0; border-bottom: 1px solid var(--border); background: var(--surface); }
+.chan-top { display: flex; align-items: center; gap: 10px; }
+.chan-title { font-size: var(--fs-heading); font-weight: var(--fw-heavy); letter-spacing: var(--ls-tight); display: flex; align-items: center; gap: 7px; min-width: 0; }
+.chan-title .hash { font-family: var(--mono); color: var(--accent); font-weight: var(--fw-black); flex: 0 0 auto; }
+.chan-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chan-desc { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.chan-tools { margin-left: auto; display: flex; align-items: center; gap: var(--sp-3); }
+.chan-divider { width: 1px; height: 20px; background: var(--border); }
+.pin-strip {
+  display: flex; align-items: center; gap: 9px; margin-top: 11px; padding: 7px 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md);
+  font-size: 12px; color: var(--muted);
+}
+.pin-strip b { color: var(--fg); font-weight: var(--fw-semi); }
+.pin-strip .icon { color: var(--accent); flex: 0 0 auto; display: grid; place-items: center; }
+.pin-strip a { color: var(--accent); text-decoration: none; margin-left: auto; white-space: nowrap; }
+.pin-strip a:hover { text-decoration: underline; }
+
+/* ─── stream ─────────────────────────────────────────────────────────────── */
+.stream { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8) var(--sp-9) var(--sp-4); }
+.stream-inner { max-width: var(--stream-max); margin: 0 auto; }
+.day-sep { display: flex; align-items: center; gap: var(--sp-5); margin: var(--sp-8) 0 var(--sp-7); }
+.day-sep::before, .day-sep::after { content: ""; height: 1px; flex: 1; background: var(--border); }
+.day-sep span { font-family: var(--mono); font-size: 10px; letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--faint); }
+
+/* ─── message row ────────────────────────────────────────────────────────── */
+.msg { display: flex; gap: 11px; padding: 5px var(--sp-4); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
+.msg:hover { background: var(--fg-soft); }
+.msg:hover .msg-tools, .msg:focus-within .msg-tools { opacity: 1; }
+.msg-body { flex: 1; min-width: 0; }
+.msg-head { display: flex; align-items: baseline; gap: var(--sp-4); margin-bottom: 1px; }
+.msg-author { font-size: var(--fs-body); font-weight: var(--fw-bold); letter-spacing: var(--ls-snug); }
+.msg-author.is-agent { color: var(--accent); }
+.msg-tag { font-family: var(--mono); font-size: var(--fs-mono-micro); font-weight: var(--fw-semi); letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+.msg-time { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); }
+.msg-text { color: var(--fg); font-size: var(--fs-body); line-height: var(--lh-text); overflow-wrap: anywhere; }
+.msg-text p { margin: 0 0 var(--sp-3); }
+.msg-text p:last-child { margin-bottom: 0; }
+.msg-text code { font-family: var(--mono); font-size: 12px; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
+.msg-text pre { margin: var(--sp-3) 0; padding: 10px 12px; background: oklch(24% 0.015 255); color: oklch(94% 0.01 250); border-radius: var(--r-md); overflow: auto; font-family: var(--mono); font-size: 11.5px; line-height: var(--lh-code); }
+.msg-text pre .cmt { color: oklch(66% 0.02 250); }
+.msg-text pre .kw { color: oklch(78% 0.11 256); }
+.msg-text .mention { color: var(--accent); font-weight: var(--fw-semi); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; }
+.msg-tools { position: absolute; top: -12px; right: var(--sp-4); display: flex; gap: 2px; opacity: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); padding: 2px; transition: opacity var(--dur) var(--ease); }
+.msg-tools button { width: 26px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }
+.msg-tools button:hover { background: var(--fg-soft); color: var(--fg); }
+.task-chip { display: inline-flex; align-items: center; gap: 7px; margin: var(--sp-3) 0 0; padding: var(--sp-3) 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent-line); border-radius: var(--r-sm); background: var(--surface); font-size: 12px; }
+.task-chip:hover { border-color: var(--border-strong); border-left-color: var(--accent); }
+.task-chip b { font-family: var(--mono); font-weight: var(--fw-black); color: var(--accent); }
+.task-chip .num { font-family: var(--mono); color: var(--faint); }
+.reactions { display: flex; gap: 5px; margin-top: var(--sp-3); }
+.reaction { display: inline-flex; align-items: center; gap: var(--sp-2); padding: 1px 7px; border: 1px solid var(--border); border-radius: var(--r-pill); font-size: 11.5px; color: var(--muted); }
+.reaction b { font-family: var(--mono); font-size: var(--fs-mono-xs); }
+.reaction.mine { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+
+/* 锚点行（thread 打开的消息）：fill 归票 03 的骨架钩子 `.ws-message-row-anchor`（已是 --accent-soft，
+   不是黄色实心），本段只补左侧 accent 竖条——与 `.nav-row.is-active::before` 同源（spec D3 的「当前位置」）。
+   竖条站在行自己的左边缘（不是 -4px 的沟槽里）：右栏线程面板的滚动容器没有内边距，
+   站在负数位会被它裁掉。 */
+.ws-message-row-anchor::before {
+  content: ""; position: absolute; left: 0; top: 5px; bottom: 5px;
+  width: 2px; background: var(--accent); border-radius: var(--r-pill);
+}
+/* 锚点行的 hover 也要留在「当前位置」色（票 03 的 `.ws-message-row-anchor:hover` 与 `.msg:hover`
+   同特异度，后者在后会吃掉前者）：补一条更特异的组合，让锚点行 hover 不变灰。 */
+.msg.ws-message-row-anchor:hover { background: var(--accent-soft); }
+/* `.msg` 的 `margin: 0 -8px` 是逐字形态，前提是容器有 ≥8px 内边距（`.stream` 是 20px）；
+   右栏线程面板的滚动容器（票 07 的 `.tt-scroll`，ThreadPanel 侧用 inline `padding: 0` 只取滚动职责）没有——
+   在 dock 作用域把负外边距收回，否则播上 `overflow-y: auto` 后会多出一条横向滚动条。
+   内边距取 `--sp-7`（16px）：与票 07 的 `.tt-summary`（`13px 16px 14px`）左缘对齐；
+   （本票首版取 14px 是按**合并前**的 ThreadPanel 头部 14px 推的，票 07 合并后该事实改变，
+   按「两边意图都在」取 16px——登记在票 05 Answer 的 Rebase 节。） */
+.ws-right .msg { margin-inline: 0; padding-inline: var(--sp-7); }
+/* 键盘可达性：票 03 的 `.ws-message-actions` 用 display 揭示，隐藏时不可聚焦——
+   补一条 `.msg:focus-within`（上游 `.msg:focus-within .msg-tools` 的同义扩展），
+   让 Tab 进消息正文时动作栏也展开。 */
+.msg:focus-within .ws-message-actions { display: flex; }
+/* 二级 reaction 条展开时动作栏保持可见（`ws-message-actions-open` 是票 03 的揭示钩子）：
+   否则 `opacity: 0` 的动作栏在展开态会是「看不见但可点」。 */
+.ws-message-actions-open .msg-tools { opacity: 1; }
+
+/* ─── composer ───────────────────────────────────────────────────────────── */
+.composer { padding: 10px var(--sp-9) var(--sp-7); background: var(--bg); }
+.composer-inner { max-width: var(--stream-max); margin: 0 auto; }
+.composer-box { border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-composer); transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.composer-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.composer-input { width: 100%; border: 0; background: none; resize: none; padding: 11px 13px var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); outline: none; max-height: 160px; }
+.composer-input::placeholder { color: var(--faint); }
+.composer-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 5px var(--sp-3) var(--sp-3) var(--sp-4); }
+.composer-bar .sep { flex: 1; }
+.composer-hint { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); margin-right: var(--sp-4); }
+.composer-send { width: var(--icon-btn); height: var(--icon-btn); border-radius: var(--r-sm); display: grid; place-items: center; background: var(--accent); color: oklch(99% .01 256); }
+.composer-send:hover { background: var(--accent-hover); }
+.composer-send:disabled { background: var(--panel-2); color: var(--faint); cursor: not-allowed; }
+/* 右栏线程的 composer 槽（票 07 的 `.tt-reply`）自己带 `11px 16px 14px` 内边距；本仓 Composer 在
+   频道面需要自带内边距（它直坐在 `.composer` 上），两票合并后会在线程里叠成 36px
+   ——按票 07 处理 `.tt-reply .composer-box` 的同款手法，在 dock 槽里把本层内边距归零。 */
+.tt-reply .composer { padding: 0; }
+/* 原语 `.icon-btn` 的 hover 底是 `--surface`（为 rail 的 `--panel` 底设计）；composer 与频道头
+   自身就坐在 `--surface` 上，hover 需要往 `--fg-soft` 走（ED-7 的 hover 不降对比）。 */
+.composer .icon-btn:hover, .chan-tools .icon-btn:hover { background: var(--fg-soft); border-color: transparent; color: var(--fg); }
+
+/* ─── channel tabs（本仓的 Messages|Tasks 切换条；上游同块在 app.css 的 .tabs 段） ── */
+.tabs { display: flex; gap: 2px; padding: 0 var(--sp-7); border-bottom: 1px solid var(--border); background: var(--surface); margin-top: 11px; }
+.tab { position: relative; padding: 9px var(--sp-5); font-size: 12.5px; font-weight: var(--fw-medium); color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--fg); }
+.tab.is-active { color: var(--fg); border-bottom-color: var(--fg); }
+.tab .count { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); margin-left: 5px; }
+.tab.is-active .count { color: var(--accent); }
+
+/* ==========================================================================
    右栏 class 块（票 07，spec §3 组件表第 5–7 行）——逐字搬自 worksplice-design-system/
    ui_kits/app/app.css 的 `/* ─── right dock ───` 与 `/* ─── thread panel (in dock) ───` 两段。
 
@@ -1358,6 +1488,7 @@ span.linenumber {
 .dock-tab:hover { color: var(--fg); }
 .dock-tab.is-active { color: var(--fg); border-bottom-color: var(--fg); }
 .dock-tab .count { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--accent); }
+/* ==========================================================================
    模态族 class 块（票 08：spec 组件表第 10–15 行）
    —— `.overlay` / `.modal*` / `.member-pick` / `.member-opt` / `.radio-*` / `.kv`
    逐字搬自 worksplice-design-system/ui_kits/app/app.css（`.overlay`/`.modal` 段 +

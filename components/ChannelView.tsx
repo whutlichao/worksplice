@@ -14,6 +14,8 @@ import {
   Bell,
   BellOff,
   Check,
+  ChevronDown,
+  ChevronUp,
   CircleSlash,
   CornerDownRight,
   FileText,
@@ -25,6 +27,7 @@ import {
   Pin,
   Quote,
   Reply,
+  Send,
   SmilePlus,
   TriangleAlert,
   Users,
@@ -137,23 +140,6 @@ const EMOJI_PICKER_OPTIONS = [
   "🔧",
 ];
 
-/** 消息动作按钮统一外框（§3.3 动作栏 + reaction 聚合条共用；全 lucide 13px，消灭文本字形宽差）。 */
-const actionButtonStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 4,
-  padding: "3px 8px",
-  minHeight: 26,
-  fontFamily: "var(--font)",
-  fontWeight: 700,
-  fontSize: 11,
-  background: "var(--surface)",
-  color: "var(--fg)",
-  border: `1px solid var(--border)`,
-  boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
-  cursor: "pointer",
-};
-
 /** 头部可展开面板（置顶/静音/成员）手风琴过渡时长与缓动：ease-out 曲线，避免瞬间出现/消失。 */
 const PANEL_COLLAPSE_TRANSITION =
   "grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1), visibility 220ms";
@@ -168,14 +154,23 @@ const panelShellStyle = (open: boolean): React.CSSProperties => ({
   visibility: open ? "visible" : "hidden",
 });
 
-/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。 */
-const panelCollapseInnerStyle: React.CSSProperties = {
+/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。
+    背景取 `--surface`（ED-1：头部展开面板是 chrome，与 `.chan-head` 的底同层），横向 padding 与
+    `.chan-head` 的 `--sp-9` 对齐。
+    ⚠ 关闭态要把 padding 与下边框**也收掉**：网格项自己的 padding/边框不可收缩，
+    否则 0fr 行会停在它的 24px padding + 1px 边框上（面板“关着”却占位，把 tabs 往下顶）。
+    两者与外壳的 `grid-template-rows` 同步过渡（同一时长/缓动）。 */
+const panelCollapseInnerStyle = (open: boolean): React.CSSProperties => ({
   minHeight: 0,
   overflow: "hidden",
-  padding: "8px 16px 12px",
-  borderBottom: `1px solid var(--border)`,
-  background: "var(--bg)",
-};
+  padding: open ? "var(--sp-5) var(--sp-9)" : "0 var(--sp-9)",
+  borderBottomStyle: "solid",
+  borderBottomColor: "var(--border)",
+  borderBottomWidth: open ? 1 : 0,
+  background: "var(--surface)",
+  transition:
+    "padding 220ms cubic-bezier(0.33, 1, 0.68, 1), border-bottom-width 220ms cubic-bezier(0.33, 1, 0.68, 1)",
+});
 
 const messageTime = (iso: string): string => {
   const d = new Date(iso);
@@ -190,28 +185,25 @@ const messageTime = (iso: string): string => {
 
 /** 轮询合并由 hooks/useChannelData 持有（01 票起；ThreadPanel 改从 hook 直引，见其 import）。 */
 
-function Badge({ children }: { children: React.ReactNode }) {
+/** 头部图标按钮的计数角标（pinned / mute / members 三处同形）：加载中显示 `…`，无计数则不渲染。 */
+function IconCount({ loading, count }: { loading: boolean; count: number }) {
+  if (!loading && count <= 0) return null;
   return (
-    <span
-      style={{
-        fontFamily: "var(--mono)",
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: "0.06em",
-        padding: "2px 7px",
-        border: `1px solid var(--border)`,
-        background: "var(--surface)",
-        color: "var(--muted)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
+    <span className="badge" style={{ position: "absolute", top: -6, right: -6 }}>
+      {loading ? "…" : count}
     </span>
   );
 }
 
-function EmptyState({
-  glyph,
+/** 22px 的 `.icon-btn`（成员移除 / 置顶上下移 / 取消置顶 / 引文与附件 chip 的 ✕）：原语默认 30px，
+    内联收小（同 `.rail-foot` 的 `.select` 收高先例）。 */
+const SMALL_ICON_BTN_STYLE: React.CSSProperties = {
+  width: 22,
+  height: 22,
+  flex: "0 0 22px",
+};
+
+function EmptyState({  glyph,
   title,
   hint,
   children,
@@ -313,7 +305,8 @@ function EmojiPicker({
         gap: 4,
         background: "var(--surface)",
         border: `1px solid var(--border)`,
-        boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.35)",
+        borderRadius: "var(--r-md)",
+        boxShadow: "var(--shadow-pop)",
       }}
     >
       {EMOJI_PICKER_OPTIONS.map((emoji) => (
@@ -345,7 +338,7 @@ function EmojiPicker({
   );
 }
 
-/** §3.4 reaction 聚合条：显示在消息内容下方；已点高亮，点击切换。 */
+/** §3.4 reaction 聚合条：显示在消息内容下方；已点高亮，点击切换（形态取上游 `.reactions` / `.reaction`）。 */
 function ReactionChips({
   reactions,
   currentMemberId,
@@ -357,7 +350,9 @@ function ReactionChips({
 }) {
   if (reactions.length === 0) return null;
   return (
-    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+    /* `flexWrap` 是调用点的偏离：上游 `.reactions` 不换行；本仓一条消息的 reaction 种类可达 24 种，
+       不换行会在窄栏溢出（票前面是 `flexWrap: wrap`，保留这个能力）。 */
+    <div className="reactions" style={{ flexWrap: "wrap" }}>
       {reactions.map((reaction) => {
         const mine = reaction.memberIds.includes(currentMemberId);
         return (
@@ -365,20 +360,12 @@ function ReactionChips({
             key={reaction.emoji}
             type="button"
             onClick={() => onToggle(reaction.emoji)}
-            style={{
-              ...actionButtonStyle,
-              gap: 5,
-              background: mine ? "var(--accent-soft)" : "var(--surface)",
-            }}
+            className={mine ? "reaction mine" : "reaction"}
           >
             <span style={{ fontSize: 14, lineHeight: 1 }}>
               {reaction.emoji}
             </span>
-            <span
-              style={{ fontFamily: "var(--mono)", fontSize: 11 }}
-            >
-              {reaction.count}
-            </span>
+            <b>{reaction.count}</b>
           </button>
         );
       })}
@@ -441,7 +428,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
     background: "var(--surface)",
     color: "var(--fg)",
     border: `1px solid var(--border)`,
-    boxShadow: "1px 1px 0 0 rgba(20, 17, 17, 0.4)",
+    borderRadius: "var(--r-md)",
     textDecoration: "none",
     cursor: "pointer",
   };
@@ -471,7 +458,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
                   objectFit: "contain",
                   background: "var(--surface)",
                   border: `1px solid var(--border)`,
-                  boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.35)",
+                  borderRadius: "var(--r-md)",
                 }}
               />
             </a>
@@ -519,6 +506,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
                   padding: "8px 10px",
                   background: "var(--bg)",
                   border: `1px solid var(--border)`,
+                  borderRadius: "var(--r-md)",
                   fontFamily: "var(--font-mono)",
                   fontSize: 11,
                   whiteSpace: "pre-wrap",
@@ -605,119 +593,98 @@ function MessageActions({
   const [copied, setCopied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        flexWrap: "wrap",
-        position: "relative",
-      }}
-    >
-      {onToggleReaction && onToggleReactOpen && (
+    <>
+      {/* 动作栏形态（`globals.css` 的 `.msg-tools` 块）：绝对定位在行右上、hover/focus 才出。 */}
+      <div className="msg-tools">
+        {onToggleReaction && onToggleReactOpen && (
+          <button
+            type="button"
+            title={t("message.addReaction")}
+            style={reactOpen ? { background: "var(--accent-soft)", color: "var(--accent)" } : undefined}
+            onClick={onToggleReactOpen}
+          >
+            <SmilePlus size={13} />
+          </button>
+        )}
+        {onReply && (
+          <button
+            type="button"
+            title={t("message.reply")}
+            onClick={() => onReply(message)}
+          >
+            <Reply size={13} />
+          </button>
+        )}
         <button
           type="button"
-          title={t("message.addReaction")}
-          style={{
-            ...actionButtonStyle,
-            background: reactOpen ? "var(--accent-soft)" : "var(--surface)",
+          title={t("message.quote")}
+          onClick={() => onQuote(message)}
+        >
+          <Quote size={13} />
+        </button>
+        <button
+          type="button"
+          title={t("message.copyLink")}
+          onClick={() => {
+            onCopyLink(message);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
           }}
-          onClick={onToggleReactOpen}
         >
-          <SmilePlus size={13} />
+          {copied ? <Check size={13} /> : <Link size={13} />}
         </button>
-      )}
-      {onReply && (
-        <button
-          type="button"
-          title={t("message.reply")}
-          style={actionButtonStyle}
-          onClick={() => onReply(message)}
-        >
-          <Reply size={13} />
-        </button>
-      )}
-      <button
-        type="button"
-        title={t("message.quote")}
-        style={actionButtonStyle}
-        onClick={() => onQuote(message)}
-      >
-        <Quote size={13} />
-      </button>
-      <button
-        type="button"
-        title={t("message.copyLink")}
-        style={actionButtonStyle}
-        onClick={() => {
-          onCopyLink(message);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        }}
-      >
-        {copied ? <Check size={13} /> : <Link size={13} />}
-      </button>
-      {onReminder && (
-        <button
-          type="button"
-          title={t("reminders.messageAction")}
-          style={actionButtonStyle}
-          onClick={() => onReminder(message)}
-        >
-          <AlarmClock size={13} />
-        </button>
-      )}
-      {onTogglePin && (
-        <button
-          type="button"
-          title={pinned ? t("message.unpin") : t("message.pin")}
-          style={{
-            ...actionButtonStyle,
-            background: pinned ? "var(--accent-soft)" : "var(--surface)",
-          }}
-          onClick={() => onTogglePin(message)}
-        >
-          <Pin size={13} />
-        </button>
-      )}
-      {onConvertToTask && (
-        <button
-          type="button"
-          title={t("tasks.convert")}
-          style={actionButtonStyle}
-          onClick={() => onConvertToTask(message)}
-        >
-          <ListPlus size={13} />
-        </button>
-      )}
+        {onReminder && (
+          <button
+            type="button"
+            title={t("reminders.messageAction")}
+            onClick={() => onReminder(message)}
+          >
+            <AlarmClock size={13} />
+          </button>
+        )}
+        {onTogglePin && (
+          <button
+            type="button"
+            title={pinned ? t("message.unpin") : t("message.pin")}
+            style={pinned ? { background: "var(--accent-soft)", color: "var(--accent)" } : undefined}
+            onClick={() => onTogglePin(message)}
+          >
+            <Pin size={13} />
+          </button>
+        )}
+        {onConvertToTask && (
+          <button
+            type="button"
+            title={t("tasks.convert")}
+            onClick={() => onConvertToTask(message)}
+          >
+            <ListPlus size={13} />
+          </button>
+        )}
+      </div>
+      {/* 二级 reaction 条（本仓独有，无上游对应）：形态取 `.reactions` / `.reaction`，
+          与动作栏同属一个揭示外壳（`ws-message-actions`），展开时在行内右对齐出。 */}
       {reactOpen && (
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            alignItems: "center",
-            flexBasis: "100%",
-          }}
-        >
+        <div className="reactions" style={{ position: "relative", alignItems: "center" }}>
           {QUICK_REACTIONS.map((emoji) => (
             <button
               key={emoji}
               type="button"
               title={t("message.react")}
-              style={{ ...actionButtonStyle, fontSize: 13 }}
+              className="reaction"
               onClick={() => onToggleReaction?.(message, emoji)}
             >
-              {emoji}
+              <span style={{ fontSize: 13, lineHeight: 1 }}>{emoji}</span>
             </button>
           ))}
           <span style={{ position: "relative", display: "inline-flex" }}>
             <button
               type="button"
               title={t("message.addReaction")}
-              style={{ ...actionButtonStyle, fontSize: 12 }}
+              className="reaction"
               onClick={() => setPickerOpen((open) => !open)}
             >
-              ＋
+              <SmilePlus size={13} />
             </button>
             {pickerOpen && (
               <EmojiPicker
@@ -731,7 +698,7 @@ function MessageActions({
           </span>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -775,7 +742,8 @@ function ContextMenu({
         minWidth: 190,
         background: "var(--surface)",
         border: `1px solid var(--border)`,
-        boxShadow: "4px 4px 0 0 rgba(20, 17, 17, 0.35)",
+        borderRadius: "var(--r-md)",
+        boxShadow: "var(--shadow-pop)",
         padding: 4,
       }}
     >
@@ -891,19 +859,17 @@ export const MessageRow = memo(function MessageRow({
       ? [{ label: t("tasks.convert"), onClick: () => onConvertToTask(message) }]
       : []),
   ];
+  const isAgent = message.author?.type === "agent";
   return (
     <div
       className={
-        isAnchor ? "ws-message-row ws-message-row-anchor" : "ws-message-row"
+        isAnchor
+          ? "msg ws-message-row ws-message-row-anchor"
+          : "msg ws-message-row"
       }
       onContextMenu={(e) => {
         e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY });
-      }}
-      style={{
-        display: "flex",
-        gap: 10,
-        padding: "10px 16px",
       }}
     >
       <Avatar
@@ -912,41 +878,23 @@ export const MessageRow = memo(function MessageRow({
         size="md"
         colorKey={message.author_id}
       />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: 8,
-            flexWrap: "wrap",
-            marginBottom: 2,
-          }}
-        >
-          <span style={{ fontWeight: 700, fontSize: 14, color: "var(--fg)" }}>
+      <div className="msg-body">
+        {/* `flexWrap` 是调用点的偏离：上游 `.msg-head` 不换行，本仓头部还有线程/未回复角标，窄栏需换行兜底。 */}
+        <div className="msg-head" style={{ flexWrap: "wrap" }}>
+          <span className={isAgent ? "msg-author is-agent" : "msg-author"}>
             {message.author?.name ?? t("message.unknownAuthor")}
           </span>
-          <span
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 11,
-              color: "var(--muted)",
-            }}
-          >
+          <span className="msg-time mono" style={{ color: "var(--muted)" }}>
             #{message.seq}
           </span>
-          <span
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 11,
-              color: "var(--faint)",
-            }}
-          >
+          <span className="msg-time mono">
             {messageTime(message.created_at)}
           </span>
           {onOpenThread && (message.threadReplyCount ?? 0) > 0 && (
             <button
               type="button"
               title={t("message.openThreadBadge")}
+              className="mono"
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenThread(message);
@@ -956,12 +904,12 @@ export const MessageRow = memo(function MessageRow({
                 alignItems: "center",
                 gap: 4,
                 padding: "1px 6px",
-                fontFamily: "var(--mono)",
-                fontSize: 10,
+                fontSize: "var(--fs-mono-xs)",
                 fontWeight: 700,
                 background: "var(--panel-2)",
                 color: "var(--fg)",
                 border: `1px solid var(--border)`,
+                borderRadius: "var(--r-pill)",
                 cursor: "pointer",
               }}
             >
@@ -977,17 +925,18 @@ export const MessageRow = memo(function MessageRow({
                     `${mark.agentName}：${mark.reason || t("message.notReplied")}`,
                 )
                 .join("；")}
+              className="mono"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 4,
                 padding: "1px 6px",
-                fontFamily: "var(--mono)",
-                fontSize: 10,
+                fontSize: "var(--fs-mono-xs)",
                 fontWeight: 700,
                 background: "var(--accent-soft)",
                 color: "var(--fg)",
                 border: `1px solid var(--border)`,
+                borderRadius: "var(--r-pill)",
                 cursor: "pointer",
                 userSelect: "none",
               }}
@@ -1005,10 +954,7 @@ export const MessageRow = memo(function MessageRow({
             </span>
           )}
         </div>
-        <div
-          className="ws-message-content"
-          style={{ fontSize: 14, lineHeight: 1.6, color: "var(--fg)" }}
-        >
+        <div className="msg-text">
           <MentionText
             content={message.content}
             members={mentionMembers}
@@ -1023,6 +969,8 @@ export const MessageRow = memo(function MessageRow({
             onToggle={(emoji) => onToggleReaction(message, emoji)}
           />
         )}
+        {/* 揭示归票 03 的骨架钩子（`.ws-message-actions` 的 display 开关）；
+            布局上把二级 reaction 条右对齐到动作栏下方（动作用绝对定位的 `.msg-tools`）。 */}
         <div
           ref={actionsRef}
           className={
@@ -1030,7 +978,12 @@ export const MessageRow = memo(function MessageRow({
               ? "ws-message-actions ws-message-actions-open"
               : "ws-message-actions"
           }
-          style={{ marginTop: 6 }}
+          style={{
+            marginTop: 6,
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 4,
+          }}
         >
           <MessageActions
             message={message}
@@ -1804,383 +1757,328 @@ export function Composer({
   };
 
   return (
-    <div
-      style={{
-        flexShrink: 0,
-        padding: "10px 16px 12px",
-        borderTop: `1px solid var(--border)`,
-        background: "var(--bg)",
-      }}
-    >
-      {quoting && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 8,
-            padding: "6px 10px",
-            background: "var(--panel-2)",
-            border: `1px solid var(--border)`,
-            fontFamily: "var(--mono)",
-            fontSize: 12,
-          }}
-        >
-          <span
+    <div className="composer" style={{ flexShrink: 0 }}>
+      <div className="composer-inner">
+        {quoting && (
+          <div
             style={{
-              flex: 1,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              padding: "6px 10px",
+              background: "var(--panel-2)",
+              border: `1px solid var(--border)`,
+              borderRadius: "var(--r-md)",
+              fontFamily: "var(--mono)",
+              fontSize: 12,
             }}
           >
-            <Quote size={12} style={{ verticalAlign: "-2px" }} /> #{quoting.seq}{" "}
-            {quoting.author?.name ?? t("message.unknownAuthor")}:{" "}
-            {quoting.content.split("\n")[0]}
-          </span>
-          <button
-            type="button"
-            aria-label={t("message.clearQuote")}
-            onClick={onClearQuote}
-            style={{
-              width: 22,
-              height: 22,
-              background: "var(--surface)",
-              border: `1px solid var(--border)`,
-              cursor: "pointer",
-              fontSize: 11,
-              lineHeight: 1,
-            }}
+            <span
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Quote size={12} style={{ verticalAlign: "-2px" }} />
+              {" "}
+              #{quoting.seq}{" "}
+              {quoting.author?.name ?? t("message.unknownAuthor")}:{" "}
+              {quoting.content.split("\n")[0]}
+            </span>
+            <button
+              type="button"
+              aria-label={t("message.clearQuote")}
+              className="icon-btn"
+              style={SMALL_ICON_BTN_STYLE}
+              onClick={onClearQuote}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+        {files.length > 0 && (
+          <div
+            style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}
           >
-            <X size={12} style={{ display: "block", margin: "auto" }} />
-          </button>
-        </div>
-      )}
-      {files.length > 0 && (
-        <div
-          style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}
-        >
-          {files.map((file, index) => (
-            <div
-              key={`${file.name}-${index}`}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "3px 8px",
-                background: "var(--panel-2)",
-                border: `1px solid var(--border)`,
-                fontFamily: "var(--mono)",
-                fontSize: 11,
-              }}
-            >
-              <span
-                style={{
-                  maxWidth: 180,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Paperclip size={11} style={{ verticalAlign: "-2px" }} />{" "}
-                {file.name}
-              </span>
-              <span style={{ color: "var(--muted)" }}>
-                {formatBytes(file.size)}
-              </span>
-              <button
-                type="button"
-                aria-label={t("attachments.remove")}
-                onClick={() =>
-                  setFiles((prev) => prev.filter((_, i) => i !== index))
-                }
-                style={{
-                  width: 18,
-                  height: 18,
-                  background: "var(--surface)",
-                  border: `1px solid var(--border)`,
-                  cursor: "pointer",
-                  fontSize: 10,
-                  lineHeight: 1,
-                }}
-              >
-                <X size={10} style={{ display: "block", margin: "auto" }} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-        <div style={{ position: "relative", flex: 1, display: "flex" }}>
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              updateAtQuery(e.target.value, e.target.selectionStart);
-            }}
-            onKeyDown={(e) => {
-              // @ 提及补全键盘导航（IME 组合期不拦截，镜像 ChatInput）
-              if (
-                atMenuOpen &&
-                atQuery !== null &&
-                !e.nativeEvent.isComposing
-              ) {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setAtActiveIndex((i) =>
-                    Math.min(Math.max(0, atMatches.length - 1), i + 1),
-                  );
-                  return;
-                }
-                if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setAtActiveIndex((i) => Math.max(0, i - 1));
-                  return;
-                }
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  setAtMenuOpen(false);
-                  return;
-                }
-                if (
-                  (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) &&
-                  atMatches[atActiveIndex]
-                ) {
-                  e.preventDefault();
-                  applyAtCompletion(atMatches[atActiveIndex]);
-                  return;
-                }
-              }
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void submit();
-              }
-            }}
-            placeholder={
-              disabled ? disabledHint : t("message.composerPlaceholder")
-            }
-            disabled={disabled}
-            rows={2}
-            style={{
-              flex: 1,
-              padding: "8px 10px",
-              border: `1px solid var(--border)`,
-              background: "var(--surface)",
-              color: "var(--fg)",
-              fontFamily: "var(--font)",
-              fontSize: 13,
-              resize: "vertical",
-              outline: "none",
-              opacity: disabled ? 0.55 : 1,
-            }}
-          />
-          {atMenuOpen && atQuery !== null && !disabled && (
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: "calc(100% + 6px)",
-                zIndex: 40,
-                background: "var(--bg)",
-                border: `1px solid var(--border)`,
-                boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
-                maxHeight: 260,
-                overflowY: "auto",
-              }}
-            >
+            {files.map((file, index) => (
               <div
+                key={`${file.name}-${index}`}
                 style={{
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  padding: "6px 10px",
-                  borderBottom: `1px solid var(--border)`,
-                  fontFamily: "var(--font)",
-                  fontWeight: 700,
+                  gap: 6,
+                  padding: "3px 8px",
+                  background: "var(--panel-2)",
+                  border: `1px solid var(--border)`,
+                  borderRadius: "var(--r-sm)",
+                  fontFamily: "var(--mono)",
                   fontSize: 11,
                 }}
               >
-                <span>{t("mention.title")}</span>
                 <span
                   style={{
-                    fontFamily: "var(--mono)",
-                    fontWeight: 400,
-                    color: "var(--muted)",
+                    maxWidth: 180,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {t("chat.tabEnter")}
+                  <Paperclip size={11} style={{ verticalAlign: "-2px" }} />{" "}
+                  {file.name}
                 </span>
+                <span style={{ color: "var(--muted)" }}>
+                  {formatBytes(file.size)}
+                </span>
+                <button
+                  type="button"
+                  aria-label={t("attachments.remove")}
+                  className="icon-btn"
+                  style={{ width: 18, height: 18, flex: "0 0 18px" }}
+                  onClick={() =>
+                    setFiles((prev) => prev.filter((_, i) => i !== index))
+                  }
+                >
+                  <X size={10} />
+                </button>
               </div>
-              {atMatches.length === 0 ? (
+            ))}
+          </div>
+        )}
+        {/* 常驻输入框形态（`globals.css` 的 `.composer-box` 块）：surface + border-strong + r-lg，
+            形状、焦点环与 `--shadow-composer` 全在 class 上。 */}
+        <div className="composer-box">
+          <div style={{ position: "relative" }}>
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value);
+                updateAtQuery(e.target.value, e.target.selectionStart);
+              }}
+              onKeyDown={(e) => {
+                // @ 提及补全键盘导航（IME 组合期不拦截，镜像 ChatInput）
+                if (
+                  atMenuOpen &&
+                  atQuery !== null &&
+                  !e.nativeEvent.isComposing
+                ) {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setAtActiveIndex((i) =>
+                      Math.min(Math.max(0, atMatches.length - 1), i + 1),
+                    );
+                    return;
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setAtActiveIndex((i) => Math.max(0, i - 1));
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setAtMenuOpen(false);
+                    return;
+                  }
+                  if (
+                    (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) &&
+                    atMatches[atActiveIndex]
+                  ) {
+                    e.preventDefault();
+                    applyAtCompletion(atMatches[atActiveIndex]);
+                    return;
+                  }
+                }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
+              placeholder={
+                disabled ? disabledHint : t("message.composerPlaceholder")
+              }
+              disabled={disabled}
+              rows={2}
+              className="composer-input"
+              style={{
+                // 保留可拖拽改高（内联覆盖上游 `.composer-input` 的 `resize: none`）：本仓没有自动长高，
+                // 去掉它等于收回一个既有的用户能力（零行为改动红线）。
+                resize: "vertical",
+                opacity: disabled ? 0.55 : 1,
+              }}
+            />
+            {atMenuOpen && atQuery !== null && !disabled && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: "calc(100% + 6px)",
+                  zIndex: 40,
+                  background: "var(--surface)",
+                  border: `1px solid var(--border)`,
+                  borderRadius: "var(--r-md)",
+                  boxShadow: "var(--shadow-pop)",
+                  maxHeight: 260,
+                  overflowY: "auto",
+                }}
+              >
                 <div
                   style={{
-                    padding: "8px 10px",
-                    fontSize: 12,
-                    color: "var(--muted)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    padding: "6px 10px",
+                    borderBottom: `1px solid var(--border)`,
+                    fontFamily: "var(--font)",
+                    fontWeight: 700,
+                    fontSize: 11,
                   }}
                 >
-                  {t("mention.noMatch")}
+                  <span>{t("mention.title")}</span>
+                  <span
+                    style={{
+                      fontFamily: "var(--mono)",
+                      fontWeight: 400,
+                      color: "var(--muted)",
+                    }}
+                  >
+                    {t("chat.tabEnter")}
+                  </span>
                 </div>
-              ) : (
-                atMatches.map((member, index) => {
-                  const active = index === atActiveIndex;
-                  return (
-                    <button
-                      key={member.id}
-                      ref={(node) => {
-                        atItemRefs.current[index] = node;
-                      }}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        applyAtCompletion(member);
-                      }}
-                      onMouseEnter={() => setAtActiveIndex(index)}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "6px 10px",
-                        border: "none",
-                        borderBottom:
-                          index < atMatches.length - 1
-                            ? `1px solid var(--border)`
-                            : "none",
-                        background: active ? "var(--accent-soft)" : "var(--surface)",
-                        color: "var(--fg)",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        fontFamily: "var(--font)",
-                        fontWeight: 700,
-                        fontSize: 12,
-                      }}
-                    >
-                      <StatusDot status={member.status} />
-                      <span>@{member.name}</span>
-                      {!member.joined && (
-                        <span
-                          style={{
-                            marginLeft: "auto",
-                            fontFamily: "var(--mono)",
-                            fontSize: 10,
-                            color: "var(--muted)",
-                          }}
-                        >
-                          {t("mention.notJoined")}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          )}
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-            alignItems: "stretch",
-          }}
-        >
+                {atMatches.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "8px 10px",
+                      fontSize: 12,
+                      color: "var(--muted)",
+                    }}
+                  >
+                    {t("mention.noMatch")}
+                  </div>
+                ) : (
+                  atMatches.map((member, index) => {
+                    const active = index === atActiveIndex;
+                    return (
+                      <button
+                        key={member.id}
+                        ref={(node) => {
+                          atItemRefs.current[index] = node;
+                        }}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          applyAtCompletion(member);
+                        }}
+                        onMouseEnter={() => setAtActiveIndex(index)}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "6px 10px",
+                          border: "none",
+                          borderBottom:
+                            index < atMatches.length - 1
+                              ? `1px solid var(--border)`
+                              : "none",
+                          background: active ? "var(--accent-soft)" : "var(--surface)",
+                          color: "var(--fg)",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          fontFamily: "var(--font)",
+                          fontWeight: 700,
+                          fontSize: 12,
+                        }}
+                      >
+                        <StatusDot status={member.status} />
+                        <span>@{member.name}</span>
+                        {!member.joined && (
+                          <span
+                            style={{
+                              marginLeft: "auto",
+                              fontFamily: "var(--mono)",
+                              fontSize: 10,
+                              color: "var(--muted)",
+                            }}
+                          >
+                            {t("mention.notJoined")}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+          {/* 工具条（上游 `.composer-bar`）：左工具（附件 / As task）、右发送方块。 */}
+          <div className="composer-bar">
+            <button
+              type="button"
+              title={t("attachments.attach")}
+              aria-label={t("attachments.attach")}
+              disabled={disabled}
+              className="icon-btn"
+              style={{ opacity: disabled ? 0.55 : 1 }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip size={15} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                addFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
           {onAsTaskChange && (
             <label
               title={t("tasks.convertHint")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 8px",
-                fontFamily: "var(--font)",
-                fontWeight: 700,
-                fontSize: 11,
-                background: asTask ? "var(--accent-soft)" : "var(--surface)",
-                border: `1px solid var(--border)`,
-                cursor: "pointer",
-                userSelect: "none",
-                opacity: disabled ? 0.55 : 1,
-              }}
+              /* 形态取票 08 的 `.member-opt`（成员/选项胶囊）：`.filter-chip` 被票 09 的
+                 「零消费者」断言全局锁死（见票据 Answer 的 Rebase 节，待协调端追认）。 */
+              className={asTask ? "member-opt is-on" : "member-opt"}
+                style={{
+                  cursor: "pointer",
+                  userSelect: "none",
+                  opacity: disabled ? 0.55 : 1,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(asTask)}
+                  disabled={disabled}
+                  onChange={(e) => onAsTaskChange(e.target.checked)}
+                  style={{ cursor: "pointer", accentColor: "var(--accent)" }}
+                />
+                {t("tasks.asTask")}
+              </label>
+            )}
+            <span className="sep" />
+            <button
+              type="button"
+              title={t("message.send")}
+              aria-label={t("message.send")}
+              disabled={disabled || busy || (!value.trim() && files.length === 0)}
+              onClick={() => void submit()}
+              className="composer-send"
             >
-              <input
-                type="checkbox"
-                checked={Boolean(asTask)}
-                disabled={disabled}
-                onChange={(e) => onAsTaskChange(e.target.checked)}
-                style={{ cursor: "pointer", accentColor: "var(--accent)" }}
-              />
-              {t("tasks.asTask")}
-            </label>
-          )}
-          <button
-            type="button"
-            title={t("attachments.attach")}
-            disabled={disabled}
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              height: 30,
-              padding: "0 8px",
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 13,
-              background: "var(--surface)",
-              color: "var(--fg)",
-              border: `1px solid var(--border)`,
-              cursor: disabled ? "not-allowed" : "pointer",
-              opacity: disabled ? 0.55 : 1,
-            }}
-          >
-            <Paperclip size={15} />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => {
-              addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <button
-            type="button"
-            disabled={disabled || busy || (!value.trim() && files.length === 0)}
-            onClick={() => void submit()}
-            style={{
-              height: "var(--control-h-lg)",
-              padding: "0 16px",
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 13,
-              background: "var(--accent)",
-              color: "oklch(99% 0.01 256)",
-              border: `1px solid var(--border)`,
-              boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.45)",
-              cursor:
-                disabled || busy || (!value.trim() && files.length === 0)
-                  ? "not-allowed"
-                  : "pointer",
-              opacity:
-                disabled || busy || (!value.trim() && files.length === 0)
-                  ? 0.55
-                  : 1,
-            }}
-          >
-            {busy ? "…" : t("message.send")}
-          </button>
+              {busy ? "…" : <Send size={15} />}
+            </button>
+          </div>
         </div>
+        {error && (
+          <div style={{ marginTop: 6, color: "var(--error)", fontSize: 12 }}>
+            {error}
+          </div>
+        )}
       </div>
-      {error && (
-        <div style={{ marginTop: 6, color: "var(--error)", fontSize: 12 }}>
-          {error}
-        </div>
-      )}
     </div>
   );
 }
@@ -2311,8 +2209,7 @@ export function ChannelView({
     setMembersOpen(false);
   };
 
-  /** 频道内 agent 成员（状态取自全量 agents，SSE 实时）；@ 补全候选 = 全部 agent + joined 标记。 */
-  const channelAgents = useMemo(
+  /** 频道内 agent 成员（状态取自全量 agents，SSE 实时）；@ 补全候选 = 全部 agent + joined 标记。 */  const channelAgents = useMemo(
     () => agents.filter((a) => channelMemberIds.has(a.id)),
     [agents, channelMemberIds],
   );
@@ -2323,6 +2220,11 @@ export function ChannelView({
       ? [...members, owner]
       : members;
   }, [agents, owner, channelMemberIds]);
+  /** 被静音的 agent 数（头部按钮的 `.is-on` 与 `.badge` 计数共用）。 */
+  const mutedCount = useMemo(
+    () => mutes.filter((m) => m.muted).length,
+    [mutes],
+  );
   const mentionable = useMemo(
     () =>
       agents.map((a) => ({
@@ -2793,36 +2695,6 @@ export function ChannelView({
     });
   };
 
-  const tabButtonStyle = (active: boolean): React.CSSProperties => ({
-    fontFamily: "var(--font)",
-    fontWeight: 700,
-    fontSize: 13,
-    padding: "9px 16px",
-    cursor: "pointer",
-    background: active ? "var(--accent-soft)" : "transparent",
-    color: "var(--fg)",
-    border: `1px solid var(--border)`,
-    borderBottom: "none",
-    marginBottom: -2,
-    boxShadow: active ? "2px 2px 0 0 rgba(20, 17, 17, 0.45)" : "none",
-    position: "relative",
-  });
-
-  const actionButton: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 4,
-    padding: "5px 10px",
-    fontFamily: "var(--font)",
-    fontWeight: 700,
-    fontSize: 11,
-    background: "var(--surface)",
-    color: "var(--fg)",
-    border: `1px solid var(--border)`,
-    boxShadow: "2px 2px 0 0 rgba(20, 17, 17, 0.4)",
-    cursor: "pointer",
-  };
-
   return (
     <div
       style={{
@@ -2833,184 +2705,137 @@ export function ChannelView({
         position: "relative",
       }}
     >
-      {/* channel 头部：名称 + 类型/归档 badge + 描述 + 成员数 + join/leave/archive（§3.1/§3.2） */}
+      {/* channel 头部（§3.1/§3.2，形态取上游 `.chan-head` 块）：名称 + 类型/归档 badge + 描述 + 工具条（join/leave/archive + 提醒/pin/静音/成员）。
+          `paddingBottom` 是调用点的偏离：上游 `.chan-head` 的 `padding: 13px 20px 0` 假定 header 末尾总有 pin-strip/tabs 提供间距，
+          而本仓 header 与切换条之间隔着可折叠面板（无面板时会贴底），故补一档间距。 */}
       <header
-        className="ws-center-header"
-        style={{
-          flexShrink: 0,
-          padding: "14px 16px 10px",
-          borderBottom: `1px solid var(--border)`,
-          background: "var(--bg)",
-        }}
+        className="ws-center-header chan-head"
+        style={{ flexShrink: 0, paddingBottom: "var(--sp-5)" }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexWrap: "wrap",
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontFamily: "var(--font)",
-              fontWeight: 700,
-              fontSize: 20,
-              letterSpacing: "-0.01em",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--mono)",
-                color: "var(--muted)",
-              }}
-            >
-              #
-            </span>
-            {channel?.name ?? t("shell.selectChannel")}
+        <div className="chan-top">
+          <h1 className="chan-title">
+            <span className="hash">#</span>
+            <span>{channel?.name ?? t("shell.selectChannel")}</span>
           </h1>
           {channel && (
             <>
-              <Badge>
+              <span className="badge soft">
                 {channel.type === "dm"
                   ? t("channel.dm")
                   : channel.type === "private"
                     ? t("channel.private")
                     : t("channel.public")}
-              </Badge>
-              {isArchived && <Badge>{t("channel.archived")}</Badge>}
+              </span>
+              {isArchived && (
+                <span className="badge soft">{t("channel.archived")}</span>
+              )}
             </>
+          )}
+          {channel && (
+            <div className="chan-tools">
+              {channel.id !== BUILTIN_CHANNEL_ID && !isDM && (
+                <>
+                  {joined ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() =>
+                        void runChannelAction("leave", {
+                          memberId: currentMemberId,
+                        })
+                      }
+                    >
+                      {t("channel.leave")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() =>
+                        void runChannelAction("join", {
+                          memberId: currentMemberId,
+                        })
+                      }
+                    >
+                      {t("channel.join")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() =>
+                      void runChannelAction("archive", { archived: !isArchived })
+                    }
+                  >
+                    {isArchived ? t("channel.unarchive") : t("channel.archive")}
+                  </button>
+                  <span className="chan-divider" aria-hidden="true" />
+                </>
+              )}
+              {joined && (
+                <button
+                  type="button"
+                  title={t("reminders.channelAction")}
+                  aria-label={t("reminders.channelAction")}
+                  className="icon-btn"
+                  onClick={openChannelReminder}
+                >
+                  <AlarmClock size={15} />
+                </button>
+              )}
+              {joined && (
+                <button
+                  type="button"
+                  title={t("pinned.toggle")}
+                  aria-label={t("pinned.toggle")}
+                  className={`icon-btn${pinnedOpen ? " is-on" : ""}`}
+                  onClick={togglePinnedPanel}
+                >
+                  <Pin size={15} />
+                  <IconCount loading={pinnedLoading} count={pinnedItems.length} />
+                </button>
+              )}
+              {joined && !isDM && (
+                <button
+                  type="button"
+                  title={t("mute.toggle")}
+                  aria-label={t("mute.toggle")}
+                  className={`icon-btn${
+                    muteOpen || mutedCount > 0 ? " is-on" : ""
+                  }`}
+                  onClick={toggleMutePanel}
+                >
+                  <BellOff size={15} />
+                  <IconCount loading={mutesLoading} count={mutedCount} />
+                </button>
+              )}
+              {joined && !isDM && (
+                <button
+                  type="button"
+                  title={t("channel.membersPanel")}
+                  aria-label={t("channel.membersPanel")}
+                  className={`icon-btn${membersOpen ? " is-on" : ""}`}
+                  onClick={toggleMembersPanel}
+                >
+                  <Users size={15} />
+                  <IconCount
+                    loading={membersLoading}
+                    count={channelMembers.length}
+                  />
+                </button>
+              )}
+            </div>
           )}
         </div>
         {channel?.description ? (
-          <p
-            style={{
-              margin: "6px 0 0",
-              color: "var(--muted)",
-              fontSize: 13,
-            }}
-          >
-            {channel.description}
-          </p>
+          <div className="chan-desc">{channel.description}</div>
         ) : null}
-        {channel && (
-          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-            {channel.id !== BUILTIN_CHANNEL_ID && !isDM && (
-              <>
-                {joined ? (
-                  <button
-                    type="button"
-                    style={actionButton}
-                    onClick={() =>
-                      void runChannelAction("leave", {
-                        memberId: currentMemberId,
-                      })
-                    }
-                  >
-                    {t("channel.leave")}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    style={{ ...actionButton, background: "var(--accent)", color: "oklch(99% 0.01 256)" }}
-                    onClick={() =>
-                      void runChannelAction("join", {
-                        memberId: currentMemberId,
-                      })
-                    }
-                  >
-                    {t("channel.join")}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  style={actionButton}
-                  onClick={() =>
-                    void runChannelAction("archive", { archived: !isArchived })
-                  }
-                >
-                  {isArchived ? t("channel.unarchive") : t("channel.archive")}
-                </button>
-              </>
-            )}
-            {joined && (
-              <button
-                type="button"
-                title={t("reminders.channelAction")}
-                style={{ ...actionButton, background: "var(--online)" }}
-                onClick={openChannelReminder}
-              >
-                <AlarmClock size={14} />
-              </button>
-            )}
-            {joined && (
-              <button
-                type="button"
-                title={t("pinned.toggle")}
-                style={{
-                  ...actionButton,
-                  background: pinnedOpen ? "var(--accent-soft)" : "var(--surface)",
-                }}
-                onClick={togglePinnedPanel}
-              >
-                <Pin size={14} />{" "}
-                {pinnedLoading
-                  ? "…"
-                  : pinnedItems.length > 0
-                    ? pinnedItems.length
-                    : ""}
-              </button>
-            )}
-            {joined && !isDM && (
-              <button
-                type="button"
-                title={t("mute.toggle")}
-                style={{
-                  ...actionButton,
-                  background:
-                    muteOpen || mutes.some((m) => m.muted)
-                      ? "var(--accent-soft)"
-                      : "var(--surface)",
-                }}
-                onClick={toggleMutePanel}
-              >
-                <BellOff size={14} /> {(() => {
-                  if (mutesLoading) return "…";
-                  const count = mutes.filter((m) => m.muted).length;
-                  return count > 0 ? count : "";
-                })()}
-              </button>
-            )}
-            {joined && !isDM && (
-              <button
-                type="button"
-                title={t("channel.membersPanel")}
-                style={{
-                  ...actionButton,
-                  background: membersOpen ? "var(--accent-soft)" : "var(--surface)",
-                }}
-                onClick={toggleMembersPanel}
-              >
-                <Users size={14} />{" "}
-                {membersLoading
-                  ? "…"
-                  : channelMembers.length > 0
-                    ? channelMembers.length
-                    : ""}
-              </button>
-            )}
-          </div>
-        )}
       </header>
 
       {/* §3.2 mute 面板（channel 头部可展开，手风琴折叠壳常驻渲染）：静音后普通消息不进 inbox，个人 @mention 仍穿透；DM 不渲染 */}
       {joined && !isDM && (
         <div style={panelShellStyle(muteOpen)} aria-hidden={!muteOpen}>
-          <div style={panelCollapseInnerStyle}>
+          <div style={panelCollapseInnerStyle(muteOpen)}>
             <div
               style={{
                 display: "flex",
@@ -3059,21 +2884,13 @@ export function ChannelView({
                     title={t(m.muted ? "mute.unmuteFor" : "mute.for", {
                       name: m.name,
                     })}
-                    style={{
-                      ...actionButton,
-                      background: m.muted ? "var(--accent-soft)" : "var(--surface)",
-                    }}
+                    className={m.muted ? "member-opt is-on" : "member-opt"}
+                    style={{ cursor: "pointer" }}
                     onClick={() => void toggleMute(m)}
                   >
                     {m.muted ? <BellOff size={12} /> : <Bell size={12} />} @
                     {m.name}{" "}
-                    <span
-                      style={{
-                        fontFamily: "var(--mono)",
-                        fontSize: 10,
-                        opacity: 0.75,
-                      }}
-                    >
+                    <span className="mono" style={{ fontSize: 10, opacity: 0.75 }}>
                       {m.muted ? t("mute.muted") : t("mute.unmuted")}
                     </span>
                   </button>
@@ -3098,7 +2915,7 @@ export function ChannelView({
       {/* 👥 频道成员面板（channel 头部可展开）：全部成员（agent 点击进详情 + 移除；人类点击看简介弹窗）+ 添加成员 */}
       {channel && joined && !isDM && (
         <div style={panelShellStyle(membersOpen)} aria-hidden={!membersOpen}>
-          <div style={panelCollapseInnerStyle}>
+          <div style={panelCollapseInnerStyle(membersOpen)}>
             <div
               style={{
                 display: "flex",
@@ -3155,18 +2972,14 @@ export function ChannelView({
                     <button
                       type="button"
                       title={member.description || member.name}
+                      className="member-opt"
+                      style={{ cursor: "pointer" }}
                       onClick={() =>
                         onOpenPanel?.({
                           kind: member.type === "human" ? "human" : "agent",
                           id: member.id,
                         })
                       }
-                      style={{
-                        ...actionButton,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
                     >
                       <StatusDot status={member.status} />
                       {member.name}
@@ -3176,19 +2989,18 @@ export function ChannelView({
                         <button
                           type="button"
                           title={t("mention.remove", { name: member.name })}
+                          aria-label={t("mention.remove", { name: member.name })}
                           disabled={memberBusy}
-                          onClick={() => void removeChannelMember(member)}
+                          className="icon-btn"
                           style={{
-                            ...actionButton,
-                            padding: "4px 7px",
-                            fontSize: 10,
+                            width: 22,
+                            height: 22,
+                            flex: "0 0 22px",
                             opacity: memberBusy ? 0.55 : 1,
                           }}
+                          onClick={() => void removeChannelMember(member)}
                         >
-                          <X
-                            size={11}
-                            style={{ display: "block", margin: "auto" }}
-                          />
+                          <X size={11} />
                         </button>
                       )}
                   </div>
@@ -3236,18 +3048,16 @@ export function ChannelView({
                             type="button"
                             title={t("mention.add", { name: m.name })}
                             disabled={memberBusy}
+                            className="member-opt"
+                            style={{
+                              cursor: memberBusy ? "not-allowed" : "pointer",
+                              opacity: memberBusy ? 0.55 : 1,
+                            }}
                             onClick={() =>
                               void addChannelMember(
                                 agents.find((a) => a.id === m.id)!,
                               )
                             }
-                            style={{
-                              ...actionButton,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                              opacity: memberBusy ? 0.55 : 1,
-                            }}
                           >
                             <StatusDot status={m.status} />
                             {m.name}
@@ -3276,7 +3086,7 @@ export function ChannelView({
       {/* §3.5 pinned 区（channel 头部可展开）：当前成员个性化 pinned；Manual 可 ↑/↓ 重排 */}
       {joined && (
         <div style={panelShellStyle(pinnedOpen)} aria-hidden={!pinnedOpen}>
-          <div style={panelCollapseInnerStyle}>
+          <div style={panelCollapseInnerStyle(pinnedOpen)}>
             <div
               style={{
                 display: "flex",
@@ -3312,13 +3122,12 @@ export function ChannelView({
                     setPinnedSort(e.target.value as "manual" | "recent" | "az");
                     openPinnedPanel();
                   }}
+                  className="select"
                   style={{
-                    padding: "3px 6px",
-                    fontFamily: "var(--font)",
-                    fontSize: 12,
-                    background: "var(--surface)",
-                    border: `1px solid var(--border)`,
-                    outline: "none",
+                    width: "auto",
+                    height: "var(--control-h-sm)",
+                    padding: "0 var(--sp-2)",
+                    fontSize: "var(--fs-sm)",
                   }}
                 >
                   <option value="manual">{t("pinned.sortManual")}</option>
@@ -3343,19 +3152,14 @@ export function ChannelView({
                 {t("pinned.empty")}
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 {pinnedItems.map((item, index) => (
+                  /* 置顶行的形态 = 上游 `.pin-strip` callout（`--panel` 底 + accent pin 图标）；
+                     本仓的置顶区是可展开的多行列表（原型是头部单行 strip）——形态登记在票据 Answer。 */
                   <div
                     key={item.message.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "6px 10px",
-                      background: "var(--surface)",
-                      border: `1px solid var(--border)`,
-                      cursor: "pointer",
-                    }}
+                    className="pin-strip"
+                    style={{ cursor: "pointer" }}
                     role="button"
                     tabIndex={0}
                     onClick={() => openPinnedMessage(item.message)}
@@ -3363,19 +3167,15 @@ export function ChannelView({
                       if (e.key === "Enter") openPinnedMessage(item.message);
                     }}
                   >
-                    <span
-                      style={{
-                        fontFamily: "var(--mono)",
-                        fontSize: 11,
-                        color: "var(--muted)",
-                      }}
-                    >
-                      #{item.message.seq}
+                    <span className="icon" aria-hidden="true">
+                      <Pin size={13} />
                     </span>
+                    <b className="mono" style={{ color: "var(--muted)" }}>
+                      #{item.message.seq}
+                    </b>
                     <span
                       style={{
                         flex: 1,
-                        fontSize: 12,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -3392,43 +3192,34 @@ export function ChannelView({
                         <button
                           type="button"
                           title={t("pinned.moveUp")}
+                          aria-label={t("pinned.moveUp")}
                           disabled={index === 0}
+                          className="icon-btn"
+                          style={SMALL_ICON_BTN_STYLE}
                           onClick={() => void movePinned(index, -1)}
-                          style={{
-                            ...actionButton,
-                            padding: "2px 7px",
-                            fontSize: 10,
-                          }}
                         >
-                          ↑
+                          <ChevronUp size={12} />
                         </button>
                         <button
                           type="button"
                           title={t("pinned.moveDown")}
+                          aria-label={t("pinned.moveDown")}
                           disabled={index === pinnedItems.length - 1}
+                          className="icon-btn"
+                          style={SMALL_ICON_BTN_STYLE}
                           onClick={() => void movePinned(index, 1)}
-                          style={{
-                            ...actionButton,
-                            padding: "2px 7px",
-                            fontSize: 10,
-                          }}
                         >
-                          ↓
+                          <ChevronDown size={12} />
                         </button>
                         <button
                           type="button"
                           title={t("message.unpin")}
+                          aria-label={t("message.unpin")}
+                          className="icon-btn"
+                          style={SMALL_ICON_BTN_STYLE}
                           onClick={() => void togglePinAction(item.message)}
-                          style={{
-                            ...actionButton,
-                            padding: "2px 7px",
-                            fontSize: 10,
-                          }}
                         >
-                          <X
-                            size={10}
-                            style={{ display: "block", margin: "auto" }}
-                          />
+                          <X size={11} />
                         </button>
                       </span>
                     )}
@@ -3440,15 +3231,12 @@ export function ChannelView({
         </div>
       )}
 
-      {/* Messages / Tasks tab（§3.1） */}
+      {/* Messages / Tasks 切换条（§3.1；上游 `.tabs` 块）。`marginTop: 0` 是调用点的偏离：
+          上游把 `.tabs` 放在 `.chan-head` 内，本仓它是 header 的兄弟（票 03 起的分工）——
+          逐字块带的 `margin-top: 11px` 会在发丝下留一条 `--bg` 缝。 */}
       <div
-        style={{
-          display: "flex",
-          gap: 6,
-          padding: "0 16px",
-          borderBottom: `1px solid var(--border)`,
-          flexShrink: 0,
-        }}
+        className="tabs"
+        style={{ marginTop: 0, paddingInline: "var(--sp-9)", flexShrink: 0 }}
         role="tablist"
       >
         {(["messages", "tasks"] as const).map((tabId) => (
@@ -3457,17 +3245,19 @@ export function ChannelView({
             type="button"
             role="tab"
             aria-selected={tab === tabId}
+            className={tab === tabId ? "tab is-active" : "tab"}
             onClick={() => handleTabChange(tabId)}
-            style={tabButtonStyle(tab === tabId)}
           >
             {tabId === "messages" ? t("center.messages") : t("center.tasks")}
           </button>
         ))}
       </div>
 
-      {/* 主体 */}
+      {/* 主体：消息 tab 走上游 `.stream` / `.stream-inner`（padding + `--stream-max` 居中）；
+          Tasks tab 仍是满宽看板（`.board-wrap` 自带 padding，不吃 stream 的 max-width）。 */}
       <main
         ref={scrollRef}
+        className={tab === "messages" ? "stream" : undefined}
         style={{
           flex: 1,
           minHeight: 0,
@@ -3500,12 +3290,13 @@ export function ChannelView({
               hint={t("messages.emptyHint")}
             />
           ) : (
-            <>
+            /* `--stream-max` 居中列（上游 `.stream-inner`）：空态 / 加载态不吃它（它们自己居中且 `height: 100%`）。 */
+            <div className="stream-inner">
               {hasMore && (
-                <div style={{ padding: "10px 16px 0", textAlign: "center" }}>
+                <div style={{ padding: "0 0 var(--sp-3)", textAlign: "center" }}>
                   <button
                     type="button"
-                    style={actionButton}
+                    className="btn btn-sm"
                     onClick={() => void loadEarlierPage()}
                   >
                     {t("message.loadEarlier")}
@@ -3537,10 +3328,11 @@ export function ChannelView({
               {heldNotice && (
                 <div
                   style={{
-                    margin: "10px 16px 0",
+                    margin: "var(--sp-3) 0 0",
                     padding: "8px 12px",
                     background: "var(--accent-soft)",
                     border: `1px solid var(--border)`,
+                    borderRadius: "var(--r-md)",
                     fontFamily: "var(--mono)",
                     fontSize: 12,
                   }}
@@ -3551,10 +3343,11 @@ export function ChannelView({
               {taskNotice && (
                 <div
                   style={{
-                    margin: "10px 16px 0",
+                    margin: "var(--sp-3) 0 0",
                     padding: "8px 12px",
                     background: "var(--panel-2)",
                     border: `1px solid var(--border)`,
+                    borderRadius: "var(--r-md)",
                     fontFamily: "var(--mono)",
                     fontSize: 12,
                   }}
@@ -3562,7 +3355,7 @@ export function ChannelView({
                   {taskNotice}
                 </div>
               )}
-            </>
+            </div>
           )
         ) : (
           <TaskViews
