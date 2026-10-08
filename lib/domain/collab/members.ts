@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from "path";
 import { randomUUID } from "crypto";
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel } from "./event-messages.ts";
-import { getDMFor } from "./channels.ts";
+import { getDMFor, resumeDirectChannel } from "./channels.ts";
 import type { MemberRow, MemberStatus } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID } from "../../data/schema.ts";
 import {
@@ -193,22 +193,29 @@ export function createAgent(input: {
     }
   }
 
-  const agent = getDb().insertMember({
-    id: agentId,
-    type: "agent",
-    name,
-    description: (input.description ?? "").trim(),
-    role: "member",
-    workspacePath,
-    status: "offline",
-    modelProvider,
-    modelId,
-    thinkingLevel,
+  // 身份行 + #all 全员自动加入（§3.2）+ 同名 DM 接续（§R7）同事务落地：
+  // 与 deleteAgent 的「soft-delete + 移出 channel + 归档 DM」单事务写法对称——
+  // 重建出来的新身份与它对自己 DM 的成员关系/游标要么一起成立，要么一起回滚。
+  const agent = getDb().withTransaction(() => {
+    const created = getDb().insertMember({
+      id: agentId,
+      type: "agent",
+      name,
+      description: (input.description ?? "").trim(),
+      role: "member",
+      workspacePath,
+      status: "offline",
+      modelProvider,
+      modelId,
+      thinkingLevel,
+    });
+    getDb().addChannelMember(BUILTIN_CHANNEL_ID, created.id);
+    // 懒创建（dm-lazy-create）：DM 不随 agent 创建，只在 owner 打开「发送消息」入口时幂等建；
+    // 但名字命中既有 DM（上一次删除留下的旧对话）时必须就地接续。
+    resumeDirectChannel(created.id);
+    return created;
   });
-  // #all 全员自动加入（§3.2）
-  getDb().addChannelMember(BUILTIN_CHANNEL_ID, agent.id);
   notifyAgentJoinedChannel(BUILTIN_CHANNEL_ID, agent.id);
-  // 懒创建（dm-lazy-create）：DM 不随 agent 创建，只在 owner 打开「发送消息」入口时幂等建
   return agent;
 }
 

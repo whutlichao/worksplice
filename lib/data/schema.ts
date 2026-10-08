@@ -211,6 +211,7 @@ export function runMigrations(db: Database.Database): void {
     migrateTasksReopenedColumn(db);
     seed(db);
     cleanupEmptyDms(db);
+    resumeDirectChannels(db);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
 }
@@ -364,4 +365,60 @@ function cleanupEmptyDms(db: Database.Database): void {
   db.exec(
     `DELETE FROM channels WHERE type = 'dm' AND id NOT IN (SELECT DISTINCT target_id FROM messages)`,
   );
+}
+
+/**
+ * 重建同名 agent 后接续同名 DM（§R7 重建路径的开库期形态）：删除身份会归档其 DM 并移出成员
+ * （`deleteAgent`），而 DM id 由名字确定性派生——同名重建（新 member id）命中的是同一条 DM。
+ * 运行期的重建由 `createAgent` 接续（`channels.ts` 的 `resumeDirectChannel`）；**存量**坏行
+ * （接续路径落地前就已存在、没有任何 createAgent 调用会再去碰它们）在这里一次开库治理完，
+ * 用户不需要再删一次重建一次。
+ *
+ * 与服务层那条同形：同一派生 DM id（`DM_ID_PREFIX || name`）、同一修复谓词（存活 agent +
+ * 同名 DM 处于非预期态：归档 / 缺 owner / 缺该 agent）、同一组三条写入与同一顺序
+ * （游标 → 成员 → 解档）。数据层不得 import 协作域（依赖方向：业务依赖数据契约，反之不成立），
+ * 故此处直接写 SQL，由两侧的「接续后预期态」测试钉住同形。
+ * 幂等可重跑：只取非预期态的行（预期态一行不写）；游标只对「DM 成员缺失」的 agent 推送
+ * （那才是重建出来的新身份，旧对话不重放）——已在成员里的身份保留自己的未读游标。
+ * 无 schema 形状变更，不 bump SCHEMA_VERSION。
+ */
+function resumeDirectChannels(db: Database.Database): void {
+  const rows = db
+    .prepare(
+      `SELECT c.id AS dm_id, m.id AS agent_id,
+              EXISTS (SELECT 1 FROM channel_members cm
+                      WHERE cm.channel_id = c.id AND cm.member_id = m.id) AS agent_joined
+       FROM members m
+       JOIN channels c ON c.type = 'dm' AND c.id = ? || m.name
+       WHERE m.type = 'agent' AND m.deleted = 0
+         AND (c.archived <> 0
+              OR NOT EXISTS (SELECT 1 FROM channel_members cm
+                             WHERE cm.channel_id = c.id AND cm.member_id = ?)
+              OR NOT EXISTS (SELECT 1 FROM channel_members cm
+                             WHERE cm.channel_id = c.id AND cm.member_id = m.id))`,
+    )
+    .all(DM_ID_PREFIX, OWNER_MEMBER_ID) as Array<{
+    dm_id: string;
+    agent_id: string;
+    agent_joined: number;
+  }>;
+  if (rows.length === 0) return;
+  const pushCursor = db.prepare(
+    `INSERT INTO consumed_seqs (agent_id, target_id, seq)
+     VALUES (?, ?, (SELECT COALESCE(MAX(seq), 0) FROM messages WHERE target_id = ?))
+     ON CONFLICT (agent_id, target_id) DO UPDATE SET seq = excluded.seq`,
+  );
+  const addMember = db.prepare(
+    `INSERT OR IGNORE INTO channel_members (channel_id, member_id, joined_at) VALUES (?, ?, ?)`,
+  );
+  const unarchive = db.prepare(`UPDATE channels SET archived = 0 WHERE id = ?`);
+  const joinedAt = new Date().toISOString();
+  for (const row of rows) {
+    if (!row.agent_joined) {
+      pushCursor.run(row.agent_id, row.dm_id, row.dm_id);
+    }
+    addMember.run(row.dm_id, OWNER_MEMBER_ID, joinedAt);
+    addMember.run(row.dm_id, row.agent_id, joinedAt);
+    unarchive.run(row.dm_id);
+  }
 }
