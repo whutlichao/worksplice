@@ -598,6 +598,7 @@ export const zhCNLocale: LocalePlugin = {
     "tasks.view": "任务视图",
     "tasks.viewList": "列表",
     "tasks.viewBoard": "看板",
+    "tasks.dropHint": "拖拽任务到此",
     "tasks.dropInvalid": "不能从 {from} 移到 {to}——不是合法转移",
     "messages.emptyHint": "这里的消息不可编辑、不可删除，是永久记录。",
     "tasks.emptyHint": "把消息转为任务，或在任务板上直接创建。",

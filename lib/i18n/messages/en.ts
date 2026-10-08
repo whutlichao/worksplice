@@ -615,6 +615,7 @@ export const enLocale: LocalePlugin = {
     "tasks.view": "Task view",
     "tasks.viewList": "List",
     "tasks.viewBoard": "Board",
+    "tasks.dropHint": "Drag a task here",
     "tasks.dropInvalid":
       "Cannot move from {from} to {to} — not a legal transition",
     "messages.emptyHint": "Messages here are immutable — no edits, no deletes.",
