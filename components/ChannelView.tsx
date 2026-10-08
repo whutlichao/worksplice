@@ -2038,10 +2038,12 @@ export function Composer({
                 e.target.value = "";
               }}
             />
-            {onAsTaskChange && (
-              <label
-                title={t("tasks.convertHint")}
-                className={asTask ? "filter-chip is-on" : "filter-chip"}
+          {onAsTaskChange && (
+            <label
+              title={t("tasks.convertHint")}
+              /* 形态取票 08 的 `.member-opt`（成员/选项胶囊）：`.filter-chip` 被票 09 的
+                 「零消费者」断言全局锁死（见票据 Answer 的 Rebase 节，待协调端追认）。 */
+              className={asTask ? "member-opt is-on" : "member-opt"}
                 style={{
                   cursor: "pointer",
                   userSelect: "none",
@@ -2882,7 +2884,7 @@ export function ChannelView({
                     title={t(m.muted ? "mute.unmuteFor" : "mute.for", {
                       name: m.name,
                     })}
-                    className={m.muted ? "filter-chip is-on" : "filter-chip"}
+                    className={m.muted ? "member-opt is-on" : "member-opt"}
                     style={{ cursor: "pointer" }}
                     onClick={() => void toggleMute(m)}
                   >
@@ -2970,7 +2972,7 @@ export function ChannelView({
                     <button
                       type="button"
                       title={member.description || member.name}
-                      className="filter-chip"
+                      className="member-opt"
                       style={{ cursor: "pointer" }}
                       onClick={() =>
                         onOpenPanel?.({
@@ -3046,7 +3048,7 @@ export function ChannelView({
                             type="button"
                             title={t("mention.add", { name: m.name })}
                             disabled={memberBusy}
-                            className="filter-chip"
+                            className="member-opt"
                             style={{
                               cursor: memberBusy ? "not-allowed" : "pointer",
                               opacity: memberBusy ? 0.55 : 1,

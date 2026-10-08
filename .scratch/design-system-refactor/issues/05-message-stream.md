@@ -93,8 +93,8 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 | `.chan-tools` | 4 个 `.icon-btn`（30×30）+ `.badge` 计数 + `.chan-divider`（1×20） |
 | `.tabs` / `.tab` | `--surface` + 发丝；首个 tab 左缘 **272px = 标题左缘**；`.is-active` 2px `--fg` 下划线 |
 | `.pin-strip` | `--panel` 底 + 发丝 + `--r-md`；accent pin 图标；↑↓✕（22×22 `.icon-btn`） |
-| `.composer-box` / `.composer-send` | `--r-lg` + `--border-strong` + `--shadow-composer`；聚焦 → `0 0 0 3px --accent-soft`；send 30×30（禁用态 `--panel-2`）；`.filter-chip`（As task） |
-| 静音 / 成员面板 | 每个成员一行 `.filter-chip`（30px 高 / `--r-md` / 发丝） |
+| `.composer-box` / `.composer-send` | `--r-lg` + `--border-strong` + `--shadow-composer`；聚焦 → `0 0 0 3px --accent-soft`；send 30×30（禁用态 `--panel-2`）；`.member-opt`（As task，见 Rebase 节） |
+| 静音 / 成员面板 | 每个成员一行 `.member-opt`（胶囊 / 发丝 / `.is-on` 转 accent，见 Rebase 节） |
 | 折叠面板 | 关闭态网格行 **0**（修掉 25px×2 的隐形死空间；tabs 上移 62px） |
 | 溢出 | `documentElement.scrollWidth === innerWidth`；dock `scrollWidth === clientWidth`；720px 视口同样无横向溢出、抽屉形态正常 |
 
@@ -148,7 +148,7 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 - **D8 锚点竖条 `left: 0`**（不是 `.nav-row.is-active::before` 的 `-8px` 沟槽位）：同 D7，dock 的滚动
   容器没有内边距，负数位会被裁掉。
 - **D9 composer 结构换形 + 四处调用点偏离**：`.composer-box` 包住 textarea 与 `.composer-bar`
-  （附件 `.icon-btn` + As task `.filter-chip` + `.sep` + `.composer-send`）。① send 从文字按钮改
+  （附件 `.icon-btn` + As task `.member-opt` + `.sep` + `.composer-send`）。① send 从文字按钮改
   **图标方块**（`aria-label` / `title` 仍取 `t("message.send")`，既有 `/Send/` 断言仍绿）；
   ② textarea 保留 `resize: vertical`（上游 `resize: none` 配自动长高，本仓没有自动长高，去掉等于
   收回一个既有用户能力）；③ 根节点保留 `flex-shrink: 0`（上游无此声明；同屏 header/tabs 也都带，
@@ -240,3 +240,91 @@ git checkout HEAD -- app/globals.css components/ChannelView.tsx
 - 分支：`whutlichao/ds-05-stream`
 - 提交：`e66fe22`（主体）+ `49389e3`（票据收敛）+ review 收口 commit
 - PR：**#118** —— https://github.com/whutlichao/worksplice/pull/118
+
+## Rebase（第二次交付）
+
+**触发**：协调端 `gh pr merge` 报 `CONFLICTING` —— 本票基于 `5506fc4`，`origin/main` 已前进到
+`47c83b2`（票 08 #115、票 07 #116/#117、票 09 #119 并入）。
+
+### 冲突清单与解法
+
+| 文件 | 冲突形态 | 解法 |
+| --- | --- | --- |
+| `app/globals.css` | **单个冲突块**：四票都往文件尾**追加各自的 class 块**（HEAD = 票 07/08/09 的三段；ours = 票 05 的频道面段） | **两边的块都保留**（互不相干，不是二选一）；取序 = **05 → 07 → 08 → 09**（票号顺序）；本票的块另补一行注释起始符（git 把两侧共用的那行 `/* =====` hoist 出了冲突区，本票侧因此丢了开头） |
+| `components/ChannelView.tsx` | 无冲突（main 侧没有任何票改过它） | 自动合并 |
+| `components/message-stream.test.mjs`（新文件） | 无冲突 | 自动合并 |
+| 票据 05 | 无冲突 | 自动合并 |
+
+**取序理由（两条）**：
+1. 按**票据顺序**（coordinator 开工前指定的口径）；
+2. **CSS 级联无影响**：跨段没有同名 selector（脚本核对：本段 31 个 class 块在合并后的文件里各恰好一份；
+   `origin/main` 侧对这批 selector 的定义数为 0）。唯一相邻的一对（票 07 的 `.tt-reply .composer-box` ×
+   本票的 `.composer-box`）由票 07 显式**重声明**、特异性更高，与顺序无关。
+3. 顺序还有一个副作用收益：票 09 的源码级断言用 `indexOf("搜索视图 class 块")` **切到文件尾**——
+   本票的块排在它前面后，那条切片的覆盖范围回到它自己的段落（否则会把本票的 `.tab` / `.task-chip`
+   扫进去，它的「无非 1px solid 边框」断言会误红）。
+
+**rebase 后首跑了红（证据）**：`npm test` = **2 fail / 1276 pass**，两条都落在票 09 的 `SearchView.test.mjs`：
+① `新段落不留旧方向残留`（切片越界扫到本票的 `.tab` 的 2px 透明下划线 / `.task-chip` 的 3px accent 左边）
+→ 由**取序**（05 排在 09 之前）解掉，零文件改动；
+② `facet 行与结果分组不渲染`（全局扫 `filter-chip`）→ 由下面的收口 4 解决。两条解完后 **1278 pass / 0 fail**。
+
+### 合并收口（解冲突后的四处跨票调整）
+
+1. **票 08 段缺注释起始符（origin/main 上既有破损，非本票引入，但必须修）**：
+   `模态族 class 块（票 08…` 那一段的 `/* =====` 起始行在票 08/09 的合并里丢了 → 该段散文被当成
+   **活 CSS**（`Invalid dangling combinator in selector`）→ **dev server 全站 500**。证据：
+   `next dev` → `⨯ ./app/globals.css:1482:18 Parsing CSS source code failed`；`origin/main` 上同一处
+   （1361 行）同样缺（rebase 前后都在 → 不是解冲突引入）。修法：补回一行起始符（**纯注释，零 CSS 语义**）。
+   为确认只有这一处，写了一个按 CSS 注释语义（非嵌套、遇第一个 `*/` 闭合）剥注释后找活散文行的小扫描器：
+   **活代码里的散文行 5 → 0**；修后 `curl /` = 200。
+   （注：中文文档里写 `/* ─── xxx ───` 这种片段会给注释计数造成假性不平衡；真正的破损只有上面这一处。）
+2. **右栏线程行内边距 14px → 16px**：D7 的 14px 是按**合并前**的 ThreadPanel 头部推的；票 07 合并后
+   头部是 `.tt-summary`（`padding: 13px 16px 14px`）→ 16px。按「两边意图都在」（票 07 的「行自带内边距、
+   不双重缩进」+ 本票的「与线程头部对齐」）取 `--sp-7`。实测：锚点行 `padding: 5px 16px`，与头部左缘同列。
+3. **`.tt-reply` 槽里的 composer 内边距归零**：票 07 的槽自带 `11px 16px 14px`，本仓 Composer 在频道面
+   自带 `10px 20px 16px`，合并后在线程里叠成 36px。按票 07 处理 `.tt-reply .composer-box` 的同款手法，
+   在本票的 composer 规则里加 `.tt-reply .composer { padding: 0 }` → 回复框回到 16px（实测框左缘
+   1619 = 1603 + 16，与头部/消息行对齐）。
+4. **`.filter-chip` → `.member-opt`（跨票测试冲突；**待协调端追认**）**：票 09 的 `SearchView.test.mjs`
+   有一条全局反证断言——任何 `components/*.tsx` 都不得出现 `className="…filter-chip"`（依据：票 06
+   逐字搬入 `.filter-chip` 后无渲染点，票 09 核查宣布「渲染点作废、零消费者」）。而本票在频道面用
+   `.filter-chip` 做 4 处切换胶囊（静音面板成员开关 / 成员面板成员行 / 添加成员 chip / composer 的 As task）
+   ——这些显示实体在票 05 之前就存在，本票只是换形态，**没有新增显示面**。
+   已用 `orchestration ask`（`msg_45ddc99f7db4`）请协调端裁决（A：窄化票 09 那半条断言 / B：本票换
+   `.member-opt`），**两次超时（共 30 分钟）未获答复**。按 BEHAVIOR RULE 2（只编辑本票文件——不擅自改
+   跨票测试）＋ 门禁要求全绿，采用 **B**：4 处改票 08 的 `.member-opt`（成员/选项胶囊，`.is-on` 同族）
+   ——其中 3 处本来就是**成员**开关（语义更贴），composer 的 As task 是同一族的选项胶囊。
+   结果：`.filter-chip` 回到零消费者、**票 09 的断言一字未动**、npm test 全绿。
+   **若协调端更认可 A，只需回退这一处（一个 commit）**。
+
+### 重跑的门禁（rebase 后，新 main 基线）
+
+| 项 | 结果 |
+| --- | --- |
+| `npm test`（**全量**） | **1278 pass / 0 fail**（新 main 基线 = 1278 − 本票 13 = **1265**） |
+| `node_modules/.bin/tsc --noEmit` | exit 0 |
+| `npm run lint` | 0 error / 1 warning；唯一 warning 在 `hooks/useI18n.tsx:61`，该文件与 `eslint.config.mjs` 在 `5506fc4 → origin/main` 之间**零改动** → 新 main 基线同一条，**零新增** |
+| `git diff --numstat origin/main` | `app/globals.css` **+132/−1**、`components/ChannelView.tsx` **+601/−808**、`components/message-stream.test.mjs` +431（新增）、本票据 +233/−9——无整文件重写 |
+| `git log --oneline origin/main..HEAD` | 4 个提交**全部是本票的**（主体 / 票据收敛 / review 收口 / rebase 收口） |
+| `git status --porcelain` | 空 |
+
+### 浏览器抽验（rebase 后，真实 dev server + 隔离数据目录）
+
+`WORKSPLICE_DATA_DIR=/tmp/ds05-smoke` 的 seed 数据 + `next dev -p 30177` + ego-browser：
+
+| 验收项 | 实测（合并后） |
+| --- | --- |
+| 消息作者头像 26px | **26×26**（`.avatar av-4`） |
+| 消息行 hover | 悬停行 `background = oklch(0.21 0.014 255 / 0.05)`（= `--fg-soft`）；动作栏 `opacity 1`、揭示外壳 `display: flex` |
+| 时间戳 / `#seq` | `ui-monospace…` / **10.5px** / `tabular-nums` |
+| 频道头 / tabs | `.chan-head` = `--surface`（lab 100）+ 下边发丝；标题 16px / 680 / −0.32px；`.hash` = accent；首个 `.tab` 左缘 **272 = 标题左缘 272** |
+| composer 焦点环 | 静止 `--shadow-composer`（`…/0.04 0 1px 2px`）；聚焦后 `0 0 0 3px --accent-soft` + 边框转 accent（`boxFocusWithin: true`） |
+| 横向溢出 | `documentElement.scrollWidth === innerWidth`（0）；dock `scrollWidth === clientWidth`（379/379） |
+| 票 07 合流面 | 锚点行 `padding: 5px 16px` / bg = accent-soft；`.tt-reply` 回复框 `padding: 0`、16px 偏移、静止 `box-shadow: none`、圆角 12px |
+
+### PR 与持久化
+
+- 分支：`whutlichao/ds-05-stream`（`git push --force-with-lease`）
+- PR **#118**：`mergeable: MERGEABLE`，**保持 OPEN（未合并）**
+- 提交：`430519c`（主体，rebase 后）+ `7493359`（票据收敛）+ `31678ae`（review 收口）+ rebase 收口 commit
