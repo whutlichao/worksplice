@@ -15,7 +15,6 @@
  */
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -160,7 +159,7 @@ test("命中行形态：`.result` 卡片 + `.r-top` 元信息 + `.r-snip` 摘要
   assert.match(html, /style="color:var\(--accent\)[^"]*">Sentry</);
 });
 
-test("`.result` 形态：--surface + 发丝 + --r-md；hover 往亮处走（border-strong + --panel）", () => {
+test("`.result` 形态：--surface + 发丝 + --r-md；hover = 边框强化 + 落到更深的 --panel 表面", () => {
   const card = blockBody(globalsCss, ".result");
   assert.match(card, /background:\s*var\(--surface\)/);
   assert.match(card, /border:\s*1px solid var\(--border\)/);
@@ -168,6 +167,16 @@ test("`.result` 形态：--surface + 发丝 + --r-md；hover 往亮处走（bord
   const hover = blockBody(globalsCss, ".result:hover");
   assert.match(hover, /border-color:\s*var\(--border-strong\)/);
   assert.match(hover, /background:\s*var\(--panel\)/);
+});
+
+test("命中摘要的长 token 不横向溢出（原先 inline 的 wordBreak 改由 .r-snip 兜住）", () => {
+  assert.match(blockBody(globalsCss, ".result .r-snip"), /overflow-wrap:\s*anywhere/);
+});
+
+test("线程命中的徽标借票 06 的 `.card-tag`（原型搜索结果里的 kind 槽位）", () => {
+  const html = renderHit({ ...HIT, inThread: true });
+  assert.match(html, /class="card-tag">thread</);
+  assert.doesNotMatch(renderHit(), /card-tag/);
 });
 
 test("`#seq` 走 `var(--mono)` + `tabular-nums`（ED-6 / 票面验收）", () => {
@@ -302,7 +311,7 @@ test("头文件红线：@keyframes 组数不减（12，与 globals.test.mjs 同�
   assert.doesNotMatch(section, /@keyframes/);
 });
 
-test("测试自己也得守门：SearchView.tsx 落在允许的改动面内（无 lib/app/api 依赖新增）", () => {
+test("测试自己也得守门：SearchView.tsx 落在允许的改动面内（UI 不直连数据层）", () => {
   const imports = [...searchViewSource.matchAll(/from "([^"]+)"/g)].map(
     (m) => m[1],
   );
@@ -316,6 +325,7 @@ test("测试自己也得守门：SearchView.tsx 落在允许的改动面内（�
       "./Avatar",
     ].sort(),
   );
-  assert.ok(!/@\/app\/api/.test(searchViewSource));
-  assert.ok(!fileURLToPath(componentsDir).includes("/lib/"));
+  // 工程规范 §1：UI 不直连数据层（数据一律经 协作服务层 / 路由）
+  assert.doesNotMatch(searchViewSource, /@\/lib\/data/);
+  assert.doesNotMatch(searchViewSource, /\/api\/search\/[^?]/);
 });

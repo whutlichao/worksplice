@@ -1198,7 +1198,8 @@ span.linenumber {
 
    两处逐字保留但本票无渲染点（逐字搬运优先于裁剪，登记在票 06 的 Answer）：
    ① `.col-head .col-add`（按列新建任务，本仓任务板没有这条创建途径）；
-   ② `.filter-chip`（本仓任务板没有筛选功能；渲染点归票 09 的 SearchView facet）。
+   ② `.filter-chip`（本仓任务板没有筛选功能；票 09 核查后作废：本仓没有 facet 实体，
+      渲染点不成立，见搜索视图段头的零消费者登记）。
    `.drop-hint` 由本票的看板空列真渲染（上游原型同形）。
    拖拽态 `.col.drag-over` / `.col.invalid-over` / `.card.dragging` 的 class 由
    `ChannelView.tsx` 的任务板段按 `reachable` 落点裁决与 `dragging` 态挂上。
@@ -1302,10 +1303,20 @@ span.linenumber {
    `.result .r-title`（本仓命中行的「标题」位置是作者名，落在 `.r-top` 元信息行）/
    `.empty p`（本仓两处空态各只有一条文案，无副标题槽位）。
 
-   两处本仓收口：`.search-field input:focus-visible{box-shadow:none}` —— 内层 input 不再叠第二圈
-   （同票 03 的 `.search-btn input` 处置；字段环由 reset 段与本段的 `:focus-within` 落在容器上）；
-   `.result .r-top .hash` 多一条 `font-variant-numeric: tabular-nums`（ED-6 + 票面验收
-   「#seq 用 var(--mono) + tabular-nums」）。
+   字面量登记（逐字上游优先于 ED-3 / ED-5 标尺，同票 08 的偏离登记 5）：`.search-field input`
+   的 `14px`、`.result .r-top` 的 `12px`、`.result .r-snip` 的 `12.5px`、`.result mark` 的
+   `border-radius: 2px` 都是上游原值，不换 `--fs-*` / `--r-*`（换就不是「逐字搬运」了）。
+
+   三处本仓收口：
+   ① `.search-field input:focus-visible{box-shadow:none}` —— 内层 input 不再叠第二圈
+      （同票 03 的 `.search-btn input` 处置；字段环由 reset 段与本段的 `:focus-within` 落在容器上）；
+   ② `.result .r-top .hash` 多一条 `font-variant-numeric: tabular-nums`（ED-6 + 票面验收
+      「#seq 用 var(--mono) + tabular-nums」）；
+   ③ `.result .r-snip` 多一条 `overflow-wrap: anywhere` —— 命中行原先 inline 的
+      `wordBreak: break-word` 随 class 化退场，长无空格 token（URL / 长标识符）需要这条兜住横向溢出
+      （与 `.msg-text` 的同名处置对齐）。
+   命中行的线程徐标借票 06 的 `.card-tag`（mono micro + `--panel-2` 底 + `--muted` 字）：原型搜索结果
+   的 kind 槽位就是 `.card-tag`，旧实现那个 accent-soft 小胶囊没有上游对应物（形态变化已入票 09 Answer）。
    ========================================================================== */
 
 /* ─── search view ────────────────────────────────────────────────────────── */
@@ -1324,7 +1335,7 @@ span.linenumber {
 .result:hover { border-color: var(--border-strong); background: var(--panel); }
 .result .r-top { display: flex; align-items: center; gap: var(--sp-4); font-size: 12px; color: var(--muted); margin-bottom: 3px; }
 .result .r-top .hash { font-family: var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
-.result .r-snip { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: var(--lh-snug); }
+.result .r-snip { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: var(--lh-snug); overflow-wrap: anywhere; }
 .result mark { background: color-mix(in oklch, var(--working) 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
 
 /* empty states */
