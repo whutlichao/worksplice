@@ -13,6 +13,7 @@
 - [ ] `≤1080px` 下 dock 收窄到 340px（E2E 或源码断言）
 - [ ] 导航激活态 = `--accent-soft` 底 + `--accent` 文字/竖条（不是黄色实心）
 - [ ] `AppShell` 渲染断言：markup 里出现 `var(--rail-w)` / `var(--dock-w)`，不出现 `236px` / `480px`
+- [ ] **rail 的 agent 行头像**（`WorkspaceSidebar.tsx:460`）尺寸 28 → 22px（`size="sm"` = `--avatar-sm`）；行高随之重校（票 04 已把 7 个调用点迁到 `Avatar`，本票只收尺寸与行高）
 - [ ] `components/MobilePwaLayout.test.mjs` 的 4 条护栏断言全绿（安全区 / `--app-viewport-height` / 输入框 16px）
 - [ ] `npm test` / `tsc --noEmit` 通过
 

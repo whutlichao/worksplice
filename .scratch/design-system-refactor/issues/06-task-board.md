@@ -7,6 +7,7 @@
 **Status:** pending
 
 - [ ] 列宽来自 `var(--board-col-w)`；列不拉伸
+- [ ] **任务卡片 owner 头像**（`ChannelView.tsx:1288`）尺寸 28 → 22px（`size="sm"`）；**未认领**任务渲染 `t("tasks.unassigned")` 文案、**不**渲染头像（票 04 已迁到 `Avatar`，本票只收尺寸与未认领分支）
 - [ ] 卡片 hover 用 `--shadow-card`；静止卡片无阴影
 - [ ] 拖拽落点可达性视觉（accent / `--error`）仍在；`reachable` 渲染断言仍绿（`components/AgentDetailPanel.test.mjs` 或 `ChannelView.test.mjs` 的既有 seam）
 - [ ] 五种状态色全部来自四态 token + `--faint`/`--accent`，无马卡龙色

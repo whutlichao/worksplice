@@ -7,6 +7,7 @@
 **Status:** pending
 
 - [ ] 消息行 hover 走 `--fg-soft`；锚点行不再是黄色实心（渲染断言：hover 类不指向 `--yellow`）
+- [ ] **消息作者头像**（`ChannelView.tsx:910`）尺寸 40 → 26px（`size="md"` = `--avatar-md`）；行高随之重校（票 04 已迁到 `Avatar`，本票只收尺寸与行高）
 - [ ] 消息行与动作栏无 `2px solid`
 - [ ] composer 有 accent 焦点环 + `--shadow-composer`；常驻输入不吃 `--shadow-pop`
 - [ ] 时间戳与 `#seq` 用 `var(--mono)` + `tabular-nums`

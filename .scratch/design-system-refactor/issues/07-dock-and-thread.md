@@ -10,6 +10,7 @@
 - [ ] 统计数字用 `var(--mono)` + `font-variant-numeric: tabular-nums`
 - [ ] `DetailPanel` 的按 kind 分派逻辑零改动（`components/DetailPanel.test.mjs` 全绿）
 - [ ] 右栏无 `2px solid`；分隔发丝
+- [ ] **两处 dock 头像**尺寸 44px（`size="lg"` = `--avatar-lg`，圆角 `--r-md`）：`AgentDetailPanel.tsx:708`（agent 详情）与 `DetailPanel.tsx:117`（人类资料卡，`type === "human"` 恒 `--av-4`）；票 04 已迁到 `Avatar`，本票只校形态与尺寸
 - [ ] `components/AgentDetailPanel.test.mjs` 全绿（可观测性/任务历史/导出的**行为**断言不得因样式改动而变）
 - [ ] `npm test` / `tsc --noEmit` 通过
 

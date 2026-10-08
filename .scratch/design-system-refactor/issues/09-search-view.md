@@ -9,6 +9,7 @@
 - [ ] 搜索框焦点环走 `--accent-soft`；无 ink 边框
 - [ ] facet chip 选中态 = `--accent-soft` 底 + `--accent` 文字
 - [ ] 结果分组的 `#seq` 用 `var(--mono)` + `tabular-nums`
+- [ ] **命中作者头像**（`SearchView.tsx:202`）尺寸 28 → 22px（`size="sm"`）；`hit.author?.name` 为 `undefined` 时渲染占位符 `?`，`aria-label` 回退到 `hit.author_id`（票 04 已迁到 `Avatar`，本票只收尺寸与占位分支）
 - [ ] 新增渲染断言：facet chip 选中态（落在无障碍名上）
 - [ ] 搜索行为零改动（`GET /api/search` 的调用与参数不动）
 - [ ] `npm test` / `tsc --noEmit` 通过

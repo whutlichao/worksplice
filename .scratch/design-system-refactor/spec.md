@@ -16,23 +16,28 @@
 
 本文件落笔前需要问明的六条在这里已裁决：交付边界（D1）、上游资料在运行时的角色（D2）、旧 token 名退役（D3）、Tailwind 去留（D4）、响应式断点对齐（D5）、头像形态（D6）；后续三条在同一轮 frontier 之后裁决：class 词汇表（D7）、原型未覆盖界面的外推原则（D8）、拆票与依赖（D9）。
 
-**裁决来源与留痕（须读）**：D1–D7 是**决策类**问题，按 grilling 纪律经 `orchestration ask` 逐条问回人类产品所有者（每条附推荐答案与代价账）。**7 条问题在整轮访谈中均未获答复**——发出后经 4 次 resume 等待（累计约 2.5 小时），问题 ID、等待时长与升级记录见本 effort 票据的 `## Answer`。因此 D1–D7 的落盘值是**推荐答案（荐答）**：每条的推理链、被否决的备选与代价账都写在下文，产品所有者可据此直接改写任一条而无需重做分析。D8（外推原则）与 D9（拆票）是**spec 作者的产物**（形态推断与排期），不是待决问题。
+**裁决来源与留痕（须读）**：D1–D7 是**决策类**问题，按 grilling 纪律经 `orchestration ask` 逐条问回人类产品所有者（每条附推荐答案与代价账）。这条访谈经历了两个阶段，两段都留在记录里：
+
+1. **第一阶段（首轮）——未获答复**。7 条问题发出后经 4 次 resume 等待（累计约 2.5 小时）超时，另发 escalation 一次。根因在 **coordinator 侧**：唤醒闹钟被停掉，导致 escalation / 补问 / `worker_done` 静默排队；已修复（闹钟改为按期续装、永不停）。那个阶段按**荐答**落盘——落盘值带完整推理链、被否决备选与代价账，正是这个形态让第二阶段可以「只改一条、无需重做分析」。
+2. **第二阶段（本轮）——答复到达并收敛**。人类产品所有者对 7 条逐条答复：**Q1–Q5 与 Q7 与荐答一致，Q6 改判**（头像从「保留像素图案」改为「换首字 tile」，见 D6）。本文件已按答复收敛：D6 的决策行、决策节、User Story、组件表、拆票表、Testing Decisions 全部更新，旧裁决的论证保留在 D6 的「被否决的备选」里（它是改判的语境）。
+
+D8（外推原则）与 D9（拆票）是**spec 作者的产物**（形态推断与排期），不是待决问题。
 
 资料本身**不完整是已知事实**（README 与 DESIGN.md 引用的 6 个文件不存在，`screens/` 与 `fonts/` 是空目录）；处置见 Further Notes 的 Known gaps。
 
 ## Solution
 
-裁决表。**来源**列：**荐答** = 决策类问题已问回（问题 ID 见 Answer 的访谈记录）但未获答复，落盘值为带完整推理的推荐答案，产品所有者可直接改写；**spec 产物** = spec 作者按资料推断的形态与排期。
+裁决表。**来源**列：**产品所有者答复** = 决策类问题经 `orchestration ask` 问回人类产品所有者**并获答复**（问题 ID、逐条答复与轮次记录见票据 `01-design-system-contract.md` 的 `## Answer`），标「一致」或「改判，否决荐答」；**spec 产物** = spec 作者按资料推断的形态与排期。
 
 | 决策 | 裁决 | 来源 |
 | --- | --- | --- |
-| **D1 交付边界** | **分层落地**：`shell + 原语 + 面板`三层按原型逐字对齐（= 原型覆盖的 15 个 tsx），**遗留 agent 会话面 + 文件面 + 配置面**只换 token / 去 2px ink 边框 / 去 0 圆角，形态结构不动 | 荐答（Q1 · `msg_d4b3d5f1bdf9`） |
-| **D2 上游资料的运行时角色** | `worksplice-design-system/colors_and_type.css` 与 `tokens.css` **作为运行时真源被 `@import`**，本仓只叠扩展层；资料目录进入产品构建路径 | 荐答（Q2 · `msg_827e2b5b7d15`） |
-| **D3 旧 token 名退役** | **逐处改名，不留别名层**；不同构的三个各给一条明文处置；无对应的四个由扩展层重定义 | 荐答（Q3 · `msg_8391eaf6c26e`） |
-| **D4 Tailwind 去留** | **删除**（`@import "tailwindcss"` / `@theme` / PostCSS 插件 / `tailwind.config.ts` / 两个 devDependency），reset 层改由设计系统的 reset 段承担 | 荐答（Q4 · `msg_5aa5951c58f8`） |
-| **D5 响应式断点** | **布局对齐上游（1080 / 900），`useIsMobile` 保持 640** | 荐答（Q5 · `msg_3f9f0583fd76`） |
-| **D6 头像形态** | **保留 8×8 像素图案作头像内容，换 tile 外壳**（7px 圆角方 tile、`--av-0…4` 按成员序号取色、「我」恒用 `--av-4`、去 2px ink 边框与硬阴影） | 荐答（Q6 · `msg_f9fdb24b3849`） |
-| **D7 class 词汇表** | 采纳上游 `ui_kits/app/app.css` 的 class 名与 class 块作为 shell / 原语 / 面板三层的形态载体；本仓的 `ws-*` 只保留为**骨架布局钩子**（`.ws-shell` / `.ws-left` / `.ws-center` / `.ws-right` / `.ws-backdrop` / `.ws-mobile-toggle` / `.ws-message-row` / `.ws-message-actions`），不逐字改名 | 荐答（Q7 · `msg_53087e098922`） |
+| **D1 交付边界** | **分层落地**：`shell + 原语 + 面板`三层按原型逐字对齐（= 原型覆盖的 15 个 tsx），**遗留 agent 会话面 + 文件面 + 配置面**只换 token / 去 2px ink 边框 / 去 0 圆角，形态结构不动 | 产品所有者答复（Q1 · 与荐答一致） |
+| **D2 上游资料的运行时角色** | `worksplice-design-system/colors_and_type.css` 与 `tokens.css` **作为运行时真源被 `@import`**，本仓只叠扩展层；资料目录进入产品构建路径 | 产品所有者答复（Q2 · 与荐答一致） |
+| **D3 旧 token 名退役** | **逐处改名，不留别名层**；不同构的三个各给一条明文处置；无对应的四个由扩展层重定义 | 产品所有者答复（Q3 · 与荐答一致） |
+| **D4 Tailwind 去留** | **删除**（`@import "tailwindcss"` / `@theme` / PostCSS 插件 / `tailwind.config.ts` / 两个 devDependency），reset 层改由设计系统的 reset 段承担 | 产品所有者答复（Q4 · 与荐答一致） |
+| **D5 响应式断点** | **布局对齐上游（1080 / 900），`useIsMobile` 保持 640** | 产品所有者答复（Q5 · 与荐答一致） |
+| **D6 头像形态** | **换首字 tile，与上游原型逐字一致；`PixelAvatar` 退役 → 新建 `Avatar`**：人类 owner「我」/ agent 名称首字符（ASCII 转大写），`.avatar` 26px / `.sm` 22px / `.lg` 44px、`border-radius:7px`、`--av-0…--av-4` 按成员确定性取色、「我」恒用 `--av-4` | **产品所有者答复（Q6 · 改判，否决荐答）** |
+| **D7 class 词汇表** | 采纳上游 `ui_kits/app/app.css` 的 class 名与 class 块作为 shell / 原语 / 面板三层的形态载体；本仓的 `ws-*` 只保留为**骨架布局钩子**（`.ws-shell` / `.ws-left` / `.ws-center` / `.ws-right` / `.ws-backdrop` / `.ws-mobile-toggle` / `.ws-message-row` / `.ws-message-actions`），不逐字改名 | 产品所有者答复（Q7 · 与荐答一致） |
 | **D8 未覆盖面外推** | 十条外推原则（`ED-1…ED-10`），逐条可判定；不做原型之外的新形态发明 | spec 产物 |
 | **D9 拆票** | 10 张实施票（`.scratch/design-system-refactor/issues/02…11`），frontier：`02 → {03, 04, 10} → {05, 06, 07, 08, 09} → 11` | spec 产物 |
 
@@ -98,13 +103,65 @@
 
 ### D6 头像
 
-上游原型的实测形态：**方 tile + 首字**（`.avatar{width:26px;border-radius:7px;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--fg);overflow:hidden}`，5 色 `--av-0…--av-4` 按成员序号确定性取色，「我」恒用 `--av-4`），**但**同一条规则里保留了 `.avatar img{width:100%;height:100%;display:block;image-rendering:pixelated}` —— 上游把「像素内容」留成了可选槽位。
+上游原型的实测形态：**方 tile + 首字**——`.avatar{width:26px;border-radius:7px;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--fg);overflow:hidden}`，`.avatar.sm` 22px、`.avatar.lg` 44px，5 色 `--av-0…--av-4` 按成员序号确定性取色、「我」恒用 `--av-4`；尺寸 token 是 `--avatar-sm:22px` / `--avatar-md:26px` / `--avatar-lg:44px`。同一规则里另有 `.avatar img{width:100%;height:100%;display:block;image-rendering:pixelated}` —— 一个**上游自己没用的可选槽位**。
 
-**裁决 = 保留像素图案、换 tile 外壳。** `PixelAvatar` 继续做头像内容（8×8 seed 确定性镜像图案填进 tile），外壳改成 7px 圆角方 tile、去 2px ink 边框与硬阴影、底色改用 `--av-0…--av-4` 按**成员序号**取（不再由 seed 哈希取马卡龙 6 色），「我」恒用 `--av-4`。
+**裁决 = 换首字 tile，与上游原型逐字一致；`PixelAvatar` 退役。** 头像 = 方 tile + 首字：人类 owner 显示「我」，agent 显示名称首字符（ASCII 名转大写）。外壳取 `.avatar` / `.avatar.sm` / `.avatar.lg`，7px 圆角、无 2px ink 边框与硬阴影。
 
-理由是三条：(a) 上游反模式只禁「圆形头像」「药丸卡片」，未禁像素；(b) `PixelAvatar` 是本仓「成员身份的确定性视觉」的唯一载体（seed → 图案），删掉它等于把「谁是谁」退化成首字母撞名（原型 demo 里 `Susan` / `Sentry` 首字母都是 `S`）；(c) 保留它让「像素头像」这条仓库既有表述继续成立。
+**产品所有者答复（改判，否决荐答）**：首轮我荐答「保留 8×8 像素图案作内容、只换 tile 外壳」，答复选 B「换首字 tile」，并**接受**「同首字母成员不可区分」（原型 demo 里 `Susan` / `Sentry` 都是 `S`）这一代价。这是本轮**唯一**改判：D1–D5、D7 与荐答一致。
 
-**这是与上游原型唯一的显式偏离**（原型渲染首字），且上游的 `.avatar img{pixelated}` 为它留了槽位——不是违背资料，而是启用资料预留的槽。
+#### 尺寸与形态（消费上游的尺寸 token，替换本仓的 `28 \| 40 \| 44 \| 48`）
+
+| 形态 | token | 圆角 | 字号 | 用在哪 |
+| --- | --- | --- | --- | --- |
+| `.avatar.sm` | `--avatar-sm` 22px | 7px | 10px | rail 的 agent 行、成员挑选项、搜索结果行、任务 owner chip |
+| `.avatar` | `--avatar-md` 26px | 7px | 11px | 消息作者行 |
+| `.avatar.lg` | `--avatar-lg` 44px | `--r-md` 8px（上游 `.avatar.lg` 显式覆盖） | 16px | dock 头部（agent 详情 / 人类资料卡） |
+
+字重照上游 `700`，字色 `var(--fg)`，`display:grid; place-items:center`，`overflow:hidden`。
+
+#### 取色
+
+`--av-0…--av-4` 五色，按**成员身份确定性**取——同一成员在本仓任何位置恒定同色；「我」（人类 owner / `CURRENT_MEMBER_ID`）恒用 `--av-4`（`MemberRow.type === "human"` 即人类面）。
+
+**取色的具体落法是代答（答复只说了「按成员序号取色」）**：序号是上游原型的做法（`av(AGENTS.indexOf(m))`），但真实产品的列表顺序随成员增删漂移，且 7 个调用点里有 5 个根本没有列表上下文。落法是：**有列表序号的调用点传序号，没有序号的调用点传 `member.id`，由模块内一个纯函数做确定性映射**——「恒定同色」这个**意图**保住了，「序号」这个**手段**降级为可选。产品所有者若要求严格按序号，需要在票 04 之外**新增 props 与查询**（属行为改动，触本 effort 的零行为改动红线），因此不在本 effort 内。
+
+#### `PixelAvatar.tsx` 的处置 = 退役，改建 `Avatar.tsx`
+
+裁决：**新建 `components/Avatar.tsx`（导出 `Avatar`），删除 `components/PixelAvatar.tsx`**；不保留旧名做原地改造。理由三条：
+
+1. 7 个调用点的 props 全都要换（`seed` → 名称 + 取色参数），本来就没有「零改动」的迁移路径；
+2. 名字与内容不符是**真实的维护成本**——本 effort 已经在 `--border`（同名不同物）上吃过一次这个亏，把「名字说谎」当成新债留下来与刚立的规矩冲突；3. 一次机械的 import 替换（7 处）换掉一个会误导人的模块名，收益是长期的；locality 不受影响（新模块仍在 `components/` 同层、接口同样窄）。
+
+`PixelAvatarSize`（`28 \| 40 \| 44 \| 48`）随之退役，换成 `AvatarSize = "sm" \| "md" \| "lg"`。仓库 30 个 tsx 的计数不变（一个模块退役、一个模块新建）。
+
+#### 消费者清点（7 个调用点，逐个点名）
+
+`grep -rn 'PixelAvatar' components/*.tsx` 的**每一处**在新形态下的处置：
+
+| 调用点 | 现值 | 新形态 | 取色参数 |
+| --- | --- | --- | --- |
+| `components/WorkspaceSidebar.tsx:460`（rail 的 agent 行） | `seed={agent.id} name={agent.name} size={28}` | `<Avatar name={agent.name} size="sm" />`（22px） | 该 agent 在 `agents` 列表里的序号 |
+| `components/CreateChannelModal.tsx:181`（成员挑选项） | `seed={agent.id} name={agent.name} size={28}` | `<Avatar name={agent.name} size="sm" />`（22px） | 该 agent 在 `agents` 列表里的序号 |
+| `components/SearchView.tsx:202`（搜索命中作者） | `seed={hit.author_id} name={hit.author?.name} size={28}` | `<Avatar name={hit.author?.name} size="sm" />`（22px） | `hit.author_id`（无列表序号）；名称 `undefined` → 占位 `?`，`aria-label` 回退到 `hit.author_id` |
+| `components/ChannelView.tsx:1288`（任务 owner chip） | `seed={task.owner_id ?? "none"} name={task.owner?.name ?? "?"} size={28}` | 有 owner → `<Avatar name={task.owner?.name} size="sm" />`（22px）；**未认领 → 不渲染头像** | 有 owner → `task.owner_id`；否则不适用 |
+| `components/ChannelView.tsx:910`（消息作者） | `seed={message.author_id} name={message.author?.name ?? "?"} size={40}` | `<Avatar name={message.author?.name} size="md" />`（26px） | `message.author_id`；作者是 owner → `--av-4` |
+| `components/AgentDetailPanel.tsx:708`（dock 头部） | `seed={agent.id} name={agent.name} size={44}` | `<Avatar name={agent.name} size="lg" />`（44px） | `agent.id` |
+| `components/DetailPanel.tsx:117`（人类资料卡） | `seed={member.id} name={member.name} size={44}` | `<Avatar name={member.name} size="lg" />`（44px） | `member.type === "human"` → `--av-4` |
+| `components/PixelAvatar.tsx`（模块自身） | （旧）8×8 像素图案生成器 | **删除**，由 `components/Avatar.tsx` 取代 | — |
+
+**未认领任务那条的处置说明**：`task.owner_id ?? "none"` 现在会把「未认领」画成一个问号头像。新形态下「未认领」渲染 `t("tasks.unassigned")` 文案、不渲染头像——这不是新行为，是把已有的兜底值（`?? "?"`）还原成它本来的语义（占位文案，不是一个成员）。
+
+**迁移必须原子上线**：`PixelAvatar.tsx` 的删除与 7 个调用点的切换**同在票 04 内完成**（不能拆到各自的容器票里——中间态会让树编译不过）。票 03 / 05 / 06 / 07 / 08 / 09 不重复迁移，只负责**重校自己容器里那处头像的尺寸与行高**：`WorkspaceSidebar` rail 行（票 03）、`ChannelView` 消息行（票 05）、任务 owner chip 与未认领分支（票 06）、两处 dock 头像（票 07）、成员挑选项（票 08）、搜索命中行（票 09）——各票的验收清单已逐条列出。
+
+**两个可见的尺寸变化（须知情）**：消息作者头像 40 → 26px、rail 行头像 28 → 22px，两处行高会跟着变。这是「与上游逐字一致」的必然结果（上游消息作者头像就是 26px、rail 行就是 `.sm`），但会动到 `ChannelView`（票 05）与 `WorkspaceSidebar`（票 03）的行高。**已验证无测试耦合**：`components/*.test.mjs` 里没有任何断言提到 avatar / `PixelAvatar`。
+
+#### 被否决的备选（保留完整论证，它是改判的语境）
+
+**（否决）保留 8×8 像素图案作内容、只换 tile 外壳**：`PixelAvatar` 继续做头像内容，外壳改成 7px 圆角方 tile、去 2px ink 边框与硬阴影、底色由 seed 哈希取马卡龙 6 色改为 `--av-*`。
+
+荐答方的论证（保留在此，不删）：(a) 上游反模式只禁「圆形头像」「药丸卡片」，**未禁**像素，所以像素并不违规；(b) 8×8 图案是本仓「成员身份的确定性视觉」的唯一载体（seed → 图案），去掉它之后「谁是谁」退化成首字母——原型 demo 里 `Susan` 与 `Sentry` 首字母都是 `S`，两者头像将完全相同；(c) 上游 `.avatar img{image-rendering:pixelated}` 这个槽位从此无人使用（它仍留在 `ui_kits/app/app.css` 里，因为上游资料逐字不改）。
+
+选首字 tile 的理由（产品所有者本轮的首要判据）：与设计稿原型**逐字一致**。两者不可兼得，取一致性。
 
 ### D7 class 词汇表
 
@@ -153,7 +210,7 @@
 4. 作为将来读仓库的人，我看到 `app/globals.css` 顶部没有 Tailwind，`package.json` 里没有 `tailwindcss`，因此不会误以为这套 class 需要 Tailwind 才能工作——也不会去维护那层零消费者的 `@theme` 别名。
 5. 作为成员，我在窄窗口（≤1080px）里看到右栏收窄到 340px，因此中央消息流不会被挤扁；在 ≤900px 里看到 rail 与 dock 变成带 scrim 的抽屉、看板堆成单列。
 6. 作为在**配置弹窗**里操作的人，我在 640–900px 的窗口里仍然拿到配置面的桌面形态（不是被 `useIsMobile` 突然切到未经重做的移动分支），因为布局断点与配置面密度断点是两件事。
-7. 作为成员，我在任意列表 / 卡片 / 消息行里都能凭头像图案区分 agent（`Susan` 与 `Sentry` 的 8×8 图案不同），而不是靠一个撞名的首字母。
+7. 作为成员，我在任意列表 / 卡片 / 消息行 / dock 里都看到与设计稿一致的方 tile 头像（首字 + 五色 tint），且同一成员在 rail、消息流、任务卡片、搜索结果与 dock 里**恒定同色**——颜色告诉我「是不是同一个人」，而不是靠一个会撞名的首字母。
 8. 作为用键盘的人，我 Tab 到任意可聚焦元素时都看到 indigo 焦点环，href/按钮/输入无例外。
 9. 作为开了「减少动态效果」的人，脉冲状态点与抽屉过渡都收敛，没有残留的无限动画。
 10. 作为审计这套改判的人，我读 `docs/adr/0014-visual-direction-modern-minimal.md` 就知道被推翻的是什么、为什么推翻、影响哪些面、怎么回滚。
@@ -235,6 +292,7 @@
 | `--r-*` | 全局 `* { border-radius: 0 !important }`（`app/globals.css:105`）压掉了所有圆角 |
 | `--z-*` | `.ws-mobile-toggle` 的 `z-index: 300`、`.ws-left`/`.ws-right` 的 `500`、`.ws-backdrop` 的 `490` |
 | `--dur*` / `--ease` | 抽屉的 `transition: transform 0.2s ease, box-shadow 0.2s ease`、消息行的 `transition: background 0.12s ease` |
+| `--avatar-sm` / `--avatar-md` / `--avatar-lg`（22 / 26 / 44px） | `PixelAvatarSize = 28 \| 40 \| 44 \| 48`（`components/PixelAvatar.tsx:7`）与 7 个调用点的字面量尺寸——由票 04 新建的 `Avatar.tsx` 改为 `AvatarSize = "sm" \| "md" \| "lg"`（D6） |
 | `--fs-*` | `html,body { font-size: 14px }`、`.markdown-body { font-size: 14px }`（新正文 13px） |
 
 ### 2. Tailwind 卸载清单（D4 的落地面）
@@ -263,7 +321,7 @@
 | 6 | `ThreadPanel.tsx` | panel | `.tt-summary`（sticky）/ `.tt-status`（状态胶囊，色取 ED-10 的任务映射）/ `.assignee`（胶囊，内嵌 `.avatar.sm`）/ `.tt-actions`（chip 行）/ `.tt-log`（时间线，`ok`/`warn`/`err`/`is-now` 四种点）/ `.tt-reply`（sticky composer） | T6 |
 | 7 | `AgentDetailPanel.tsx` | panel | `.dock-head` / `.dock-id` / `.avatar.lg` / `.dock-name` / `.dock-role`（`.presence` + 文字）/ `.icon-btn` 关闭 / `.dock-tabs` / `.dock-tab`（下划线 tab，mono 计数转 accent）/ `.dock-scroll` / `.d-sec` + `.d-sec-title`（mono 大写）/ `.kv`（点线引导的 key/value 行）/ `.meter` / `.stat-grid`（2×2，数字 mono 17px/700 `tabular-nums`）/ `.log-row` + `.lv`（级别标签） | T6 |
 | 8 | `StatusDot.tsx` | 原语 | `.presence.{online\|working\|error\|offline}`：7px 圆点，`online` → `--online`、`working` → `--working` + `pulse 1.5s`（`reduce` 下 `animation:none`）、`error` → `--error`、`offline` → `--offline`。**去掉 2px ink 边框与 9px 尺寸** | T3 |
-| 9 | `PixelAvatar.tsx` | 原语 | `.avatar`（26px 默认 / `.sm` 22px / `.lg` 44px，`border-radius:7px`，`display:grid; place-items:center`）+ `.av-0…--av-4`；像素图案填内容（`image-rendering:pixelated` 保留）；去 2px ink 边框与硬阴影；取色改按成员序号 | T3 |
+| 9 | ~~`PixelAvatar.tsx`~~ → **`Avatar.tsx`（新建）** | 原语 | `.avatar`（`--avatar-md` 26px / `.sm` = `--avatar-sm` 22px / `.lg` = `--avatar-lg` 44px，`border-radius:7px`，`display:grid; place-items:center`，`font-weight:700`，`color:var(--fg)`，`overflow:hidden`）+ `.av-0…--av-4`；内容 = **首字**（人类 owner「我」/ agent 名称首字符）；`PixelAvatar.tsx` **删除**，`PixelAvatarSize` → `AvatarSize = "sm" \| "md" \| "lg"`；7 个调用点逐个迁移见 D6 的消费者清点 | T3 |
 | 10 | `BrutalModal.tsx` | 原语 | `.overlay`（scrim + blur）+ `.modal`（`--r-xl` + `--shadow-pop`）+ `.modal-head` / `.modal-body` / `.modal-foot`；`--modal-max` 440px / `--modal-wide-max` 560px。**模块名与对外 props 不改**（改名属行为无关的重命名，不产生视觉收益，见 D7 同一条理由） | T7 |
 | 11 | `CreateChannelModal.tsx` | panel | `.field` + `.label` + `.member-pick` / `.member-opt`（可挑胶囊）/ `.radio-card` / `.radio-row` / 底部 `.btn.btn-primary` | T7 |
 | 12 | `CreateAgentModal.tsx` | panel | 同上 + `.select` / `.input`，model / thinking 选择走 `ModelPicker` 原语 | T7 |
@@ -295,7 +353,7 @@
 | --- | --- | --- |
 | **02 `token-contract-and-foundation`** | 两条 `@import`；reset 段（含 `:focus-visible` 环）；删 Tailwind（`@import` / `@theme` / PostCSS 插件 / `tailwind.config.ts` / 两个 devDependency）；换字体栈（`next/font` 三个退役、`layout.tsx` 与 `viewport.themeColor` 改值）；断点常量（900 / 1080）；旧 token 名全仓替换与无对应者的扩展层补齐；`--r-*` 解开全局 `border-radius: 0 !important` | 无 |
 | **03 `shell-skeleton`** | `AppShell` + `globals.css` 的 `ws-*` 骨架：三栏、`--rail-w` 252、`--dock-w` 380 / `--dock-w-md` 340、发丝分隔、`--z-*` 阶梯、`--dur-drawer`、≤900 抽屉 + scrim、≤1080 dock 收窄；`WorkspaceSidebar` 的 `.rail` 形态 | 02 |
-| **04 `primitives-and-presence`** | 原语 class 块（`.btn` / `.btn-primary` / `.btn-ghost` / `.btn-danger` / `.btn-sm` / `.icon-btn` / `.is-on` / `.badge` / `.tag` / `.input` / `.textarea` / `.select` / `.field` / `.card`）+ `StatusDot` 四态 + `PixelAvatar` tile 外壳 | 02 |
+| **04 `primitives-and-presence`** | 原语 class 块（`.btn` / `.btn-primary` / `.btn-ghost` / `.btn-danger` / `.btn-sm` / `.icon-btn` / `.is-on` / `.badge` / `.tag` / `.input` / `.textarea` / `.select` / `.field` / `.card`）+ `StatusDot` 四态 + **新建 `Avatar.tsx`（首字 tile）、删除 `PixelAvatar.tsx`、迁移 7 个调用点** | 02 |
 | **05 `message-stream`** | `ChannelView` 的 `.chan-head` / `.chan-title` / 流 / `.msg*` / `.msg-tools` / `.reactions` / `.pin-strip` / `.day-sep` / `.composer*` | 03, 04 |
 | **06 `task-board`** | 任务板两视图（`.seg` 分段控件 / `.board*` / `.col*` / `.card*` / `.drop-hint` / `.drag-over` / `.invalid-over`）与卡片动作的形态 | 04 |
 | **07 `dock-and-thread`** | `DetailPanel` 单槽容器 + `ThreadPanel`（`.tt-*`）+ `AgentDetailPanel`（`.dock-*` / `.d-sec` / `.kv` / `.meter` / `.stat-grid` / `.log-row`） | 03, 04 |
@@ -312,7 +370,7 @@
 | --- | --- | --- |
 | `.scratch/worksplice-build/issues/03-shell-and-visual-tokens.md` | **视觉部分被推翻**（本票不动该文件，见 Ownership） | 在 ADR-0014 的 `Supersedes` 里留痕。该票的「三栏骨架」与「删除 pi-web 单窗口骨架」两项**仍有效** |
 | `docs/spec.md` §4（12 色板 / 0 圆角 / 2px ink / 硬阴影 / 三字体 / 像素头像，逐条 `[锁定] 02`） | **整节失效** | 本票不改（不在 Ownership 内）；改写落在票 11。**这是本 effort 唯一的「文档先于代码说谎」窗口**——从票 02 落地到票 11 落地之间，§4 描述的方向已不在产品里 |
-| `AGENTS.md` 的 CSS 变量段 / File Map 视觉描述 | 部分失效 | 同票 10 |
+| `AGENTS.md` 的 CSS 变量段 / File Map 视觉描述 | 部分失效 | 同票 11 |
 | `docs/spec.md` §4.5「沿用 pi-web 的主题基建（tailwind 配置 + CSS 变量）**[锁定] 04**」 | **被 D4 推翻** | 同票 11 改写；ADR-0014 的 `Supersedes` 覆盖 |
 
 ### 6. 实施票必须保持的红线（零行为改动）
@@ -354,7 +412,7 @@
 | --- | --- |
 | 02 | T-A + T-B + T-C |
 | 03 | `AppShell` 的三栏容器 markup 里出现 `var(--rail-w)` / `var(--dock-w)` 而不是 `236px` / `480px`；`MobilePwaLayout.test.mjs` 的既有断言（安全区、`--app-viewport-height`、`overflow-x-hidden overflow-y-auto`）保持全绿——这四条是**不能动的护栏**，实施票改 `ChannelView` 的 className 前必须先让它们过 |
-| 04 | `StatusDot` 四个 status 各渲染出对应 token（`var(--online)` / `var(--working)` / `var(--error)` / `var(--offline)`）；`PixelAvatar` 的 tile 出现 7px 半径与 `--av-*` 取色；且**不再**出现 `2px solid` |
+| 04 | `StatusDot` 四个 status 各渲染出对应 token（`var(--online)` / `var(--working)` / `var(--error)` / `var(--offline)`）；`Avatar` 渲染出**首字**（agent 名首字符转大写 / 人类「我」）与 `.avatar` 形态，且**不再**出现 `image-rendering: pixelated` 与 `2px solid`；**未认领**任务 chip **不**渲染头像；7 个调用点的 import 全部指向 `Avatar`（源码级断言：`grep 'PixelAvatar' components/*.tsx` 为空） |
 | 05 | 复用 `ChannelView.test.mjs` 的 8 个 `MessageRow` 用例（它们已按无障碍名断言），新增：消息行不再带 `2px solid`；hover 类不再指向 `--yellow` |
 | 06 | 复用 `AgentDetailPanel.test.mjs` 的渲染 seam 断言看板卡片的可达性标记不因样式改动消失（`reachable` 是**行为**，断言它渲染出来 = 视觉票没碰行为） |
 | 07 | `DetailPanel.test.mjs` 既有的按 kind 分派断言全绿（视觉票不得改分派） |
@@ -363,7 +421,7 @@
 | 10 | 只跑 T-A/T-B/T-C；遗留面无新增渲染断言（形态不变 = 无新可观察面） |
 | 11 | T-C 的文档一致性扩展：断言 `docs/spec.md` §4 不再出现 `#ffd440` / `#fe7da8` / `0 圆角` / `[锁定] 02`；`AGENTS.md` 的 CSS 变量段列出的是新 token 名 |
 
-**门禁**（本票不跑，留给实施票与本 effort 的收口）：`npm test`（`node --test`，`lib/**` + `app/**` + `components/**` + `hooks/**` 的 `*.test.mjs`）、`node_modules/.bin/tsc --noEmit`、`npm run lint`（`eslint .`）、`git diff --numstat` 无整文件重写。**「Keep it green」的既有护栏**：`components/MobilePwaLayout.test.mjs` 的 4 条断言直接断在 `app/globals.css` 与 `components/*.tsx` 的源码字符串上，票 01–04 会踩到它们，实施票必须让它们保持绿（或按意图同步更新，不得静默删）。
+**门禁**（本票不跑，留给实施票与本 effort 的收口）：`npm test`（`node --test`，`lib/**` + `app/**` + `components/**` + `hooks/**` 的 `*.test.mjs`）、`node_modules/.bin/tsc --noEmit`、`npm run lint`（`eslint .`）、`git diff --numstat` 无整文件重写。**「Keep it green」的既有护栏**：`components/MobilePwaLayout.test.mjs` 的 4 条断言直接断在 `app/globals.css` 与 `components/*.tsx` 的源码字符串上，票 02–05 会踩到它们，实施票必须让它们保持绿（或按意图同步更新，不得静默删）。
 
 **本票（设计票）的证据形态**：不跑测试（无被测对象）；证据 = `git status --porcelain` 为空 + `diff -r` 与上游逐字一致 + 本文件七节齐全 + ADR-0014 存在。
 

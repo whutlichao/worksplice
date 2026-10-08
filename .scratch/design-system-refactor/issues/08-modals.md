@@ -11,6 +11,7 @@
 - [ ] 模态内每个可聚焦元素有焦点环（`--accent-soft` 环或 `:focus-visible` outline）
 - [ ] `components/CreateChannelModal.test.mjs` / `CreateAgentModal.test.mjs` / `ReminderModal.test.mjs` 既有断言全绿
 - [ ] `DirectoryPicker` 选中行 = `--accent-soft` 底 + `--accent` 文字（不是黄色实心）
+- [ ] **成员挑选项头像**（`CreateChannelModal.tsx:181`）尺寸 28 → 22px（`size="sm"`）；挑选项本身的行高与选中态重校（票 04 已迁到 `Avatar`，本票只收行高与容器形态）
 - [ ] `npm test` / `tsc --noEmit` 通过
 
 ## Answer

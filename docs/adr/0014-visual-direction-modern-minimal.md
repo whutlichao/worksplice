@@ -12,11 +12,11 @@
 - `hooks/useTheme.ts`（恒亮色的理由与消费者）。
 - 30 个 `components/*.tsx`（共 1144 处 `var(--*)` 引用 + inline style 形态）。
 - `hooks/useIsMobile.ts` 的断点（与设计系统的 1080 / 900 不一致）。
-- `PixelAvatar.tsx` / `StatusDot.tsx` 的取色与形态。
+- `PixelAvatar.tsx` 的**退役**与 `StatusDot.tsx` 的形态。头像改为上游原型逐字一致的**首字 tile**（人类 owner「我」/ agent 名称首字符，`--av-0…--av-4` 按成员确定性取色），8×8 像素图案整体作废；`PixelAvatar.tsx` 删除、由新建的 `Avatar.tsx` 取代，7 个调用点随之迁移（调用点清单与两个尺寸变化的知情项见 `.scratch/design-system-refactor/spec.md` 的 D6 节）。这一条是产品所有者对「保留像素图案」荐答的**改判**：一致性优先于头像的可区分度，同首字母成员将不可区分。
 - 文档面：`docs/spec.md` §4 整节失效；`AGENTS.md` 的 CSS 变量段、UI 图标规则段附近的视觉描述失效。
 
 **迁移策略**：
-- 实施分票落在 `.scratch/design-system-refactor/`，本 ADR 只裁决方向，不含实施细节；`docs/spec.md` §4 与 `AGENTS.md` 的视觉段的改写随实施票落地——设计票阶段改它们会让文档先于代码说谎（与 `.scratch/thread-message-actions/spec.md` 的 D6 同一条纪律）。
+- 实施分票落在 `.scratch/design-system-refactor/`（10 张票，frontier `02 → {03, 04, 10} → {05, 06, 07, 08, 09} → 11`），本 ADR 只裁决方向，不含实施细节；`docs/spec.md` §4 与 `AGENTS.md` 的视觉段的改写随实施票落地——设计票阶段改它们会让文档先于代码说谎（与 `.scratch/thread-message-actions/spec.md` 的 D6 同一条纪律）。
 - **零行为改动**：消息不可变、freshness-hold、任务状态机、inbox 游标、权限面、agent-loop 语义一字不动。本改判只作用于视觉层。
 - 旧 token 名**不做长期别名层**：设计系统明写「token 契约是 load-bearing 的，改名会重新扯断整个 app」，两套名字（新名 + 旧别名）会把「哪个才是契约」变成永久歧义。
 - 数据与对外契约零影响：不触 schema、不触 HTTP 面、不触 `~/.worksplice` 任何文件。
