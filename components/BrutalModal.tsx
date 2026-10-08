@@ -13,6 +13,10 @@ import { useI18n } from "@/hooks/useI18n";
  * （`--modal-max` 440 / `--modal-wide-max` 560），故 `> 440` 走 `.modal.wide`。
  * 开关逻辑、焦点陷阱期望、Esc 关闭、backdrop 点击关闭、`role` / `aria-*` 一字不动。
  */
+/** `--modal-max`（tokens.css）的 px 值：旧调用点的 width 是逐点尺寸（400/460/520），
+ *  新契约只有两档，本常量只用来把旧值折成档位（对外 props 不变）。 */
+const MODAL_MAX_PX = 440;
+
 export function BrutalModal({
   title,
   onClose,
@@ -25,7 +29,7 @@ export function BrutalModal({
   width?: number;
 }) {
   const { t } = useI18n();
-  const wide = width > 440;
+  const wide = width > MODAL_MAX_PX;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

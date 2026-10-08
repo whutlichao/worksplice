@@ -66,9 +66,12 @@ test("CreateChannelModal: no agents -> no member list section", () => {
 
 test("票 08 形态：内容分 .modal-body / .modal-foot，底部动作走 .btn / .btn.btn-primary", () => {
   const html = renderModal([{ id: "m1", name: "bob", type: "agent" }]);
+  assert.match(html, /class="overlay"/);
+  // 原型 openNewChannel 走 wide（成员胶囊行需要宽度）：--modal-wide-max 档
+  assert.match(html, /class="modal wide"/);
   assert.match(html, /class="modal-body"/);
   assert.match(html, /class="modal-foot"/);
-  assert.match(html, /class="modal-foot .sep"|class="sep"/);
+  assert.match(html, /class="sep"/);
   assert.match(html, /class="btn"/);
   assert.match(html, /class="btn btn-primary"/);
 });

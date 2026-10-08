@@ -57,7 +57,7 @@ export function CreateChannelModal({
         }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error || "Failed to create channel");
+      if (!res.ok) throw new Error(body.error ?? "Failed to create channel");
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -66,7 +66,7 @@ export function CreateChannelModal({
   };
 
   return (
-    <BrutalModal title={t("channel.create")} onClose={onClose}>
+    <BrutalModal title={t("channel.create")} onClose={onClose} width={520}>
       {/* 形态（票 08）：`.field` + `.input` / `.textarea` + `.radio-row` / `.radio-card`
           + `.member-pick` / `.member-opt`；动作收在 `.modal-foot`。逻辑与字段关联不动。 */}
       <div className="modal-body">

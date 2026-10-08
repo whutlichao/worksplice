@@ -1240,10 +1240,11 @@ span.linenumber {
 
 /* ==========================================================================
    模态族 class 块（票 08：spec 组件表第 10–15 行）
-   —— `.overlay` / `.modal*` / `.member-pick` / `.member-opt` / `.radio-*` /
-   `.reminder-row` / `.kv` 逐字搬自 worksplice-design-system/ui_kits/app/app.css
-   （`.overlay` / `.modal` 段 + `.field` 段后半 + `.reminder-row`）；
-   `.directory-picker-*` 是票 08 的形态收口（票 10 的 token 换皮保留、不重复）。
+   —— `.overlay` / `.modal*` / `.member-pick` / `.member-opt` / `.radio-*` / `.kv`
+   逐字搬自 worksplice-design-system/ui_kits/app/app.css（`.overlay`/`.modal` 段 +
+   `.field` 段后半）；`.directory-picker-*` 是票 08 的形态收口（票 10 的 token 换皮保留、不重复）。
+   按票 04 先例裁掉三个**零消费者**槽位（本仓无 sub 槽 / radio-card 无副标题 / 提醒行取 .kv）：
+   `.modal-head .sub`、`.radio-card span`、`.reminder-row*`。
    `.kv` 与票 07 的 dock 段同源（上游只有一处定义）：两票合并后保留其一即可，规则逐字相同。
    ============================================================================ */
 
@@ -1254,7 +1255,6 @@ span.linenumber {
 .modal.wide { max-width: var(--modal-wide-max); }
 .modal-head { display: flex; align-items: center; gap: 10px; padding: var(--sp-7) var(--sp-8) var(--sp-5); }
 .modal-head h2 { font-size: 15px; font-weight: var(--fw-heavy); flex: 1; }
-.modal-head .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .modal-body { padding: 0 var(--sp-8) var(--sp-2); }
 .modal-foot { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-6) var(--sp-8) var(--sp-7); }
 .modal-foot .sep { flex: 1; }
@@ -1269,13 +1269,8 @@ span.linenumber {
 .radio-card:hover { border-color: var(--border-strong); }
 .radio-card.is-on { border-color: var(--accent); background: var(--accent-soft); }
 .radio-card b { font-size: 12.5px; display: block; }
-.radio-card span { font-size: 11.5px; color: var(--muted); }
 
-/* ─── 提醒行（原型「提醒」模态；MyRemindersModal 行取 .kv 形态） ────────── */
-.reminder-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
-.reminder-row:last-child { border-bottom: 0; }
-.reminder-row .time { font-family: var(--mono); font-size: 11.5px; color: var(--accent); }
-.reminder-row .grow { flex: 1; }
+/* ─── kv 行（MyRemindersModal / 提醒列表：频道名 + 锚点 seq mono + 下次触发 mono） ── */
 .kv { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-5); padding: 5px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
 .kv:last-child { border-bottom: 0; }
 .kv .k { color: var(--muted); }
