@@ -264,10 +264,12 @@ export function CodeBlock({ code, lang, headerAction }: CodeBlockProps) {
         customStyle={{
           margin: 0,
           padding: "11px 13px",
-          fontSize: 12.5,
+          // ED-5：字号取自 --fs-* 标尺；ED-1：嵌套 well 走 --panel-2。
+          fontSize: "var(--fs-sm)",
           lineHeight: 1.62,
-          borderRadius: 0,
-          background: "color-mix(in srgb, var(--bg) 92%, var(--panel))",
+          // ED-2：发丝由外层 .markdown-code-block 统一提供，这里不再叠一条硬编码边框。
+          border: "none",
+          background: "var(--panel-2)",
         }}
         codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
       >

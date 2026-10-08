@@ -28,7 +28,7 @@ export function ProjectTrustDialog({
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        background: "rgba(0,0,0,0.4)",
+        background: "color-mix(in oklch, var(--fg) 40%, transparent)",
       }}
       onClick={(event) => {
         if (!busy && event.target === event.currentTarget) onCancel();
@@ -42,9 +42,9 @@ export function ProjectTrustDialog({
           width: 440,
           maxWidth: "100%",
           border: "1px solid var(--border)",
-          borderRadius: 8,
+          borderRadius: "var(--r-md)",
           background: "var(--panel)",
-          boxShadow: "0 12px 36px rgba(0,0,0,0.24)",
+          boxShadow: "var(--shadow-pop)",
           overflow: "hidden",
         }}
       >
@@ -54,21 +54,21 @@ export function ProjectTrustDialog({
             height="20"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#f59e0b"
+            stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
-            style={{ flexShrink: 0, marginTop: 1 }}
+            style={{ flexShrink: 0, marginTop: 1, color: "var(--working-text)" }}
           >
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
             <path d="m9 12 2 2 4-4" />
           </svg>
           <div style={{ minWidth: 0 }}>
-            <div id="project-trust-title" style={{ fontSize: 15, fontWeight: 700, color: "var(--fg)" }}>
+            <div id="project-trust-title" style={{ fontSize: "var(--fs-title)", fontWeight: 700, color: "var(--fg)" }}>
               {t("trust.dialogTitle")}
             </div>
-            <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.6, color: "var(--muted)" }}>
+            <div style={{ marginTop: 7, fontSize: "var(--fs-sm)", lineHeight: 1.6, color: "var(--muted)" }}>
               {t("trust.dialogBody")}
             </div>
             <code
@@ -77,18 +77,18 @@ export function ProjectTrustDialog({
                 marginTop: 10,
                 padding: "8px 10px",
                 border: "1px solid var(--border)",
-                borderRadius: 5,
+                borderRadius: "var(--r-sm)",
                 background: "var(--bg)",
                 color: "var(--fg)",
                 fontFamily: "var(--font-mono)",
-                fontSize: 11,
+                fontSize: "var(--fs-caption)",
                 overflowWrap: "anywhere",
               }}
             >
               {cwd}
             </code>
             {error && (
-              <div role="alert" style={{ marginTop: 10, color: "var(--error)", fontSize: 12, lineHeight: 1.5 }}>
+              <div role="alert" style={{ marginTop: 10, color: "var(--error)", fontSize: "var(--fs-sm)", lineHeight: 1.5 }}>
                 {error}
               </div>
             )}
@@ -110,12 +110,12 @@ export function ProjectTrustDialog({
             style={{
               height: "var(--control-h)",
               padding: "0 12px",
-              border: "1px solid var(--border)",
-              borderRadius: 5,
+              border: "1px solid var(--border-strong)",
+              borderRadius: "var(--r-md)",
               background: "transparent",
               color: "var(--muted)",
               cursor: busy ? "not-allowed" : "pointer",
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
             }}
           >
             {t("trust.cancel")}
@@ -128,12 +128,12 @@ export function ProjectTrustDialog({
               height: "var(--control-h)",
               padding: "0 12px",
               border: "1px solid var(--accent)",
-              borderRadius: 5,
+              borderRadius: "var(--r-md)",
               background: "var(--accent)",
-              color: "white",
+              color: "oklch(99% 0.01 256)",
               cursor: busy ? "wait" : "pointer",
               opacity: busy ? 0.7 : 1,
-              fontSize: 12,
+              fontSize: "var(--fs-sm)",
               fontWeight: 600,
             }}
           >

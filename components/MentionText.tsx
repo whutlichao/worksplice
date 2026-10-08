@@ -49,7 +49,7 @@ export function MentionText({
           display: "inline",
           padding: "0 2px",
           border: "1px solid transparent",
-          borderRadius: 4,
+          borderRadius: "var(--r-sm)",
           background: "var(--accent-soft)",
           color: "var(--accent)",
           font: "inherit",
@@ -57,7 +57,6 @@ export function MentionText({
           fontWeight: 700,
           lineHeight: "inherit",
           cursor: "pointer",
-          outline: "none",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.borderColor = "var(--border-strong)";
