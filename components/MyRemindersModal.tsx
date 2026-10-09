@@ -33,6 +33,18 @@ interface ReminderView {
 
 const REFRESH_MS = 15_000;
 
+/**
+ * 标题（`.k`）让位下限（px）：标题先 ellipsis 到这个宽度，右簇到这一步才开始折行。
+ * 右簇上限 = 行宽 − 下限 − `.kv` 行内 gap ⇒ 两侧由同一常量驱动。
+ * 取 52 的实测依据（2026-10-09 裁定）：zh-CN scheduled 行右簇单行需 450.6px，
+ * 标题最多只能占 522 − 12 − 450.6 = 59.4px，故下限须 ≤ 59.4；52px 留约 7px 余量，
+ * 且 > 0（en 标题不再是 0px、仍走既有 ellipsis）。宽度档无 token 标尺，用字面量。
+ */
+const TITLE_FLOOR_PX = 52;
+/** 右簇上限：行宽 − 标题下限 − `.kv` 行内 gap（--sp-5）。未触到上限时右簇保持
+ *  max-content（单行）；触到才折到第二行并右对齐。 */
+const RIGHT_CLUSTER_CAP = `calc(100% - ${TITLE_FLOOR_PX}px - var(--sp-5))`;
+
 function formatFireAt(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
@@ -74,11 +86,28 @@ export function MyReminderRow({
     <div className="kv">
       <span
         className="k"
-        style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        style={{
+          minWidth: TITLE_FLOOR_PX,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
       >
         {reminder.title}
       </span>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 7, flex: "0 0 auto" }}>
+      {/* 右簇：刚性（不再按比例压缩——那会把长标题行挤成 3-4 行）+
+          可换行 + 右对齐；折行只在标题已到下限、上限 RIGHT_CLUSTER_CAP 生效后发生。 */}
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+          flex: "0 0 auto",
+          maxWidth: RIGHT_CLUSTER_CAP,
+        }}
+      >
         <span className="v">{targetLabel(reminder, t)}</span>
         <span className="v">{formatFireAt(reminder.fire_at)}</span>
         {reminder.recurrence && (
