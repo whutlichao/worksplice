@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background: #fbf5ef;
+        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #4a4453;
+      }
+      .wrap {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 34px;
+      }
+      .dot {
+        width: 108px;
+        height: 108px;
+        border-radius: 34px;
+        background: linear-gradient(135deg, #f6c9d8 0%, #f9e6c3 55%, #cde7d4 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 58px;
+        font-weight: 800;
+        color: #5b5266;
+        box-shadow: 0 18px 44px rgba(120, 96, 120, 0.18);
+      }
+      h1 {
+        margin: 0;
+        font-size: 84px;
+        letter-spacing: -1.5px;
+        font-weight: 800;
+      }
+      .tagline {
+        margin: 0;
+        font-size: 30px;
+        color: #7d7386;
+      }
+      .install {
+        margin-top: 6px;
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 30px;
+        background: #fff8f2;
+        border: 2px solid #f0d9e2;
+        border-radius: 20px;
+        padding: 22px 42px;
+        color: #6b5f74;
+      }
+      .install b {
+        color: #4a4453;
+      }
+      .foot {
+        font-size: 24px;
+        color: #8d8396;
+        display: flex;
+        gap: 18px;
+        align-items: center;
+      }
+      .foot .sep {
+        color: #e3c9d4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="dot">ws</div>
+      <h1>worksplice</h1>
+      <p class="tagline">Several pi sessions. One local room.</p>
+      <div class="install"><b>npx worksplice</b>&nbsp;&nbsp;·&nbsp;&nbsp;github.com/whutlichao/worksplice</div>
+      <div class="foot">
+        <span>MIT</span><span class="sep">·</span>
+        <span>local</span><span class="sep">·</span>
+        <span>one SQLite file</span><span class="sep">·</span>
+        <span>no accounts</span>
+      </div>
+    </div>
+  </body>
+</html>
