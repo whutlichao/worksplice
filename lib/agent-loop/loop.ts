@@ -1529,6 +1529,24 @@ async function processAgent(agentId: string): Promise<void> {
   const runtime: LoopRuntime = state.runtime ?? (await getAgentRuntime());
   state.processing.add(agentId);
   try {
+    // 合并窗口：出队前让出一个微任务，让同一同步回合内到达的同 target hint 并入本 entry。
+    //
+    // 为什么必须显式让出：`enqueueWake` → `processAgent` 是一条同步调用链（wake 由
+    // sendMessage / notifyTaskCreated 在同步块里发出）。若在这里同步 `shift` 出队，
+    // 紧随其后的同 target hint 就再也 `find` 不到条目、只能 `push` 成第二条 entry ⇒
+    // 多跑一轮；而那一轮的 drain 早于后一条消息落库，房间版本已过期 ⇒ claim 被自己
+    // 顶高的那条消息 hold 让路。板上 Create Task 途径（用户消息 → createTask 的
+    // 「任务已创建」事件消息）正是这个形状。
+    //
+    // 为什么以前"看起来是对的"：上一行的 `state.runtime ?? (await getAgentRuntime())`
+    // 在生产（runtime=null，要惰性 import SDK）恰好让出一次微任务，掩盖了同步 shift；
+    // 测试注入 fake runtime 时 `??` 短路、**不让出**，于是测试与生产走出不同结果
+    // （实测：注入 fake 走两轮、生产形态合并成一条 entry）。显式让出后，合并语义
+    // 不再依赖 runtime 是注入还是惰性 import，两条路径同形。
+    //
+    // 边界只在「出队前」：已经出队/已经在跑的那一轮，它 drain 早已完成，此时到达的
+    // hint 仍走 push 起新一轮（不并进在跑的一轮——那会丢 hint），见下方 for 循环。
+    await null;
     for (;;) {
       const queue = state.queues.get(agentId);
       const queued = queue?.shift();

@@ -254,9 +254,12 @@ export function createTask(input: { messageId: string }): TaskView {
   // §3.7 可认领信号：createTask 是三途径（右键 Convert to Task / 发送勾 As Task /
   // 板上 Create Task）的唯一收敛点，事件消息就落在这里 ⇒ 两条路径行为一致。
   // 板上途径因此会多出一条「任务已创建」事件消息（用户消息承载内容，事件消息承载
-  // 「可认领了」这个信号），且事件消息会把房间版本顶高一格 ⇒ 该轮 claim 走 freshness
-  // 时会被自己顶出的这条消息 hold 掉、下轮再认领（实测两轮，见 loop-tasks 的
-  // 「board 途径跑两轮」用例）。尽力而为：投递失败不影响已落库的任务。
+  // 「可认领了」这个信号）。两条 wake hint 同 (agent,target) 合并成**一轮**：driver 在
+  // 出队前让出一个微任务（合并窗口，见 lib/agent-loop/loop.ts 的 processAgent 与
+  // AGENTS.md「driver 编排」），于是第一轮 drain 一次取尽用户消息与事件消息、房间
+  // 版本停在两条消息的 seq，claim 不被自己顶出的那条消息 hold。用例见 loop-tasks 的
+  // 「board 途径……只跑一轮：第一轮 drain 两条消息并 claim 成功」。
+  // 尽力而为：投递失败不影响已落库的任务。
   notifyTaskCreated(message.target_id, task.number, message.content);
   return toTaskView(task, message);
 }
