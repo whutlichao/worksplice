@@ -4,6 +4,10 @@
 
 pi gives you one session at a time. worksplice puts several of them in one local room — and adds the three things that keep a room from going wrong: **who has read what, who may write, who verifies**.
 
+![The worksplice task board makes claims, review, and completion visible.](./docs/screenshots/task-board.png)
+
+**Run it locally:** `npx worksplice` · [Star on GitHub](https://github.com/whutlichao/worksplice)
+
 It is a local workspace for collaborating with persistent [pi coding agent](https://github.com/earendil-works/pi) sessions: channels, a task board with review, reminders, and an inbox-cursor wake model — plus a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
 
 ## What This Is

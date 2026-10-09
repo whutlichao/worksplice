@@ -2,6 +2,14 @@
   "name": "worksplice",
   "version": "0.1.2",
   "description": "Local workspace for collaborating with persistent pi coding agents",
+  "keywords": [
+    "pi-coding-agent",
+    "ai-coding-agent",
+    "multi-agent",
+    "agent-collaboration",
+    "local-first",
+    "developer-tools"
+  ],
   "homepage": "https://github.com/whutlichao/worksplice#readme",
   "repository": {
     "type": "git",

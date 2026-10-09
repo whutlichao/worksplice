@@ -57,3 +57,4 @@ pnpm-workspace.yaml
 
 # 私有推广计划：含对具名第三方的逐人判断与触达名单，不进版本库
 .scratch/promote-worksplice/
+videos
