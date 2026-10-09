@@ -348,6 +348,29 @@ test("`.log-row` / `.lv`：级别标签的行内形态与四档前景色", () =>
   assert.match(blockBody(".log-row .msg"), /color:\s*var\(--muted\)/);
 });
 
+test("`.log-row` 长 reason：非空的行独占整行（两行封顶），空 reason 的行保持单行", () => {
+  // 用户反馈：error 轮的 reason 是模型原文（可上千字符）。四个列分完 329px 后
+  // `.msg` 只剩 42px 残余宽、再被 `.ws-right .msg` 的 16px 缩进吃掉 32px，于是
+  // 逐字竖排成 378–1741px 的窄柱。形状判据：非空 reason 折到第二行、整行宽、两行截断。
+  assert.match(blockBody(".log-row.has-reason"), /flex-wrap:\s*wrap/);
+  const long = blockBody(".log-row.has-reason .msg");
+  assert.match(long, /order:\s*1/, "reason 排到 `.ts:last-child` 之后，meta 行四列顺序不变");
+  assert.match(long, /flex-basis:\s*100%/);
+  assert.match(long, /-webkit-line-clamp:\s*2/);
+  assert.match(long, /overflow:\s*hidden/);
+  // 频道 `.msg` 的 8px/16px 内边距（class 复用）在 log 行收回：整行宽里再缩进 32px
+  // 就白折行了；hover 灰底同理收回（折成整行宽后它是整行灰带）。
+  assert.match(blockBody(".log-row .msg"), /padding:\s*0/);
+  assert.match(blockBody(".log-row .msg"), /margin:\s*0/);
+  assert.match(blockBody(".log-row .msg:hover"), /background:\s*none/);
+  // target 先让位（缩到内容下 + ellipsis），序号·时间不换行、钉行尾。
+  assert.match(blockBody(".log-row .ts"), /white-space:\s*nowrap/);
+  const firstTs = blockBody(".log-row .ts:first-child");
+  assert.match(firstTs, /flex-shrink:\s*1/);
+  assert.match(firstTs, /min-width:\s*0/);
+  assert.match(blockBody(".log-row .ts:last-child"), /margin-left:\s*auto/);
+});
+
 // ─── ① class 块：统计数字的 mono + tabular-nums（spec 硬约束） ──────────────
 
 test("`.stat-grid` 2×2 + `.stat .n` 数字 mono 17px/700 `tabular-nums`", () => {
@@ -503,10 +526,21 @@ test("轮次记录渲染 `.log-row` + `.lv` 级别标签 + `.ts` 时间戳（mar
           baseSeq: 4,
           createdAt: "2026-10-01T03:39:05.447Z",
         },
+        {
+          id: "r3",
+          targetId: "chan-gamma",
+          status: "replied",
+          reason: "",
+          baseSeq: 5,
+          createdAt: "2026-10-01T03:40:05.447Z",
+        },
       ],
       t: (key) => key,
     }),
   );
+  // 长文本形状（用户反馈）：非空 reason 的行带 `has-reason`（CSS 折第二行 + 两行封顶），
+  // 空 reason 的行仍是单行 `log-row`（占位 `—` 在残余宽里）。
+  assert.match(html, /class="log-row has-reason"/);
   assert.match(html, /class="log-row"/);
   assert.match(html, /class="ts"/);
   assert.match(html, /class="lv ok"/);
