@@ -92,29 +92,51 @@ test("票 08 形态：已触发/已取消的行没有 snooze/cancel，只看得�
   assert.match(html, /fired/);
 });
 
-test("en 溢出修复：右簇在 markup 上是「可换行 + 右对齐 + 可压缩」，放不下才折到第二行", () => {
-  const html = renderRow();
-  const start = html.indexOf('<span style="display:inline-flex');
-  assert.ok(start >= 0, `右簇（inline-flex 容器）应在 markup 里：${html}`);
-  const tagEnd = html.indexOf(">", start);
-  const tag = html.slice(start, tagEnd + 1);
-  const tail = html.slice(tagEnd + 1);
-  // 定位到的确是承载 .v / 状态 chip / 动作按钮的右簇，而不是别的 inline-flex 元素
-  assert.match(tail, /class="v"/);
-  assert.match(tail, /Snooze 15m/);
+/** 取开标签上的 style 声明表：断在产品渲染出的 markup 上，而不是推断。 */
+function styleDecls(tag) {
   const style = tag.match(/style="([^"]*)"/);
-  assert.ok(style, `右簇走行内样式：${tag}`);
-  const decls = new Map(
+  assert.ok(style, `元素应带行内样式：${tag}`);
+  return new Map(
     style[1]
       .split(";")
       .map((d) => d.trim())
       .filter(Boolean)
       .map((d) => [d.slice(0, d.indexOf(":")), d.slice(d.indexOf(":") + 1).trim()]),
   );
-  // 换行契约落在产品渲染出的行内样式上：flex-wrap + 右对齐 + 可压缩
-  assert.equal(decls.get("flex-wrap"), "wrap", "放不下时右簇内容折到第二行");
-  assert.equal(decls.get("justify-content"), "flex-end", "折到第二行后右对齐");
-  assert.equal(decls.get("flex"), "0 1 auto", "右簇可压缩，不再 0 0 auto 顶出 .modal-body");
+}
+
+test("en 溢出修复：标题先让位到下限，右簇到「行宽 − 下限 − gap」才折行", () => {
+  const html = renderRow();
+
+  // 标题（.k）：既有 ellipsis 形态 + 显式让位下限（不再是裸的 0）
+  const kTag = html.match(/<span class="k" style="[^"]*"/)?.[0];
+  assert.ok(kTag, `.k 应带行内样式：${html}`);
+  const k = styleDecls(kTag);
+  assert.equal(k.get("overflow"), "hidden");
+  assert.equal(k.get("text-overflow"), "ellipsis");
+  assert.equal(k.get("white-space"), "nowrap");
+  const floor = k.get("min-width") ?? "";
+  assert.match(floor, /^\d+px$/, "标题下限应是显式 px：标题先让位到这个宽度");
+  assert.ok(Number.parseFloat(floor) > 0, `标题下限可读（> 0）：${floor}`);
+
+  // 右簇：承载 .v / 状态 chip / 动作按钮的那个 inline-flex——刚性（不被比例压缩），
+  // 只在标题已到下限后由上限触发折行。
+  const start = html.indexOf('<span style="display:inline-flex');
+  assert.ok(start >= 0, `右簇（inline-flex 容器）应在 markup 里：${html}`);
+  const tagEnd = html.indexOf(">", start);
+  const tag = html.slice(start, tagEnd + 1);
+  const tail = html.slice(tagEnd + 1);
+  assert.match(tail, /class="v"/);
+  assert.match(tail, /Snooze 15m/);
+  const c = styleDecls(tag);
+  assert.equal(c.get("flex"), "0 0 auto", "右簇不被比例压缩——否则标题未到下限它就折行了");
+  assert.equal(c.get("flex-wrap"), "wrap", "触到上限才折到第二行");
+  assert.equal(c.get("justify-content"), "flex-end", "折到第二行后右对齐");
+  assert.equal(
+    c.get("max-width"),
+    `calc(100% - ${floor} - var(--sp-5))`,
+    "右簇上限 = 行宽 − 标题下限 − .kv 行内 gap：同一常量驱动两侧（标题先让位、右簇后折行）",
+  );
   // 不恒定两行：markup 里没有强制换行元素，放得下时仍是单行
   assert.doesNotMatch(tail, /<br\b/);
 });
