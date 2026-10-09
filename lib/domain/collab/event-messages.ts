@@ -3,6 +3,7 @@ import { getMember, listAgents } from "./members.ts";
 import { sendMessage } from "./messages.ts";
 import { emitWake } from "./wake.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../../data/schema.ts";
+import { previewLine } from "../../preview.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
 
 /**
@@ -85,6 +86,37 @@ export function notifyChannelCreated(channel: ChannelRow): void {
   if (!susan) return;
   const targetId = isChannelMember(channel.id, susan.id) ? channel.id : BUILTIN_CHANNEL_ID;
   deliverEventMessage(targetId, `${mentionText(susan.name)} New channel #${channel.name} created`);
+}
+
+/**
+ * 任务创建事件消息（§3.7 可认领信号，构建本 effort 的 Convert-to-Task 票）：
+ * 以 Owner 署名投到任务所属 channel，`wake: true` 走既有 `notifyMessageWakes` 扇出
+ * 该 channel 的全部 agent 成员。
+ *
+ * 为什么必须有：agent 认领任务的链路是 wake → drain 到新消息 → `buildReplyPrompt`
+ * 的 Related open tasks → agent 回 `{"task":{"number":N,"op":"claim"}}`。而
+ * Convert to Task 途径只调 `createTask` 落库、不发消息，于是 `runAgentRound` 在
+ * `drained.messages.length === 0` 处早退，agent 根本不起轮，任务永远躺在 todo。
+ * 板上 Create Task 途径碰巧是好的，只因为它先 `sendMessage` 才有消息可 drain。
+ *
+ * 与 `deliverEventMessage` 的差别只有 wake 策略：那里是 `wake: false` + 定向唤醒秘书
+ * （欢迎路径专用语义）；这里是全 channel 扇出，抢占认领失败让路是既有语义（§3.7）。
+ * 故另起一个函数，不改也不复用 `deliverEventMessage` 的行为。
+ *
+ * 尽力而为：频道已归档 / Owner 不在频道 / 投递抛错 → 静默跳过或只记日志，绝不反向
+ * 破坏调用方（任务已落库，事件消息不得让 `createTask` 失败）。
+ */
+export function notifyTaskCreated(channelId: string, taskNumber: number, anchorContent?: string): void {
+  const channel = getChannel(channelId);
+  if (!channel || channel.archived === 1) return;
+  if (!isChannelMember(channelId, OWNER_MEMBER_ID)) return;
+  const preview = anchorContent ? previewLine(anchorContent, 80) : "";
+  const content = preview ? `Task #${taskNumber} created — ${preview}` : `Task #${taskNumber} created`;
+  try {
+    sendMessage({ targetId: channelId, authorId: OWNER_MEMBER_ID, content, wake: true });
+  } catch (error) {
+    console.error("[event-messages] task created message delivery failed:", error);
+  }
 }
 
 /** 节点 3 欢迎事件正文（spec §4.1/§6.2-⑤，构建 effort ticket 04）：只含关注对象，欢迎语由秘书回复。 */

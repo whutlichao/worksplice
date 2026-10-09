@@ -874,3 +874,119 @@ test("DM bugfix：handleSend 发送成功后上抛 onChannelChanged（侧栏 mes
         "onChannelChanged must be called after the send resolves",
     );
 });
+
+// ===========================================================================
+// notice 可见性（Converted to task / Room changed 被 composer 遮住且要滚动才看得到）
+// ===========================================================================
+
+test("notice toast 渲染在滚动流之外：<main>…</main> 里不再有 heldNotice/taskNotice 呈现位", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    const mainStart = source.indexOf("<main");
+    const mainEnd = source.indexOf("</main>", mainStart);
+    assert.ok(
+        mainStart !== -1 && mainEnd > mainStart,
+        "ChannelView 应当渲染可滚动消息流 <main>",
+    );
+    const stream = source.slice(mainStart, mainEnd);
+    // 症状本体：notice 曾经挂在流内 .stream-inner 尾部 —— 被下方 composer 遮住、且不滚动看不见。
+    assert.doesNotMatch(
+        stream,
+        /heldNotice && \(|taskNotice && \(/,
+        "notice 呈现位必须挪出滚动流（否则被 composer 遮住）",
+    );
+    // 位置关系（不是 class 字符串）：toast 挂在 </main> 之后的定位壳里。
+    assert.match(
+        source.slice(mainEnd, mainEnd + 900),
+        /<NoticeToast/,
+        "NoticeToast 应当挂在 </main> 之后（消息区底部的定位壳里）",
+    );
+});
+
+test("notice toast 锚在消息区底部、composer 上方居中，且 z-index 高于 composer", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    const start = source.indexOf("export function NoticeToast");
+    assert.ok(start !== -1, "ChannelView 应当导出 NoticeToast");
+    const end = source.indexOf("\n}\n", start);
+    const body = source.slice(start, end);
+    assert.match(body, /position: "absolute"/);
+    assert.match(body, /bottom: "var\(--sp-/);
+    assert.match(body, /left: "50%"/);
+    assert.match(body, /transform: "translateX\(-50%\)"/);
+    assert.match(
+        body,
+        /zIndex: "var\(--z-toast\)"/,
+        "z-index 必须高于 composer（--z-toast 80）",
+    );
+});
+
+test("NoticeToast 渲染出无障碍语义与 i18n 文案（role=status / aria-live / data-notice）", async () => {
+    const { NoticeToast } = await jiti.import("./ChannelView.tsx");
+
+    assert.equal(
+        renderI18n(React.createElement(NoticeToast, { toast: null })),
+        "",
+        "无 notice 时不渲染任何东西",
+    );
+
+    const task = renderI18n(
+        React.createElement(NoticeToast, {
+            toast: { kind: "task", text: "Converted to task #6" },
+        }),
+    );
+    assert.match(task, /role="status"/);
+    assert.match(task, /aria-live="polite"/);
+    assert.match(task, /data-notice="task"/);
+    assert.match(task, /Converted to task #6/);
+
+    const held = renderI18n(
+        React.createElement(NoticeToast, {
+            toast: { kind: "held", text: "@alice replied" },
+        }),
+    );
+    assert.match(held, /data-notice="held"/);
+    assert.match(held, /Room changed: @alice replied/);
+});
+
+test("pickNoticeToast 单槽仲裁：新 notice 顶掉旧的，被顶掉的旧 notice 不回弹", async () => {
+    const { pickNoticeToast } = await jiti.import("./ChannelView.tsx");
+
+    assert.equal(pickNoticeToast({ held: null, task: null }, { held: null, task: null }), null);
+    assert.deepEqual(
+        pickNoticeToast({ held: null, task: null }, { held: null, task: "converted" }),
+        { kind: "task", text: "converted" },
+    );
+    // 新 notice 顶掉旧的：task 在屏时 held 出现 ⇒ held 上屏
+    assert.deepEqual(
+        pickNoticeToast({ held: null, task: "converted" }, { held: "held!", task: "converted" }),
+        { kind: "held", text: "held!" },
+    );
+    // 旧 notice 不回弹：held 清空后 task 仍是上一轮已消费过的值 ⇒ 不再上屏
+    assert.equal(
+        pickNoticeToast({ held: "held!", task: "converted" }, { held: null, task: "converted" }),
+        null,
+    );
+});
+
+test("notice toast 自动消退：setTimeout 到点清空，且 useEffect 清理 timer", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    const start = source.indexOf("const timer = setTimeout(");
+    assert.ok(start !== -1, "notice toast 应当由 setTimeout 驱动自动消退");
+    const end = source.indexOf("}, [toast]);", start);
+    assert.ok(end !== -1 && end > start, "应当能定位到该 useEffect 的依赖行");
+    const effect = source.slice(start, end);
+    assert.match(effect, /setToast\(null\)/);
+    assert.match(
+        effect,
+        /return \(\) => clearTimeout\(timer\)/,
+        "timer 必须清理（否则 notice 切换/卸载后回调打到已卸载的组件）",
+    );
+});
