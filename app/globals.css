@@ -1288,21 +1288,21 @@ span.linenumber {
    ──────────────────────────────────────────────────────────────────────────── */
 .board-wrap.is-list { overflow: visible; }
 .board-wrap.is-list .board-toolbar { position: sticky; top: 0; z-index: 2; }
+.board-wrap.is-board { height: 100%; }
 .board.is-board { overflow-x: auto; overflow-y: hidden; }
 .board.is-list { padding-bottom: var(--sp-12); }
 
 /* list 视图的状态分组（可折叠）：分组头 = 状态徽标 + 计数（与看板列头同一套语汇），
    组体在折叠时留在 DOM 里并置 hidden——aria-controls 指向的元素始终存在，读屏器与
-   样式都不必处理「目标消失」。折叠态由 TaskViews 持有，切 List|Board 不丢折叠态。 */
-.task-group { margin-bottom: 18px; }
-.task-group-head { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 8px; text-align: left; }
+   样式都不必处理「目标消失」（`hidden` 本身由 reset 的 `[hidden] { display: none !important }` 收掉）。
+   折叠态由 TaskViews 持有，切 List|Board 不丢折叠态。 */
+.task-group { margin-bottom: var(--sp-8); }
+.task-group-head { display: flex; align-items: center; gap: var(--sp-4); width: 100%; padding: 0; margin-bottom: var(--sp-4); text-align: left; }
 .task-group-caret { flex: 0 0 auto; color: var(--faint); }
 .task-group-head:hover .task-group-caret { color: var(--fg); }
 .task-group-count { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); }
 .task-group-rule { flex: 1; border-top: 1px solid var(--border); }
-.task-group-body { display: flex; flex-direction: column; gap: 8px; }
-/* 作者样式里的 `display: flex` 会盖掉 UA 的 `[hidden] { display: none }`，显式收掉。 */
-.task-group-body[hidden] { display: none; }
+.task-group-body { display: flex; flex-direction: column; gap: var(--sp-4); }
 
 /* ==========================================================================
    频道面 class 块（票 05，spec D7 组件表第 3 行）——逐字搬自 worksplice-design-system/

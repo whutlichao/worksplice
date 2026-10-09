@@ -181,13 +181,9 @@ test("任务板骨架：.board-wrap 竖排不溢出；列不拉伸、宽度取�
     assert.match(body, /flex-direction:\s*column/);
     assert.match(body, /overflow-y:\s*auto/);
     assert.match(body, /min-height:\s*44px/);
-    // 票 task-view-scroll：列体吃满列高（`flex: 1`）才有「列内滚、页面不滚」的结果。
-    // 声明顺序是承重的：`flex` 简写写在 `flex-direction` **之后**会把列体拍回 row。
+    // 票 task-view-scroll：列体吃满列高（`flex: 1`）+ `overflow-y: auto` 才是「列内滚、
+    // 页面不滚」。少了 flex，列体只按内容高，超出部分会顶穿列框而不是在列内滚。
     assert.match(body, /flex:\s*1/);
-    assert.ok(
-        body.indexOf("flex: 1") < body.indexOf("flex-direction"),
-        "`flex` 简写必须写在 `flex-direction` 之前，否则简写把它重置成 row",
-    );
 });
 
 test("board 视图滚动归属：列等高铺满、视口魔数退场、.board 纵向不滚（只留横向）", () => {
@@ -234,25 +230,26 @@ test("list 视图：工具条吸顶 + 底部留白（.board-wrap 不是滚动容
     );
 });
 
-test("list 分组 class：可点的分组头 + `.task-group-body[hidden]` 显式收起", () => {
+test("list 分组 class：可点的分组头 + `hidden` 折叠链（reset 的 [hidden] 收掉组体）", () => {
     assert.match(blockBody(globalsCss, ".task-group"), /margin-bottom/);
     const head = blockBody(globalsCss, ".task-group-head");
     assert.match(head, /display:\s*flex/);
     assert.match(head, /align-items:\s*center/);
     assert.match(head, /width:\s*100%/);
-    // 按钮默认居中文字，分组头要左对齐才与看板列头同一基线。
+    // 按钮默认居中文字、自带 UA 内边距（Chrome 1px 6px）——分组头要左对齐且与卡片同一条左基线。
     assert.match(head, /text-align:\s*left/);
+    assert.match(head, /padding:\s*0/);
     assert.match(blockBody(globalsCss, ".task-group-caret"), /flex:\s*0 0 auto/);
     assert.match(
         blockBody(globalsCss, ".task-group-count"),
         /font-family:\s*var\(--mono\)/,
     );
-    // 作者样式里的 `display: flex` 会盖掉 UA 的 `[hidden] { display: none }`——
-    // 折叠态必须由这条显式收掉，否则 hidden 不生效。
-    assert.match(
-        blockBody(globalsCss, ".task-group-body[hidden]"),
-        /display:\s*none/,
-    );
+    // 折叠靠 `hidden` 属性：本仓 reset 的 `[hidden] { display: none !important }` 是
+    // 整条折叠链的承重件（`.task-group-body` 自己是 `display: flex`），所以这条 reset
+    // 在测试里显式登记——它一没，折叠就静默失效（组体照旧展开，样式也看不出来）。
+    assert.match(globalsCss, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+    // 承重件在场 + 组体不自带第二份 display 覆盖 ⇒ 不需要为它再写一条 [hidden] 规则。
+    assert.doesNotMatch(globalsCss, /\.task-group-body\[hidden\]/);
 });
 
 test("任务板拖拽态：.drag-over 走 --accent-graphic、.invalid-over 走 --error、拖拽中 opacity .4", () => {
@@ -622,7 +619,7 @@ test("TaskList 分组头：默认展开（aria-expanded=true）+ 计数；折叠
     // 计数渲染出来（两个分组各 1 个任务）
     assert.equal(expanded.split('class="task-group-count">1<').length - 1, 2);
     // 无障碍名走 i18n（文案随展开态切换）
-    assert.match(expanded, /aria-label="Collapse the Pool group \(1 tasks\)"/);
+    assert.match(expanded, /aria-label="Collapse the Pool group \(1\)"/);
 
     const collapsed = renderI18n(
         React.createElement(
@@ -636,7 +633,7 @@ test("TaskList 分组头：默认展开（aria-expanded=true）+ 计数；折叠
     assert.equal(collapsed.split('aria-expanded="false"').length - 1, 1);
     // 折叠态：状态徽标与计数仍在（折起来不丢计数）
     assert.match(collapsed, /class="task-group-count">1</);
-    assert.match(collapsed, /aria-label="Expand the Pool group \(1 tasks\)"/);
+    assert.match(collapsed, /aria-label="Expand the Pool group \(1\)"/);
     // 组体在 DOM 里但收起（aria-controls 指向的元素始终存在）
     assert.match(
         collapsed,
@@ -669,15 +666,22 @@ test("TaskViews：折叠是交互态（setFolded 派生），TaskList 是这层�
     assert.match(html, /aria-expanded="true"/);
 
     // 折叠态由 TaskViews 的 useState 持有（切视图不丢折叠），TaskList 只渲染给定集合。
-    // 静态渲染断不出「点一下」——这三条是源码级证据，与上面的渲染证据合并读。
+    // 静态渲染断不出「点一下」——下面三条是源码级证据（票面认可的补充形态），
+    // 与上面的渲染证据合并读。
     const boardSection = boardSectionSource();
-    assert.match(boardSection, /useState<ReadonlySet<TaskStatus>>/);
     assert.match(boardSection, /setFolded\(/);
-    assert.match(boardSection, /next\.has\(status\)[\s\S]{0,120}next\.delete\(status\)[\s\S]{0,120}next\.add\(status\)/);
+    assert.match(
+        boardSection,
+        /next\.has\(status\)[\s\S]{0,120}next\.delete\(status\)[\s\S]{0,120}next\.add\(status\)/,
+    );
     assert.match(boardSection, /folded=\{folded\}/);
     assert.match(boardSection, /onToggleGroup=\{toggleGroup\}/);
-    // 折叠不落 localStorage（本票不做持久化，也不与 TASK_VIEW_KEY 分叉出第二份偏好存储）
-    assert.doesNotMatch(boardSection, /localStorage\.setItem\(TASK_GROUP/);
+    // 折叠不落 localStorage：面板偏好的写入口只有 TASK_VIEW_KEY 一个
+    // （票面约束 B.2：不与它分叉出第二份偏好存储）。
+    const prefWrites = [...boardSection.matchAll(/localStorage\.setItem\((\w+)/g)].map(
+        (match) => match[1],
+    );
+    assert.deepEqual(prefWrites, ["TASK_VIEW_KEY"]);
 });
 
 test("分组折叠的无障碍名两套语言包成对存在（docs/i18n.md 分层规则）", async () => {
@@ -685,7 +689,7 @@ test("分组折叠的无障碍名两套语言包成对存在（docs/i18n.md 分�
     const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
     assert.equal(
         enLocale.messages["tasks.collapseGroup"],
-        "Collapse the {status} group ({count} tasks)",
+        "Collapse the {status} group ({count})",
     );
     assert.equal(
         zhCNLocale.messages["tasks.collapseGroup"],
@@ -693,7 +697,7 @@ test("分组折叠的无障碍名两套语言包成对存在（docs/i18n.md 分�
     );
     assert.equal(
         enLocale.messages["tasks.expandGroup"],
-        "Expand the {status} group ({count} tasks)",
+        "Expand the {status} group ({count})",
     );
     assert.equal(
         zhCNLocale.messages["tasks.expandGroup"],

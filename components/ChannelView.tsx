@@ -1565,9 +1565,10 @@ export function TaskViews({
   return (
     <div
       className={`board-wrap is-${view}`}
-      // 看板模式：板面撑满 main 剩余高度、在 `.board-cols` 内按列滚，横向滚动条钉在可视区域底部
-      // （否则滚动条随内容沉底，需要先滚到底才看得到）；列表模式保持内容高度，由 main 滚。
-      style={view === "board" ? { height: "100%" } : undefined}
+      // 两视图的滚动归属不同（形态全落 CSS 的 `.board-wrap.is-*` / `.board.is-*`）：
+      // 看板模式板面撑满 main 剩余高度、卡片按列在 `.col-body` 内滚，横向滚动条钉在可视
+      // 区域底部（否则滚动条随内容沉底，需要先滚到底才看得到）；列表模式保持内容高度、
+      // 由 main 滚，工具条吸顶。
     >
       {/* 创建途径 3：Tasks tab Create Task；右侧 List|Board 分段控件（ADR-0002） */}
       <div className="board-toolbar">
