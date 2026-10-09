@@ -59,6 +59,71 @@ import { useChannelData } from "@/hooks/useChannelData";
 
 export type CenterTab = "messages" | "tasks";
 
+/** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */
+export const NOTICE_TOAST_MS = 3500;
+
+/** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */
+export interface NoticeSlots {
+  held: string | null;
+  task: string | null;
+}
+
+/** 正在上屏的那一条 notice。 */
+export interface NoticeToastItem {
+  kind: "held" | "task";
+  text: string;
+}
+
+/**
+ * 单槽仲裁：held（§6.3 freshness-hold）与 task（§3.7 任务动作结果）两个槽
+ * 合成至多一条可见 toast —— 判据是「谁的槽刚变成新内容」，所以新 notice 顶掉旧的，
+ * 被顶掉的那条不会在旧 notice 消失后回弹（纯派生会回弹：held 退场后旧 task 又冒出来）。
+ */
+export function pickNoticeToast(seen: NoticeSlots, next: NoticeSlots): NoticeToastItem | null {
+  const { held, task } = next;
+  if (held !== null && held !== seen.held) return { kind: "held", text: held };
+  if (task !== null && task !== seen.task) return { kind: "task", text: task };
+  return null;
+}
+
+/**
+ * 浮层 toast：锚在消息区底部、composer 上方居中，`--z-toast` 压过 composer。
+ *
+ * 为什么不再挂在滚动流里：notice 原先渲染在 `.stream-inner` 尾部 —— ① 被下方 composer
+ * 遮住/挤出视野；② 在消息流最底部，用户不滚动就看不到（用户症状：注意不到有这个提示）。
+ * `role="status"` + `aria-live="polite"` 让读屏器把它当状态播报，而不是流内正文。
+ */
+export function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {
+  const { t } = useI18n();
+  if (!toast) return null;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-notice={toast.kind}
+      style={{
+        position: "absolute",
+        bottom: "var(--sp-6)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: "var(--z-toast)",
+        maxWidth: "min(90%, 520px)",
+        padding: "8px 12px",
+        background: toast.kind === "held" ? "var(--accent-soft)" : "var(--panel-2)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-md)",
+        boxShadow: "var(--shadow-pop)",
+        fontFamily: "var(--mono)",
+        fontSize: 12,
+        // 纯提示层不吃指针事件，别挡住 composer 的输入框与拖放。
+        pointerEvents: "none",
+      }}
+    >
+      {toast.kind === "held" ? `${t("message.heldNotice")} ${toast.text}` : toast.text}
+    </div>
+  );
+}
+
 export interface ChannelWithMeta extends ChannelRow {
   joined: boolean;
   memberCount: number;
@@ -2308,6 +2373,28 @@ export function ChannelView({
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 单槽 notice toast：held / task 两个 notice 槽经 pickNoticeToast 合成至多一条可见项，
+  // 挂在滚动流**之外**（消息区底部、composer 上方），到点自动消退。
+  const [toast, setToast] = useState<NoticeToastItem | null>(null);
+  const seenNoticeRef = useRef<NoticeSlots>({ held: null, task: null });
+  useEffect(() => {
+    const picked = pickNoticeToast(seenNoticeRef.current, {
+      held: heldNotice,
+      task: taskNotice,
+    });
+    // 先推进水位线再上屏：否则同一条 notice 被 set 成同值时会重复上屏。
+    seenNoticeRef.current = { held: heldNotice, task: taskNotice };
+    if (picked) setToast(picked);
+  }, [heldNotice, taskNotice]);
+
+  // 自动消退：换 notice 或卸载时清 timer（否则回调打到已卸载的组件）。
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), NOTICE_TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   /** 消息流滚动位置保存（tasks 与 messages 共用一个 main 滚动容器：切到任务板时内容变矮，
    *  浏览器会把 scrollTop 钳制到 0，切回来即丢位置——切走前按 channel 记下，切回时恢复）。 */
   const savedScrollRef = useRef<{ channelId: string; top: number } | null>(
@@ -2400,6 +2487,7 @@ export function ChannelView({
     setQuoting(null);
     setHeldNotice(null);
     setTaskNotice(null);
+    setToast(null);
     setPinnedOpen(false);
     setMuteOpen(false);
     setMuteNotice(null);
@@ -3266,18 +3354,29 @@ export function ChannelView({
       </div>
 
       {/* 主体：消息 tab 走上游 `.stream` / `.stream-inner`（padding + `--stream-max` 居中）；
-          Tasks tab 仍是满宽看板（`.board-wrap` 自带 padding，不吃 stream 的 max-width）。 */}
-      <main
-        ref={scrollRef}
-        className={tab === "messages" ? "stream" : undefined}
+          Tasks tab 仍是满宽看板（`.board-wrap` 自带 padding，不吃 stream 的 max-width）。
+          外层定位壳给浮层 toast 当锚点：壳的下边缘 = 消息区底边，composer 是它的兄弟节点，
+          所以 toast 天然落在消息区底部、composer 上方，不必知道 composer 有多高。 */}
+      <div
         style={{
+          position: "relative",
           flex: 1,
           minHeight: 0,
-          overflowX: "hidden",
-          overflowY: "auto",
-          paddingBottom: "env(safe-area-inset-bottom)",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
+        <main
+          ref={scrollRef}
+          className={tab === "messages" ? "stream" : undefined}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowX: "hidden",
+            overflowY: "auto",
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
+        >
         {tab === "messages" ? (
           !channel ? (
             <EmptyState
@@ -3337,36 +3436,6 @@ export function ChannelView({
                   />
                 </div>
               ))}
-              {heldNotice && (
-                <div
-                  style={{
-                    margin: "var(--sp-3) 0 0",
-                    padding: "8px 12px",
-                    background: "var(--accent-soft)",
-                    border: `1px solid var(--border)`,
-                    borderRadius: "var(--r-md)",
-                    fontFamily: "var(--mono)",
-                    fontSize: 12,
-                  }}
-                >
-                  {t("message.heldNotice")} {heldNotice}
-                </div>
-              )}
-              {taskNotice && (
-                <div
-                  style={{
-                    margin: "var(--sp-3) 0 0",
-                    padding: "8px 12px",
-                    background: "var(--panel-2)",
-                    border: `1px solid var(--border)`,
-                    borderRadius: "var(--r-md)",
-                    fontFamily: "var(--mono)",
-                    fontSize: 12,
-                  }}
-                >
-                  {taskNotice}
-                </div>
-              )}
             </div>
           )
         ) : (
@@ -3387,7 +3456,13 @@ export function ChannelView({
             onNotice={setTaskNotice}
           />
         )}
-      </main>
+        </main>
+
+        {/* 浮层 notice toast：位置在**滚动流之外**（流内末尾会被下方 composer 遮住，
+            且要滚到底才看得到）。两个 tab 都用——Tasks tab 的 notice 由 TaskViews 自己的
+            呈现位承担（notice={taskNotice}，见上），那是看板内的固定槽位，不经这里。 */}
+        <NoticeToast toast={toast} />
+      </div>
 
       {/* 消息输入（§3.2）：channel 层可勾 As Task（§3.7 创建途径 2）；thread 内不可转任务 */}
       {channel && tab === "messages" && (
