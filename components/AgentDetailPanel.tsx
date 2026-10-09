@@ -303,6 +303,8 @@ const ROUND_LEVEL: Record<
  * 与 TaskHistoryList 同款拆出：node 侧测试可直接渲染真实 markup，断言失败原因与
  * 时间可读（D2：snake_case 透传时期渲染出空白 target、光秃秃的 `#` 与 "Invalid Date"）。
  * 形态（票 07）：`.log-row` + `.lv` 级别标签 + `.ts` 时间戳。
+ * reason 非空的行带 `has-reason`：CSS 让它折到第二行整行宽（长错误原文不再在残余
+ * 宽里逐字竖排），此时 meta 行由 `.ts:last-child` 的 auto 外边距钉回行尾。
  */
 export function RoundLogsList({
   rounds,
@@ -314,7 +316,10 @@ export function RoundLogsList({
   return (
     <div style={{ maxHeight: 260, overflowY: "auto" }}>
       {rounds.map((round) => (
-        <div key={round.id} className="log-row">
+        <div
+          key={round.id}
+          className={round.reason ? "log-row has-reason" : "log-row"}
+        >
           <span
             className="ts"
             title={`target: ${round.targetId}`}

@@ -1471,14 +1471,35 @@ span.linenumber {
 .stat .l { font-size: var(--fs-caption); color: var(--muted); margin-top: 1px; }
 
 /* ─── 轮次记录：`.log-row` + `.lv` 级别标签 ─────────────────────────────── */
+/* 长文本的形状（用户反馈：error 轮的 reason 是模型原文、可上千字符；380px dock 里
+   `.msg` 只剩 42px 残余宽，再被 `.ws-right .msg` 的 16px 缩进吃掉 32px，就成了
+   1 字符/行的 378–1741px 竖柱）：
+   ① 只有 reason 非空的行（`has-reason`）换行：reason 独占第二行整行宽、两行封顶
+      （`-webkit-line-clamp`；全文仍走既有 `title` 悬浮）。`order: 1` 把它排到
+      序号·时间之后，meta 行四列顺序不变。空 reason 的行（占位 `—`）保持单行——
+      一个字符的残余宽再小也读得出，密度与收缩分布不动。
+   ② `.log-row .msg` 收回频道消息 `.msg` 的 8px/16px 内边距与 hover 灰底：这是
+      class 复用带进来的 channel 面形态，log 行的行距由 `.log-row` 自己的 5px 管。
+   ③ 两个 `.ts` 不换行：target 靠 `ellipsis` 先让位（内联样式已给 `overflow:
+      hidden` + `text-overflow: ellipsis`，缺的正是 `nowrap` + 可收缩），
+      序号·时间钉行尾（`margin-left: auto`）。
+   窄到抽屉宽度（≤320px）时 meta 一行容不下 target + 序号·时间，序号·时间折第二行、
+   reason 到第三行——不再出竖柱即达标，可读性优先。 */
 .log-row { display: flex; gap: 9px; font-size: var(--fs-caption); padding: 5px 0; }
-.log-row .ts { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-xs); color: var(--faint); flex: 0 0 auto; padding-top: 1px; }
+.log-row .ts { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-xs); color: var(--faint); flex: 0 0 auto; padding-top: 1px; white-space: nowrap; }
+.log-row .ts:first-child { flex-shrink: 1; min-width: 0; }
+.log-row .ts:last-child { margin-left: auto; }
 .log-row .lv { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-micro); font-weight: var(--fw-black); padding: 0 5px; border-radius: 4px; height: 16px; display: inline-flex; align-items: center; flex: 0 0 auto; }
 .lv.info { background: var(--accent-soft); color: var(--accent-deep); }
 .lv.ok { background: var(--online-soft); color: var(--online-text); }
 .lv.warn { background: var(--warn-soft); color: var(--warn-deep); }
 .lv.err { background: var(--error-soft); color: var(--error); }
-.log-row .msg { flex: 1; color: var(--muted); overflow-wrap: anywhere; }
+.log-row .msg { flex: 1; padding: 0; margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+/* reason 不是可点实体（整行的 title 悬浮不属于它）：收回 `.msg:hover` 的灰底——折到
+   整行宽后它会变成一条整行灰带，读起来像行选中；同为 class 复用的收口。 */
+.log-row .msg:hover { background: none; }
+.log-row.has-reason { flex-wrap: wrap; }
+.log-row.has-reason .msg { order: 1; flex-basis: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
 /* ─── 线程面板（ThreadPanel 消费 `.tt-summary` / `.tt-scroll` / `.tt-reply`；
        其余 `.tt-*` 见文件尾的零消费词汇表） ──────────────────────────────── */
