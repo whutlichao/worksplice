@@ -9,7 +9,7 @@ Status: ready-for-agent
 
 - [ ] Channel and thread ordinary prose uses 14px text with a 68ch maximum body line length; the stream and composer retain their existing 880px overall column.
 - [ ] Channel message rows use 12px block padding, 1.65 line height, and 8px paragraph spacing; thread replies use 16px block padding, 1.7 line height, and 12px paragraph spacing. No cards or separators are added.
-- [ ] Author remains clearly visible at 14px. Timestamp and sequence remain visible in 10.5px monospace at the secondary `--faint` level; their order and message identity do not change.
+- [ ] Author remains clearly visible at 14px in bold. Timestamp and sequence remain visible in 10.5px monospace at the secondary `--faint` level; their order and message identity do not change.
 - [ ] Inline code remains 12px with no independent line-height declaration. Fenced code remains on the current renderer and at 12px / 1.62; its existing horizontal scrolling is unchanged.
 - [ ] Existing reply, quote, action toolbar, reaction, attachment, pin, and anchor behavior remains unchanged. Task activity summaries and agent-session transcripts retain their current compact treatment.
 - [ ] Wide and narrow channel layouts and the narrow thread dock wrap naturally without horizontal page overflow. The accepted reading comfort takes precedence over preserving messages per viewport.
