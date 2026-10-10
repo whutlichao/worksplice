@@ -136,6 +136,25 @@ test("message and Task unread badges stay separate, unit-labelled, and exact for
     assert.match(selectedRow, /2 Tasks with unread discussion replies/);
 });
 
+test("an archived channel keeps its archive marker beside unread Task discussions", () => {
+    const row = channelRow(
+        sidebarHtml([
+            {
+                id: "c1",
+                name: "archived",
+                type: "public",
+                archived: 1,
+                unread: 0,
+                unreadTaskCount: 2,
+            },
+        ]),
+        "archived",
+    );
+
+    assert.match(row, /aria-label="2 Tasks with unread discussion replies">2 tasks<\/span>/);
+    assert.match(row, />Archived<\/span>/);
+});
+
 test("BAI-6: unread is capped at 99+", () => {
     const html = sidebarHtml([
         { id: "c1", name: "many", type: "public", unread: 120 },
