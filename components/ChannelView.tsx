@@ -42,7 +42,7 @@ import { StatusDot } from "./StatusDot";
 import { ReminderModal } from "./ReminderModal";
 import { copyText } from "@/lib/clipboard";
 import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
-import { BUILTIN_CHANNEL_ID } from "@/lib/data/schema";
+import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "@/lib/data/schema";
 import type {
   AttachmentRow,
   ChannelRow,
@@ -165,6 +165,76 @@ export interface ChannelMessage {
 
 /** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */
 import type { ChannelTask } from "@/hooks/useChannelData";
+
+export interface TaskCreationEvent {
+  number: number;
+  preview: string;
+}
+
+export interface TaskCreationAnnouncement extends TaskCreationEvent {
+  messageId: string;
+}
+
+const TASK_EVENT_ANNOUNCEMENT_LIMIT = 20;
+
+function parseTaskCreationEvent(
+  message: Pick<ChannelMessage, "author_id" | "content">,
+): TaskCreationEvent | null {
+  if (message.author_id !== OWNER_MEMBER_ID) return null;
+  const match = /^Task #(\d+) created(?: — (.*))?$/.exec(message.content);
+  if (!match) return null;
+  const number = Number(match[1]);
+  if (!Number.isSafeInteger(number)) return null;
+  return { number, preview: match[2] ?? "" };
+}
+
+/** 按频道保留已观察的 seq 水位，切回旧频道时仍能识别新事件。 */
+export function createTaskCreationAnnouncementTracker() {
+  const observedSeqByChannel = new Map<string, number>();
+
+  return {
+    observe(
+      nextChannelId: string,
+      messages: ChannelMessage[],
+      ready: boolean,
+    ): TaskCreationAnnouncement[] {
+      if (!ready) return [];
+      const observedSeq = observedSeqByChannel.get(nextChannelId);
+      const maxSeq = messages.reduce(
+        (max, message) => Math.max(max, message.seq),
+        0,
+      );
+      if (observedSeq === undefined) {
+        observedSeqByChannel.set(nextChannelId, maxSeq);
+        return [];
+      }
+
+      const announcements: TaskCreationAnnouncement[] = [];
+      for (const message of messages) {
+        if (message.seq <= observedSeq) continue;
+        const event = parseTaskCreationEvent(message);
+        if (event) announcements.push({ ...event, messageId: message.id });
+      }
+      observedSeqByChannel.set(nextChannelId, Math.max(observedSeq, maxSeq));
+      return announcements;
+    },
+  };
+}
+
+/** 创建事件的静态呈现；预览有意保持为普通文本。 */
+export function TaskCreationEventRow({
+  event,
+}: {
+  event: TaskCreationEvent;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="ws-task-created-event" role="note">
+      <span>{t("tasks.created", { number: String(event.number) })}</span>
+      {event.preview && <span>{event.preview}</span>}
+    </div>
+  );
+}
 
 /** @ 提及补全菜单最大展示条数。 */
 const AT_MATCH_LIMIT = 20;
@@ -650,7 +720,10 @@ function MessageActions({
   onReminder?: (message: ChannelMessage) => void;
   onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
   onTogglePin?: (message: ChannelMessage) => void;
-  onConvertToTask?: (message: ChannelMessage) => void;
+  onConvertToTask?: (
+    message: ChannelMessage,
+    trigger: HTMLElement,
+  ) => void;
   pinned?: boolean;
   reactOpen?: boolean;
   onToggleReactOpen?: () => void;
@@ -722,7 +795,9 @@ function MessageActions({
           <button
             type="button"
             title={t("tasks.convert")}
-            onClick={() => onConvertToTask(message)}
+            onClick={(event) =>
+              onConvertToTask(message, event.currentTarget)
+            }
           >
             <ListPlus size={13} />
           </button>
@@ -780,7 +855,10 @@ function ContextMenu({
 }: {
   x: number;
   y: number;
-  items: Array<{ label: string; onClick: () => void }>;
+  items: Array<{
+    label: string;
+    onClick: (trigger: HTMLButtonElement) => void;
+  }>;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -821,7 +899,7 @@ function ContextMenu({
           onClick={(e) => {
             e.stopPropagation();
             onClose();
-            item.onClick();
+            item.onClick(e.currentTarget);
           }}
           style={{
             display: "block",
@@ -854,6 +932,7 @@ function ContextMenu({
  *  memo 化：切换频道/轮询合并时父级重渲染频繁，单行 props 不变则跳过（头像/Markdown 解析是主要开销）。 */
 export const MessageRow = memo(function MessageRow({
   message,
+  task,
   isAnchor,
   canConvertToTask,
   convertInActionBar,
@@ -872,6 +951,7 @@ export const MessageRow = memo(function MessageRow({
   onOpenThread,
 }: {
   message: ChannelMessage;
+  task?: Pick<ChannelTask, "number" | "status">;
   isAnchor?: boolean;
   canConvertToTask?: boolean;
   /** §3.7 创建途径 4：动作栏「转为任务」键——只有频道调用点传 true（线程面不传 ⇒ 键根本不存在）。 */
@@ -891,7 +971,10 @@ export const MessageRow = memo(function MessageRow({
   onReply?: (message: ChannelMessage) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
-  onConvertToTask?: (message: ChannelMessage) => void;
+  onConvertToTask?: (
+    message: ChannelMessage,
+    trigger: HTMLElement,
+  ) => void;
   onSetReminder?: (message: ChannelMessage) => void;
   onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
   onTogglePin?: (message: ChannelMessage) => void;
@@ -922,7 +1005,13 @@ export const MessageRow = memo(function MessageRow({
       ? [{ label: t("message.reply"), onClick: () => onReply(message) }]
       : []),
     ...(canConvertToTask && onConvertToTask
-      ? [{ label: t("tasks.convert"), onClick: () => onConvertToTask(message) }]
+      ? [
+          {
+            label: t("tasks.convert"),
+            onClick: (trigger: HTMLButtonElement) =>
+              onConvertToTask(message, trigger),
+          },
+        ]
       : []),
   ];
   const isAgent = message.author?.type === "agent";
@@ -1027,6 +1116,38 @@ export const MessageRow = memo(function MessageRow({
             onOpenMember={onOpenMention}
           />
         </div>
+        {task && onOpenThread && (
+          <div
+            className="ws-task-anchor-meta"
+            role="group"
+            aria-label={t("tasks.anchorGroup", {
+              number: String(task.number),
+            })}
+          >
+            <span className="ws-task-anchor-number">
+              {t("tasks.anchorNumber", { number: String(task.number) })}
+            </span>
+            <span className="ws-task-anchor-status">
+              {t(`task.status.${task.status}`)}
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm ws-task-discussion-button"
+              title={t("tasks.openDiscussionLabel", {
+                number: String(task.number),
+              })}
+              aria-label={t("tasks.openDiscussionLabel", {
+                number: String(task.number),
+              })}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenThread(message);
+              }}
+            >
+              {t("tasks.openDiscussion")}
+            </button>
+          </div>
+        )}
         <AttachmentList attachments={message.attachments ?? []} />
         {currentMemberId && onToggleReaction && (
           <ReactionChips
@@ -2397,10 +2518,36 @@ export function ChannelView({
     () => new Set(pinnedItems.map((item) => item.message.id)),
     [pinnedItems],
   );
-  const taskMessageIds = useMemo(
-    () => new Set(tasks.map((task) => task.message_id)),
-    [tasks],
-  );
+  const taskIndexes = useMemo(() => {
+    const byMessageId = new Map<string, ChannelTask>();
+    for (const task of tasks) {
+      byMessageId.set(task.message_id, task);
+    }
+    return { byMessageId };
+  }, [tasks]);
+  const taskEventTrackerRef = useRef(createTaskCreationAnnouncementTracker());
+  const taskEventChannelId = channel?.id;
+  const taskEventChannelRef = useRef(taskEventChannelId);
+  const [taskEventAnnouncements, setTaskEventAnnouncements] = useState<
+    TaskCreationAnnouncement[]
+  >([]);
+  useEffect(() => {
+    if (taskEventChannelRef.current !== taskEventChannelId) {
+      taskEventChannelRef.current = taskEventChannelId;
+      return;
+    }
+    if (!taskEventChannelId || messagesLoading) return;
+    const announcements = taskEventTrackerRef.current.observe(
+      taskEventChannelId,
+      messages,
+      true,
+    );
+    if (announcements.length > 0) {
+      setTaskEventAnnouncements((previous) =>
+        [...previous, ...announcements].slice(-TASK_EVENT_ANNOUNCEMENT_LIMIT),
+      );
+    }
+  }, [taskEventChannelId, messages, messagesLoading]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -2695,7 +2842,22 @@ export function ChannelView({
   );
   convertMessageToTaskRef.current = convertMessageToTask;
   const handleConvertToTask = useCallback(
-    (target: ChannelMessage) => void convertMessageToTaskRef.current(target),
+    (target: ChannelMessage, trigger: HTMLElement) => {
+      void convertMessageToTaskRef.current(target).then((created) => {
+        if (!created) return;
+        requestAnimationFrame(() => {
+          // The convert control is removed once the anchor becomes a task. Keep
+          // keyboard focus in that same operation, unless the user moved it.
+          if (trigger.isConnected || document.activeElement !== document.body) {
+            return;
+          }
+          document
+            .getElementById(`msg-${target.id}`)
+            ?.querySelector<HTMLButtonElement>(".ws-task-discussion-button")
+            ?.focus();
+        });
+      });
+    },
     [],
   );
 
@@ -3444,28 +3606,42 @@ export function ChannelView({
                   </button>
                 </div>
               )}
-              {messages.map((m) => (
-                <div key={m.id} id={`msg-${m.id}`}>
-                  <MessageRow
-                    message={m}
-                    currentMemberId={currentMemberId}
-                    pinned={pinnedSet.has(m.id)}
-                    canConvertToTask={!taskMessageIds.has(m.id)}
-                    convertInActionBar
-                    mentionMembers={mentionMembers}
-                    onOpenMention={openMention}
-                    onOpenMember={openMemberPanel}
-                    onReply={openThreadPanel}
-                    onQuote={handleQuote}
-                    onCopyLink={handleCopyLinkCb}
-                    onConvertToTask={handleConvertToTask}
-                    onSetReminder={joined ? openMessageReminder : undefined}
-                    onToggleReaction={joined ? toggleReaction : undefined}
-                    onTogglePin={joined ? togglePinAction : undefined}
-                    onOpenThread={openThreadPanel}
-                  />
-                </div>
-              ))}
+              {messages.map((m) => {
+                const task = taskIndexes.byMessageId.get(m.id);
+                const taskEvent = task
+                  ? null
+                  : parseTaskCreationEvent(m);
+                if (taskEvent) {
+                  return (
+                    <div key={m.id} id={`msg-${m.id}`}>
+                      <TaskCreationEventRow event={taskEvent} />
+                    </div>
+                  );
+                }
+                return (
+                  <div key={m.id} id={`msg-${m.id}`}>
+                    <MessageRow
+                      message={m}
+                      task={task}
+                      currentMemberId={currentMemberId}
+                      pinned={pinnedSet.has(m.id)}
+                      canConvertToTask={!taskIndexes.byMessageId.has(m.id)}
+                      convertInActionBar
+                      mentionMembers={mentionMembers}
+                      onOpenMention={openMention}
+                      onOpenMember={openMemberPanel}
+                      onReply={openThreadPanel}
+                      onQuote={handleQuote}
+                      onCopyLink={handleCopyLinkCb}
+                      onConvertToTask={handleConvertToTask}
+                      onSetReminder={joined ? openMessageReminder : undefined}
+                      onToggleReaction={joined ? toggleReaction : undefined}
+                      onTogglePin={joined ? togglePinAction : undefined}
+                      onOpenThread={openThreadPanel}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )
         ) : (
@@ -3487,6 +3663,21 @@ export function ChannelView({
           />
         )}
         </main>
+
+        <div
+          className="ws-task-event-announcer"
+          role="status"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-relevant="additions"
+        >
+          {taskEventAnnouncements.map((event) => (
+            <div key={event.messageId}>
+              {t("tasks.created", { number: String(event.number) })}
+              {event.preview ? ` — ${event.preview}` : ""}
+            </div>
+          ))}
+        </div>
 
         {/* 浮层 notice toast：位置在**滚动流之外**（流内末尾会被下方 composer 遮住，
             且要滚到底才看得到）。两个 tab 都用——Tasks tab 的 notice 由 TaskViews 自己的
