@@ -8,9 +8,9 @@
 
 产品所有者反馈：「消息区域太密集了，非常影响人的阅读。」这项反馈重新打开了既有视觉裁决中的消息密度部分，而不是整体撤销 Worksplice 的视觉方向。
 
-当前，频道消息行与右栏线程回复复用 `MessageRow` 与 `.msg` 规则。频道消息正文区域最大宽度为 880px；消息行当前 8px 内边距、正文 13px / 1.55 行高、段落间距 6px。线程面在更窄的右栏中沿用相同垂直规则。作者名为 13px 粗体，`#seq` 为 10.5px mono / `--muted`，时间为 10.5px mono / `--faint`。普通正文、行内 code、代码块另有字号层级（13px、12px、11.5px），代码块行高为 1.6，行内 code 没有单独的 line-height 声明。
+当前，频道消息行与右栏线程回复复用 `MessageRow` 与 `.msg` 规则。频道消息正文区域最大宽度为 880px；消息行当前 8px 内边距、段落间距 6px。外层 `.msg-text` 设为 13px / `--lh-text`（1.55），但其内嵌 `.markdown-body` 将普通 Markdown 正文设为 `var(--fs-body)`（13px）/ 1.7；实际普通正文行高是 1.7，而不是外层的 1.55。线程面在更窄的右栏中沿用该 Markdown 正文规则。作者名为 13px 粗体，`#seq` 为 10.5px mono / `--muted`，时间为 10.5px mono / `--faint`。行内 code 为 12px 且没有独立 line-height；Markdown fenced code 经 React `CodeBlock` 渲染，`SyntaxHighlighter` 使用 `--fs-sm`（当前 12px）/ 1.62。`.msg-text pre` 的 11.5px / `--lh-code`（1.6）不是这条 React 渲染路径的实际值。
 
-这些事实分别见 `app/globals.css:1347,1394,1399,1402-1407,1440,1569-1572`、`components/ChannelView.tsx:1042-1049,1115`、`components/ThreadPanel.tsx:8,398-420` 与设计系统 `worksplice-design-system/colors_and_type.css:85,92,108-109,116`、`worksplice-design-system/tokens.css:10-11,39`。`ThreadPanel` 调用同一 `MessageRow`，而任务活动摘要的 `.log-row .msg` 另有紧凑覆盖，不是本次频道消息流/线程回复阅读面（`app/globals.css:1569-1574`）。
+这些事实分别见 `app/globals.css:147-155,1347,1394,1399,1402-1407,1440,1569-1572`、`components/MarkdownBody.tsx:21-43`（fence 分派到 `CodeBlock`、inline 保持 code）、`components/MermaidBlock.tsx:259-274`、`components/ChannelView.tsx:1042-1049,1115`、`components/ThreadPanel.tsx:8,398-420` 与设计系统 `worksplice-design-system/colors_and_type.css:84-85,92,108-109,116`、`worksplice-design-system/tokens.css:10-11,39`。`ThreadPanel` 调用同一 `MessageRow`，而任务活动摘要的 `.log-row .msg` 另有紧凑覆盖，不是本次频道消息流/线程回复阅读面（`app/globals.css:1569-1574`）。
 
 反馈包含三个都要纳入的场景：频道连续短消息、频道长消息/多段正文、右栏线程回复。产品所有者未给这些场景排序；本设计覆盖三者，但不声称它们优先级相等。
 
@@ -30,9 +30,10 @@
 | D8 行分隔 | 用纵向留白区分相邻消息；不增加分隔线或卡片底 | Q9 人定：接受留白带来的滚动增长，不加额外 chrome |
 | D9 元信息 | 作者、时间、序号完整保留；作者清晰，时间/序号较正文弱；不隐藏、不改内容或交互 | Q10 人定：改善层级但不丢失定位信息 |
 | D10 标定值 | 正文 14px；`max-width: 68ch`；频道/线程垂直 padding 分别 12px/16px；line-height 分别 1.65/1.7；段距分别 8px/12px；作者 14px；时间与序号 10.5px mono / `--faint` | Q11 人定确认整组方案；具体滚动代价已说明并接受 |
-| D11 代码 | 14px 只用于普通正文；行内 code 维持 12px，代码块维持 11.5px / 1.6；代码不放大 | Q12 人定：保留代码专用字号层级，接受代码相对正文更小、长代码横向阅读负担不变 |
+| D11 代码 | 14px 只用于普通正文；行内 code 维持 12px 且无独立 line-height；fenced code 经现有 React `CodeBlock` 维持 12px / 1.62；不改渲染路径或横向滚动 | Q12 人定（事实基线修正）：`SyntaxHighlighter` 读 `--fs-sm`（当前 12px）并设 1.62；`.msg-text pre` 的 11.5px / 1.6 不适用于此渲染路径 |
 | D12 基线更正 | `#seq` 当前是 10.5px mono / `--muted`，时间当前是 10.5px mono / `--faint`；新决定把二者都设为 `--faint`。行内 code 有显式 12px 字号，但没有独立 line-height 声明 | Q13 人定事实更正：不得把新样式误写成现状，也不得声称行内 code 有固定独立行高 |
 | D13 文档同步范围 | 授权最小更新 `worksplice-design-system/DESIGN.md` 与 `worksplice-design-system/SKILL.md`，使两份契约准确反映消息局部例外；其他 Ownership 不变 | Q14 人定：只同步这两份设计系统说明，不编辑其他未授权文件 |
+| D14 后续文档同步范围 | 额外最小更新 README、字体样张 preview，以及 `colors_and_type.css` 中 `--fs-body` 的注释；不改 token 值或其他文件 | Q15 人定（本次追加授权）：使说明/样张区分通用 UI 13px 与消息 14px，并展示频道/线程 1.65/1.7 行高 |
 
 ### 消息密度提案
 
@@ -44,7 +45,7 @@
 | 段落间距 | 8px（现有 `--sp-4`） | 12px（现有 `--sp-5`） | 当前 6px（`--sp-3`）；多段正文高度与滚动相应增加 |
 | 消息边界 | 增加留白，不加线、不加卡片 | 同左 | 避免短消息连成一片而不引入额外装饰 |
 | 元信息 | 作者 14px、保持现有明确粗体；序号和时间 10.5px mono / `--faint` | 同左 | `#seq` 从当前 `--muted` 降为 `--faint`；两者始终可见 |
-| 代码内容 | 普通正文限宽；行内 code 12px；代码块 11.5px / 1.6 | 同左 | 不改 code 字号，不改变代码块原有横向滚动方式；行内 code 没有独立 line-height 设定 |
+| 代码内容 | 普通正文限宽；行内 code 12px；React fenced `CodeBlock` 12px / 1.62 | 同左 | 保留现有渲染路径与横向滚动；行内 code 没有独立 line-height。`.msg-text pre` 的 11.5px / 1.6 不是 React `CodeBlock` 的渲染值 |
 
 68ch 是设计作者基于现有 14px 系统 sans 正文与当前 880px 整列上限提出、并经 Q11 人定确认的**字符度量上限**，不是既有 token，也不是固定像素值。它把宽屏频道正文从整列宽度收至中等阅读行长；拉丁文本与 CJK 的实际字数/行会不同，因此未来实施验证要覆盖两类文本、长短消息与窄栏。线程正文复用此上限，但 dock 可用宽度更小，不再额外缩窄。
 
@@ -76,9 +77,9 @@
 3. **频道与线程共用内容尺度、分化纵向节奏**：正文 14px、68ch 上限相同；频道使用 12px 行 padding / 8px 段距 / 1.65 行高，线程使用 16px / 12px / 1.7。线程水平内边距和现有 dock 对齐规则不变。
 4. **只用空白分隔**：不加卡片背景或分隔线，不改变 hover/anchor、action toolbar、reaction、attachment 或 pin 的视觉语义与交互。
 5. **保留消息信息**：作者、序号、时间仍全部渲染且顺序不变；作者为 14px 明确粗体，序号/时间均 10.5px mono / `--faint`。序号的颜色是有意从现状 `--muted` 降为 `--faint`。
-6. **保留代码专用排版**：普通正文为 14px；行内 code 继续 12px（不附加独立 line-height 声明），代码块继续 11.5px / 1.6。68ch 限制正文容器，代码块原有横向滚动方式不变。
+6. **保留代码专用排版**：普通正文为 14px；行内 code 继续 12px（不附加独立 line-height 声明）；fenced code 继续由现有 React `CodeBlock` 以 `--fs-sm`（当前 12px）/ 1.62 渲染。不得切换渲染方式或改横向滚动。68ch 限制正文容器。`.msg-text pre` 的 11.5px / 1.6 不属于此 CodeBlock 路径。
 7. **保留活动摘要形态**：`.log-row .msg` 的 0 padding / 0 margin / muted text 和 hover 规则不动；不把活动摘要当消息流密度的一部分。
-8. **文档裁决同步**：ADR-0016 具体收窄 ADR-0014/0015 与 ED-5 的消息密度条款；按 Q14 仅最小更新 `worksplice-design-system/DESIGN.md` 与 `worksplice-design-system/SKILL.md`。`CONTEXT.md` 不改，因为“消息阅读密度”是呈现属性，不是新增领域术语，`Channel` 与 `Task` 的既有定义不变。
+8. **文档裁决同步**：ADR-0016 具体收窄 ADR-0014/0015 与 ED-5 的消息密度条款；按 Q14、Q15 仅更新 DESIGN.md、SKILL.md、README.md、`preview/typography-specimens.html`，并仅调整 `colors_and_type.css` 的 `--fs-body` 注释。所有全局 token 值不变。`CONTEXT.md` 不改，因为“消息阅读密度”是呈现属性，不是新增领域术语，`Channel` 与 `Task` 的既有定义不变。
 
 ## Testing Decisions
 
@@ -96,13 +97,13 @@
 
 ### 既有事实与裁决出处
 
-- 共用行与正文样式：`app/globals.css:1394-1407`；频道正文最大列宽：`:1347`；线程水平内边距：`:1440`；线程复用 `MessageRow`：`components/ThreadPanel.tsx:398-420`。
+- 共用行与正文样式：`app/globals.css:1394-1407`；外层 `.msg-text` 是 13px / `--lh-text:1.55`，实际 Markdown 正文由嵌套 `.markdown-body` 在 `:147-155` 设为 `--fs-body`（13px）/ 1.7。频道正文最大列宽：`:1347`；线程水平内边距：`:1440`；线程复用 `MessageRow`：`components/ThreadPanel.tsx:398-420`。
 - 当前 meta 实际颜色：`components/ChannelView.tsx:1045-1049`（序号 inline `--muted`、时间继承 `.msg-time` 的 `--faint`）；作者渲染：`:1042-1044`。
-- 任务活动摘要覆盖：`app/globals.css:1569-1574`。
-- 全局 13px、行高与间距标尺：`worksplice-design-system/colors_and_type.css:85,92,108-109`；整列宽度：`worksplice-design-system/tokens.css:39`。
+- 行内 code 为 12px、无独立 line-height；`components/MarkdownBody.tsx:21-43` 将 fenced code 分派到 React `CodeBlock`，由 `components/MermaidBlock.tsx:259-274` 使用 `--fs-sm`（当前 12px）/ 1.62。`.msg-text pre` 的 11.5px / `--lh-code:1.6` 是另一条 CSS 规则，不是此渲染路径。任务活动摘要覆盖：`app/globals.css:1569-1574`。
+- 全局 13px、行高与间距标尺：`worksplice-design-system/colors_and_type.css:84-85,92,108-109`；整列宽度：`worksplice-design-system/tokens.css:39`。
 - ADR-0014 的 13px 密度表述：`docs/adr/0014-visual-direction-modern-minimal.md:5`。ADR-0015 在 `docs/adr/0015-macaron-palette-warm-cream-pastel.md:7,17,37` 保留字号/间距/全局 token；ED-5 在 `.scratch/design-system-refactor/spec.md:182` 锁定 13px 正文。
 - 本设计记录为领域术语无变化，不编辑 `CONTEXT.md`。`Channel` 与 `Task` 保持原义。
 
 ### 文档差异范围
 
-新增 `.scratch/message-readability/spec.md`、设计票 `.scratch/message-readability/issues/01-design.md` 与 `docs/adr/0016-message-readability-local-density-override.md`；仅按人定 Q14 对 `worksplice-design-system/DESIGN.md`、`worksplice-design-system/SKILL.md` 作密度契约的最小同步。产品源码与测试零改动。
+新增 `.scratch/message-readability/spec.md`、设计票 `.scratch/message-readability/issues/01-design.md` 与 `docs/adr/0016-message-readability-local-density-override.md`；按 Q14、Q15 最小同步 DESIGN.md、SKILL.md、README.md、`preview/typography-specimens.html`，仅更新 `colors_and_type.css` 的 `--fs-body` 注释。无产品源码、测试或 token 值改动。

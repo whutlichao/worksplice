@@ -65,9 +65,11 @@ The applied kit `ui_kits/app/` is the canonical assembly: AppShell → rail → 
    padding; buttons remain `--control-h` 32px. The local ADR-0016 exception is only
    channel/thread message prose: 14px and `68ch` max measure; channel rows use 12px
    vertical padding, 8px paragraph spacing and 1.65 line-height; thread rows use
-   16px, 12px and 1.7. Keep global tokens unchanged. Inline code stays 12px; code
-   blocks stay 11.5px / 1.6. Do not apply this exception to the stream/composer,
-   agent-session transcript or `.log-row .msg` activity summaries.
+   16px, 12px and 1.7. Keep global tokens unchanged. Inline code stays 12px with
+   no independent line-height; fenced React `CodeBlock` stays 12px / 1.62. Keep
+   its render path and horizontal scrolling unchanged. Do not apply the prose-size
+   exception to the stream/composer, agent-session transcript or `.log-row .msg`
+   activity summaries.
 5. **Responsive**: `≤1080px` dock → 340px. `≤900px` app becomes a column, a sticky
    topbar appears, rail + dock become off-canvas drawers with a scrim, board stacks
    to a single full-width column.

@@ -214,8 +214,9 @@ Full visual specimens live in `preview/`; the applied kit is `ui_kits/app/`.
   is 14px with a 68ch maximum measure; channel/thread line-height is 1.65/1.7,
   and thread rows and paragraphs use the larger local rhythm in ADR-0016. Author
   remains clear; time and sequence remain visible
-  at 10.5px mono / `--faint`. Inline code (12px) and code blocks (11.5px / 1.6)
-  retain their dedicated styles.
+  at 10.5px mono / `--faint`. Inline code (12px, no independent line-height) and
+  React fenced `CodeBlock` (12px / 1.62) retain their dedicated styles; the
+  `.msg-text pre` 11.5px / 1.6 rule is not the fenced-code render path.
 - **Composer** — `.composer-box` with an `--accent-graphic` focus ring, auto-growing
   textarea, attach / mention / as-task icon buttons, hint, `.composer-send` `--accent` square.
 - **Kanban** — `.col` (236px, `--panel`), `.card` draggable with hover lift, drag

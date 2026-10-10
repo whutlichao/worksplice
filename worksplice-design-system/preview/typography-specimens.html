@@ -46,14 +46,17 @@
   </section>
 
   <section class="pv-card" data-od-id="card-scale">
-    <div class="pv-card-head"><h3>字号与字重阶梯</h3><span class="pv-note">13px 基准密度</span></div>
+    <div class="pv-card-head"><h3>字号与字重阶梯</h3><span class="pv-note">通用 UI 13px 基准；消息例外如下</span></div>
     <div class="pv-card-body">
       <div class="pv-spec"><span class="tag">16px / 680 / -0.02em</span><span class="sample" style="font-size:16px;font-weight:680;letter-spacing:-0.02em">#设计系统重构 —— 频道标题 h1</span></div>
       <div class="pv-spec"><span class="tag">14.5px / 680 / -0.01em</span><span class="sample" style="font-size:14.5px;font-weight:680;letter-spacing:-0.01em">为任务看板加入状态机拖拽校验</span></div>
       <div class="pv-spec"><span class="tag">14px / 680</span><span class="sample" style="font-size:14px;font-weight:680">Susan · 秘书</span></div>
       <div class="pv-spec"><span class="tag">13.5px / 700 / -0.02em</span><span class="sample" style="font-size:13.5px;font-weight:700;letter-spacing:-0.02em">worksplice</span></div>
-      <div class="pv-spec"><span class="tag">13px / 650 · 消息作者</span><span class="sample" style="font-size:13px;font-weight:650">Pixel <span style="font-weight:470;color:var(--fg)">状态机抽成 TRANSITIONS 表了。</span></span></div>
-      <div class="pv-spec"><span class="tag">13px / 400 · 正文</span><span class="sample" style="font-size:13px">同意。令牌就叫 bg / surface / fg / muted / border / accent，全部用 oklch()。</span></div>
+      <div class="pv-spec"><span class="tag">14px / 650 · 消息作者</span><span class="sample" style="font-size:14px;font-weight:650">Pixel <span style="font-weight:470;color:var(--fg)">状态机抽成 TRANSITIONS 表了。</span></span></div>
+      <div class="pv-spec"><span class="tag">13px / 400 · 通用 UI 正文</span><span class="sample" style="font-size:13px">同意。令牌就叫 bg / surface / fg / muted / border / accent，全部用 oklch()。</span></div>
+      <div class="pv-spec"><span class="tag">14px / 400 · 频道消息正文 · 1.65</span><span class="sample" style="font-size:14px;line-height:1.65">消息正文按频道场景使用局部可读尺度；全局 13px 正文标尺保持不变。</span></div>
+      <div class="pv-spec"><span class="tag">14px / 400 · 线程回复正文 · 1.7</span><span class="sample" style="font-size:14px;line-height:1.7">线程正文使用额外行间节奏，适配窄栏中的持续阅读。</span></div>
+      <div class="pv-spec"><span class="tag">12px / 1.62 · fenced CodeBlock</span><span class="sample mono" style="font-size:12px;line-height:1.62">const readable = true;</span></div>
       <div class="pv-spec"><span class="tag">12.5px / 560 · 按钮</span><span class="sample" style="font-size:12.5px;font-weight:560">新建频道　新建任务　暂停　编辑配置</span></div>
       <div class="pv-spec"><span class="tag">12px · 辅助正文</span><span class="sample" style="font-size:12px">拖拽落点用 dragover 判定，非法列给红色边框。</span></div>
       <div class="pv-spec"><span class="tag">11.5px · 说明 / 卡片元信息</span><span class="sample" style="font-size:11.5px;color:var(--muted)">选中的 Agent 会自动订阅该频道。</span></div>
@@ -70,7 +73,7 @@
         <li>标题用负字距 <code>-0.01 / -0.02em</code>；全大写等宽小标签用正字距 <code>+0.08 / +0.1em</code>。</li>
         <li>所有数字加 <code>font-variant-numeric: tabular-nums</code>，保证计数、指标、时间戳对齐。</li>
         <li>标识符、时间戳、计数、指标、键值行、小节标签一律等宽 —— 等宽即结构。</li>
-        <li>正文行高 1.5，消息正文 1.55，代码块 1.6。</li>
+        <li>通用正文行高 1.5；频道/线程消息正文 14px，行高分别为 1.65 / 1.7；fenced React CodeBlock 为 12px / 1.62。</li>
         <li>不使用展示型衬线体，不引入无法渲染中文的 webfont。</li>
       </ul>
     </div>
@@ -80,7 +83,7 @@
     <div class="pv-card-head"><h3>行内元素</h3><span class="pv-note">code · mention · kbd</span></div>
     <div class="pv-card-body">
       <div class="pv-stage" style="flex-direction:column;align-items:flex-start;gap:var(--sp-5)">
-        <div style="font-size:13px;line-height:1.7">行内代码 <code style="font-family:var(--mono);font-size:12px;background:var(--panel-2);padding:1px 5px;border-radius:4px;border:1px solid var(--border)">globals.css</code> 与提及 <span style="color:var(--accent);font-weight:600;background:var(--accent-soft);padding:0 4px;border-radius:4px">@Pixel</span> 的呈现。</div>
+        <div style="font-size:14px;line-height:1.65">频道消息正文（14px / 1.65）中的行内代码 <code style="font-family:var(--mono);font-size:12px;background:var(--panel-2);padding:1px 5px;border-radius:4px;border:1px solid var(--border)">globals.css</code>（12px，无独立 line-height）与提及 <span style="color:var(--accent);font-weight:600;background:var(--accent-soft);padding:0 4px;border-radius:4px">@Pixel</span> 的呈现。</div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--faint);border:1px solid var(--border);border-radius:4px;padding:1px 5px">⌘K</div>
       </div>
     </div>

@@ -1,8 +1,8 @@
 # 频道消息与线程回复的局部可读性尺度
 
-**决策**：为频道消息流与线程回复建立局部阅读例外：普通正文 14px、最大行长 68ch；频道消息行采用 12px 垂直 padding / 8px 段距 / 1.65 行高，线程回复采用 16px / 12px / 1.7。相邻消息只用留白区分；作者、时间、序号全部保留，时间与序号为 10.5px mono / `--faint`。行内 code 保持 12px，代码块保持 11.5px / 1.6。
+**决策**：为频道消息流与线程回复建立局部阅读例外：普通正文 14px、最大行长 68ch；频道消息行采用 12px 垂直 padding / 8px 段距 / 1.65 行高，线程回复采用 16px / 12px / 1.7。相邻消息只用留白区分；作者、时间、序号全部保留，时间与序号为 10.5px mono / `--faint`。行内 code 保持 12px 且没有独立 line-height；fenced code 沿用现有 React `CodeBlock` 的 12px / 1.62，不改渲染方式或横向滚动。
 
-**范围**：这只收窄 ADR-0014 的“13px 密度”、ADR-0015 对间距/字号不变的裁决，以及 `.scratch/design-system-refactor/spec.md` ED-5 中“消息正文 13px / 不许把 13px 正文吹大”的消息面部分。全局 `--fs-body:13px`、`--lh-text`、`--sp-*` 与 `--stream-max:880px` 的值和契约均不变；其他界面、agent-session transcript、composer 与任务活动 `.log-row .msg` 不受影响。序号颜色从现有 `--muted` 有意降为 `--faint`；消息内容、顺序、交互与数据/调用契约不变。
+**范围**：这只收窄 ADR-0014 的“13px 密度”、ADR-0015 对间距/字号不变的裁决，以及 `.scratch/design-system-refactor/spec.md` ED-5 中“消息正文 13px / 不许把 13px 正文吹大”的消息面部分。全局 `--fs-body:13px`、`--lh-text`、`--sp-*` 与 `--stream-max:880px` 的值和契约均不变；通用 UI 仍以 13px 为正文基线。当前消息 Markdown 的嵌套 `.markdown-body` 实际为 `--fs-body`（13px）/1.7；外层 `.msg-text` 虽设 13px / `--lh-text`（1.55），不代表其内嵌普通正文的实际行高。行内 code 为 12px 且无独立 line-height；React fenced `CodeBlock` 通过 `SyntaxHighlighter` 使用 `--fs-sm`（当前 12px）/1.62。`.msg-text pre` 的 11.5px / `--lh-code:1.6` 不是这条渲染路径。其他界面、agent-session transcript、composer 与任务活动 `.log-row .msg` 不受影响。序号颜色从现有 `--muted` 有意降为 `--faint`；消息内容、顺序、交互与数据/调用契约不变。
 
 **取舍**：产品所有者优先选择持续阅读舒适度，接受同屏消息减少、长消息换行与滚动增加，线程增幅最大。保持全局字号 13px、只微调行距的方案无法处理字号本身过小的反馈；全局放大正文会波及非消息界面；分隔线或卡片底增加额外 chrome，因此均不采用。68ch 是对现有 880px 整列宽度的局部正文上限，随系统字体度量变化，不换算为固定像素；实施验证需覆盖 CJK 与拉丁文本。
 

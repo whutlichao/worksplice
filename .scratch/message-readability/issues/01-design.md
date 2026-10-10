@@ -77,13 +77,13 @@ Blocked by: None
 **理由**：此组值逐项处理已确认的五类信号，同时把例外局限到消息阅读面。
 
 #### Q12 — 普通正文与代码内容范围
-**Q12 → A（人定）**：14px 只用于普通消息正文；行内 code 保持 12px，代码块保持 11.5px / 1.6；不放大代码字号。68ch 限制正文容器，代码块横向滚动方式不变；接受代码比正文小、长代码仍需横向阅读。
+**Q12 → A（人定；本次事实基线修正）**：14px 只用于普通消息正文；行内 code 保持 12px（无独立 line-height，详见 Q13）。fenced code 沿用现有 React `CodeBlock` 渲染路径，`SyntaxHighlighter` 使用 `--fs-sm`（当前 12px）/ 1.62；不改渲染方式或横向滚动。此前写为 11.5px / 1.6 是把 `.msg-text pre` CSS 规则误当作该 fenced CodeBlock 的实际值。68ch 只限制正文容器；接受代码相对 14px 正文更小、长代码仍需横向阅读。渲染路径与源码基线：`components/MarkdownBody.tsx:21-43`、`components/MermaidBlock.tsx:259-274`。
 
 
-**理由**：保留既有代码专用排版，避免把普通 prose 的可读性改判扩成代码样式重做。
+**理由**：普通正文 14px 单独处理；行内 code 与 fenced CodeBlock 保持各自现有样式/渲染方式，避免把 `.msg-text pre` 的非目标规则错当成实际 fenced 渲染值。
 
 #### Q13 — 对 Q12 基线的事实更正
-**Q13 → A（人定更正）**：当前 `#seq` 是 10.5px mono / `--muted`，时间戳是 10.5px mono / `--faint`；新裁决把两者都设为 `--faint`。行内 code 当前显式字号 12px，但没有独立 line-height 声明，不得描述为已有固定行高。
+**Q13 → A（人定更正，原审计保留）**：当前 `#seq` 是 10.5px mono / `--muted`，时间戳是 10.5px mono / `--faint`；新裁决把两者都设为 `--faint`。行内 code 当前显式字号 12px，但没有独立 line-height 声明，不得描述为已有固定行高。此更正仍只涵盖序号/时间和 inline code 事实；fenced CodeBlock 的实际 12px / 1.62 基线由 Q12 单独纠正。现状依据 `components/ChannelView.tsx:1045-1049` 与 `app/globals.css:1406`。
 
 
 **理由**：纠正问句中对现状/继承关系的概括，避免把序号的 `--muted` 写成既有 `--faint`，也避免给行内 code 编造行高。
@@ -94,25 +94,30 @@ Blocked by: None
 
 **理由**：两份设计系统契约原本把 13px/6–8px 密度写为通用规范，需准确标注频道/线程的局部例外；不能据此改 token 或其他界面。
 
+#### Q15 — 追加的设计系统文档授权
+**Q15 → A（人定；本次追加授权）**：额外授权最小更新 `worksplice-design-system/README.md`、`worksplice-design-system/preview/typography-specimens.html`，以及只修改 `worksplice-design-system/colors_and_type.css` 中 `--fs-body` 这一条注释。README 与 preview 明确区分 13px 通用 UI 正文和 14px 频道/线程消息正文，并展示频道/线程行高 1.65/1.7；CSS token 的声明值及其他规则不改。
+
+**理由**：让入口说明、视觉样张和 token 注释与既有 Q14 授权、ADR-0016 的局部例外一致，同时不改变通用尺度或实际渲染路径。
+
 ### 交付路径
 
 - 设计正本：`.scratch/message-readability/spec.md`
 - 设计票：`.scratch/message-readability/issues/01-design.md`
 - ADR：`docs/adr/0016-message-readability-local-density-override.md`
-- 设计系统契约最小同步：`worksplice-design-system/DESIGN.md`、`worksplice-design-system/SKILL.md`
+- 设计系统契约与样张最小同步：`worksplice-design-system/DESIGN.md`、`worksplice-design-system/SKILL.md`、`worksplice-design-system/README.md`、`worksplice-design-system/preview/typography-specimens.html`、`worksplice-design-system/colors_and_type.css`（仅 `--fs-body` 注释）
 - 未改 `CONTEXT.md`：未澄清/新增领域术语；“消息阅读密度”是视觉呈现属性，`Channel` 与 `Task` 词条不变。
 
 ### G-docs 自验
 
 - 七节设计结构齐全：Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes。
-- 决策记录逐项对应 Q1–Q14；场景未排序，不写成优先级相等。
-- ADR-0016 明确收窄 ADR-0014 的 13px 密度、ADR-0015 的消息密度形态保持部分与 ED-5；全局 token、非消息面与 `.log-row .msg` 排除项写明。
-- 产品源码与测试改动为零；未运行测试、typecheck、lint、双轴 review 或浏览器。
+- 决策记录保留 Q1–Q14，并新增 Q15 的追加授权审计；场景未排序，不写成优先级相等。
+- Markdown 普通消息正文现状记录为嵌套 `.markdown-body` 的 13px / 1.7；外层 `.msg-text` 的 13px / 1.55 不冒充实际 Markdown 行高。fenced CodeBlock 记录为 React `SyntaxHighlighter` 的 12px / 1.62；不误用 `.msg-text pre` 的 11.5px / 1.6。
+- ADR-0016 明确收窄 ADR-0014 的 13px 密度、ADR-0015 的消息密度形态保持部分与 ED-5；全局 token、非消息面与 `.log-row .msg` 排除项写明。产品源码与测试改动为零；未运行测试、typecheck、lint、双轴 review 或浏览器。
 - 保持 `.pi-lens.json` 只在本地 `.git/info/exclude`，不进入提交。
 
 ### 差异摘要
 
-新增 spec、设计票与 ADR；仅修改 DESIGN.md 和 SKILL.md 中与消息正文字号/行长/局部间距相关的说明。无 `CONTEXT.md`、`app/`、`components/`、`lib/` 或测试文件改动。
+更新 spec、设计票 Answer 与 ADR 的渲染事实；同步 DESIGN.md、SKILL.md、README.md、typography preview，并仅修改 `colors_and_type.css` 的 `--fs-body` 注释。无 `CONTEXT.md`、产品源码、token 值或测试文件改动。
 
 ### PR
 
