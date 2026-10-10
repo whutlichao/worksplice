@@ -828,20 +828,44 @@ test("postTaskThreadRead sends only the addressed Task and presented thread seq"
   assert.deepEqual(JSON.parse(calls[0].init.body), { throughSeq: 8 });
 });
 
-test("mergeTaskUnreadCounts refreshes only changed Task counts without replacing stable rows", async () => {
+test("mergeTaskUnreadCounts refreshes unread count and timestamp without replacing stable rows", async () => {
   const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
-  const taskA = { id: "task-a", status: "todo", unreadReplyCount: 1 };
-  const taskB = { id: "task-b", status: "done", unreadReplyCount: 0 };
+  const taskA = {
+    id: "task-a",
+    status: "todo",
+    unreadReplyCount: 1,
+    latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+  };
+  const taskB = {
+    id: "task-b",
+    status: "done",
+    unreadReplyCount: 1,
+    latestUnreadReplyAt: "2026-10-10T11:00:00.000Z",
+  };
   const current = [taskA, taskB];
   const refreshed = mergeTaskUnreadCounts(current, [
-    { id: "task-a", status: "todo", unreadReplyCount: 0 },
-    { id: "task-b", status: "closed", unreadReplyCount: 0 },
+    {
+      id: "task-a",
+      status: "todo",
+      unreadReplyCount: 0,
+      latestUnreadReplyAt: null,
+    },
+    {
+      id: "task-b",
+      status: "closed",
+      unreadReplyCount: 1,
+      latestUnreadReplyAt: "2026-10-10T12:00:00.000Z",
+    },
   ]);
 
-  assert.deepEqual(refreshed.map((task) => task.unreadReplyCount), [0, 0]);
-  assert.equal(refreshed[0].status, "todo", "only unread counts are refreshed");
+  assert.deepEqual(refreshed.map((task) => task.unreadReplyCount), [0, 1]);
+  assert.deepEqual(
+    refreshed.map((task) => task.latestUnreadReplyAt),
+    [null, "2026-10-10T12:00:00.000Z"],
+  );
+  assert.equal(refreshed[0].status, "todo", "only unread state is refreshed");
   assert.equal(refreshed[1].status, "done", "task status remains owned by the normal task reload");
   assert.notEqual(refreshed[0], taskA);
-  assert.equal(refreshed[1], taskB);
+  assert.notEqual(refreshed[1], taskB);
   assert.equal(mergeTaskUnreadCounts(current, current), current);
 });

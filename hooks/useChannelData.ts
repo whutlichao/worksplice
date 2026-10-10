@@ -33,6 +33,8 @@ export interface ChannelTask {
   reachable: TaskStatus[];
   /** Task thread 中高于 Owner 已读游标的非 Owner 回复数。 */
   unreadReplyCount: number;
+  /** 最新一条未读回复的创建时间；没有未读回复时为 null。 */
+  latestUnreadReplyAt: string | null;
 }
 
 /** §3.2 mute 行（与 GET /api/channels/[id]/mute 返回形态同形）。 */
@@ -326,22 +328,32 @@ export async function loadTasksPage(
   return body.tasks ?? [];
 }
 
-/** 任务线程回复不进入频道主序列；后台刷新只合并未读数，避免改写任务视图的其他状态。 */
+/** 任务线程回复不进入频道主序列；后台刷新只合并未读数/时间，避免改写任务视图的其他状态。 */
 export function mergeTaskUnreadCounts(
   current: ChannelTask[],
   refreshed: ChannelTask[],
 ): ChannelTask[] {
-  const counts = new Map(
-    refreshed.map((task) => [task.id, task.unreadReplyCount]),
+  const unreadById = new Map(
+    refreshed.map((task) => [
+      task.id,
+      {
+        unreadReplyCount: task.unreadReplyCount,
+        latestUnreadReplyAt: task.latestUnreadReplyAt,
+      },
+    ]),
   );
   let changed = false;
   const merged = current.map((task) => {
-    const unreadReplyCount = counts.get(task.id);
-    if (unreadReplyCount === undefined || unreadReplyCount === task.unreadReplyCount) {
+    const unread = unreadById.get(task.id);
+    if (
+      unread === undefined ||
+      (unread.unreadReplyCount === task.unreadReplyCount &&
+        unread.latestUnreadReplyAt === task.latestUnreadReplyAt)
+    ) {
       return task;
     }
     changed = true;
-    return { ...task, unreadReplyCount };
+    return { ...task, ...unread };
   });
   return changed ? merged : current;
 }

@@ -309,6 +309,7 @@ export function listChannelsWithMeta(
     joined: boolean;
     memberCount: number;
     unread: number;
+    unreadTaskCount: number;
     /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，消息 seq 单调自 1、不可变无删除）。 */
     messageCount: number;
   }
@@ -318,6 +319,7 @@ export function listChannelsWithMeta(
     joined: getDb().isChannelMember(channel.id, memberId),
     memberCount: getDb().listChannelMembers(channel.id).length,
     unread: getDb().countUnreadChannelMessages(memberId, channel.id),
+    unreadTaskCount: getDb().countUnreadTaskThreads(channel.id, memberId),
     messageCount: getDb().maxSeq(channel.id),
   }));
 }

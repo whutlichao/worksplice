@@ -150,6 +150,10 @@ export interface Store {
   /** 只推进至该 seq 之前最近的非 Owner 回复；Owner 回复不能推进 Task 游标。 */
   advanceTaskThreadRead(taskId: string, throughSeq: number, ownerId: string): TaskThreadReadRow | undefined;
   countUnreadTaskThreadReplies(taskId: string, ownerId: string): number;
+  /** 最新一条高于 Task 已读游标的非 Owner 回复时间；没有未读时返回 null。 */
+  latestUnreadTaskThreadReplyAt(taskId: string, ownerId: string): string | null;
+  /** 数出含未读非 Owner 回复的 Task 数（不是未读回复总数）。 */
+  countUnreadTaskThreads(channelId: string, ownerId: string): number;
 
   // -- reminders ------------------------------------------------------------
   insertReminder(input: {

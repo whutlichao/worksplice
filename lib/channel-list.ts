@@ -1,8 +1,8 @@
 import type { ChannelWithMeta } from "@/components/ChannelView";
 
 /** 频道行浅比较：字段全等时复用旧对象引用，避免下游 useCallback/useEffect 连锁重建。
- *  messageCount（DM 懒创建「有消息」信号）纳入比较——新消息入流后侧栏 DM 分组
- *  与按钮文案需随它更新。 */
+ *  messageCount（DM 懒创建「有消息」信号）与 unreadTaskCount（独立 Task 未读数）纳入比较，
+ *  使各自的侧栏信号随服务端刷新更新。 */
 export function shallowEqualChannel(
   a: ChannelWithMeta,
   b: ChannelWithMeta,
@@ -17,6 +17,7 @@ export function shallowEqualChannel(
     a.joined === b.joined &&
     a.memberCount === b.memberCount &&
     a.unread === b.unread &&
+    a.unreadTaskCount === b.unreadTaskCount &&
     a.messageCount === b.messageCount
   );
 }

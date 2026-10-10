@@ -599,6 +599,39 @@ export class SQLiteAdapter implements Store {
     return row.n;
   }
 
+  countUnreadTaskThreads(channelId: string, ownerId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n
+         FROM tasks
+         JOIN messages AS anchors ON anchors.id = tasks.message_id
+         JOIN task_thread_reads ON task_thread_reads.task_id = tasks.id
+         WHERE anchors.target_id = ?
+           AND EXISTS (
+             SELECT 1 FROM messages AS replies
+             WHERE replies.target_id = anchors.id
+               AND replies.author_id != ?
+               AND replies.seq > task_thread_reads.read_seq
+           )`,
+      )
+      .get(channelId, ownerId) as { n: number };
+    return row.n;
+  }
+
+  latestUnreadTaskThreadReplyAt(taskId: string, ownerId: string): string | null {
+    const row = this.db
+      .prepare(
+        `SELECT MAX(messages.created_at) AS created_at
+         FROM messages
+         JOIN tasks ON tasks.message_id = messages.target_id
+         JOIN task_thread_reads ON task_thread_reads.task_id = tasks.id
+         WHERE tasks.id = ? AND messages.author_id != ?
+           AND messages.seq > task_thread_reads.read_seq`,
+      )
+      .get(taskId, ownerId) as { created_at: string | null };
+    return row.created_at;
+  }
+
   insertReminder(input: {
     id?: string;
     title: string;
