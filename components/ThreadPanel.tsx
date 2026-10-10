@@ -6,7 +6,10 @@ import { useI18n } from "@/hooks/useI18n";
 import { copyText } from "@/lib/clipboard";
 import { previewLine } from "@/lib/preview";
 import { Composer, MessageRow, type ChannelMessage, type ChannelWithMeta, type ReactionSummary } from "./ChannelView";
-import { mergeIncomingMessages } from "@/hooks/useChannelData";
+import {
+  mergeIncomingMessages,
+  postTaskThreadRead,
+} from "@/hooks/useChannelData";
 import { ReminderModal } from "./ReminderModal";
 import type { MemberRow } from "@/lib/data/types";
 import { memberPanel, type PanelContent } from "@/lib/panel-state";
@@ -14,6 +17,40 @@ import { composerMentionCandidates } from "@/lib/mention";
 
 /** 面板线程轮询间隔（与中央轮询同纪律：3s、后台 tab 暂停、卸载清理）。 */
 const THREAD_POLL_MS = 3000;
+
+function threadMaxSeq(messages: ChannelMessage[], reportedMaxSeq?: number): number {
+  return (
+    reportedMaxSeq ??
+    messages.reduce((maxSeq, message) => Math.max(maxSeq, message.seq), 0)
+  );
+}
+
+export interface VisibleTaskThreadReadContext {
+  taskId?: string;
+  threadReady: boolean;
+  loading: boolean;
+  pageVisible: boolean;
+  documentHidden: boolean;
+  throughSeq: number;
+}
+
+/** ThreadPanel 挂载且当前 Task 已在前台呈现时才推进；提取为 seam 供门控行为测试。 */
+export async function markVisibleTaskThreadRead(
+  context: VisibleTaskThreadReadContext,
+  markRead: (taskId: string, throughSeq: number) => Promise<unknown> =
+    postTaskThreadRead,
+): Promise<void> {
+  if (
+    !context.taskId ||
+    !context.threadReady ||
+    context.loading ||
+    !context.pageVisible ||
+    context.documentHidden
+  ) {
+    return;
+  }
+  await markRead(context.taskId, context.throughSeq);
+}
 
 /**
  * 右栏面板：线程视图（ticket 13 从 ChannelView 迁出）。
@@ -28,6 +65,7 @@ const THREAD_POLL_MS = 3000;
  */
 export function ThreadPanel({
   anchorId,
+  taskId,
   channel,
   currentMemberId,
   agents,
@@ -38,6 +76,8 @@ export function ThreadPanel({
   initialMessages,
 }: {
   anchorId: string;
+  /** 仅从 Task 锚点或 Task 卡片进入时提供；普通 thread 不推进 Task 已读位置。 */
+  taskId?: string;
   channel: ChannelWithMeta | null;
   currentMemberId: string;
   agents?: MemberRow[];
@@ -52,9 +92,14 @@ export function ThreadPanel({
 
   const [anchor, setAnchor] = useState<ChannelMessage | null>(initialAnchor ?? null);
   const [messages, setMessages] = useState<ChannelMessage[]>(initialMessages ?? []);
+  const [latestThreadSeq, setLatestThreadSeq] = useState(() =>
+    threadMaxSeq(initialMessages ?? []),
+  );
+  const [pageVisible, setPageVisible] = useState(true);
   const [loading, setLoading] = useState(!initialAnchor);
   const [error, setError] = useState<string | null>(null);
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
+  const threadReady = anchor?.id === anchorId;
 
   // §5.6 提醒弹窗（锚点消息动作栏 ⏰，与旧 thread 侧栏一致——只锚点行提供）
   const [reminderTarget, setReminderTarget] = useState<{
@@ -92,9 +137,14 @@ export function ThreadPanel({
     try {
       const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/thread`);
       if (!res.ok) throw new Error(`GET thread: ${res.status}`);
-      const body = (await res.json()) as { anchor: ChannelMessage; messages: ChannelMessage[] };
+      const body = (await res.json()) as {
+        anchor: ChannelMessage;
+        messages: ChannelMessage[];
+        maxSeq?: number;
+      };
       setAnchor(body.anchor);
       setMessages(body.messages);
+      setLatestThreadSeq(threadMaxSeq(body.messages, body.maxSeq));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -102,11 +152,31 @@ export function ThreadPanel({
     }
   }, []);
 
+  // 页面隐藏时暂停本 Task 的自动标读，与线程轮询的前台纪律保持一致。
+  useEffect(() => {
+    const syncVisibility = () => setPageVisible(!document.hidden);
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
+    return () => document.removeEventListener("visibilitychange", syncVisibility);
+  }, []);
+
   // 锚点变化 → 全量重拉（测试注入 initialAnchor 时跳过）
   useEffect(() => {
     if (initialAnchor) return;
     void loadThread(anchorId);
   }, [anchorId, initialAnchor, loadThread]);
+
+  // 只推进已在前台打开面板时呈现的序号；服务端再按 Task 隔离并排除 Owner 回复。
+  useEffect(() => {
+    void markVisibleTaskThreadRead({
+      taskId,
+      threadReady,
+      loading,
+      pageVisible,
+      documentHidden: document.hidden,
+      throughSeq: latestThreadSeq,
+    }).catch(() => undefined);
+  }, [latestThreadSeq, loading, pageVisible, taskId, threadReady]);
 
   /** §3.7 频道任务列表（只用于锚点行 Convert to Task 判定）。 */
   const loadTasks = useCallback(() => {
@@ -152,10 +222,15 @@ export function ThreadPanel({
       void fetch(`/api/messages/${encodeURIComponent(anchorId)}/thread`)
         .then(async (res) => {
           if (!res.ok || cancelled) return;
-          const body = (await res.json()) as { anchor: ChannelMessage; messages: ChannelMessage[] };
+          const body = (await res.json()) as {
+            anchor: ChannelMessage;
+            messages: ChannelMessage[];
+            maxSeq?: number;
+          };
           // 初始拉取失败（anchor 为 null）时轮询自愈：只要服务端锚点仍指向同一消息即采纳
           setAnchor((prev) => (!prev || prev.id === body.anchor.id ? body.anchor : prev));
           setMessages((prev) => mergeIncomingMessages(prev, body.messages));
+          setLatestThreadSeq(threadMaxSeq(body.messages, body.maxSeq));
         })
         .catch(() => undefined);
     }, THREAD_POLL_MS);

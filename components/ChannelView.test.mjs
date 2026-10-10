@@ -71,6 +71,39 @@ test("MessageRow renders author, seq, content and the three §3.2 actions", () =
 
 // spec D2：收窄靠「不传 prop ⇒ 键根本不存在」，不是「传空函数让按钮不做事」——
 // 线程面板不再传 onReply，动作栏里不该有这个键（真按钮只在频道面渲染）。
+test("Task anchor discussion button shows and announces the exact unread reply count", () => {
+    const renderTaskAnchor = (unreadReplyCount) =>
+        renderI18n(
+            React.createElement(MessageRow, {
+                message: MESSAGE,
+                task: {
+                    id: "task-7",
+                    number: 7,
+                    status: "todo",
+                    unreadReplyCount,
+                },
+                onQuote: () => undefined,
+                onCopyLink: () => undefined,
+                onOpenThread: () => undefined,
+            }),
+        );
+
+    const withUnread = renderTaskAnchor(2);
+    assert.match(withUnread, /role="group" aria-label="Task #7"/);
+    assert.match(
+        withUnread,
+        /aria-label="Open discussion for Task #7; unread replies: 2"/,
+    );
+    assert.match(withUnread, /aria-hidden="true">2<\/span>/);
+
+    const withoutUnread = renderTaskAnchor(0);
+    assert.match(
+        withoutUnread,
+        /aria-label="Open discussion for Task #7; unread replies: 0"/,
+    );
+    assert.match(withoutUnread, /aria-hidden="true">0<\/span>/);
+});
+
 test("MessageRow omits the reply action when onReply is absent", () => {
     const html = renderI18n(
         React.createElement(MessageRow, {
@@ -1013,11 +1046,16 @@ test("任务创建事件以静态 note 呈现，预览 URL 是普通文本而非
     assert.doesNotMatch(html, /\b(?:href|tabindex)=/i);
 });
 
-test("Task 锚点显示编号和状态，并提供带编号无障碍名称的讨论按钮", () => {
+test("Task 锚点显示编号和状态，并为零未读提供精确讨论名称", () => {
     const html = renderI18n(
         React.createElement(MessageRow, {
             message: MESSAGE,
-            task: { number: 7, status: "in_progress" },
+            task: {
+                id: "task-7",
+                number: 7,
+                status: "in_progress",
+                unreadReplyCount: 0,
+            },
             onQuote: () => undefined,
             onCopyLink: () => undefined,
             onOpenThread: () => undefined,
@@ -1028,8 +1066,9 @@ test("Task 锚点显示编号和状态，并提供带编号无障碍名称的讨
     assert.match(html, /In progress/);
     assert.match(
         html,
-        /<button[^>]*aria-label="Open task discussion for Task #7"[^>]*>Open task discussion<\/button>/,
+        /aria-label="Open discussion for Task #7; unread replies: 0"/,
     );
+    assert.match(html, /aria-hidden="true">0<\/span>/);
 });
 
 test("任务创建事件播报跳过初始历史、只播报新事件一次", () => {

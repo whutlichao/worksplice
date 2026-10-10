@@ -7,7 +7,7 @@ import {
   resolveDataDir,
   type DataPaths,
 } from "./dirs.ts";
-import { runMigrations, SCHEMA_VERSION } from "./schema.ts";
+import { OWNER_MEMBER_ID, runMigrations, SCHEMA_VERSION } from "./schema.ts";
 import { buildSearchSnippet, escapeLike, toFtsQuery } from "./types.ts";
 import type { Store } from "./store.ts";
 import type {
@@ -33,6 +33,7 @@ import type {
   SearchResult,
   TaskRow,
   TaskStatus,
+  TaskThreadReadRow,
 } from "./types.ts";
 
 // Ticket 03 Separate Data Layer：SQLiteAdapter 是 数据契约 `Store` 的一种实现
@@ -462,11 +463,20 @@ export class SQLiteAdapter implements Store {
       reopened: input.reopened ?? 0,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
-    this.db
-      .prepare(
-        "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      )
-      .run(row.id, row.message_id, row.number, row.status, row.owner_id, row.reopened, row.updated_at);
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(row.id, row.message_id, row.number, row.status, row.owner_id, row.reopened, row.updated_at);
+      this.db
+        .prepare(
+          `INSERT INTO task_thread_reads (task_id, baseline_seq, read_seq, updated_at)
+           SELECT ?, COALESCE(MAX(seq), 0), COALESCE(MAX(seq), 0), ?
+           FROM messages WHERE target_id = ? AND author_id != ?`,
+        )
+        .run(row.id, row.updated_at, row.message_id, OWNER_MEMBER_ID);
+    })();
     return row;
   }
 
@@ -541,6 +551,52 @@ export class SQLiteAdapter implements Store {
       .prepare("UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, updated_at = ? WHERE id = ?")
       .run(row.status, row.owner_id, row.reopened, row.updated_at, id);
     return row;
+  }
+
+  getTaskThreadRead(taskId: string): TaskThreadReadRow | undefined {
+    return this.db
+      .prepare("SELECT * FROM task_thread_reads WHERE task_id = ?")
+      .get(taskId) as TaskThreadReadRow | undefined;
+  }
+
+  /** Task 的已读游标只推进到响应中已呈现的最后一条非 Owner 回复。 */
+  advanceTaskThreadRead(
+    taskId: string,
+    throughSeq: number,
+    ownerId: string,
+  ): TaskThreadReadRow | undefined {
+    this.db
+      .prepare(
+        `UPDATE task_thread_reads
+         SET read_seq = MAX(
+           read_seq,
+           COALESCE((
+             SELECT MAX(messages.seq)
+             FROM messages
+             JOIN tasks ON tasks.message_id = messages.target_id
+             WHERE tasks.id = task_thread_reads.task_id
+               AND messages.author_id != ?
+               AND messages.seq <= ?
+           ), read_seq)
+         ), updated_at = ?
+         WHERE task_id = ?`,
+      )
+      .run(ownerId, throughSeq, new Date().toISOString(), taskId);
+    return this.getTaskThreadRead(taskId);
+  }
+
+  countUnreadTaskThreadReplies(taskId: string, ownerId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n
+         FROM messages
+         JOIN tasks ON tasks.message_id = messages.target_id
+         JOIN task_thread_reads ON task_thread_reads.task_id = tasks.id
+         WHERE tasks.id = ? AND messages.author_id != ?
+           AND messages.seq > task_thread_reads.read_seq`,
+      )
+      .get(taskId, ownerId) as { n: number };
+    return row.n;
   }
 
   insertReminder(input: {

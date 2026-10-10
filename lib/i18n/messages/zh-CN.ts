@@ -591,7 +591,8 @@ export const zhCNLocale: LocalePlugin = {
     "tasks.anchorNumber": "任务 #{number}",
     "tasks.anchorGroup": "任务 #{number}",
     "tasks.openDiscussion": "打开任务讨论",
-    "tasks.openDiscussionLabel": "打开任务 #{number} 的讨论",
+    "tasks.openDiscussionLabel":
+      "打开任务 #{number} 的讨论，未读回复 {unreadCount} 条",
     "tasks.converted": "已转为任务 #{number}",
     "tasks.alreadyTask": "这条消息已经是任务",
     "tasks.denied": "你没有权限执行此操作",

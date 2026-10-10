@@ -30,6 +30,7 @@ import type {
   SearchResult,
   TaskRow,
   TaskStatus,
+  TaskThreadReadRow,
 } from "./types.ts";
 
 export interface Store {
@@ -145,6 +146,10 @@ export interface Store {
     input: { status?: TaskStatus; ownerId?: string | null; reopened?: number; updatedAt?: string },
   ): TaskRow | undefined;
   listTasksForAgent(agentId: string): TaskRow[];
+  getTaskThreadRead(taskId: string): TaskThreadReadRow | undefined;
+  /** 只推进至该 seq 之前最近的非 Owner 回复；Owner 回复不能推进 Task 游标。 */
+  advanceTaskThreadRead(taskId: string, throughSeq: number, ownerId: string): TaskThreadReadRow | undefined;
+  countUnreadTaskThreadReplies(taskId: string, ownerId: string): number;
 
   // -- reminders ------------------------------------------------------------
   insertReminder(input: {
