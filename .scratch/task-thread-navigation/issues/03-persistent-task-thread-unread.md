@@ -44,3 +44,7 @@ Type: task
 ### Review
 - Standards：`dual-review.standards.md` 未发现文档标准违规；指出的重复 maxSeq fallback 已收敛为 `ThreadPanel.threadMaxSeq`。
 - Spec：`dual-review.spec.md` 确认 D4/D7/D9 与 Ticket 03 scope；指出 D8 行为回归测试不足。已新增可执行的 `markVisibleTaskThreadRead` 门控测试，覆盖前台序号推进、隐藏/加载/切换/非 Task 不推进；结合真实浏览器验收覆盖关闭与切走后的回复行为。
+
+### 交付
+- Commit：`e03ae6e` — `feat(tasks): persist per-thread unread state`
+- PR：[#138](https://github.com/whutlichao/worksplice/pull/138)
