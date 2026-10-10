@@ -77,7 +77,7 @@ const REPLY = {
     target_id: "m1",
     seq: 4,
     author_id: "agent-1",
-    content: "thread reply has `inline-note` for one point.\n\n线程回复也包含第二段中文内容。\n\n```ts\nconst threadReadable = true;\n```",
+    content: 'thread reply has `inline-note` for one point.\n\n线程回复也包含第二段中文内容。\n\n```ts\nconst threadReadable = true;\n```',
     created_at: "2026-08-03T08:00:01.000Z",
     author: AGENT,
 };

@@ -160,9 +160,9 @@ test("频道面 class 块逐字搬自上游 app.css（形态来源唯一）", ()
         ".msg-tag",
         ".msg-time",
         ".msg-text",
-        ".msg-text > .markdown-body",
-        ".msg-text p",
-        ".msg-text p:last-child",
+        '.msg-text > .markdown-body',
+        '.msg-text p',
+        '.msg-text p:last-child',
         ".msg-tools",
         ".task-chip",
         ".reactions",
@@ -189,23 +189,26 @@ test("频道面 class 块逐字搬自上游 app.css（形态来源唯一）", ()
     }
 });
 
-test("message prose uses the approved channel and thread reading scales", () => {
-    const prose = blockBody(globalsCss, ".msg-text > .markdown-body");
-    const channelParagraphs = blockBody(globalsCss, ".msg-text p");
-    const threadRow = blockBody(globalsCss, ".ws-right .msg");
+test('message prose uses the approved channel and thread reading scales', () => {
+    const prose = blockBody(globalsCss, '.msg-text > .markdown-body');
+    const channelParagraphs = blockBody(globalsCss, '.msg-text p');
+    const threadRow = blockBody(globalsCss, '.ws-right .msg');
     const threadProse = blockBody(
         globalsCss,
-        ".ws-right .msg-text > .markdown-body",
+        '.ws-right .msg-text > .markdown-body',
     );
     const threadParagraphs = blockBody(
         globalsCss,
-        ".ws-right .msg-text p:not(:last-child)",
+        '.ws-right .msg-text p:not(:last-child)',
     );
-    const author = blockBody(globalsCss, ".msg-author");
-    const time = blockBody(globalsCss, ".msg-time");
-    const inlineCode = blockBody(globalsCss, ".msg-text code");
+    const author = blockBody(globalsCss, '.msg-author');
+    const time = blockBody(globalsCss, '.msg-time');
+    const inlineCode = blockBody(globalsCss, '.msg-text code');
 
-    assert.match(blockBody(globalsCss, ".msg"), /padding:\s*var\(--sp-5\)/);
+    assert.match(
+        blockBody(globalsCss, '.msg'),
+        /padding:\s*var\(--sp-5\)\s+var\(--sp-4\)/,
+    );
     assert.match(author, /font-size:\s*14px/);
     assert.match(time, /font-family:\s*var\(--mono\)/);
     assert.match(time, /font-size:\s*var\(--fs-mono-xs\)/);
@@ -214,6 +217,7 @@ test("message prose uses the approved channel and thread reading scales", () => 
     assert.match(prose, /font-size:\s*14px/);
     assert.match(prose, /line-height:\s*1\.65/);
     assert.match(channelParagraphs, /margin:\s*0 0 var\(--sp-4\)/);
+    assert.match(threadRow, /padding-inline:\s*var\(--sp-7\)/);
     assert.match(threadRow, /padding-block:\s*var\(--sp-7\)/);
     assert.match(threadProse, /line-height:\s*1\.7/);
     assert.match(threadParagraphs, /margin-bottom:\s*var\(--sp-5\)/);

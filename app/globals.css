@@ -1391,7 +1391,7 @@ span.linenumber {
   white-space: nowrap;
   border: 0;
 }
-.msg { display: flex; gap: 11px; padding: var(--sp-5); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
+.msg { display: flex; gap: 11px; padding: var(--sp-5) var(--sp-4); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
 .msg:hover { background: var(--fg-soft); }
 .msg:hover .msg-tools, .msg:focus-within .msg-tools { opacity: 1; }
 .msg-body { flex: 1; min-width: 0; }

@@ -180,7 +180,7 @@ code, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .day-sep { display: flex; align-items: center; gap: var(--sp-5); margin: var(--sp-8) 0 var(--sp-7); }
 .day-sep::before, .day-sep::after { content: ""; height: 1px; flex: 1; background: var(--border); }
 .day-sep span { font-family: var(--mono); font-size: 10px; letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--faint); }
-.msg { display: flex; gap: 11px; padding: var(--sp-5); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
+.msg { display: flex; gap: 11px; padding: var(--sp-5) var(--sp-4); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
 .msg:hover { background: color-mix(in oklch, var(--fg) 3.5%, transparent); }
 .msg:hover .msg-tools, .msg:focus-within .msg-tools { opacity: 1; }
 .msg-body { flex: 1; min-width: 0; }

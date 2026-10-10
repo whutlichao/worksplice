@@ -69,15 +69,15 @@ test("MessageRow renders author, seq, content and the three §3.2 actions", () =
     assert.doesNotMatch(html, /Set a reminder on this message/);
 });
 
-test("MessageRow preserves readable long-form Markdown and visible message metadata", () => {
+test('MessageRow preserves readable long-form Markdown and visible message metadata', () => {
     const message = {
         ...MESSAGE,
         seq: 43,
         content: [
-            "Latin readers can follow this longer paragraph with `inline-code` in context.",
-            "这段中文正文与前面的拉丁段落保持独立，仍然可以完整阅读。",
-            "```ts\nconst readable = true;\n```",
-        ].join("\n\n"),
+            'Latin readers can follow this longer paragraph with `inline-code` in context.',
+            '这段中文正文与前面的拉丁段落保持独立，仍然可以完整阅读。',
+            '```ts\nconst readable = true;\n```',
+        ].join('\n\n'),
     };
     const html = renderI18n(
         React.createElement(MessageRow, {
@@ -92,7 +92,7 @@ test("MessageRow preserves readable long-form Markdown and visible message metad
 
     assert.match(html, /<span class="msg-author(?: is-agent)?">Owner<\/span>/);
     assert.ok(sequence);
-    assert.ok(html.indexOf("Owner") < html.indexOf("#43"));
+    assert.ok(html.indexOf('Owner') < html.indexOf('#43'));
     assert.match(html, /#43<\/span><span class="msg-time mono">[^<]+<\/span>/);
     assert.match(
         html,
@@ -102,7 +102,7 @@ test("MessageRow preserves readable long-form Markdown and visible message metad
         html,
         /<p>这段中文正文与前面的拉丁段落保持独立，仍然可以完整阅读。<\/p>/,
     );
-    assert.match(html.replace(/<[^>]*>/g, ""), /const readable = true;/);
+    assert.match(html.replace(/<[^>]*>/g, ''), /const readable = true;/);
     assert.match(
         html,
         /font-size:var\(--fs-sm\);line-height:1\.62/,
