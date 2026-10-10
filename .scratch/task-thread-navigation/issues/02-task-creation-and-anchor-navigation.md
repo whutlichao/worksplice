@@ -42,5 +42,5 @@ Type: task
 
 ### Delivery
 
-- Commit: 待创建
-- PR: 待创建
+- Commit: `87def04` (`feat(tasks): add creation events and anchor navigation`)
+- PR: https://github.com/whutlichao/worksplice/pull/137
