@@ -1253,15 +1253,15 @@ span.linenumber {
 .filter-chip.is-on { border-color: var(--selected-graphic); color: var(--selected-deep); background: var(--selected-soft); }
 
 .board { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-6) var(--sp-7) var(--sp-10); }
-.board-cols { display: flex; gap: var(--sp-5); align-items: flex-start; min-width: min-content; }
-.col { width: var(--board-col-w); flex: 0 0 var(--board-col-w); background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg); display: flex; flex-direction: column; max-height: calc(100dvh - 168px); }
+.board-cols { display: flex; gap: var(--sp-5); align-items: stretch; min-width: min-content; height: 100%; }
+.col { width: var(--board-col-w); flex: 0 0 var(--board-col-w); background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg); display: flex; flex-direction: column; min-height: 0; }
 .col-head { display: flex; align-items: center; gap: var(--sp-4); padding: 10px var(--sp-5) var(--sp-4); }
 .col-head .st-dot { width: 8px; height: 8px; border-radius: var(--r-pill); }
 .col-head b { font-size: 12.5px; font-weight: var(--fw-bold); }
 .col-head .col-count { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0 6px; }
 .col-head .col-add { margin-left: auto; color: var(--faint); width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; }
 .col-head .col-add:hover { background: var(--surface); color: var(--fg); }
-.col-body { padding: 2px var(--sp-4) 10px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; min-height: 44px; }
+.col-body { flex: 1; padding: 2px var(--sp-4) 10px; display: flex; flex-direction: column; gap: 7px; overflow-y: auto; min-height: 44px; }
 .col.drag-over { border-color: var(--accent-graphic); background: var(--accent-soft); }
 .col.invalid-over { border-color: var(--error); }
 .card.dragging { opacity: .4; cursor: grabbing; }
@@ -1272,6 +1272,37 @@ span.linenumber {
 .card-owner { margin-left: auto; display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
 .card-owner.unassigned { font-style: italic; color: var(--faint); }
 .drop-hint { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 9px; text-align: center; font-size: 11px; color: var(--faint); }
+
+/* ─── task board · 本仓扩展层（票 task-view-scroll）───────────────────────────
+   上面那批逐字搬运的规则体由上游 app.css 定义（改动要两边同步）；本段只叠**本仓
+   视图形态的增量选择器**，不复制同名规则：两个视图的滚动归属不同——
+
+   · board 视图：页面不滚、列内滚。列高跟容器可用高度走（`.board-cols` stretch +
+     `height: 100%` + `.col` 去视口魔数 + `.col-body` 吃满列高），`.board` 只保留横向
+     滚动（5 列窄屏仍要横着走），纵向滚动退场，列底框离 `.board` 底边还有一个
+     `--sp-10` 的 padding，看得全。
+   · list 视图：页面滚、工具条吸顶。`.board-wrap` 在此退回 `overflow: visible`——否则它
+     自己是最近的 scrollport 而永不滚动，`position: sticky` 的工具条就钉不住（吸顶的
+     滚动容器必须是 main）。吸顶形态与 `.tt-summary` 同形，工具条本体的不透明底 +
+     下边框负责盖住滚上来的内容。
+   ──────────────────────────────────────────────────────────────────────────── */
+.board-wrap.is-list { overflow: visible; }
+.board-wrap.is-list .board-toolbar { position: sticky; top: 0; z-index: 2; }
+.board-wrap.is-board { height: 100%; }
+.board.is-board { overflow-x: auto; overflow-y: hidden; }
+.board.is-list { padding-bottom: var(--sp-12); }
+
+/* list 视图的状态分组（可折叠）：分组头 = 状态徽标 + 计数（与看板列头同一套语汇），
+   组体在折叠时留在 DOM 里并置 hidden——aria-controls 指向的元素始终存在，读屏器与
+   样式都不必处理「目标消失」（`hidden` 本身由 reset 的 `[hidden] { display: none !important }` 收掉）。
+   折叠态由 TaskViews 持有，切 List|Board 不丢折叠态。 */
+.task-group { margin-bottom: var(--sp-8); }
+.task-group-head { display: flex; align-items: center; gap: var(--sp-4); width: 100%; padding: 0; margin-bottom: var(--sp-4); text-align: left; }
+.task-group-caret { flex: 0 0 auto; color: var(--faint); }
+.task-group-head:hover .task-group-caret { color: var(--fg); }
+.task-group-count { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); }
+.task-group-rule { flex: 1; border-top: 1px solid var(--border); }
+.task-group-body { display: flex; flex-direction: column; gap: var(--sp-4); }
 
 /* ==========================================================================
    频道面 class 块（票 05，spec D7 组件表第 3 行）——逐字搬自 worksplice-design-system/

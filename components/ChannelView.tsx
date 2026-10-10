@@ -15,6 +15,7 @@ import {
   BellOff,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   CircleSlash,
   CornerDownRight,
@@ -1284,16 +1285,21 @@ export function TaskCard({
 }
 
 /** 任务列表（§3.7 任务视图）：按状态分组纵向堆叠（原任务板视图，ADR-0002 后更名）。 */
-function TaskList({
+export function TaskList({
   tasks,
   currentMemberId,
   busy,
+  folded,
+  onToggleGroup,
   onAction,
   onOpenThread,
 }: {
   tasks: ChannelTask[];
   currentMemberId: string;
   busy: boolean;
+  /** 折叠中的状态集合（由 TaskViews 持有：切 List|Board 不丢折叠态）。默认全展开。 */
+  folded: ReadonlySet<TaskStatus>;
+  onToggleGroup: (status: TaskStatus) => void;
   onAction: (
     task: ChannelTask,
     action: "claim" | "updateStatus",
@@ -1308,31 +1314,37 @@ function TaskList({
         tasks.some((task) => task.status === status),
       ).map((status) => {
         const group = tasks.filter((task) => task.status === status);
+        const expanded = !folded.has(status);
+        const statusLabel = t(`task.status.${status}`);
+        // 分组头的无障碍名/悬停提示走 i18n，并带上计数——折叠态下计数仍要读得出来。
+        const groupLabel = t(expanded ? "tasks.collapseGroup" : "tasks.expandGroup", {
+          status: statusLabel,
+          count: group.length,
+        });
+        const bodyId = `task-group-${status}`;
         return (
-          <section key={status} style={{ marginBottom: 18 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 8,
-              }}
+          <section key={status} className="task-group">
+            <button
+              type="button"
+              className="task-group-head"
+              aria-expanded={expanded}
+              aria-controls={bodyId}
+              title={groupLabel}
+              aria-label={groupLabel}
+              onClick={() => onToggleGroup(status)}
             >
-              <span style={taskBadgeStyle(status)}>
-                {t(`task.status.${status}`)}
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 11,
-                  color: "var(--faint)",
-                }}
-              >
-                {group.length}
-              </span>
-              <span style={{ flex: 1, borderTop: `1px solid var(--border)` }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {expanded ? (
+                <ChevronDown className="task-group-caret" size={13} />
+              ) : (
+                <ChevronRight className="task-group-caret" size={13} />
+              )}
+              <span style={taskBadgeStyle(status)}>{statusLabel}</span>
+              <span className="task-group-count">{group.length}</span>
+              <span className="task-group-rule" />
+            </button>
+            {/* 折叠时组体留在 DOM 里并置 hidden：`aria-controls` 指向的元素始终存在，
+                展开/收起只翻这一个属性（计数与徽标在分组头上，不随组体一起消失）。 */}
+            <div className="task-group-body" id={bodyId} hidden={!expanded}>
               {group.map((task) => (
                 <TaskCard
                   key={task.id}
@@ -1512,6 +1524,21 @@ export function TaskViews({
   const [view, setView] = useState<"list" | "board">("list");
   const [formOpen, setFormOpen] = useState(false);
   const [content, setContent] = useState("");
+  // list 视图各状态分组的折叠集合（本票不持久化：折叠是会话内的阅读态，不是偏好，
+  // 不与 TASK_VIEW_KEY 分叉出第二份 localStorage 存储）。放在 TaskViews 而非 TaskList，
+  // 是为了切 List|Board 时折叠态不被卸载丢掉。
+  const [folded, setFolded] = useState<ReadonlySet<TaskStatus>>(
+    () => new Set<TaskStatus>(),
+  );
+
+  const toggleGroup = (status: TaskStatus) => {
+    setFolded((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const stored = readTaskViewPref();
@@ -1537,10 +1564,11 @@ export function TaskViews({
 
   return (
     <div
-      className="board-wrap"
-      // 看板模式：板面撑满 main 剩余高度、在 `.board` 内滚动，横向滚动条钉在可视区域底部
-      // （否则滚动条随内容沉底，需要先滚到底才看得到）；列表模式保持内容高度，由 main 滚。
-      style={view === "board" ? { height: "100%" } : undefined}
+      className={`board-wrap is-${view}`}
+      // 两视图的滚动归属不同（形态全落 CSS 的 `.board-wrap.is-*` / `.board.is-*`）：
+      // 看板模式板面撑满 main 剩余高度、卡片按列在 `.col-body` 内滚，横向滚动条钉在可视
+      // 区域底部（否则滚动条随内容沉底，需要先滚到底才看得到）；列表模式保持内容高度、
+      // 由 main 滚，工具条吸顶。
     >
       {/* 创建途径 3：Tasks tab Create Task；右侧 List|Board 分段控件（ADR-0002） */}
       <div className="board-toolbar">
@@ -1629,7 +1657,7 @@ export function TaskViews({
         </div>
       )}
 
-      <div className="board">
+      <div className={`board is-${view}`}>
         {tasks.length === 0 ? (
           <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
             {t("tasks.emptyHint")}
@@ -1639,6 +1667,8 @@ export function TaskViews({
             tasks={tasks}
             currentMemberId={currentMemberId}
             busy={busy}
+            folded={folded}
+            onToggleGroup={toggleGroup}
             onAction={onAction}
             onOpenThread={onOpenThread}
           />

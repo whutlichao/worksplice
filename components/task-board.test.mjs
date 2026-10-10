@@ -67,6 +67,15 @@ function blockBody(css, selector) {
     return match[1];
 }
 
+/** 任务板 class 块（从「task board」段标到下一段 `/* ===` 块注释之前）——「这一段里不许有视口魔数」的判定面。 */
+function taskBoardCssBlock() {
+    const start = globalsCss.indexOf("/* ─── task board");
+    assert.notEqual(start, -1, "globals.css 应当有「task board」class 块段标");
+    const end = globalsCss.indexOf("/* ===", start + 1);
+    assert.ok(end > start, "任务板段应当有结束界标");
+    return globalsCss.slice(start, end);
+}
+
 function renderI18n(children) {
     return renderToStaticMarkup(
         React.createElement(I18nProvider, null, children),
@@ -125,7 +134,7 @@ function task(overrides = {}) {
 
 // ─── ① globals.css 的规则体（逐字搬运） ──────────────────────────────────────
 
-test("任务板骨架：.board-wrap 竖排不溢出；.board 独自滚动；列不拉伸、宽度取自 --board-col-w", () => {
+test("任务板骨架：.board-wrap 竖排不溢出；列不拉伸、宽度取自 --board-col-w", () => {
     const wrap = blockBody(globalsCss, ".board-wrap");
     assert.match(wrap, /flex:\s*1/);
     assert.match(wrap, /min-height:\s*0/);
@@ -147,7 +156,11 @@ test("任务板骨架：.board-wrap 竖排不溢出；.board 独自滚动；列�
     const cols = blockBody(globalsCss, ".board-cols");
     assert.match(cols, /display:\s*flex/);
     assert.match(cols, /gap:\s*var\(--sp-5\)/);
-    assert.match(cols, /align-items:\s*flex-start/);
+    // 票 task-view-scroll：列等高铺满（align-items 由 flex-start 改 stretch），
+    // 高度跟容器可用高度走而不是跟视口走——原值 flex-start + `.col` 的
+    // `calc(100dvh - 168px)` 让列永远比可视区高一点，页面与列内同时出滚动条。
+    assert.match(cols, /align-items:\s*stretch/);
+    assert.match(cols, /height:\s*100%/);
     assert.match(cols, /min-width:\s*min-content/);
 
     // 列定宽 236px = --board-col-w；flex: 0 0 ⇒ 不随容器拉伸。
@@ -168,6 +181,75 @@ test("任务板骨架：.board-wrap 竖排不溢出；.board 独自滚动；列�
     assert.match(body, /flex-direction:\s*column/);
     assert.match(body, /overflow-y:\s*auto/);
     assert.match(body, /min-height:\s*44px/);
+    // 票 task-view-scroll：列体吃满列高（`flex: 1`）+ `overflow-y: auto` 才是「列内滚、
+    // 页面不滚」。少了 flex，列体只按内容高，超出部分会顶穿列框而不是在列内滚。
+    assert.match(body, /flex:\s*1/);
+});
+
+test("board 视图滚动归属：列等高铺满、视口魔数退场、.board 纵向不滚（只留横向）", () => {
+    // 列高跟容器可用高度走：`max-height: calc(100dvh - 168px)` 这类视口魔数退场——
+    // 它与工具条/tabs/header/安全区 inset 无关，任一变化就偏，于是「列内滚 + 页面滚」两套滚动条同时在场。
+    const col = blockBody(globalsCss, ".col");
+    assert.doesNotMatch(col, /max-height/);
+    assert.doesNotMatch(col, /100dvh/);
+    assert.match(col, /min-height:\s*0/);
+
+    const cols = blockBody(globalsCss, ".board-cols");
+    assert.doesNotMatch(cols, /100dvh/);
+
+    // 整段任务板 class 块里不得再有视口魔数（机械判定，不靠逐条枚举）。
+    assert.doesNotMatch(taskBoardCssBlock(), /100dvh/);
+
+    // board 视图：页面级纵向滚动退场（`is-board` 修饰类由 TaskViews 按 view 打），
+    // 横向滚动保留——5 列窄屏时仍要能横着走。
+    const boardIsBoard = blockBody(globalsCss, ".board.is-board");
+    assert.match(boardIsBoard, /overflow-x:\s*auto/);
+    assert.match(boardIsBoard, /overflow-y:\s*hidden/);
+});
+
+test("list 视图：工具条吸顶 + 底部留白（.board-wrap 不是滚动容器，main 才是）", () => {
+    // 吸顶形态与 `.tt-summary` 同形（position: sticky + top: 0 + z-index）。
+    const sticky = blockBody(globalsCss, ".board-wrap.is-list .board-toolbar");
+    assert.match(sticky, /position:\s*sticky/);
+    assert.match(sticky, /top:\s*0/);
+    assert.match(sticky, /z-index:\s*\d+/);
+    // 能盖住滚上来的内容：工具条本体自带不透明底 + 下边框（上游逐字那条，不动它）。
+    const toolbar = blockBody(globalsCss, ".board-toolbar");
+    assert.match(toolbar, /background:\s*var\(--bg\)/);
+    assert.match(toolbar, /border-bottom:\s*1px solid var\(--border\)/);
+    // sticky 的滚动容器必须是 main：`.board-wrap` 自带 overflow: hidden 时它是最近的
+    // scrollport 而永不滚动 ⇒ 工具条钉不住。列表视图下把它放回 visible。
+    assert.match(
+        blockBody(globalsCss, ".board-wrap.is-list"),
+        /overflow:\s*visible/,
+    );
+    // 列表内容末尾的呼吸位（末张卡片不再贴视口底边）。
+    assert.match(
+        blockBody(globalsCss, ".board.is-list"),
+        /padding-bottom:\s*var\(--sp-12\)/,
+    );
+});
+
+test("list 分组 class：可点的分组头 + `hidden` 折叠链（reset 的 [hidden] 收掉组体）", () => {
+    assert.match(blockBody(globalsCss, ".task-group"), /margin-bottom/);
+    const head = blockBody(globalsCss, ".task-group-head");
+    assert.match(head, /display:\s*flex/);
+    assert.match(head, /align-items:\s*center/);
+    assert.match(head, /width:\s*100%/);
+    // 按钮默认居中文字、自带 UA 内边距（Chrome 1px 6px）——分组头要左对齐且与卡片同一条左基线。
+    assert.match(head, /text-align:\s*left/);
+    assert.match(head, /padding:\s*0/);
+    assert.match(blockBody(globalsCss, ".task-group-caret"), /flex:\s*0 0 auto/);
+    assert.match(
+        blockBody(globalsCss, ".task-group-count"),
+        /font-family:\s*var\(--mono\)/,
+    );
+    // 折叠靠 `hidden` 属性：本仓 reset 的 `[hidden] { display: none !important }` 是
+    // 整条折叠链的承重件（`.task-group-body` 自己是 `display: flex`），所以这条 reset
+    // 在测试里显式登记——它一没，折叠就静默失效（组体照旧展开，样式也看不出来）。
+    assert.match(globalsCss, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+    // 承重件在场 + 组体不自带第二份 display 覆盖 ⇒ 不需要为它再写一条 [hidden] 规则。
+    assert.doesNotMatch(globalsCss, /\.task-group-body\[hidden\]/);
 });
 
 test("任务板拖拽态：.drag-over 走 --accent-graphic、.invalid-over 走 --error、拖拽中 opacity .4", () => {
@@ -469,7 +551,8 @@ test("TaskViews 工具条：.board-toolbar + .seg 分段控件（选中走 is-ac
         }),
     );
 
-    assert.match(html, /class="board-wrap"/);
+    // 票 task-view-scroll：滚动归属靠视图修饰类表达（首帧恒为 list）。
+    assert.match(html, /class="board-wrap is-list"/);
     assert.match(html, /class="board-toolbar"/);
     assert.match(html, /class="sep"/);
     assert.match(html, /class="seg"/);
@@ -477,7 +560,7 @@ test("TaskViews 工具条：.board-toolbar + .seg 分段控件（选中走 is-ac
     // 首帧恒为列表视图（localStorage 偏好由 useEffect 应用）⇒ 列表键 is-active。
     assert.match(html, /class="is-active"/);
     assert.match(html, /class="btn btn-sm"/);
-    assert.match(html, /class="board"/);
+    assert.match(html, /class="board is-list"/);
 
     // 旧方向的硬偏移阴影与 rgba 字面量在任务板段退场（ED-4 / ED-10）。
     assert.doesNotMatch(html, /rgba\(/);
@@ -491,4 +574,133 @@ test("落点裁决仍在视图侧：drag-over / invalid-over 由 reachable 推�
     assert.match(channelViewSource, /drag-over/);
     assert.match(channelViewSource, /invalid-over/);
     assert.match(channelViewSource, /dragId === task\.id/);
+});
+
+// ─── ③ 列表视图的分组折叠（票 task-view-scroll） ─────────────────────────────
+
+/** TaskList 的调用 props：折叠集合默认空（默认全展开）。 */
+function taskListProps(overrides = {}) {
+    return {
+        tasks: [
+            task(),
+            task({
+                id: "task-2",
+                number: 2,
+                status: "in_progress",
+                owner_id: "agent-1",
+                owner: AGENT,
+                reachable: [],
+            }),
+        ],
+        currentMemberId: "owner",
+        busy: false,
+        folded: new Set(),
+        onToggleGroup: () => undefined,
+        onAction: () => undefined,
+        onOpenThread: () => undefined,
+        ...overrides,
+    };
+}
+
+test("TaskList 分组头：默认展开（aria-expanded=true）+ 计数；折叠后 aria-expanded=false 且徽标/计数仍在", async () => {
+    const mod = await jiti.import("./ChannelView.tsx");
+    assert.equal(typeof mod.TaskList, "function");
+
+    const expanded = renderI18n(
+        React.createElement(mod.TaskList, taskListProps()),
+    );
+    // 两个状态分组 ⇒ 两个可点的分组头 + 两个组体
+    assert.equal(expanded.split('class="task-group"').length - 1, 2);
+    assert.equal(expanded.split('class="task-group-head"').length - 1, 2);
+    assert.equal(expanded.split('aria-expanded="true"').length - 1, 2);
+    assert.doesNotMatch(expanded, /aria-expanded="false"/);
+    // 默认展开 ⇒ 组体不带 hidden
+    assert.doesNotMatch(expanded, /class="task-group-body"[^>]*hidden/);
+    // 计数渲染出来（两个分组各 1 个任务）
+    assert.equal(expanded.split('class="task-group-count">1<').length - 1, 2);
+    // 无障碍名走 i18n（文案随展开态切换）
+    assert.match(expanded, /aria-label="Collapse the Pool group \(1\)"/);
+
+    const collapsed = renderI18n(
+        React.createElement(
+            mod.TaskList,
+            taskListProps({ folded: new Set(["todo"]) }),
+        ),
+    );
+    // 只有被折叠的那组翻面
+    assert.match(collapsed, /aria-expanded="false"/);
+    assert.equal(collapsed.split('aria-expanded="true"').length - 1, 1);
+    assert.equal(collapsed.split('aria-expanded="false"').length - 1, 1);
+    // 折叠态：状态徽标与计数仍在（折起来不丢计数）
+    assert.match(collapsed, /class="task-group-count">1</);
+    assert.match(collapsed, /aria-label="Expand the Pool group \(1\)"/);
+    // 组体在 DOM 里但收起（aria-controls 指向的元素始终存在）
+    assert.match(
+        collapsed,
+        /<div class="task-group-body" id="task-group-todo" hidden="">/,
+    );
+    assert.match(collapsed, /<div class="task-group-body" id="task-group-in_progress">/);
+    // 折叠用 lucide 图标，不引入装饰字符
+    assert.doesNotMatch(expanded, /[▼▶]/);
+    assert.doesNotMatch(collapsed, /[▼▶]/);
+});
+
+test("TaskViews：折叠是交互态（setFolded 派生），TaskList 是这层交互的纯视图", async () => {
+    const mod = await jiti.import("./ChannelView.tsx");
+    const html = renderI18n(
+        React.createElement(mod.TaskViews, {
+            tasks: [task()],
+            currentMemberId: "owner",
+            busy: false,
+            disabled: false,
+            error: null,
+            notice: null,
+            onCreateTask: () => undefined,
+            onAction: () => undefined,
+            onOpenThread: () => undefined,
+            onNotice: () => undefined,
+        }),
+    );
+    // 首帧（服务端与客户端一致）全展开 ⇒ 分组头带 aria-expanded=true
+    assert.match(html, /class="task-group-head"/);
+    assert.match(html, /aria-expanded="true"/);
+
+    // 折叠态由 TaskViews 的 useState 持有（切视图不丢折叠），TaskList 只渲染给定集合。
+    // 静态渲染断不出「点一下」——下面三条是源码级证据（票面认可的补充形态），
+    // 与上面的渲染证据合并读。
+    const boardSection = boardSectionSource();
+    assert.match(boardSection, /setFolded\(/);
+    assert.match(
+        boardSection,
+        /next\.has\(status\)[\s\S]{0,120}next\.delete\(status\)[\s\S]{0,120}next\.add\(status\)/,
+    );
+    assert.match(boardSection, /folded=\{folded\}/);
+    assert.match(boardSection, /onToggleGroup=\{toggleGroup\}/);
+    // 折叠不落 localStorage：面板偏好的写入口只有 TASK_VIEW_KEY 一个
+    // （票面约束 B.2：不与它分叉出第二份偏好存储）。
+    const prefWrites = [...boardSection.matchAll(/localStorage\.setItem\((\w+)/g)].map(
+        (match) => match[1],
+    );
+    assert.deepEqual(prefWrites, ["TASK_VIEW_KEY"]);
+});
+
+test("分组折叠的无障碍名两套语言包成对存在（docs/i18n.md 分层规则）", async () => {
+    const { enLocale } = await import("../lib/i18n/messages/en.ts");
+    const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
+    assert.equal(
+        enLocale.messages["tasks.collapseGroup"],
+        "Collapse the {status} group ({count})",
+    );
+    assert.equal(
+        zhCNLocale.messages["tasks.collapseGroup"],
+        "折叠 {status} 分组（{count} 个任务）",
+    );
+    assert.equal(
+        enLocale.messages["tasks.expandGroup"],
+        "Expand the {status} group ({count})",
+    );
+    assert.equal(
+        zhCNLocale.messages["tasks.expandGroup"],
+        "展开 {status} 分组（{count} 个任务）",
+    );
 });

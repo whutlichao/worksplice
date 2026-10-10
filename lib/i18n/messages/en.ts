@@ -616,6 +616,8 @@ export const enLocale: LocalePlugin = {
     "tasks.view": "Task view",
     "tasks.viewList": "List",
     "tasks.viewBoard": "Board",
+    "tasks.collapseGroup": "Collapse the {status} group ({count})",
+    "tasks.expandGroup": "Expand the {status} group ({count})",
     "tasks.dropHint": "Drag a task here",
     "tasks.dropInvalid":
       "Cannot move from {from} to {to} — not a legal transition",
