@@ -1,7 +1,7 @@
 # 02: Improve channel and thread message readability
 
 Type: task
-Status: ready-for-agent
+Status: claimed
 
 **What to build:** Make ordinary channel messages and thread replies easier to read through the approved message-local typography, line length, and vertical rhythm. Preserve message identity, code formatting, existing interactions, global layout widths, and all excluded reading surfaces.
 

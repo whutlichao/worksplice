@@ -1044,7 +1044,7 @@ export const MessageRow = memo(function MessageRow({
           <span className={isAgent ? "msg-author is-agent" : "msg-author"}>
             {message.author?.name ?? t("message.unknownAuthor")}
           </span>
-          <span className="msg-time mono" style={{ color: "var(--muted)" }}>
+          <span className="msg-time mono">
             #{message.seq}
           </span>
           <span className="msg-time mono">
