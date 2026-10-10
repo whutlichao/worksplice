@@ -608,7 +608,8 @@ export const enLocale: LocalePlugin = {
     "tasks.anchorNumber": "Task #{number}",
     "tasks.anchorGroup": "Task #{number}",
     "tasks.openDiscussion": "Open task discussion",
-    "tasks.openDiscussionLabel": "Open task discussion for Task #{number}",
+    "tasks.openDiscussionLabel":
+      "Open discussion for Task #{number}; unread replies: {unreadCount}",
     "tasks.converted": "Converted to task #{number}",
     "tasks.alreadyTask": "This message is already a task",
     "tasks.denied": "You are not allowed to do this",

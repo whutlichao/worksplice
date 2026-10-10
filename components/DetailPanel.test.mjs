@@ -10,7 +10,7 @@ const jiti = createJiti(import.meta.url, {
     tsconfigPaths: true,
 });
 const { DetailPanel } = await jiti.import("./DetailPanel.tsx");
-const { ThreadPanel } = await jiti.import("./ThreadPanel.tsx");
+const { ThreadPanel, markVisibleTaskThreadRead } = await jiti.import("./ThreadPanel.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 function renderWith(component) {
@@ -164,6 +164,48 @@ test("ThreadPanel 轮询纪律：setInterval + THREAD_POLL_MS + document.hidden 
     assert.match(source, /mergeIncomingMessages/);
     assert.match(source, /document\.hidden/);
     assert.match(source, /clearInterval/);
+});
+
+test("Task thread 自动标读：逐次标记前台已呈现序号，隐藏、加载、切换及非 Task 不推进", async () => {
+    const requests = [];
+    const markRead = async (taskId, throughSeq) => {
+        requests.push({ taskId, throughSeq });
+    };
+    const visible = {
+        taskId: "task-1",
+        threadReady: true,
+        loading: false,
+        pageVisible: true,
+        documentHidden: false,
+        throughSeq: 4,
+    };
+
+    await markVisibleTaskThreadRead(visible, markRead);
+    await markVisibleTaskThreadRead({ ...visible, throughSeq: 5 }, markRead);
+    await markVisibleTaskThreadRead({ ...visible, pageVisible: false }, markRead);
+    await markVisibleTaskThreadRead({ ...visible, documentHidden: true }, markRead);
+    await markVisibleTaskThreadRead({ ...visible, loading: true }, markRead);
+    await markVisibleTaskThreadRead({ ...visible, threadReady: false }, markRead);
+    await markVisibleTaskThreadRead({ ...visible, taskId: undefined }, markRead);
+
+    assert.deepEqual(requests, [
+        { taskId: "task-1", throughSeq: 4 },
+        { taskId: "task-1", throughSeq: 5 },
+    ]);
+});
+
+test("ThreadPanel 将新序号接入自动标读门控，并在卸载时清理轮询", async () => {
+    const source = await readFile(
+        new URL("../components/ThreadPanel.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.match(source, /void markVisibleTaskThreadRead\(\{/);
+    assert.match(source, /throughSeq: latestThreadSeq/);
+    assert.match(
+        source,
+        /\[latestThreadSeq, loading, pageVisible, taskId, threadReady\]/,
+    );
+    assert.match(source, /clearInterval\(timer\)/);
 });
 
 test("ThreadPanel 轮询自愈：初始拉取失败后轮询补回锚点（!prev 分支采纳 body.anchor）", async () => {

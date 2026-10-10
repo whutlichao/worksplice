@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -54,6 +54,12 @@ const SCHEMA_STATEMENTS: string[] = [
     status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'in_review', 'done', 'closed')),
     owner_id TEXT REFERENCES members(id),
     reopened INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS task_thread_reads (
+    task_id TEXT PRIMARY KEY REFERENCES tasks(id),
+    baseline_seq INTEGER NOT NULL DEFAULT 0,
+    read_seq INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS reminders (
@@ -209,6 +215,7 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersDeletedColumn(db);
     migrateMembersModelColumns(db);
     migrateTasksReopenedColumn(db);
+    migrateTaskThreadReads(db);
     seed(db);
     cleanupEmptyDms(db);
     resumeDirectChannels(db);
@@ -262,6 +269,18 @@ function migrateTasksReopenedColumn(db: Database.Database): void {
   if (!columns.some((c) => c.name === "reopened")) {
     db.exec("ALTER TABLE tasks ADD COLUMN reopened INTEGER NOT NULL DEFAULT 0");
   }
+}
+
+/** v13: 既有 Task thread 的最新非 Owner 回复作为首个已读基线；后续开库不覆盖已推进游标。 */
+function migrateTaskThreadReads(db: Database.Database): void {
+  db.prepare(
+    `INSERT OR IGNORE INTO task_thread_reads (task_id, baseline_seq, read_seq, updated_at)
+     SELECT tasks.id, COALESCE(MAX(thread.seq), 0), COALESCE(MAX(thread.seq), 0), ?
+     FROM tasks
+     LEFT JOIN messages thread
+       ON thread.target_id = tasks.message_id AND thread.author_id != ?
+     GROUP BY tasks.id`,
+  ).run(new Date().toISOString(), OWNER_MEMBER_ID);
 }
 
 /**

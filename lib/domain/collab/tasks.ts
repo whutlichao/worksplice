@@ -38,6 +38,8 @@ export interface TaskView extends TaskRow {
   owner: MemberRow | null;
   /** §3.7 看板拖拽（ADR-0002）：以 actorId（默认人类 owner）从当前状态可发起的合法转移集合；todo 含 claim 边。 */
   reachable: TaskStatus[];
+  /** Task thread 中高于 Owner 已读游标的非 Owner 回复数。 */
+  unreadReplyCount: number;
 }
 
 export type TaskClaimResult =
@@ -190,6 +192,10 @@ function toTaskView(
     anchor: messageWithAuthor(anchor),
     owner: task.owner_id ? (getMember(task.owner_id) ?? null) : null,
     reachable: reachableStatuses(task, actorId),
+    unreadReplyCount: getDb().countUnreadTaskThreadReplies(
+      task.id,
+      CURRENT_MEMBER_ID,
+    ),
   };
 }
 
@@ -420,6 +426,38 @@ export function getTaskView(id: string): TaskView {
   if (!task) throw new Error("Task not found");
   const { anchor } = channelOfTask(task);
   return toTaskView(task, anchor);
+}
+
+export interface TaskThreadReadView {
+  baselineSeq: number;
+  readSeq: number;
+  unreadReplyCount: number;
+}
+
+/** 把单个 Task 的已读位置推进到已呈现序号之前最近的非 Owner 回复。 */
+export function markTaskThreadRead(input: {
+  taskId: string;
+  throughSeq: number;
+}): TaskThreadReadView {
+  if (!Number.isSafeInteger(input.throughSeq) || input.throughSeq < 0) {
+    throw new Error("throughSeq must be a non-negative integer");
+  }
+  const task = getDb().getTaskById(input.taskId);
+  if (!task) throw new Error("Task not found");
+  const position = getDb().advanceTaskThreadRead(
+    task.id,
+    input.throughSeq,
+    CURRENT_MEMBER_ID,
+  );
+  if (!position) throw new Error("Task thread read position not found");
+  return {
+    baselineSeq: position.baseline_seq,
+    readSeq: position.read_seq,
+    unreadReplyCount: getDb().countUnreadTaskThreadReplies(
+      task.id,
+      CURRENT_MEMBER_ID,
+    ),
+  };
 }
 
 /** 辅助：某 target（channel 或 thread 锚点）内的任务视图（agent-loop decide 语境复用）。 */

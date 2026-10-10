@@ -68,6 +68,14 @@ export interface TaskRow {
   updated_at: string;
 }
 
+/** Owner 按 Task 持久保存的讨论已读基线与游标。 */
+export interface TaskThreadReadRow {
+  task_id: string;
+  baseline_seq: number;
+  read_seq: number;
+  updated_at: string;
+}
+
 export interface ReminderRow {
   id: string;
   title: string;

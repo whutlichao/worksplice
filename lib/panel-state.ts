@@ -13,7 +13,7 @@
 export type PanelContent =
   | { kind: "agent"; id: string }
   | { kind: "human"; id: string }
-  | { kind: "thread"; id: string }
+  | { kind: "thread"; id: string; taskId?: string }
   | null;
 
 /** 成员入口 → 面板内容：人类与 agent 同走右栏（§3.2 mention / 成员面板共用）。 */

@@ -31,6 +31,8 @@ export interface ChannelTask {
   owner: MemberRow | null;
   /** §3.7/ADR-0002 看板拖拽：服务端按当前身份推导的合法转移落点（与状态机一致，客户端不镜像）。 */
   reachable: TaskStatus[];
+  /** Task thread 中高于 Owner 已读游标的非 Owner 回复数。 */
+  unreadReplyCount: number;
 }
 
 /** §3.2 mute 行（与 GET /api/channels/[id]/mute 返回形态同形）。 */
@@ -58,6 +60,30 @@ export async function markChannelRead(
   if (!res.ok) throw new Error(`POST read: ${res.status}`);
   const body = (await res.json().catch(() => ({}))) as { readSeq?: number };
   return body.readSeq ?? 0;
+}
+
+export interface TaskThreadReadReceipt {
+  baselineSeq: number;
+  readSeq: number;
+  unreadReplyCount: number;
+}
+
+/** 推进单个 Task thread 中已呈现的回复（纯函数：fetch 可注入，便于测试）。 */
+export async function postTaskThreadRead(
+  taskId: string,
+  throughSeq: number,
+  fetchFn: FetchFn = fetch,
+): Promise<TaskThreadReadReceipt> {
+  const res = await fetchFn(
+    `/api/tasks/${encodeURIComponent(taskId)}/read`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ throughSeq }),
+    },
+  );
+  if (!res.ok) throw new Error(`POST task read: ${res.status}`);
+  return (await res.json()) as TaskThreadReadReceipt;
 }
 
 /** 频道消息页（与 GET /api/channels/[id]/messages 返回形态同形）。 */
@@ -298,6 +324,26 @@ export async function loadTasksPage(
   if (!res.ok) throw new Error(`GET tasks: ${res.status}`);
   const body = (await res.json()) as { tasks?: ChannelTask[] };
   return body.tasks ?? [];
+}
+
+/** 任务线程回复不进入频道主序列；后台刷新只合并未读数，避免改写任务视图的其他状态。 */
+export function mergeTaskUnreadCounts(
+  current: ChannelTask[],
+  refreshed: ChannelTask[],
+): ChannelTask[] {
+  const counts = new Map(
+    refreshed.map((task) => [task.id, task.unreadReplyCount]),
+  );
+  let changed = false;
+  const merged = current.map((task) => {
+    const unreadReplyCount = counts.get(task.id);
+    if (unreadReplyCount === undefined || unreadReplyCount === task.unreadReplyCount) {
+      return task;
+    }
+    changed = true;
+    return { ...task, unreadReplyCount };
+  });
+  return changed ? merged : current;
 }
 
 /** 任务转移结果：updated 携带服务端回写的任务视图；held 携带并发摘要（§6.3）；
@@ -887,6 +933,17 @@ export function useChannelData(
     let cancelled = false;
     const timer = setInterval(() => {
       if (cancelled || document.hidden) return;
+      // Thread 回复不改变 Channel maxSeq；刷新 Task 未读数独立于主序列是否有新消息。
+      void loadTasksPage(cid)
+        .then((rows) => {
+          if (cancelled || channelIdRef.current !== cid) return;
+          setTasks((current) => {
+            const refreshed = mergeTaskUnreadCounts(current, rows);
+            if (refreshed !== current) tasksCacheRef.current.set(cid, refreshed);
+            return refreshed;
+          });
+        })
+        .catch(() => undefined);
       void loadPage(cid)
         .then((page) => {
           if (cancelled) return;

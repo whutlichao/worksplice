@@ -951,7 +951,7 @@ export const MessageRow = memo(function MessageRow({
   onOpenThread,
 }: {
   message: ChannelMessage;
-  task?: Pick<ChannelTask, "number" | "status">;
+  task?: Pick<ChannelTask, "id" | "number" | "status" | "unreadReplyCount">;
   isAnchor?: boolean;
   canConvertToTask?: boolean;
   /** §3.7 创建途径 4：动作栏「转为任务」键——只有频道调用点传 true（线程面不传 ⇒ 键根本不存在）。 */
@@ -968,7 +968,7 @@ export const MessageRow = memo(function MessageRow({
   }) => void;
   /** §09 已放弃 badge 点击：打开该 agent 的面板（轮次记录在可观测页）。 */
   onOpenMember?: (memberId: string) => void;
-  onReply?: (message: ChannelMessage) => void;
+  onReply?: (message: ChannelMessage, taskId?: string) => void;
   onQuote: (message: ChannelMessage) => void;
   onCopyLink: (message: ChannelMessage) => void;
   onConvertToTask?: (
@@ -978,7 +978,7 @@ export const MessageRow = memo(function MessageRow({
   onSetReminder?: (message: ChannelMessage) => void;
   onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
   onTogglePin?: (message: ChannelMessage) => void;
-  onOpenThread?: (message: ChannelMessage) => void;
+  onOpenThread?: (message: ChannelMessage, taskId?: string) => void;
 }) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -1002,7 +1002,10 @@ export const MessageRow = memo(function MessageRow({
   }, [reactOpen]);
   const items = [
     ...(onReply
-      ? [{ label: t("message.reply"), onClick: () => onReply(message) }]
+      ? [{
+          label: t("message.reply"),
+          onClick: () => onReply(message, task?.id),
+        }]
       : []),
     ...(canConvertToTask && onConvertToTask
       ? [
@@ -1052,7 +1055,7 @@ export const MessageRow = memo(function MessageRow({
               className="mono"
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenThread(message);
+                onOpenThread(message, task?.id);
               }}
               style={{
                 display: "inline-flex",
@@ -1135,16 +1138,24 @@ export const MessageRow = memo(function MessageRow({
               className="btn btn-sm ws-task-discussion-button"
               title={t("tasks.openDiscussionLabel", {
                 number: String(task.number),
+                unreadCount: String(task.unreadReplyCount),
               })}
               aria-label={t("tasks.openDiscussionLabel", {
                 number: String(task.number),
+                unreadCount: String(task.unreadReplyCount),
               })}
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenThread(message);
+                onOpenThread(message, task.id);
               }}
             >
               {t("tasks.openDiscussion")}
+              <span
+                className={task.unreadReplyCount > 0 ? "badge" : "badge soft"}
+                aria-hidden="true"
+              >
+                {task.unreadReplyCount}
+              </span>
             </button>
           </div>
         )}
@@ -1174,7 +1185,7 @@ export const MessageRow = memo(function MessageRow({
         >
           <MessageActions
             message={message}
-            onReply={onReply}
+            onReply={onReply ? () => onReply(message, task?.id) : undefined}
             onQuote={onQuote}
             onCopyLink={onCopyLink}
             onReminder={onSetReminder}
@@ -1336,7 +1347,7 @@ export function TaskCard({
     action: "claim" | "updateStatus",
     status?: TaskStatus,
   ) => void;
-  onOpenThread: (anchor: ChannelMessage) => void;
+  onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
   draggable?: boolean;
   /** 拖拽中（display-only）：形态 = `.card.dragging{opacity:.4}`，不参与落点裁决。 */
   dragging?: boolean;
@@ -1354,9 +1365,9 @@ export function TaskCard({
       // `.card` 自带 `cursor: grab`（上游形态）；List 视图的卡片不可拖（draggable 缺省 false），
       // 光标退回 pointer。形态仍全走 class，这里只纠一个指针暗示。
       style={draggable ? undefined : { cursor: "pointer" }}
-      onClick={() => onOpenThread(task.anchor)}
+      onClick={() => onOpenThread(task.anchor, task.id)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onOpenThread(task.anchor);
+        if (e.key === "Enter") onOpenThread(task.anchor, task.id);
       }}
       draggable={draggable}
       onDragStart={onDragStart ? (e) => onDragStart(e, task) : undefined}
@@ -1426,7 +1437,7 @@ export function TaskList({
     action: "claim" | "updateStatus",
     status?: TaskStatus,
   ) => void;
-  onOpenThread: (anchor: ChannelMessage) => void;
+  onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -1503,7 +1514,7 @@ export function TaskBoard({
     action: "claim" | "updateStatus",
     status?: TaskStatus,
   ) => void;
-  onOpenThread: (anchor: ChannelMessage) => void;
+  onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
   onInvalidDrop: (task: ChannelTask, status: TaskStatus) => void;
 }) {
   const { t } = useI18n();
@@ -1635,7 +1646,7 @@ export function TaskViews({
     action: "claim" | "updateStatus",
     status?: TaskStatus,
   ) => void;
-  onOpenThread: (anchor: ChannelMessage) => void;
+  onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
   onNotice: (message: string) => void;
 }) {
   const { t } = useI18n();
@@ -2495,8 +2506,12 @@ export function ChannelView({
     [onOpenPanel],
   );
   const openThreadPanel = useCallback(
-    (target: ChannelMessage) =>
-      onOpenPanel?.({ kind: "thread", id: target.id }),
+    (target: ChannelMessage, taskId?: string) =>
+      onOpenPanel?.({
+        kind: "thread",
+        id: target.id,
+        ...(taskId ? { taskId } : {}),
+      }),
     [onOpenPanel],
   );
   const handleQuote = useCallback(
@@ -3656,8 +3671,12 @@ export function ChannelView({
             onAction={(task, action, status) =>
               void runTaskAction(task, action, status)
             }
-            onOpenThread={(anchor) =>
-              onOpenPanel?.({ kind: "thread", id: anchor.id })
+            onOpenThread={(anchor, taskId) =>
+              onOpenPanel?.({
+                kind: "thread",
+                id: anchor.id,
+                ...(taskId ? { taskId } : {}),
+              })
             }
             onNotice={setTaskNotice}
           />

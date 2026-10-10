@@ -75,6 +75,7 @@ function renderPanelSlot({
       return (
         <ThreadPanel
           anchorId={content.id}
+          taskId={content.taskId}
           channel={channel}
           currentMemberId={currentMemberId}
           agents={agents}
