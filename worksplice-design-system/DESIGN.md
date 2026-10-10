@@ -26,8 +26,10 @@ A calm, legible operator console for human–agent teamwork. The mood is **techn
 but warm**: a warm cream paper canvas, deep plum ink, hairline separators, and a
 pastel hue per role — action is macaron pink, position is lavender, attention is
 lemon, warning is peach, and the four presence states keep a readable mid-tone of
-their own hue. Density is high (13px base, 6–8px vertical rhythm) yet never cramped
-— every row has breathing room, and the layered surfaces
+their own hue. The default density remains 13px body and 6–8px vertical rhythm
+on non-message surfaces. Channel and thread message prose uses the local readability
+exception in ADR-0016 (14px, 68ch maximum measure, roomier vertical rhythm; thread
+roomier still), without changing global tokens. The layered surfaces
 (`--bg` → `--panel` → `--surface`) create depth without shadow noise.
 
 The signature is **status made visible**: agents carry a live presence dot
@@ -128,7 +130,8 @@ would not without shipping megabytes.
 | --- | --- | --- |
 | Channel title (h1) | 16px / 680 | `#频道名`, `@成员名` in the header |
 | Dock / thread title | 14–14.5px / 680 | panel subjects |
-| Body | 13px / 400–650 | messages, nav, buttons |
+| Body | 13px / 400–650 | nav, buttons and general UI (except channel/thread message prose) |
+| Channel/thread message prose | 14px / 400–650 | channel messages and thread replies; local exception, see ADR-0016 |
 | Caption / hint | 11.5px | card meta, field hints, helper text |
 | Small | 12px | chips, list rows, secondary copy |
 | Mono meta | 10.5px | timestamps, counts, `kbd` |
@@ -142,6 +145,7 @@ Headings use `letter-spacing: -0.02em`; uppercase mono labels use `+0.1em`.
 Truth lives in `tokens.css`. The base unit is **4px** with a 2px half-step.
 
 - Spacing: `2 · 4 · 6 · 8 · 12 · 14 · 16 · 18 · 20 · 24 · 30 · 56` (`--sp-1…--sp-12`)
+- Channel message rows use 12px vertical padding and 8px paragraph spacing; thread replies use 16px and 12px. These are local ADR-0016 exceptions; the global scale values do not change.
 - Control heights: `--control-h: 32px`, `--control-h-sm: 27px`, `--tap-min: 44px`
 - Radii: `--r-sm 6` (rows, chips), `--r-md 8` (buttons, inputs, cards),
   `--r-lg 12` (composer, modal, columns), `--r-xl 16` (modal), `--r-pill 99`
@@ -173,7 +177,7 @@ Layout constants: `--rail-w 252px`, `--dock-w 380px` (`340px` under 1080px),
 - **Rail**: fixed 252px, `--panel`, right hairline; scrolls independently.
 - **Main**: flexible, `--bg`; header (`--surface`) + view + composer stack.
 - **Dock**: fixed 380px, `--surface`, left hairline; hidden by default and toggled.
-- **Messages / search**: content is centered in a `--stream-max` (880px) column.
+- **Messages / search**: content is centered in a `--stream-max` (880px) column. Channel/thread message prose additionally caps at `68ch`; the stream and composer keep the 880px width.
 - **Board**: columns are fixed 236px and lay out horizontally with overflow scroll;
   no stretch-to-fill.
 
@@ -206,7 +210,13 @@ Full visual specimens live in `preview/`; the applied kit is `ui_kits/app/`.
 - **Message** — `.msg` with hover fill, absolutely-positioned `.msg-tools` toolbar,
   `.msg-author.is-agent` `--accent-deep`, `.msg-tag` "Agent" capsule, mention + code
   inline, `.task-chip` linked work object with an `--accent-graphic` left rule,
-  `.reactions` pills (`.reaction.mine` = `--selected` family).
+  `.reactions` pills (`.reaction.mine` = `--selected` family). Channel/thread prose
+  is 14px with a 68ch maximum measure; channel/thread line-height is 1.65/1.7,
+  and thread rows and paragraphs use the larger local rhythm in ADR-0016. Author
+  remains clear; time and sequence remain visible
+  at 10.5px mono / `--faint`. Inline code (12px, no independent line-height) and
+  React fenced `CodeBlock` (12px / 1.62) retain their dedicated styles; the
+  `.msg-text pre` 11.5px / 1.6 rule is not the fenced-code render path.
 - **Composer** — `.composer-box` with an `--accent-graphic` focus ring, auto-growing
   textarea, attach / mention / as-task icon buttons, hint, `.composer-send` `--accent` square.
 - **Kanban** — `.col` (236px, `--panel`), `.card` draggable with hover lift, drag
@@ -273,7 +283,7 @@ Do **not**:
 - Lower text contrast on hover, or gray out labels on interaction.
 - Reproduce the message hover toolbar outside a hover/focus context — it is
   chrome-light by design.
-- Let the 13px body inflate: this is an operator console, not a marketing page.
+- Inflate the 13px body on non-message surfaces: this is an operator console, not a marketing page. Channel/thread message prose is the scoped 14px exception in ADR-0016.
 - Ship a second primary CTA for one action in a viewport.
 - Break the token contract: existing components depend on
   `--bg/--surface/--fg/--muted/--border/--accent` names. Renaming them re-breaks

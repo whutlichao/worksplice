@@ -63,11 +63,13 @@ screens/               sliced per-surface reproductions of the source monolith
 
 `macaron` — warm cream paper (`--bg` at hue 85) + deep plum ink (`--fg` at hue 300)
 + multi-hue pastel role families (ADR-0015, superseding ADR-0014's colour section
-only). The **form** half of `modern-minimal` stays in force verbatim: tight 13px
-density, small radii (6/8/12/16), hairline dividers, soft shadows, first-letter
-avatar tiles. Colour is authored once in `colors_and_type.css` (+ the product role
-families in the app layer); every value is `oklch()` and every family carries the
-four tiers.
+only). The **form** half of `modern-minimal` stays in force: compact 13px body
+density for general UI, small radii (6/8/12/16), hairline dividers, soft shadows,
+and first-letter avatar tiles. Channel/thread message prose is a local 14px
+exception with line-height 1.65 / 1.7 respectively (ADR-0016); global type and
+spacing token values remain unchanged. Colour is authored once in
+`colors_and_type.css` (+ the product role families in the app layer); every value
+is `oklch()` and every family carries the four tiers.
 
 ## Fidelity
 

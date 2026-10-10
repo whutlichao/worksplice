@@ -82,7 +82,7 @@
   --fs-mono-xs:    10.5px; /* timestamps, counts, kbd                 */
   --fs-caption:    11.5px; /* hints, card metadata                    */
   --fs-sm:         12px;   /* chips, list rows, helper text           */
-  --fs-body:       13px;   /* default message + UI body               */
+  --fs-body:       13px;   /* general UI; message prose exception: ADR-0016   */
   --fs-body-lg:    13.5px; /* brand name, empty-state title           */
   --fs-title:      14px;   /* dock / thread titles                    */
   --fs-heading:    16px;   /* channel title (h1)                      */
