@@ -64,7 +64,7 @@ test("Avatar 取色：数字 key 显式映射色板位置，不作成员列表�
   assert.match(render({ name: "a", colorKey: 0 }), /class="avatar av-0"/);
   assert.match(render({ name: "b", colorKey: 2 }), /class="avatar av-2"/);
   assert.match(render({ name: "c", colorKey: 7 }), /class="avatar av-2"/);
-  assert.match(render({ name: "d", colorKey: 4 }), /class="avatar av-4"/);
+  assert.match(render({ name: "d", type: "agent", colorKey: 4 }), /class="avatar av-4"/);
 });
 
 test("Avatar 取色：同一 member id 在任何位置恒定同色", () => {
