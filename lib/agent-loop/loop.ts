@@ -390,7 +390,7 @@ export function buildReplyPrompt(input: {
   lines.push(
     'Choose ONE next action and reply with JSON only: {"action":"reply"|"ignore","content":"your reply text","onConflict":"revise"|"resend"|"silent"|"anyway"}',
   );
-  lines.push('- "reply" posts content to the channel; "ignore" says nothing.');
+  lines.push('- "reply" posts content to this target; task replies may be routed to an anchor thread; "ignore" says nothing.');
   lines.push("- Deciding is yours, but follow these response rules:");
   lines.push(
     "- MUST reply: you are personally @mentioned in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
@@ -416,7 +416,7 @@ export function buildReplyPrompt(input: {
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
   );
   lines.push(
-    '- Task protocol: to work on an open task, add {"task":{"number":N,"op":"claim"}} — it claims task N and posts your reply in that task\'s thread (progress lives there); if the claim fails, someone else took it: yield, do not reply.',
+    '- Task protocol: if the only new user message is the anchor of exactly one open task (alongside its generated "Task #N created" event), a non-empty reply automatically attempts to claim it and posts in its thread. If the claim fails, yield without posting. If other channel messages arrived too, add {"task":{"number":N,"op":"claim"}} when replying to a task; ordinary replies stay in the channel. A successful claim posts your reply in that task\'s thread.',
   );
   lines.push(
     '- When you finish a task you own: {"task":{"number":N,"op":"complete"}} — the task moves to in_review for someone else to verify (builders never verify their own work). To step away: {"task":{"number":N,"op":"unclaim"}}.',
@@ -850,6 +850,53 @@ function taskInChannel(
   return getDb().getTaskByChannelNumber(channelId, taskNumber);
 }
 
+/** 新到达的任务锚点答复复用既有认领逻辑与线程 target。 */
+function claimTaskFromAnchorReply(input: {
+  action: AgentAction;
+  channel: ChannelRow;
+  targetId: string;
+  incoming: MessageWithAuthor[];
+}): AgentAction {
+  const { action, channel, targetId, incoming } = input;
+  if (
+    targetId !== channel.id ||
+    action.task ||
+    action.action !== "reply" ||
+    !action.content
+  ) {
+    return action;
+  }
+  const incomingIds = new Set(incoming.map((message) => message.id));
+  const anchoredTasks = getDb()
+    .listChannelTasks(channel.id)
+    .filter(
+      (task) =>
+        task.status !== "done" &&
+        task.status !== "closed" &&
+        incomingIds.has(task.message_id),
+    );
+  if (anchoredTasks.length !== 1) return action;
+  const [task] = anchoredTasks;
+  const anchor = getDb().getMessage(task.message_id);
+  const taskEvent = incoming.find(
+    (message) =>
+      anchor &&
+      message.author_id === OWNER_MEMBER_ID &&
+      message.seq === anchor.seq + 1 &&
+      message.content.startsWith(`Task #${task.number} created`),
+  );
+  const hasOtherActivity = incoming.some(
+    (message) =>
+      message.id !== task.message_id &&
+      message.id !== taskEvent?.id,
+  );
+  if (hasOtherActivity) return action;
+  return {
+    ...action,
+    task: { number: task.number, op: "claim" },
+  };
+}
+
 /**
  * 带任务操作的一轮（§3.7）：
  * - claim：先认领（channel freshness）；成功 → 回复投递到任务线程（thread freshness）；
@@ -1267,6 +1314,12 @@ export async function runAgentRound(
       effectiveAction = opsApplied.action;
       opsSummary = opsApplied.summary;
     }
+    effectiveAction = claimTaskFromAnchorReply({
+      action: effectiveAction,
+      channel,
+      targetId,
+      incoming,
+    });
     // §3.7 任务操作：先 claim 再开工；claim 失败就让路（不回复、只收口游标）
     if (effectiveAction.task) {
       // 非成员无 channel 成员资格，不做任务操作（claim 服务层会拒绝）
