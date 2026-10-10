@@ -298,12 +298,13 @@ test("MessageRow 的 agent 作者带 .msg-author.is-agent（accent）", () => {
 });
 
 test("同一 agent ID 在消息、侧栏与成员挑选项的渲染头像使用同一色调", () => {
+    const fixtureAgent = { ...AGENT, id: "agent-fixture-0" };
     const messageHtml = renderI18n(
         React.createElement(MessageRow, {
             message: {
                 ...MESSAGE,
-                author_id: AGENT.id,
-                author: AGENT,
+                author_id: fixtureAgent.id,
+                author: fixtureAgent,
             },
             onQuote: () => undefined,
             onCopyLink: () => undefined,
@@ -312,7 +313,7 @@ test("同一 agent ID 在消息、侧栏与成员挑选项的渲染头像使用�
     const sidebarHtml = renderI18n(
         React.createElement(WorkspaceSidebar, {
             channels: [],
-            agents: [AGENT],
+            agents: [fixtureAgent],
             error: null,
             selectedChannelId: null,
             onSelectChannel: () => undefined,
@@ -329,7 +330,7 @@ test("同一 agent ID 在消息、侧栏与成员挑选项的渲染头像使用�
     );
     const pickerHtml = renderI18n(
         React.createElement(CreateChannelModal, {
-            agents: [AGENT],
+            agents: [fixtureAgent],
             onClose: () => undefined,
             onCreated: () => undefined,
         }),
@@ -341,6 +342,7 @@ test("同一 agent ID 在消息、侧栏与成员挑选项的渲染头像使用�
     };
 
     const messageTint = avatarTint(messageHtml, "消息行");
+    assert.match(messageHtml, /class="avatar av-[0-3]"/, "agent 不占用中性 av-4");
     assert.equal(
         avatarTint(sidebarHtml, "侧栏 Agent 行"),
         messageTint,

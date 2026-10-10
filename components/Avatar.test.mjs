@@ -64,6 +64,7 @@ test("Avatar 取色：数字 key 显式映射色板位置，不作成员列表�
   assert.match(render({ name: "a", colorKey: 0 }), /class="avatar av-0"/);
   assert.match(render({ name: "b", colorKey: 2 }), /class="avatar av-2"/);
   assert.match(render({ name: "c", colorKey: 7 }), /class="avatar av-2"/);
+  assert.match(render({ name: "d", type: "agent", colorKey: 4 }), /class="avatar av-4"/);
 });
 
 test("Avatar 取色：同一 member id 在任何位置恒定同色", () => {
@@ -71,6 +72,24 @@ test("Avatar 取色：同一 member id 在任何位置恒定同色", () => {
   const sm = render({ name: "bob", size: "sm", colorKey: "agent-42" });
   const lg = render({ name: "bob", size: "lg", colorKey: "agent-42" });
   assert.equal(tintOf(sm), tintOf(lg));
+});
+
+test("Avatar 取色：agent 字符串 ID 只用四色，人类仍保留中性 av-4", () => {
+  const agentHtml = render({
+    name: "Fixture",
+    type: "agent",
+    colorKey: "agent-fixture-0",
+  });
+  assert.match(agentHtml, /class="avatar av-[0-3]"/);
+  assert.doesNotMatch(agentHtml, /class="avatar av-4"/);
+
+  const humanHtml = render({
+    name: "Owner",
+    type: "human",
+    colorKey: "owner",
+  });
+  assert.match(humanHtml, /class="avatar av-4"/);
+  assert.doesNotMatch(humanHtml, /class="avatar av-[0-3]"/);
 });
 
 test("Avatar 无像素图案 / 无 ink 边框 / 无硬阴影 / 无内联尺寸", () => {

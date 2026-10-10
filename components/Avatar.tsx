@@ -5,8 +5,9 @@ import type { MemberType } from "@/lib/data/types";
 
 export type AvatarSize = "sm" | "md" | "lg";
 
-/** 色调板长度（`--av-0…--av-4`，colors_and_type.css）。 */
+/** 色调板长度（`--av-0…--av-4`，colors_and_type.css）；agent ID 只散列到前四格，数字 key 可显式选择任一色格。 */
 const AVATAR_TINTS = 5;
+const AGENT_AVATAR_TINTS = AVATAR_TINTS - 1;
 
 function hashString(input: string): number {
   let hash = 2166136261;
@@ -31,7 +32,7 @@ function avatarTint(
     return ((Math.trunc(colorKey) % AVATAR_TINTS) + AVATAR_TINTS) % AVATAR_TINTS;
   }
   if (typeof colorKey === "string" && colorKey.length > 0) {
-    return hashString(colorKey) % AVATAR_TINTS;
+    return hashString(colorKey) % AGENT_AVATAR_TINTS;
   }
   return 0;
 }
