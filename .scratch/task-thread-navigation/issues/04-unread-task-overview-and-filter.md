@@ -46,4 +46,5 @@ Type: task
 - **Spec**：最终审查未发现问题。首轮指出的归档标记回归已修复并纳入最终审查。
 
 ### 交付
-- 实现提交：`c494be0`、`cd26647`。PR 链接创建后补记。
+- 提交：`c494be0`（实现）、`cd26647`（Review 修复）、`7e5fb40`（Ticket Answer/Status）。
+- PR：[#140](https://github.com/whutlichao/worksplice/pull/140)
