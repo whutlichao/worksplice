@@ -6,12 +6,12 @@
 **Status:** resolved
 
 ## 验收条件
-- [ ] 新增实际渲染 markup 的回归测试：同一 agent ID 的 `MessageRow` 与侧栏 Agent 行 `av-*` 相同；成员挑选项在现有 seam 可测时一并覆盖。
-- [ ] 在修复前确认回归测试因 `av-*` 不同而失败，修复后通过。
-- [ ] 只改产品目标文件及相关 `.test.mjs`，不改色板、哈希、人类显示或消息数据。
-- [ ] 定向测试、`npm run typecheck` 通过；记录 lint 基线与修改后对照，仅报告新增问题。
-- [ ] Answer 含红绿证据、窄测试档 rationale、分开的 Standards / Spec 双轴 review 与 finding disposition、修改文件、Status resolved 和 PR 号。
-- [ ] 推送分支并创建 open PR；不合并。
+- [x] 新增实际渲染 markup 的回归测试：同一 agent ID 的 `MessageRow` 与侧栏 Agent 行 `av-*` 相同；成员挑选项在现有 seam 可测时一并覆盖。
+- [x] 在修复前确认回归测试因 `av-*` 不同而失败，修复后通过。
+- [x] 只改产品目标文件及相关 `.test.mjs`，不改色板、哈希、人类显示或消息数据。
+- [x] 定向测试、`npm run typecheck` 通过；记录 lint 基线与修改后对照，仅报告新增问题。
+- [x] Answer 含红绿证据、窄测试档 rationale、分开的 Standards / Spec 双轴 review 与 finding disposition、修改文件、Status resolved 和 PR 号。
+- [x] 推送分支并创建 open PR；不合并。
 
 ## Answer
 
