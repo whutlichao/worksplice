@@ -9,8 +9,13 @@ const jiti = createJiti(import.meta.url, {
     jsx: { runtime: "automatic" },
     tsconfigPaths: true,
 });
-const { MessageRow, Composer, ChannelView } =
-    await jiti.import("./ChannelView.tsx");
+const {
+    MessageRow,
+    TaskCreationEventRow,
+    createTaskCreationAnnouncementTracker,
+    Composer,
+    ChannelView,
+} = await jiti.import("./ChannelView.tsx");
 const { mergeIncomingMessages } = await jiti.import(
     "../hooks/useChannelData.ts",
 );
@@ -179,7 +184,10 @@ test("ChannelView wires convertInActionBar and onConvertToTask into the channel 
     const channelCall = source.slice(start, end);
     assert.match(channelCall, /convertInActionBar/);
     assert.match(channelCall, /onConvertToTask=\{handleConvertToTask\}/);
-    assert.match(channelCall, /canConvertToTask=\{!taskMessageIds\.has\(m\.id\)\}/);
+    assert.match(
+        channelCall,
+        /canConvertToTask=\{!taskIndexes\.byMessageId\.has\(m\.id\)\}/,
+    );
 });
 
 test("MessageRow renders the ⏰ reminder action when onSetReminder is provided (§5.6)", () => {
@@ -988,5 +996,117 @@ test("notice toast 自动消退：setTimeout 到点清空，且 useEffect 清理
         effect,
         /return \(\) => clearTimeout\(timer\)/,
         "timer 必须清理（否则 notice 切换/卸载后回调打到已卸载的组件）",
+    );
+});
+
+test("任务创建事件以静态 note 呈现，预览 URL 是普通文本而非交互元素", () => {
+    const html = renderI18n(
+        React.createElement(TaskCreationEventRow, {
+            event: { number: 7, preview: "See https://example.test/task" },
+        }),
+    );
+
+    assert.match(html, /role="note"/);
+    assert.match(html, /Task #7 created/);
+    assert.match(html, /See https:\/\/example\.test\/task/);
+    assert.doesNotMatch(html, /<(?:a|button|input|textarea|select)\b/i);
+    assert.doesNotMatch(html, /\b(?:href|tabindex)=/i);
+});
+
+test("Task 锚点显示编号和状态，并提供带编号无障碍名称的讨论按钮", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            task: { number: 7, status: "in_progress" },
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+            onOpenThread: () => undefined,
+        }),
+    );
+
+    assert.match(html, /Task #7/);
+    assert.match(html, /In progress/);
+    assert.match(
+        html,
+        /<button[^>]*aria-label="Open task discussion for Task #7"[^>]*>Open task discussion<\/button>/,
+    );
+});
+
+test("任务创建事件播报跳过初始历史、只播报新事件一次", () => {
+    const tracker = createTaskCreationAnnouncementTracker();
+    const event = (id, seq, number, preview) => ({
+        ...MESSAGE,
+        id,
+        target_id: "c1",
+        seq,
+        content: `Task #${number} created — ${preview}`,
+    });
+    const history = event("event-1", 2, 1, "First task");
+
+    assert.deepEqual(
+        tracker.observe("c1", [history], true),
+        [],
+        "first loaded page is history and must not be announced",
+    );
+    assert.deepEqual(tracker.observe("c1", [history], true), []);
+
+    const created = event("event-2", 4, 2, "Second task");
+    assert.deepEqual(
+        tracker.observe("c1", [history, created], true),
+        [{ messageId: "event-2", number: 2, preview: "Second task" }],
+    );
+    assert.deepEqual(
+        tracker.observe("c1", [history, created], true),
+        [],
+        "polling the same event again must not announce it again",
+    );
+});
+
+test("任务快照未到达时，动态创建事件仍会被识别并播报", () => {
+    const tracker = createTaskCreationAnnouncementTracker();
+    const history = {
+        ...MESSAGE,
+        id: "event-history",
+        target_id: "c1",
+        seq: 2,
+        content: "Task #1 created — First task",
+    };
+    const created = {
+        ...MESSAGE,
+        id: "event-new",
+        target_id: "c1",
+        seq: 4,
+        content: "Task #2 created — Second task",
+    };
+
+    assert.deepEqual(tracker.observe("c1", [history], true), []);
+    assert.deepEqual(
+        tracker.observe("c1", [history, created], true),
+        [{ messageId: "event-new", number: 2, preview: "Second task" }],
+    );
+});
+
+test("切换频道后，已知频道中新到达的任务事件仍会播报", () => {
+    const tracker = createTaskCreationAnnouncementTracker();
+    const history = {
+        ...MESSAGE,
+        id: "event-1",
+        target_id: "c1",
+        seq: 2,
+        content: "Task #1 created — First task",
+    };
+    const created = {
+        ...MESSAGE,
+        id: "event-2",
+        target_id: "c1",
+        seq: 4,
+        content: "Task #2 created — Second task",
+    };
+
+    assert.deepEqual(tracker.observe("c1", [history], true), []);
+    assert.deepEqual(tracker.observe("c2", [], true), []);
+    assert.deepEqual(
+        tracker.observe("c1", [history, created], true),
+        [{ messageId: "event-2", number: 2, preview: "Second task" }],
     );
 });
