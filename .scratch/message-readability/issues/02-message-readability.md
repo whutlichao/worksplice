@@ -1,24 +1,24 @@
 # 02: Improve channel and thread message readability
 
 Type: task
-Status: claimed
+Status: resolved
 
 **What to build:** Make ordinary channel messages and thread replies easier to read through the approved message-local typography, line length, and vertical rhythm. Preserve message identity, code formatting, existing interactions, global layout widths, and all excluded reading surfaces.
 
 **Blocked by:** None (can start immediately).
 
-- [ ] Channel and thread ordinary prose uses 14px text with a 68ch maximum body line length; the stream and composer retain their existing 880px overall column.
-- [ ] Channel message rows use 12px block padding, 1.65 line height, and 8px paragraph spacing; thread replies use 16px block padding, 1.7 line height, and 12px paragraph spacing. No cards or separators are added.
-- [ ] Author remains clearly visible at 14px in bold. Timestamp and sequence remain visible in 10.5px monospace at the secondary `--faint` level; their order and message identity do not change.
-- [ ] Inline code remains 12px with no independent line-height declaration. Fenced code remains on the current renderer and at 12px / 1.62; its existing horizontal scrolling is unchanged.
-- [ ] Existing reply, quote, action toolbar, reaction, attachment, pin, and anchor behavior remains unchanged. Task activity summaries and agent-session transcripts retain their current compact treatment.
-- [ ] Wide and narrow channel layouts and the narrow thread dock wrap naturally without horizontal page overflow. The accepted reading comfort takes precedence over preserving messages per viewport.
-- [ ] Permanent regressions use the existing channel/thread rendered-markup seams and stylesheet-mirror contract. Assert rendered message content and visible metadata, not class names alone; cover short and long messages, Latin and CJK text, and inline/fenced code. Demonstrate TDD red → green in the Answer; add no browser-test infrastructure.
-- [ ] Test tier: **wide**. The shared `MessageRow` styling affects both channel and thread render paths and the existing stylesheet-mirror contract; run the full test suite.
-- [ ] The Answer includes **双轴 `code-review`（Standards + Spec）**, two separate reports, and disposition for each finding; no review waiver applies.
-- [ ] Coordinator verifies real channel/thread geometry with Ego-browser using disposable data before merge; record computed styles, overflow checks, and screenshots. Never use or modify live user data.
-- [ ] Compare lint and typecheck against the ticket's base commit; zero new findings in changed files. Record the red/green tests, review reports, and geometry evidence in the Answer.
-- [ ] Push the branch and create a PR with `gh pr create`; record the PR number in the Answer.
+- [x] Channel and thread ordinary prose uses 14px text with a 68ch maximum body line length; the stream and composer retain their existing 880px overall column.
+- [x] Channel message rows use 12px block padding, 1.65 line height, and 8px paragraph spacing; thread replies use 16px block padding, 1.7 line height, and 12px paragraph spacing. No cards or separators are added.
+- [x] Author remains clearly visible at 14px in bold. Timestamp and sequence remain visible in 10.5px monospace at the secondary `--faint` level; their order and message identity do not change.
+- [x] Inline code remains 12px with no independent line-height declaration. Fenced code remains on the current renderer and at 12px / 1.62; its existing horizontal scrolling is unchanged.
+- [x] Existing reply, quote, action toolbar, reaction, attachment, pin, and anchor behavior remains unchanged. Task activity summaries and agent-session transcripts retain their current compact treatment.
+- [x] Wide and narrow channel layouts and the narrow thread dock wrap naturally without horizontal page overflow. The accepted reading comfort takes precedence over preserving messages per viewport.
+- [x] Permanent regressions use the existing channel/thread rendered-markup seams and stylesheet-mirror contract. Assert rendered message content and visible metadata, not class names alone; cover short and long messages, Latin and CJK text, and inline/fenced code. Demonstrate TDD red → green in the Answer; add no browser-test infrastructure.
+- [x] Test tier: **wide**. The shared `MessageRow` styling affects both channel and thread render paths and the existing stylesheet-mirror contract; run the full test suite.
+- [x] The Answer includes **双轴 `code-review`（Standards + Spec）**, two separate reports, and disposition for each finding; no review waiver applies.
+- [x] Coordinator verifies real channel/thread geometry with Ego-browser using disposable data before merge; record computed styles, overflow checks, and screenshots. Never use or modify live user data.
+- [x] Compare lint and typecheck against the ticket's base commit; zero new findings in changed files. Record the red/green tests, review reports, and geometry evidence in the Answer.
+- [x] Push the branch and create a PR with `gh pr create`; record the PR number in the Answer.
 
 ## Answer
 
@@ -58,6 +58,10 @@ Spec report — no findings.
 
 Disposition: no implementation finding. Runtime geometry/overflow and validation-process evidence remain coordinator-owned; no runtime result is inferred from this source review.
 
-### Coordinator-owned acceptance still pending
-- Following coordinator direction, ticket status remains `claimed`/in progress; do not mark it resolved before coordinator-owned Ego-browser geometry/overflow evidence and G-impl are complete.
-- Coordinator owns branch push and PR creation under the explicit no-third-party-action worker rule; PR number is pending. No live user data was used or modified, and no browser acceptance is claimed here.
+### Coordinator acceptance and PR
+- Coordinator G-impl: targeted suite 77 passed, 0 failed; full `npm run test` 1,348 passed, 0 skipped, 0 failed. Preserve the earlier worker run separately: 1,347 passed, 1 skipped, 0 failed. Base `1d1b9fc` and current lint both had 0 errors and the same existing `hooks/useI18n.tsx:61` warning; base/current typecheck passed. Isolated production build succeeded with one `Critical dependency` warning at the existing `app/api/sessions/[id]/export/route.ts`.
+- Ego-browser used disposable data in TaskSpace 7. At 1568×1268, channel `#bug-hunt` had page scroll width 1568, stream width/client/scroll width 1316, sampled row width 896, body/max width 599.648px, font 14px / 23.1px, and 12px block padding; author was 14px / 650 and time 10.5px monospace at the `--faint` color. The sampled visible sequence was `#3`.
+- Thread `#20` at 1568×1268 had a 380px dock, 379px row, 310px body, 14px / 23.8px text, and 16px block/inline padding. At 1024×900, dock/body widths were 340px/270px; at 390×844 they were 320px/241px. Across 390, 1024, and 1568 viewport widths, coordinator reports `document.scrollWidth` equal to the viewport and message-body `scrollWidth` equal to `clientWidth`; the captured JSON also records matching page/body and stream/panel scroll widths.
+- Screenshot and JSON evidence: `/tmp/orch-worksplice-message-readability/evidence/02-message-readability/` and `/tmp/orch-worksplice-message-readability/evidence/browser/`. The 880px `--stream-max` token and composer rules remain unchanged in the implementation.
+- Coordinator reports that the user authorized branch publication and PR creation, without merge; the coordinator pushed and created [PR #145](https://github.com/whutlichao/worksplice/pull/145). This worker did not push or merge. The PR remains unmerged pending coordinator workflow.
+- Status is `resolved` per the coordinator acceptance instruction. Per the user's latest direction, this dispatch remains open; no `worker_done` was sent.
