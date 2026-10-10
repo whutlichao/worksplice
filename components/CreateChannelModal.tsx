@@ -116,7 +116,7 @@ export function CreateChannelModal({
           <div className="field">
             <label>{t("channel.initialMembers")}</label>
             <div className="member-pick">
-              {agents.map((agent, index) => {
+              {agents.map((agent) => {
                 const selected = memberIds.includes(agent.id);
                 return (
                   <button
@@ -125,7 +125,7 @@ export function CreateChannelModal({
                     onClick={() => toggleMember(agent.id)}
                     className={selected ? "member-opt is-on" : "member-opt"}
                   >
-                    <Avatar name={agent.name} size="sm" colorKey={index} />
+                    <Avatar name={agent.name} size="sm" colorKey={agent.id} />
                     <span
                       style={{
                         maxWidth: 160,
