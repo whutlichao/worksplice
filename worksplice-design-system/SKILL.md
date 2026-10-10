@@ -57,11 +57,17 @@ The applied kit `ui_kits/app/` is the canonical assembly: AppShell → rail → 
    rail `252px` (`--panel`, right hairline), main `flex:1` (`--bg`), dock `380px`
    (`--surface`, left hairline, hidden by default).
 2. **Centered content**: message stream and search results sit in a
-   `max-width: var(--stream-max)` (880px) column, centered.
+   `max-width: var(--stream-max)` (880px) column, centered. Channel/thread message
+   prose alone additionally caps at `68ch`; do not apply this cap to the stream or composer.
 3. **Board**: columns are fixed `236px`, laid out in a horizontally scrolling row.
    Never stretch columns to fill.
-4. **Density**: 13px body, `--sp-3/--sp-4` (6–8px) row padding, `--control-h` 32px
-   buttons. Do not inflate.
+4. **Density**: general UI remains 13px body with `--sp-3/--sp-4` (6–8px) row
+   padding; buttons remain `--control-h` 32px. The local ADR-0016 exception is only
+   channel/thread message prose: 14px and `68ch` max measure; channel rows use 12px
+   vertical padding, 8px paragraph spacing and 1.65 line-height; thread rows use
+   16px, 12px and 1.7. Keep global tokens unchanged. Inline code stays 12px; code
+   blocks stay 11.5px / 1.6. Do not apply this exception to the stream/composer,
+   agent-session transcript or `.log-row .msg` activity summaries.
 5. **Responsive**: `≤1080px` dock → 340px. `≤900px` app becomes a column, a sticky
    topbar appears, rail + dock become off-canvas drawers with a scrim, board stacks
    to a single full-width column.
@@ -132,3 +138,4 @@ boundaries take that family's `graphic` tier.
 - [ ] `prefers-reduced-motion` respected.
 - [ ] Copy in Simplified Chinese; ids/counts mono.
 - [ ] `data-od-id="…"` on regions, headings, CTAs and repeated cards.
+- [ ] Channel/thread message prose alone follows ADR-0016; other surfaces and global token values retain their defaults.
