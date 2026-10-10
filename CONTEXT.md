@@ -130,8 +130,16 @@ _Avoid_: @ 关联、艾特
 频道的退订开关：静音后普通消息不进该成员 inbox、不唤醒，个人提及仍穿透；取消后不补投静音期间被压制的消息。与回应判断正交：mute 是"连看都不看"，回应判断是"看着但决定不回应"。
 
 **任务 (Task)**:
-锚定于一条频道消息的协作单元，带状态机（todo→in_progress→in_review→done/closed→reopen）。互审：构建者不验证自己。
+锚定于一条 Channel 顶层消息的协作单元，带状态机（todo→in_progress→in_review→done/closed→reopen）。任务讨论围绕该锚点消息的 thread 展开；Task 元数据属于锚点，thread 回复仍属于该锚点的讨论。互审：构建者不验证自己。
 _Avoid_: ticket、工单
+
+**任务创建事件消息 (Task-Creation Event Message)**:
+Task 创建时在所属 Channel 主序列中记录的持久信息事件，用于说明 Task 已创建并可被 agent 看见、认领。它与承载 Task 元数据的原始锚点消息不同，也不是 Task 本身或任务讨论 thread。
+_Avoid_: 把事件消息当作 Task 锚点、Task 本身或 thread 回复
+
+**任务线程未读 (Task Thread Unread)**:
+Owner 对单个 Task thread 中作者非 Owner 的未读回复计数；它独立于所属 Channel 的顶层消息未读。打开 Channel、查看未读总览或读取其他 Task thread 均不会清除它；打开这个 Task thread 才推进该 thread 的已读位置。Task 状态不改变其回复是否计入未读。
+_Avoid_: 将 Channel 未读等同于 Task thread 未读；用读取一个 thread 清除其他 thread 的未读
 
 **任务视图 (Task View)**:
 任务在频道内的两种呈现方式：**列表**（按状态分组纵向堆叠）与**看板**（按状态分列横向排布）。看板列与任务状态一一对应，跨列拖移即请求一次状态转移；拖拽是按钮动作的另一种手势，状态机仍是唯一裁决者。
