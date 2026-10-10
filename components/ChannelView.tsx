@@ -130,6 +130,8 @@ export interface ChannelWithMeta extends ChannelRow {
   memberCount: number;
   /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */
   unread: number;
+  /** 含至少一条未读讨论回复的 Task 数；与普通消息未读数分离。 */
+  unreadTaskCount: number;
   /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */
   messageCount: number;
 }
@@ -1334,6 +1336,7 @@ export function TaskCard({
   busy,
   onAction,
   onOpenThread,
+  showUnreadDetails = false,
   draggable = false,
   dragging = false,
   onDragStart,
@@ -1348,6 +1351,7 @@ export function TaskCard({
     status?: TaskStatus,
   ) => void;
   onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
+  showUnreadDetails?: boolean;
   draggable?: boolean;
   /** 拖拽中（display-only）：形态 = `.card.dragging{opacity:.4}`，不参与落点裁决。 */
   dragging?: boolean;
@@ -1365,6 +1369,15 @@ export function TaskCard({
       // `.card` 自带 `cursor: grab`（上游形态）；List 视图的卡片不可拖（draggable 缺省 false），
       // 光标退回 pointer。形态仍全走 class，这里只纠一个指针暗示。
       style={draggable ? undefined : { cursor: "pointer" }}
+      aria-label={
+        showUnreadDetails
+          ? t("tasks.unreadTaskCard", {
+              number: String(task.number),
+              status: t(`task.status.${task.status}`),
+              count: String(task.unreadReplyCount),
+            })
+          : undefined
+      }
       onClick={() => onOpenThread(task.anchor, task.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter") onOpenThread(task.anchor, task.id);
@@ -1376,6 +1389,13 @@ export function TaskCard({
       <div className="card-title">{previewLine(task.anchor.content)}</div>
       <div className="card-meta">
         <span className="card-num">#{task.number}</span>
+        {showUnreadDetails && (
+          <span className="card-tag">
+            {t("tasks.unreadReplyCount", {
+              count: String(task.unreadReplyCount),
+            })}
+          </span>
+        )}
         {task.reopened === 1 && (
           <span className="card-tag" title={t("tasks.reopenedHint")}>
             {t("tasks.reopenedBadge")}
@@ -1425,10 +1445,12 @@ export function TaskList({
   onToggleGroup,
   onAction,
   onOpenThread,
+  showUnreadDetails = false,
 }: {
   tasks: ChannelTask[];
   currentMemberId: string;
   busy: boolean;
+  showUnreadDetails?: boolean;
   /** 折叠中的状态集合（由 TaskViews 持有：切 List|Board 不丢折叠态）。默认全展开。 */
   folded: ReadonlySet<TaskStatus>;
   onToggleGroup: (status: TaskStatus) => void;
@@ -1485,6 +1507,7 @@ export function TaskList({
                   busy={busy}
                   onAction={onAction}
                   onOpenThread={onOpenThread}
+                  showUnreadDetails={showUnreadDetails}
                 />
               ))}
             </div>
@@ -1505,10 +1528,12 @@ export function TaskBoard({
   onAction,
   onOpenThread,
   onInvalidDrop,
+  showUnreadDetails = false,
 }: {
   tasks: ChannelTask[];
   currentMemberId: string;
   busy: boolean;
+  showUnreadDetails?: boolean;
   onAction: (
     task: ChannelTask,
     action: "claim" | "updateStatus",
@@ -1600,6 +1625,7 @@ export function TaskBoard({
                   busy={busy}
                   onAction={onAction}
                   onOpenThread={onOpenThread}
+                  showUnreadDetails={showUnreadDetails}
                   draggable={!busy}
                   dragging={dragId === task.id}
                   onDragStart={handleDragStart}
@@ -1621,6 +1647,21 @@ export function TaskBoard({
   );
 }
 
+/** 未读 Task 只按最新未读回复倒序；相同时间按 Task number 升序，保持确定性。 */
+export function sortUnreadTasks(tasks: ChannelTask[]): ChannelTask[] {
+  return tasks
+    .filter((task) => task.unreadReplyCount > 0)
+    .slice()
+    .sort((a, b) => {
+      const aTime = Date.parse(a.latestUnreadReplyAt ?? "");
+      const bTime = Date.parse(b.latestUnreadReplyAt ?? "");
+      const timestampOrder =
+        (Number.isFinite(bTime) ? bTime : 0) -
+        (Number.isFinite(aTime) ? aTime : 0);
+      return timestampOrder || a.number - b.number;
+    });
+}
+
 /** 任务视图容器（§3.7/ADR-0002）：创建栏 + List|Board 切换（localStorage 记忆）+ 视图；两者共享同一批任务数据。 */
 export function TaskViews({
   tasks,
@@ -1633,11 +1674,15 @@ export function TaskViews({
   onAction,
   onOpenThread,
   onNotice,
+  unreadOnly = false,
+  onUnreadOnlyChange,
 }: {
   tasks: ChannelTask[];
   currentMemberId: string;
   busy: boolean;
   disabled: boolean;
+  unreadOnly?: boolean;
+  onUnreadOnlyChange?: (enabled: boolean) => void;
   error: string | null;
   notice: string | null;
   onCreateTask: (content: string) => void;
@@ -1661,6 +1706,10 @@ export function TaskViews({
   // 是为了切 List|Board 时折叠态不被卸载丢掉。
   const [folded, setFolded] = useState<ReadonlySet<TaskStatus>>(
     () => new Set<TaskStatus>(),
+  );
+  const visibleTasks = useMemo(
+    () => (unreadOnly ? sortUnreadTasks(tasks) : tasks),
+    [tasks, unreadOnly],
   );
 
   const toggleGroup = (status: TaskStatus) => {
@@ -1748,6 +1797,14 @@ export function TaskViews({
             + {t("tasks.new")}
           </button>
         )}
+        <button
+          type="button"
+          className="btn btn-sm"
+          aria-pressed={unreadOnly}
+          onClick={() => onUnreadOnlyChange?.(!unreadOnly)}
+        >
+          {t("tasks.unreadFilter")}
+        </button>
         {notice && (
           <span
             style={{
@@ -1790,13 +1847,14 @@ export function TaskViews({
       )}
 
       <div className={`board is-${view}`}>
-        {tasks.length === 0 ? (
+        {visibleTasks.length === 0 ? (
           <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
-            {t("tasks.emptyHint")}
+            {t(unreadOnly ? "tasks.noUnread" : "tasks.emptyHint")}
           </div>
         ) : view === "list" ? (
           <TaskList
-            tasks={tasks}
+            tasks={visibleTasks}
+            showUnreadDetails={unreadOnly}
             currentMemberId={currentMemberId}
             busy={busy}
             folded={folded}
@@ -1806,7 +1864,8 @@ export function TaskViews({
           />
         ) : (
           <TaskBoard
-            tasks={tasks}
+            tasks={visibleTasks}
+            showUnreadDetails={unreadOnly}
             currentMemberId={currentMemberId}
             busy={busy}
             onAction={onAction}
@@ -2400,6 +2459,8 @@ export function ChannelView({
   } = useChannelData(channel?.id, t, membersVersion);
 
   const [asTask, setAsTask] = useState(false);
+  const [unreadOnlyTasks, setUnreadOnlyTasks] = useState(false);
+  useEffect(() => setUnreadOnlyTasks(false), [channel?.id]);
 
   // 引用态（ticket 13 线程迁出后变为 channel 局部——线程引用在面板 ThreadPanel 内自持）
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
@@ -2605,6 +2666,10 @@ export function ChannelView({
     },
     [tab, channel?.id, onTabChange],
   );
+  const showUnreadTasks = () => {
+    setUnreadOnlyTasks(true);
+    handleTabChange("tasks");
+  };
 
   useLayoutEffect(() => {
     if (tab !== "messages") return;
@@ -3544,20 +3609,42 @@ export function ChannelView({
       <div
         className="tabs"
         style={{ marginTop: 0, paddingInline: "var(--sp-9)", flexShrink: 0 }}
-        role="tablist"
       >
-        {(["messages", "tasks"] as const).map((tabId) => (
+        <div role="tablist" style={{ display: "flex", gap: 2 }}>
+          {(["messages", "tasks"] as const).map((tabId) => (
+            <button
+              key={tabId}
+              type="button"
+              role="tab"
+              aria-selected={tab === tabId}
+              className={tab === tabId ? "tab is-active" : "tab"}
+              onClick={() => {
+                if (tabId === "tasks") setUnreadOnlyTasks(false);
+                handleTabChange(tabId);
+              }}
+            >
+              {tabId === "messages" ? t("center.messages") : t("center.tasks")}
+            </button>
+          ))}
+        </div>
+        {channel && channel.unreadTaskCount > 0 && (
           <button
-            key={tabId}
             type="button"
-            role="tab"
-            aria-selected={tab === tabId}
-            className={tab === tabId ? "tab is-active" : "tab"}
-            onClick={() => handleTabChange(tabId)}
+            className="btn btn-sm"
+            style={{ marginLeft: "auto", alignSelf: "center", flexShrink: 0 }}
+            aria-label={t("tasks.unreadDiscussionCount", {
+              count: String(channel.unreadTaskCount),
+            })}
+            title={t("tasks.unreadDiscussionCount", {
+              count: String(channel.unreadTaskCount),
+            })}
+            onClick={showUnreadTasks}
           >
-            {tabId === "messages" ? t("center.messages") : t("center.tasks")}
+            {t("tasks.unreadDiscussionCount", {
+              count: String(channel.unreadTaskCount),
+            })}
           </button>
-        ))}
+        )}
       </div>
 
       {/* 主体：消息 tab 走上游 `.stream` / `.stream-inner`（padding + `--stream-max` 居中）；
@@ -3662,6 +3749,8 @@ export function ChannelView({
         ) : (
           <TaskViews
             tasks={tasks}
+            unreadOnly={unreadOnlyTasks}
+            onUnreadOnlyChange={setUnreadOnlyTasks}
             currentMemberId={currentMemberId}
             busy={busyAction}
             disabled={composerDisabled}

@@ -42,6 +42,7 @@ function ChannelRow({
   onSelect: (channelId: string) => void;
 }) {
   const { t } = useI18n();
+  const unreadTaskCount = channel.unreadTaskCount ?? 0;
   return (
     <button
       type="button"
@@ -56,18 +57,38 @@ function ChannelRow({
       <span className="grow">
         {isDM ? dmAgentName(channel.name) : channel.name}
       </span>
-      {channel.unread > 0 && !isSelected ? (
+      {channel.unread > 0 && !isSelected && (
         <span
           className="badge"
           title={t("shell.unread", { count: String(channel.unread) })}
+          aria-label={t("shell.unread", { count: String(channel.unread) })}
         >
-          {channel.unread > 99 ? "99+" : channel.unread}
+          {t("shell.unreadMessageBadge", {
+            count: channel.unread > 99 ? "99+" : String(channel.unread),
+          })}
         </span>
-      ) : (
-        channel.archived === 1 && (
-          <span className="badge soft">{t("channel.archived")}</span>
-        )
       )}
+      {unreadTaskCount > 0 && (
+        <span
+          className="badge"
+          title={t("shell.unreadTaskCount", {
+            count: String(unreadTaskCount),
+          })}
+          aria-label={t("shell.unreadTaskCount", {
+            count: String(unreadTaskCount),
+          })}
+        >
+          {t("shell.unreadTaskBadge", {
+            count:
+              unreadTaskCount > 99 ? "99+" : String(unreadTaskCount),
+          })}
+        </span>
+      )}
+      {channel.archived === 1 &&
+        channel.unread <= 0 &&
+        unreadTaskCount <= 0 && (
+          <span className="badge soft">{t("channel.archived")}</span>
+        )}
     </button>
   );
 }

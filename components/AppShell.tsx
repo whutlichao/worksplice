@@ -180,10 +180,11 @@ export function AppShell() {
               if (c.unread === fresh.unread && shallowEqualChannel(c, fresh))
                 return c;
               changed = true;
-              // 同步 unread 与 messageCount（DM 懒创建「有消息」信号随新消息入流更新）。
+              // 同步两种未读计数与 messageCount（DM 懒创建「有消息」信号随新消息入流更新）。
               return {
                 ...c,
                 unread: fresh.unread,
+                unreadTaskCount: fresh.unreadTaskCount,
                 messageCount: fresh.messageCount,
               };
             });

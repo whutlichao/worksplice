@@ -113,8 +113,27 @@ test("BAI-6: a channel with unread shows a count badge", () => {
         { id: "c1", name: "reads", type: "public", unread: 3 },
     ]);
     const row = channelRow(html, "reads");
-    assert.match(row, />3<\/span>/);
-    assert.match(row, /99\+|3/);
+    assert.match(row, />3 msg<\/span>/);
+    assert.match(row, /99\+ msg|3 msg/);
+});
+
+test("message and Task unread badges stay separate, unit-labelled, and exact for assistive tech", () => {
+    const channels = [
+        { id: "c1", name: "both", type: "public", unread: 3, unreadTaskCount: 2 },
+    ];
+    const row = channelRow(sidebarHtml(channels), "both");
+    assert.match(row, /aria-label="3 unread messages">3 msg<\/span>/);
+    assert.match(
+        row,
+        /aria-label="2 Tasks with unread discussion replies">2 tasks<\/span>/,
+    );
+
+    const selectedRow = channelRow(
+        sidebarHtml(channels, { selectedChannelId: "c1" }),
+        "both",
+    );
+    assert.doesNotMatch(selectedRow, /3 unread messages/);
+    assert.match(selectedRow, /2 Tasks with unread discussion replies/);
 });
 
 test("BAI-6: unread is capped at 99+", () => {
@@ -172,7 +191,7 @@ test("DM channel unread badge renders (unread 口径与频道一致)", () => {
         { id: "dm:owner↔Nova", name: "dm:owner↔Nova", type: "dm", unread: 7, messageCount: 1 },
     ]);
     const row = channelRow(html, "Nova");
-    assert.match(row, />7<\/span>/);
+    assert.match(row, />7 msg<\/span>/);
 });
 
 /** 用固定 collator 替换 String.prototype.localeCompare，模拟不同宿主 locale 的字符串排序。 */

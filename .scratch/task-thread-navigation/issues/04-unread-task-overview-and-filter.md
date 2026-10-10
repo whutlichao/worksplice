@@ -12,7 +12,7 @@ Owner 能从侧栏分别辨认普通 Channel 未读消息数和有未读讨论�
 
 03 — 持久化任务线程未读
 
-Status: ready-for-agent
+Status: in-progress
 Type: task
 
 ## Acceptance criteria

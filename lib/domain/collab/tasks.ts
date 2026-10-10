@@ -40,6 +40,8 @@ export interface TaskView extends TaskRow {
   reachable: TaskStatus[];
   /** Task thread 中高于 Owner 已读游标的非 Owner 回复数。 */
   unreadReplyCount: number;
+  /** 最新一条未读回复的创建时间；没有未读回复时为 null。 */
+  latestUnreadReplyAt: string | null;
 }
 
 export type TaskClaimResult =
@@ -193,6 +195,10 @@ function toTaskView(
     owner: task.owner_id ? (getMember(task.owner_id) ?? null) : null,
     reachable: reachableStatuses(task, actorId),
     unreadReplyCount: getDb().countUnreadTaskThreadReplies(
+      task.id,
+      CURRENT_MEMBER_ID,
+    ),
+    latestUnreadReplyAt: getDb().latestUnreadTaskThreadReplyAt(
       task.id,
       CURRENT_MEMBER_ID,
     ),
