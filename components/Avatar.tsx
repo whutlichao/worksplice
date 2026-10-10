@@ -19,8 +19,8 @@ function hashString(input: string): number {
 
 /**
  * 取色（spec D6「取色」段的落法）：人类恒 `--av-4`（色板里那格中性「你」色）；
- * 有列表序号传序号（上游 `av(i)` 的确定性映射），无序号传 member id（FNV-1a 取模）——
- * 「同一成员在任何位置恒定同色」的意图保住，序号只是可选手段。
+ * agent 传稳定的 member id（FNV-1a 取模），数字序号仅表示显式色板位置，不应用作列表位置——
+ * 确保同一成员在任何位置恒定同色。
  */
 function avatarTint(
   colorKey: number | string | undefined,
@@ -54,7 +54,7 @@ export function Avatar({
   name?: string;
   type?: MemberType | null;
   size?: AvatarSize;
-  /** 取色参数：列表内传序号，否则传 member id；缺省走色板首位。 */
+  /** 取色参数：成员传稳定 member id；数字表示显式色板位置；缺省走色板首位。 */
   colorKey?: number | string;
 }) {
   const { t } = useI18n();

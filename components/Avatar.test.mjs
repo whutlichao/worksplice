@@ -60,7 +60,7 @@ test("Avatar 名称为空 → 占位 ?，aria-label 回退到 member id", () => 
   assert.match(html, /aria-label="hit-author-id"/);
 });
 
-test("Avatar 取色：序号直接映射 av-0…av-4（列表内调用点）", () => {
+test("Avatar 取色：数字 key 显式映射色板位置，不作成员列表身份", () => {
   assert.match(render({ name: "a", colorKey: 0 }), /class="avatar av-0"/);
   assert.match(render({ name: "b", colorKey: 2 }), /class="avatar av-2"/);
   assert.match(render({ name: "c", colorKey: 7 }), /class="avatar av-2"/);

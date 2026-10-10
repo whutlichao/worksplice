@@ -27,6 +27,8 @@ const jiti = createJiti(import.meta.url, {
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 const { MessageRow, Composer, ChannelView } =
     await jiti.import("./ChannelView.tsx");
+const { WorkspaceSidebar } = await jiti.import("./WorkspaceSidebar.tsx");
+const { CreateChannelModal } = await jiti.import("./CreateChannelModal.tsx");
 
 const globalsCss = await readFile(
     new URL("../app/globals.css", import.meta.url),
@@ -292,6 +294,62 @@ test("MessageRow 的 agent 作者带 .msg-author.is-agent（accent）", () => {
     assert.match(
         blockBody(globalsCss, ".msg-author.is-agent"),
         /color:\s*var\(--accent-deep\)/,
+    );
+});
+
+test("同一 agent ID 在消息、侧栏与成员挑选项的渲染头像使用同一色调", () => {
+    const messageHtml = renderI18n(
+        React.createElement(MessageRow, {
+            message: {
+                ...MESSAGE,
+                author_id: AGENT.id,
+                author: AGENT,
+            },
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+        }),
+    );
+    const sidebarHtml = renderI18n(
+        React.createElement(WorkspaceSidebar, {
+            channels: [],
+            agents: [AGENT],
+            error: null,
+            selectedChannelId: null,
+            onSelectChannel: () => undefined,
+            onOpenAgent: () => undefined,
+            onNewChannel: () => undefined,
+            onNewAgent: () => undefined,
+            onOpenModels: () => undefined,
+            onOpenSkills: () => undefined,
+            onOpenReminders: () => undefined,
+            scheduledReminderCount: 0,
+            onCloseMenu: () => undefined,
+            onSearch: () => undefined,
+        }),
+    );
+    const pickerHtml = renderI18n(
+        React.createElement(CreateChannelModal, {
+            agents: [AGENT],
+            onClose: () => undefined,
+            onCreated: () => undefined,
+        }),
+    );
+    const avatarTint = (html, surface) => {
+        const tint = html.match(/class="avatar(?: sm)? av-(\d)"/)?.[1];
+        assert.ok(tint, `${surface} 应渲染带 av-* 色调的头像`);
+        return tint;
+    };
+
+    const messageTint = avatarTint(messageHtml, "消息行");
+    assert.equal(
+        avatarTint(sidebarHtml, "侧栏 Agent 行"),
+        messageTint,
+        "同一 member ID 在消息行与侧栏应使用同一色调",
+    );
+    assert.equal(
+        avatarTint(pickerHtml, "成员挑选项"),
+        messageTint,
+        "同一 member ID 在消息行与成员挑选项应使用同一色调",
     );
 });
 

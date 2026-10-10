@@ -254,7 +254,7 @@ export function WorkspaceSidebar({
           {agents.length === 0 && (
             <div style={EMPTY_NOTE_STYLE}>{t("shell.noAgents")}</div>
           )}
-          {agents.map((agent, index) => {
+          {agents.map((agent) => {
             // ticket 13：agent 行无选中态——点击打开右栏面板，中央频道不动
             return (
               <button
@@ -263,7 +263,7 @@ export function WorkspaceSidebar({
                 onClick={() => onOpenAgent(agent.id)}
                 className="nav-row"
               >
-                <Avatar name={agent.name} size="sm" colorKey={index} />
+                <Avatar name={agent.name} size="sm" colorKey={agent.id} />
                 <span className="grow">{agent.name}</span>
                 <StatusDot status={agent.status} />
               </button>
