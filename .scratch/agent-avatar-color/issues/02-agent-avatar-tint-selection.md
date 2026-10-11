@@ -21,3 +21,21 @@
 - Review — Standards：数据访问遵循 `Store → lib/domain/collab → route`；schema 有版本递增及旧库迁移；UI 不直连 DB。Spec：仅允许 0…3 或 null；human `av-4` 与既有自动映射不变；状态/任务/作者等非 Avatar 语义未改。双轴复核未发现遗留问题。
 - 验证：`npm test`（1375/1375）、`node_modules/.bin/tsc --noEmit`、`npm run lint`（0 errors；只有未改 `hooks/useI18n.tsx:61` 的既有 warning）。
 - PR：[#159](https://github.com/whutlichao/worksplice/pull/159)（base: `main`）。
+
+### Follow-up：键盘焦点环
+
+- 修复：色格的选中态改由边框宽度/颜色表达，不再以内联 `outlineWidth: 0` 覆盖全局 `:focus-visible`；未选中色格聚焦时保留 2px `--accent-graphic` 焦点环。
+- TDD：新增回归测试先红（未选中色格 `outlineWidth` 实为 `0`），再绿；测试同时断言选中态视觉标记与全局焦点环规则仍在。
+- 验收：`node --test components/AgentDetailPanel.test.mjs components/Avatar.test.mjs`（34/34）；`node_modules/.bin/tsc --noEmit` 通过；`npm run lint` 0 errors。唯一 warning 位于未改的 `hooks/useI18n.tsx:61`，该文件与 `origin/main` 无差异。
+
+### Review — Standards
+
+- 硬 finding 已修复：移除会覆盖全局焦点样式的 inline outline；色格保留 `aria-pressed` 与边框选中标记。
+- 非阻断判断 a：`member-route.test.mjs` 直接调用 `PATCH` handler，而非用 `readFile` 检查源码。保留此路由行为测试：它以真实 `Request` 验证状态码、JSON 与持久化，不启动 HTTP server。
+- 非阻断判断 b：`members.ts` 与 `sqlite.ts` 重复校验 tint 是跨 seam 防御。领域入口校验不可信 `unknown`；Store 适配器独立拒绝非法调用；SQLite CHECK 约束再保护持久数据不变量。保留三层校验。
+- `setAgentAvatarTint` 的 `value` 命名保留：参数在领域入口处是待验证的 `unknown`，通过约束后才作为 tint 写入；没有把未验证输入伪装成强类型 tint。
+
+### Review — Spec
+
+- 本 PR 只审票 02 的七条验收：色域/无障碍名称/自动映射与重复选择/恢复自动/成功与失败呈现/身份生命周期/非 Avatar 语义色均通过；本次只调整焦点可见性，不改变上述行为。
+- 整体规格 D3/D4 的跨呈现面同步与 Pi transcript 头像已明确拆分至 `issues/03`、`issues/04`，不作为票 02 或本 PR 缺陷，留待后续票完成。

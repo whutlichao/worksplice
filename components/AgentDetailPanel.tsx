@@ -494,10 +494,8 @@ export function AgentAvatarTintPicker({
               justifyContent: "center",
               background: "var(--surface)",
               border: "1px solid var(--border-strong)",
-              outlineWidth: selectedTint === tint ? 2 : 0,
-              outlineStyle: "solid",
-              outlineColor: "var(--fg)",
-              outlineOffset: 1,
+              borderWidth: selectedTint === tint ? 2 : 1,
+              borderColor: selectedTint === tint ? "var(--fg)" : "var(--border-strong)",
               borderRadius: "var(--r-sm)",
               cursor: saving ? "not-allowed" : "pointer",
             }}
