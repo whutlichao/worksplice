@@ -1276,7 +1276,11 @@ export function AgentDetailPanel({
           </div>
           {transcriptOpen && (
             <div id="agent-transcript-viewer">
-              <AgentTranscriptViewer key={agent.id} memberId={agent.id} />
+              <AgentTranscriptViewer
+                key={agent.id}
+                memberId={agent.id}
+                agent={{ id: agent.id, name: agent.name, avatar_tint: avatarTint }}
+              />
             </div>
           )}
         </section>
