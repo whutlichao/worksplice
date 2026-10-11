@@ -1,0 +1,32 @@
+(node:58386) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/lib/data/sqlite.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✖ an old stopped scan cannot clear the wake barrier installed by a restarted loop (51.550333ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 913.702209
+
+✖ failing tests:
+
+test at lib/agent-loop/driver.test.mjs:766:1
+✖ an old stopped scan cannot clear the wake barrier installed by a restarted loop (51.550333ms)
+  AssertionError [ERR_ASSERTION]: the old aborted scan must not release the new scan's wake barrier
+
+  1 !== 0
+
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/lib/agent-loop/driver.test.mjs:838:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

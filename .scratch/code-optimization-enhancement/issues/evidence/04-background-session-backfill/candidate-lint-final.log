@@ -1,0 +1,9 @@
+
+> worksplice@0.1.3 lint
+> eslint .
+
+
+/Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/hooks/useI18n.tsx
+  61:6  warning  React Hook useEffect has a missing dependency: 'locale'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)

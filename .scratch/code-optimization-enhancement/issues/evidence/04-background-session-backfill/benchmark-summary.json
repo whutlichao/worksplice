@@ -1,0 +1,437 @@
+{
+  "baselineSamples": 90,
+  "candidateSamples": 90,
+  "baselineBarrierSamples": 30,
+  "candidateBarrierSamples": 30,
+  "steady": {
+    "small": {
+      "input": {
+        "agents": 2,
+        "sessionFiles": 2,
+        "actualBytesPerFile": 65607,
+        "markerRoundsPerFile": 20,
+        "syntheticReplies": 40
+      },
+      "baseline": {
+        "startReadyMs": {
+          "n": 30,
+          "median": 3.6720205000000306,
+          "p90_nearest_rank": 4.277708000000075,
+          "mad": 0.32420800000005556,
+          "stddev_sample": 0.4544496927005206,
+          "min": 3.213209000000006,
+          "max": 5.326082999999926
+        },
+        "scanMs": {
+          "n": 30,
+          "median": 3.7531874999999673,
+          "p90_nearest_rank": 4.3647920000000795,
+          "mad": 0.33097949999995535,
+          "stddev_sample": 0.46153573710642504,
+          "min": 3.2875409999999192,
+          "max": 5.4217499999999745
+        },
+        "recoveryMs": {
+          "n": 30,
+          "median": 3.7531874999999673,
+          "p90_nearest_rank": 4.3647920000000795,
+          "mad": 0.33097949999995535,
+          "stddev_sample": 0.46153573710642504,
+          "min": 3.2875409999999192,
+          "max": 5.4217499999999745
+        },
+        "yieldPoints": {
+          "n": 30,
+          "median": 0.0,
+          "p90_nearest_rank": 0.0,
+          "mad": 0.0,
+          "stddev_sample": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      "candidate": {
+        "startReadyMs": {
+          "n": 30,
+          "median": 0.07681249999995998,
+          "p90_nearest_rank": 0.10729200000002947,
+          "mad": 0.012833499999828746,
+          "stddev_sample": 0.023015524178262876,
+          "min": 0.05912499999999454,
+          "max": 0.14916700000003402
+        },
+        "scanMs": {
+          "n": 30,
+          "median": 4.229791499999919,
+          "p90_nearest_rank": 4.585249999999974,
+          "mad": 0.20737500000007003,
+          "stddev_sample": 0.42292216066655425,
+          "min": 3.827250000000049,
+          "max": 6.061167000000069
+        },
+        "recoveryMs": {
+          "n": 30,
+          "median": 4.229791499999919,
+          "p90_nearest_rank": 4.585249999999974,
+          "mad": 0.20737500000007003,
+          "stddev_sample": 0.42292216066655425,
+          "min": 3.827250000000049,
+          "max": 6.061167000000069
+        },
+        "yieldPoints": {
+          "n": 30,
+          "median": 0.0,
+          "p90_nearest_rank": 0.0,
+          "mad": 0.0,
+          "stddev_sample": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "firstYieldMs": {
+          "n": 0,
+          "median": null,
+          "p90_nearest_rank": null,
+          "mad": null,
+          "stddev_sample": null,
+          "min": null,
+          "max": null
+        },
+        "lastYieldMs": {
+          "n": 0,
+          "median": null,
+          "p90_nearest_rank": null,
+          "mad": null,
+          "stddev_sample": null,
+          "min": null,
+          "max": null
+        }
+      },
+      "medianStartReductionMs": 3.595312500000091,
+      "medianStartReductionPercent": 97.90816799633991,
+      "startReductionPairedBootstrap95CI": [
+        3.426250500000151,
+        3.7988125000000537
+      ],
+      "startNoiseThreshold3xMaxMADMs": 0.9726240000001667,
+      "medianScanReductionMs": -0.4290620000001013,
+      "scanReductionPairedBootstrap95CI": [
+        -0.6573544999999399,
+        -0.21012500000006185
+      ]
+    },
+    "medium": {
+      "input": {
+        "agents": 8,
+        "sessionFiles": 8,
+        "actualBytesPerFile": 262257,
+        "markerRoundsPerFile": 64,
+        "syntheticReplies": 512
+      },
+      "baseline": {
+        "startReadyMs": {
+          "n": 30,
+          "median": 61.43185399999993,
+          "p90_nearest_rank": 65.2330420000003,
+          "mad": 0.8810419999999795,
+          "stddev_sample": 9.596233818594893,
+          "min": 59.02904099999978,
+          "max": 113.0114590000012
+        },
+        "scanMs": {
+          "n": 30,
+          "median": 61.77656250000018,
+          "p90_nearest_rank": 65.59695799999963,
+          "mad": 0.8751039999996237,
+          "stddev_sample": 9.591433065831913,
+          "min": 59.35833300000013,
+          "max": 113.33229200000096
+        },
+        "recoveryMs": {
+          "n": 30,
+          "median": 61.77656250000018,
+          "p90_nearest_rank": 65.59695799999963,
+          "mad": 0.8751039999996237,
+          "stddev_sample": 9.591433065831913,
+          "min": 59.35833300000013,
+          "max": 113.33229200000096
+        },
+        "yieldPoints": {
+          "n": 30,
+          "median": 0.0,
+          "p90_nearest_rank": 0.0,
+          "mad": 0.0,
+          "stddev_sample": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      "candidate": {
+        "startReadyMs": {
+          "n": 30,
+          "median": 0.11310350000053404,
+          "p90_nearest_rank": 0.12845800000013696,
+          "mad": 0.004062500000031832,
+          "stddev_sample": 0.0275716041929782,
+          "min": 0.09837500000003274,
+          "max": 0.21662500000002183
+        },
+        "scanMs": {
+          "n": 30,
+          "median": 64.04960400000004,
+          "p90_nearest_rank": 70.69904099999985,
+          "mad": 0.8519789999998011,
+          "stddev_sample": 5.479971865476289,
+          "min": 61.967124999999214,
+          "max": 90.00612499999988
+        },
+        "recoveryMs": {
+          "n": 30,
+          "median": 64.04960400000004,
+          "p90_nearest_rank": 70.69904099999985,
+          "mad": 0.8519789999998011,
+          "stddev_sample": 5.479971865476289,
+          "min": 61.967124999999214,
+          "max": 90.00612499999988
+        },
+        "yieldPoints": {
+          "n": 30,
+          "median": 24.0,
+          "p90_nearest_rank": 24.0,
+          "mad": 0.0,
+          "stddev_sample": 0.0,
+          "min": 24.0,
+          "max": 24.0
+        },
+        "firstYieldMs": {
+          "n": 30,
+          "median": 1.8457085000000006,
+          "p90_nearest_rank": 2.1306660000000193,
+          "mad": 0.16264550000050804,
+          "stddev_sample": 0.2719655532234732,
+          "min": 1.251416000000063,
+          "max": 2.514874999999847
+        },
+        "lastYieldMs": {
+          "n": 30,
+          "median": 46.93822900000009,
+          "p90_nearest_rank": 49.684917000000496,
+          "mad": 0.682437000000391,
+          "stddev_sample": 4.870064952299382,
+          "min": 45.124041000000034,
+          "max": 71.3207910000001
+        }
+      },
+      "medianStartReductionMs": 61.31875000000059,
+      "medianStartReductionPercent": 99.81588786169381,
+      "startReductionPairedBootstrap95CI": [
+        60.793916999999965,
+        62.062416500000154
+      ],
+      "startNoiseThreshold3xMaxMADMs": 2.6431259999999384,
+      "medianScanReductionMs": -2.0561665000000175,
+      "scanReductionPairedBootstrap95CI": [
+        -3.2528955000000224,
+        -1.4687090000001035
+      ]
+    },
+    "large": {
+      "input": {
+        "agents": 12,
+        "sessionFiles": 12,
+        "actualBytesPerFile": 524549,
+        "markerRoundsPerFile": 128,
+        "syntheticReplies": 1536
+      },
+      "baseline": {
+        "startReadyMs": {
+          "n": 30,
+          "median": 283.54633300000023,
+          "p90_nearest_rank": 288.9491249999992,
+          "mad": 2.820083500000692,
+          "stddev_sample": 16.194529254600955,
+          "min": 277.82391700000153,
+          "max": 350.2271660000006
+        },
+        "scanMs": {
+          "n": 30,
+          "median": 284.34083349999855,
+          "p90_nearest_rank": 289.71112500000163,
+          "mad": 2.6643334999989747,
+          "stddev_sample": 16.185195011355738,
+          "min": 278.76966600000014,
+          "max": 351.0627910000003
+        },
+        "recoveryMs": {
+          "n": 30,
+          "median": 284.34083349999855,
+          "p90_nearest_rank": 289.71112500000163,
+          "mad": 2.6643334999989747,
+          "stddev_sample": 16.185195011355738,
+          "min": 278.76966600000014,
+          "max": 351.0627910000003
+        },
+        "yieldPoints": {
+          "n": 30,
+          "median": 0.0,
+          "p90_nearest_rank": 0.0,
+          "mad": 0.0,
+          "stddev_sample": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        }
+      },
+      "candidate": {
+        "startReadyMs": {
+          "n": 30,
+          "median": 0.11814600000070641,
+          "p90_nearest_rank": 0.134249999999156,
+          "mad": 0.004937499998050043,
+          "stddev_sample": 0.01093264726175957,
+          "min": 0.10645900000235997,
+          "max": 0.1487909999996191
+        },
+        "scanMs": {
+          "n": 30,
+          "median": 307.4851039999994,
+          "p90_nearest_rank": 323.6447079999998,
+          "mad": 2.75670799999898,
+          "stddev_sample": 13.953487370868928,
+          "min": 302.89287499999773,
+          "max": 376.3857910000006
+        },
+        "recoveryMs": {
+          "n": 30,
+          "median": 307.4851039999994,
+          "p90_nearest_rank": 323.6447079999998,
+          "mad": 2.75670799999898,
+          "stddev_sample": 13.953487370868928,
+          "min": 302.89287499999773,
+          "max": 376.3857910000006
+        },
+        "yieldPoints": {
+          "n": 30,
+          "median": 84.0,
+          "p90_nearest_rank": 84.0,
+          "mad": 0.0,
+          "stddev_sample": 0.0,
+          "min": 84.0,
+          "max": 84.0
+        },
+        "firstYieldMs": {
+          "n": 30,
+          "median": 3.0236875000009604,
+          "p90_nearest_rank": 4.4053750000020955,
+          "mad": 0.5897084999978688,
+          "stddev_sample": 0.9822942431046161,
+          "min": 1.7842500000042492,
+          "max": 5.6507910000000265
+        },
+        "lastYieldMs": {
+          "n": 30,
+          "median": 239.7764375000006,
+          "p90_nearest_rank": 246.52391699999862,
+          "mad": 2.4424794999995356,
+          "stddev_sample": 12.225273053359041,
+          "min": 230.01854100000128,
+          "max": 301.70587499999965
+        }
+      },
+      "medianStartReductionMs": 283.4226454999971,
+      "medianStartReductionPercent": 99.95833273569413,
+      "startReductionPairedBootstrap95CI": [
+        282.0090625000021,
+        285.084478499999
+      ],
+      "startNoiseThreshold3xMaxMADMs": 8.460250500002076,
+      "medianScanReductionMs": -23.327229000000443,
+      "scanReductionPairedBootstrap95CI": [
+        -27.874958500000503,
+        -18.97712450000472
+      ]
+    }
+  },
+  "barrier": {
+    "baseline": {
+      "input": {
+        "agents": 1,
+        "sessionFiles": 1,
+        "actualBytesPerFile": 65607,
+        "markerRoundsPerFile": 20
+      },
+      "startReadyMs": {
+        "n": 30,
+        "median": 1.918083500000023,
+        "p90_nearest_rank": 2.1659579999999323,
+        "mad": 0.11545799999993278,
+        "stddev_sample": 0.18394086271887666,
+        "min": 1.7163750000000846,
+        "max": 2.4094579999999723
+      },
+      "barrierWaitMs": {
+        "n": 30,
+        "median": 3.2081455000001142,
+        "p90_nearest_rank": 3.90625,
+        "mad": 0.2626459999999611,
+        "stddev_sample": 0.48761251418069046,
+        "min": 2.704791,
+        "max": 4.997499999999945
+      },
+      "recoveryAfterReleaseMs": {
+        "n": 30,
+        "median": 0.0,
+        "p90_nearest_rank": 0.0,
+        "mad": 0.0,
+        "stddev_sample": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "requestedGateDelayMs": null
+    },
+    "candidate": {
+      "input": {
+        "agents": 1,
+        "sessionFiles": 1,
+        "actualBytesPerFile": 65607,
+        "markerRoundsPerFile": 20
+      },
+      "startReadyMs": {
+        "n": 30,
+        "median": 0.07731250000006185,
+        "p90_nearest_rank": 0.11654199999998127,
+        "mad": 0.014958500000034292,
+        "stddev_sample": 0.026957818003285536,
+        "min": 0.051375000000007276,
+        "max": 0.1569169999999076
+      },
+      "barrierWaitMs": {
+        "n": 30,
+        "median": 3.9237079999999764,
+        "p90_nearest_rank": 4.1059999999999945,
+        "mad": 0.10239550000005693,
+        "stddev_sample": 0.32287208377188853,
+        "min": 2.716792000000055,
+        "max": 4.159832999999935
+      },
+      "recoveryAfterReleaseMs": {
+        "n": 30,
+        "median": 2.629624999999976,
+        "p90_nearest_rank": 2.9317499999999654,
+        "mad": 0.21949949999998353,
+        "stddev_sample": 0.3112041646082181,
+        "min": 2.2638750000000982,
+        "max": 3.5594579999999496
+      },
+      "requestedGateDelayMs": 3
+    }
+  },
+  "environment": {
+    "platform": "macOS-26.5.1-x86_64-i386-64bit-Mach-O",
+    "machine": "x86_64",
+    "python": "3.14.7",
+    "node": "v25.0.0",
+    "node_arch": "arm64",
+    "base_sha": "01369c574c6284dee6d6db54b3685c42451aa0de",
+    "candidate_head_sha": "01369c574c6284dee6d6db54b3685c42451aa0de",
+    "candidate_diff_sha256": "151e57863d64e61aa1c1ddb891b5cf0f578d251367ebc82e5cc7c9a773d6dae9"
+  }
+}
