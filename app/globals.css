@@ -995,8 +995,8 @@ span.linenumber {
 .ws-message-actions {
   display: none;
 }
-.ws-message-row:hover .ws-message-actions,
-.ws-message-actions-open {
+.ws-message-row:not(.ws-message-actions-dismissed):hover .ws-message-actions,
+.ws-message-row:not(.ws-message-actions-dismissed) .ws-message-actions-open {
   display: flex;
 }
 
@@ -1444,7 +1444,7 @@ span.linenumber {
 /* 键盘可达性：票 03 的 `.ws-message-actions` 用 display 揭示，隐藏时不可聚焦——
    补一条 `.msg:focus-within`（上游 `.msg:focus-within .msg-tools` 的同义扩展），
    让 Tab 进消息正文时动作栏也展开。 */
-.msg:focus-within .ws-message-actions { display: flex; }
+.msg:not(.ws-message-actions-dismissed):focus-within .ws-message-actions { display: flex; }
 /* 二级 reaction 条展开时动作栏保持可见（`ws-message-actions-open` 是票 03 的揭示钩子）：
    否则 `opacity: 0` 的动作栏在展开态会是「看不见但可点」。 */
 .ws-message-actions-open .msg-tools { opacity: 1; }

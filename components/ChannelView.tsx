@@ -747,6 +747,7 @@ function MessageActions({
   pinned,
   reactOpen,
   onToggleReactOpen,
+  onDismiss,
 }: {
   message: ChannelMessage;
   onReply?: (message: ChannelMessage) => void;
@@ -762,10 +763,16 @@ function MessageActions({
   pinned?: boolean;
   reactOpen?: boolean;
   onToggleReactOpen?: () => void;
+  onDismiss: () => void;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const completeAction = (action: () => void) => {
+    onDismiss();
+    setPickerOpen(false);
+    action();
+  };
   return (
     <>
       {/* 动作栏形态（`globals.css` 的 `.msg-tools` 块）：绝对定位在行右上、hover/focus 才出。 */}
@@ -775,7 +782,10 @@ function MessageActions({
             type="button"
             title={t("message.addReaction")}
             style={reactOpen ? { background: "var(--accent-soft)", color: "var(--accent-deep)" } : undefined}
-            onClick={onToggleReactOpen}
+            onClick={() => {
+              if (reactOpen) setPickerOpen(false);
+              onToggleReactOpen?.();
+            }}
           >
             <SmilePlus size={13} />
           </button>
@@ -784,7 +794,7 @@ function MessageActions({
           <button
             type="button"
             title={t("message.reply")}
-            onClick={() => onReply(message)}
+            onClick={() => completeAction(() => onReply(message))}
           >
             <Reply size={13} />
           </button>
@@ -792,18 +802,20 @@ function MessageActions({
         <button
           type="button"
           title={t("message.quote")}
-          onClick={() => onQuote(message)}
+          onClick={() => completeAction(() => onQuote(message))}
         >
           <Quote size={13} />
         </button>
         <button
           type="button"
           title={t("message.copyLink")}
-          onClick={() => {
-            onCopyLink(message);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
-          }}
+          onClick={() =>
+            completeAction(() => {
+              onCopyLink(message);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            })
+          }
         >
           {copied ? <Check size={13} /> : <Link size={13} />}
         </button>
@@ -811,7 +823,7 @@ function MessageActions({
           <button
             type="button"
             title={t("reminders.messageAction")}
-            onClick={() => onReminder(message)}
+            onClick={() => completeAction(() => onReminder(message))}
           >
             <AlarmClock size={13} />
           </button>
@@ -821,7 +833,7 @@ function MessageActions({
             type="button"
             title={pinned ? t("message.unpin") : t("message.pin")}
             style={pinned ? { background: "var(--accent-soft)", color: "var(--accent-deep)" } : undefined}
-            onClick={() => onTogglePin(message)}
+            onClick={() => completeAction(() => onTogglePin(message))}
           >
             <Pin size={13} />
           </button>
@@ -831,7 +843,7 @@ function MessageActions({
             type="button"
             title={t("tasks.convert")}
             onClick={(event) =>
-              onConvertToTask(message, event.currentTarget)
+              completeAction(() => onConvertToTask(message, event.currentTarget))
             }
           >
             <ListPlus size={13} />
@@ -848,7 +860,9 @@ function MessageActions({
               type="button"
               title={t("message.react")}
               className="reaction"
-              onClick={() => onToggleReaction?.(message, emoji)}
+              onClick={() =>
+                completeAction(() => onToggleReaction?.(message, emoji))
+              }
             >
               <span style={{ fontSize: 13, lineHeight: 1 }}>{emoji}</span>
             </button>
@@ -864,10 +878,9 @@ function MessageActions({
             </button>
             {pickerOpen && (
               <EmojiPicker
-                onPick={(emoji) => {
-                  onToggleReaction?.(message, emoji);
-                  setPickerOpen(false);
-                }}
+                onPick={(emoji) =>
+                  completeAction(() => onToggleReaction?.(message, emoji))
+                }
                 onClose={() => setPickerOpen(false)}
               />
             )}
@@ -1020,6 +1033,11 @@ export const MessageRow = memo(function MessageRow({
   const { t } = useI18n();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [reactOpen, setReactOpen] = useState(false);
+  const [actionsDismissed, setActionsDismissed] = useState(false);
+  const dismissActions = () => {
+    setReactOpen(false);
+    setActionsDismissed(true);
+  };
   const actionsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!reactOpen) return;
@@ -1054,23 +1072,20 @@ export const MessageRow = memo(function MessageRow({
         ]
       : []),
   ];
-  const isAgent = message.author?.type === "agent";
-  return (
-    <div
-      className={
-        isAnchor
-          ? "msg ws-message-row ws-message-row-anchor"
-          : "msg ws-message-row"
-      }
-      style={
-        highlighted
-          ? {
-              background: "var(--selected-soft)",
-              boxShadow: "inset 0 0 0 2px var(--selected-graphic)",
-            }
-          : undefined
-      }
-      onContextMenu={(e) => {
+    const isAgent = message.author?.type === "agent";
+    return (
+      <div
+        className={`${isAnchor ? "msg ws-message-row ws-message-row-anchor" : "msg ws-message-row"}${actionsDismissed ? " ws-message-actions-dismissed" : ""}`}
+        onMouseEnter={() => setActionsDismissed(false)}
+        style={
+          highlighted
+            ? {
+                background: "var(--selected-soft)",
+                boxShadow: "inset 0 0 0 2px var(--selected-graphic)",
+              }
+            : undefined
+        }
+        onContextMenu={(e) => {
         e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY });
       }}
@@ -1244,6 +1259,7 @@ export const MessageRow = memo(function MessageRow({
             pinned={pinned}
             reactOpen={reactOpen}
             onToggleReactOpen={() => setReactOpen((open) => !open)}
+            onDismiss={dismissActions}
           />
         </div>
       </div>
