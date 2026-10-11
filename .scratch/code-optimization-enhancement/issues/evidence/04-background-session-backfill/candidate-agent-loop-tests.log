@@ -1,0 +1,70 @@
+(node:63738) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/lib/data/sqlite.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ scanSessionReplies extracts assistant replies after room markers (2.070958ms)
+✔ assistant messages before any marker are skipped (0.964042ms)
+✔ backfill treats ENOENT as a missing file but propagates permission errors (3.27125ms)
+✔ backfill parsing yields in bounded batches and honors cancellation before writing (10.032292ms)
+✔ backfillAgentReplies writes missing replies into SQLite with fresh seqs and advances the cursor (3.733875ms)
+✔ backfill is idempotent: existing replies are not duplicated (8.65375ms)
+✔ a JSON protocol reply is stored as its parsed content, not the envelope (2.479834ms)
+✔ an ignore reply is not backfilled (1.722958ms)
+✔ revise drafts are dropped: only the last assistant reply of a marker round is backfilled (3.292791ms)
+✔ cursor advances for already-delivered rounds (崩溃于补写后 ack 前) (4.025375ms)
+✔ backfill skips agents without a session file or with a missing file (1.569583ms)
+✔ backfillAllAgents covers every agent and does not wake the loop (7.818792ms)
+[backfill] skipping session file /var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/6babfff2-7853-4f3c-9784-93fbb29f2e8d.jsonl for member 6babfff2-7853-4f3c-9784-93fbb29f2e8d: header cwd (/some/other/project) != workspace (/var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/agents/crosscwd-6babfff2)
+✔ ticket04: cross-cwd bound file is skipped (no backfill, no cursor advance) (2.345542ms)
+[backfill] skipping session file /var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/8170d8d5-b0f5-492c-b358-56ca3eb53027.jsonl for member 8170d8d5-b0f5-492c-b358-56ca3eb53027: header cwd (/some/other/project) != workspace (/var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/agents/stream-ownership-gate-8170d8d5)
+✔ ticket04: ownership rejection stops the streaming reader before the remaining file (2.480917ms)
+[backfill] skipping session file /var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/bafaabbf-46be-4b20-8226-41024f2b948d.jsonl for member bafaabbf-46be-4b20-8226-41024f2b948d: session file also referenced by another member
+[backfill] skipping session file /var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/bafaabbf-46be-4b20-8226-41024f2b948d.jsonl for member 2ff50fa1-763d-44a1-9412-8c435031e74e: session file also referenced by another member
+✔ ticket04: file referenced by another member is skipped for both (dual binding) (3.123167ms)
+[backfill] skipping session file /var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/5ac6f154-f16d-4dbb-acf3-0eb0c79a0151.jsonl for member 5ac6f154-f16d-4dbb-acf3-0eb0c79a0151: file mtime (2000-01-01T00:00:00.000Z) predates member creation (2026-10-11T05:56:35.963Z)
+✔ ticket04: file mtime older than member creation is skipped (inherited file) (2.323542ms)
+[backfill] member 3bacdccc-4e24-4d03-9318-64ce57e7e57f: skipped 1 reply round(s) whose content already exists under another author (target: 3ba1cdd5-41d5-4d9f-8070-cb5da3664e39); cursor left pending for re-read
+✔ ticket04: reply content already present under another author is skipped and cursor left pending (3.463541ms)
+✔ ticket04: gate passes for a normal bound file (no regression) (2.245583ms)
+[backfill] skipping session file /var/folders/bf/27rt5fsx01q0bq602vmhprsw0000gn/T/worksplice-backfill-ZH0wva/bf4eed84-e0cc-406a-acc6-288d9631b580.jsonl for member 48f14081-ba5d-4a3f-bc7c-3543634ee094: session file also referenced by another member
+✔ ticket06: RED — a soft-deleted member's registered file is not backfilled by a sharing member (residual binding) (2.306375ms)
+(node:63739) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/lib/data/sqlite.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/optimization-04-background-session-backfill/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a wake hint drives the round: the agent's reply lands in SQLite (11.853167ms)
+✔ an explicit ignore round is recorded as ignored (normal protocol choice) (6.571209ms)
+✔ a model failure lands in round_logs with the real provider error as reason (D1) (11.480083ms)
+[worksplice] agent capped-logger ignored a must-respond signal 2 times; cursor acked at 1 (capped)
+✔ cap-ack is recorded as error with the (capped at 2) reason in round logs (13.98225ms)
+✔ two wakes for the same target coalesce into one round (6.944375ms)
+✔ wakes for two targets both get processed sequentially (9.557875ms)
+✔ one agent never runs two rounds concurrently while another target is queued (17.598167ms)
+✔ a busy session retries the round after it settles (6.6215ms)
+✔ a busy session stuck on compaction retries on compaction_end (8.223ms)
+✔ a session that settles before waitForSettle subscribes still gets retried (6.629375ms)
+✔ reminder demo chain: cron tick fires the system message and wakes the agent, who replies (§5.6/§3.9) (8.564583ms)
+✔ a reminder hint upgrades a queued message wake for the same target (keep reminder, §3.9) (8.434708ms)
+✔ createAgentLoop returns while backfill I/O is pending and releases queued wakes after scan (15.304584ms)
+[backfill] member ee48ec1b-ad27-45bf-9537-af82d64aa3d3 target c6cb108e-fc93-4f3e-b49a-a8c457ce60f3 attempt 1/3 failed: temporary database write failure
+[backfill] member ee48ec1b-ad27-45bf-9537-af82d64aa3d3 target c6cb108e-fc93-4f3e-b49a-a8c457ce60f3 attempt 2/3 failed: temporary database write failure
+[backfill] member ee48ec1b-ad27-45bf-9537-af82d64aa3d3 target c6cb108e-fc93-4f3e-b49a-a8c457ce60f3 attempt 3/3 failed: temporary database write failure
+✔ a quarantined backfill target does not block another target and can be retried explicitly (14.831958ms)
+[backfill] member cea2b65c-4748-40c7-bd3a-894e7ae93e99 scan attempt 1/3 failed: permission denied
+[backfill] member cea2b65c-4748-40c7-bd3a-894e7ae93e99 scan attempt 2/3 failed: permission denied
+[backfill] member cea2b65c-4748-40c7-bd3a-894e7ae93e99 scan attempt 3/3 failed: permission denied
+✔ transient scan failures keep queued keys pending until an explicit retry (13.147542ms)
+✔ stopping the loop cancels subsequent bounded backfill batches (28.671958ms)
+✔ an old stopped scan cannot clear the wake barrier installed by a restarted loop (52.647166ms)
+✔ stopAgentLoopDriver unsubscribes from wake hints (32.613958ms)
+✔ agents do not ping-pong on each other's greetings: one human message → one reply each (412.777542ms)
+✔ a shared-cwd BusyCwdError waits for the occupying session and retries without losing the hint (15.288458ms)
+✔ busy-cwd without a visible wait target backs off before retrying (no hot spin) (259.299625ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1869.756708

@@ -1,5 +1,11 @@
-import { existsSync, readFileSync, statSync } from "fs";
-import { join, normalize } from "path";
+import {
+  createReadStream,
+  existsSync,
+  promises as fsPromises,
+  readFileSync,
+  statSync,
+} from "node:fs";
+import { join, normalize } from "node:path";
 import { getDb } from "../data/db-singleton.ts";
 import {
   type MessageWithAuthor,
@@ -13,6 +19,7 @@ import {
   extractMentionedMemberIds,
   fireDueReminders,
   getAgent,
+  getPendingTargets,
   getSince,
   isChannelMember,
   isDM,
@@ -1482,6 +1489,22 @@ interface QueuedTarget {
   reason: WakeReason;
 }
 
+interface BackfillQuarantine {
+  agent: MemberRow;
+  targetId: string;
+  reason: string;
+  replies?: SessionReply[];
+}
+
+interface BackfillScanFailure {
+  agent: MemberRow;
+  reason: string;
+}
+
+function backfillTargetKey(agentId: string, targetId: string): string {
+  return `${agentId}\u0000${targetId}`;
+}
+
 interface DriverState {
   started: boolean;
   runtime: LoopRuntime | null;
@@ -1490,6 +1513,12 @@ interface DriverState {
   processing: Set<string>;
   waitingForSettle: Set<string>;
   settleUnsubs: Map<string, () => void>;
+  backfillScanning: Set<string>;
+  backfillPendingTargets: Set<string>;
+  backfillQuarantine: Map<string, BackfillQuarantine>;
+  backfillScanFailures: Map<string, BackfillScanFailure>;
+  backfillAbort: AbortController | null;
+  backfillOptions: BackfillOptions | null;
 }
 
 declare global {
@@ -1506,9 +1535,22 @@ function getDriverState(): DriverState {
       processing: new Set(),
       waitingForSettle: new Set(),
       settleUnsubs: new Map(),
+      backfillScanning: new Set(),
+      backfillPendingTargets: new Set(),
+      backfillQuarantine: new Map(),
+      backfillScanFailures: new Map(),
+      backfillAbort: null,
+      backfillOptions: null,
     };
   }
   return globalThis.__workspliceAgentLoopDriver;
+}
+
+function isCurrentBackfill(
+  state: DriverState,
+  controller: AbortController,
+): boolean {
+  return state.backfillAbort === controller && !controller.signal.aborted;
 }
 
 export function startAgentLoopDriver(
@@ -1531,6 +1573,10 @@ export function stopAgentLoopDriver(): void {
   state.queues.clear();
   state.processing.clear();
   state.waitingForSettle.clear();
+  state.backfillScanning.clear();
+  state.backfillPendingTargets.clear();
+  state.backfillQuarantine.clear();
+  state.backfillScanFailures.clear();
   for (const unsub of state.settleUnsubs.values()) unsub();
   state.settleUnsubs.clear();
   state.runtime = null;
@@ -1555,6 +1601,19 @@ export function peekAgentLoopSettleWaiters(): string[] {
   return [...getDriverState().waitingForSettle];
 }
 
+/** 测试观察用：被隔离的 agent/target 补拉键与脱敏原因。 */
+export function peekAgentLoopBackfillQuarantine(): Array<{
+  agentId: string;
+  targetId: string;
+  reason: string;
+}> {
+  return [...getDriverState().backfillQuarantine.values()].map((entry) => ({
+    agentId: entry.agent.id,
+    targetId: entry.targetId,
+    reason: entry.reason,
+  }));
+}
+
 function enqueueWake(hint: WakeHint): void {
   const state = getDriverState();
   if (!state.started) return;
@@ -1571,6 +1630,16 @@ function enqueueWake(hint: WakeHint): void {
     return;
   }
   queue.push({ targetId: hint.targetId, reason: hint.reason });
+  const scanFailure = state.backfillScanFailures.get(hint.agentId);
+  if (scanFailure) {
+    const key = backfillTargetKey(hint.agentId, hint.targetId);
+    state.backfillPendingTargets.add(key);
+    state.backfillQuarantine.set(key, {
+      agent: scanFailure.agent,
+      targetId: hint.targetId,
+      reason: scanFailure.reason,
+    });
+  }
   void processAgent(hint.agentId);
 }
 
@@ -1578,10 +1647,11 @@ async function processAgent(agentId: string): Promise<void> {
   const state = getDriverState();
   if (state.processing.has(agentId)) return;
   if (state.waitingForSettle.has(agentId)) return;
+  if (state.backfillScanning.has(agentId)) return;
 
-  const runtime: LoopRuntime = state.runtime ?? (await getAgentRuntime());
   state.processing.add(agentId);
   try {
+    const runtime: LoopRuntime = state.runtime ?? (await getAgentRuntime());
     // 合并窗口：出队前让出一个微任务，让同一同步回合内到达的同 target hint 并入本 entry。
     //
     // 为什么必须显式让出：`enqueueWake` → `processAgent` 是一条同步调用链（wake 由
@@ -1602,8 +1672,14 @@ async function processAgent(agentId: string): Promise<void> {
     await null;
     for (;;) {
       const queue = state.queues.get(agentId);
-      const queued = queue?.shift();
-      if (!queued) break;
+      const readyIndex = queue?.findIndex(
+        (entry) =>
+          !state.backfillPendingTargets.has(
+            backfillTargetKey(agentId, entry.targetId),
+          ),
+      ) ?? -1;
+      if (!queue || readyIndex < 0) break;
+      const [queued] = queue.splice(readyIndex, 1);
 
       let outcome;
       try {
@@ -1632,9 +1708,17 @@ async function processAgent(agentId: string): Promise<void> {
   } finally {
     state.processing.delete(agentId);
   }
+  const queue = state.queues.get(agentId);
+  const hasReadyTarget = queue?.some(
+    (entry) =>
+      !state.backfillPendingTargets.has(
+        backfillTargetKey(agentId, entry.targetId),
+      ),
+  );
   if (
-    state.queues.get(agentId)?.length &&
-    !state.waitingForSettle.has(agentId)
+    hasReadyTarget &&
+    !state.waitingForSettle.has(agentId) &&
+    !state.backfillScanning.has(agentId)
   ) {
     void processAgent(agentId);
   }
@@ -1712,6 +1796,120 @@ export interface SessionReply {
   content: string;
 }
 
+export interface BackfillFileOps {
+  stat(filePath: string): Promise<{ mtimeMs: number }>;
+  readFile(filePath: string, signal?: AbortSignal): Promise<string>;
+  readChunks?(filePath: string, signal?: AbortSignal): AsyncIterable<string>;
+}
+
+export interface BackfillOptions {
+  fileOps?: BackfillFileOps;
+  signal?: AbortSignal;
+  batchLines?: number;
+  retryDelayMs?: number;
+  yieldToEventLoop?: () => Promise<void>;
+  onBatchYield?: (agentId: string, lines: number) => void;
+}
+
+const BACKFILL_BATCH_LINES = 256;
+const BACKFILL_READ_CHUNK_BYTES = 64 * 1024;
+const BACKFILL_MAX_ATTEMPTS = 3;
+const BACKFILL_CONCURRENCY = 2;
+const BACKFILL_RETRY_DELAY_MS = 100;
+const defaultBackfillFileOps: BackfillFileOps = {
+  stat: (filePath) => fsPromises.stat(filePath),
+  readFile: (filePath, signal) =>
+    fsPromises.readFile(filePath, { encoding: "utf8", signal }),
+  readChunks: (filePath, signal) =>
+    createReadStream(filePath, {
+      encoding: "utf8",
+      highWaterMark: BACKFILL_READ_CHUNK_BYTES,
+      signal,
+    }),
+};
+const yieldToEventLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+function makeAbortError(): Error {
+  const error = new Error("backfill cancelled");
+  error.name = "AbortError";
+  return error;
+}
+
+function throwIfBackfillAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw makeAbortError();
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function backfillErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createSessionReplyScanner() {
+  const replies: SessionReply[] = [];
+  let current: { targetId: string; seq: number } | null = null;
+  let pendingText: string | null = null;
+
+  const flush = () => {
+    if (current && pendingText) {
+      const parsed = parseAgentAction(pendingText);
+      if (parsed.action === "reply" && parsed.content) {
+        replies.push({
+          targetId: current.targetId,
+          markerSeq: current.seq,
+          content: parsed.content,
+        });
+      }
+    }
+    pendingText = null;
+  };
+
+  return {
+    push(line: string): void {
+      if (!line.trim()) return;
+      let entry: {
+        type?: string;
+        message?: { role?: string; content?: unknown };
+      };
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        return;
+      }
+      if (entry?.type !== "message" || !entry.message) return;
+      const message = entry.message;
+      if (message.role === "user") {
+        const text = textFromContent(message.content);
+        const match = ROOM_MARKER_PATTERN.exec(text);
+        // 新的 user 条目（无论是否带标记）结束上一轮；带标记才开启新的协作轮。
+        // revise prompt 丢弃上一轮 held 草稿，不按回复补写。
+        if (!text.includes("[worksplice:revision]")) flush();
+        pendingText = null;
+        current = match ? { targetId: match[1], seq: Number(match[2]) } : null;
+        return;
+      }
+      if (message.role !== "assistant") return;
+      const text = textFromContent(message.content).trim();
+      if (text) pendingText = text; // 最后一条胜出
+    },
+    finish(): SessionReply[] {
+      flush();
+      return replies;
+    },
+  };
+}
+
 /**
  * 解析 session jsonl 文件头（type:"session" 条目）的 cwd 字段。
  * 与 SDK SessionManager.listAll 的 cwd 同源（同从 header 解析，已核对），
@@ -1721,10 +1919,16 @@ export function readSessionHeaderCwd(filePath: string): string | null {
   let raw: string;
   try {
     raw = readFileSync(filePath, "utf-8");
-  } catch {
-    return null;
+  } catch (error) {
+    if (isMissingFileError(error)) return null;
+    throw error;
   }
-  for (const line of raw.split("\n")) {
+  let offset = 0;
+  while (offset < raw.length) {
+    const newline = raw.indexOf("\n", offset);
+    const end = newline < 0 ? raw.length : newline;
+    const line = raw.slice(offset, end);
+    offset = newline < 0 ? raw.length : newline + 1;
     if (!line.trim()) continue;
     try {
       const entry = JSON.parse(line) as { type?: string; cwd?: unknown };
@@ -1772,8 +1976,14 @@ export function backfillOwnershipGate(
 ): { pass: boolean; reason: string | null } {
   const file = agent.pi_session_file;
   if (!file) return { pass: false, reason: "no session file bound" };
-  if (!existsSync(file))
-    return { pass: false, reason: "session file missing on disk" };
+  try {
+    statSync(file);
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return { pass: false, reason: "session file missing on disk" };
+    }
+    throw error;
+  }
   if (!agent.workspace_path)
     return { pass: false, reason: "member has no workspace" };
   const headerCwd = readSessionHeaderCwd(file);
@@ -1825,111 +2035,203 @@ export function scanSessionReplies(filePath: string): SessionReply[] {
   let raw: string;
   try {
     raw = readFileSync(filePath, "utf-8");
-  } catch {
-    return [];
+  } catch (error) {
+    if (isMissingFileError(error)) return [];
+    throw error;
   }
-  const replies: SessionReply[] = [];
-  let current: { targetId: string; seq: number } | null = null;
-  let pendingText: string | null = null;
-
-  const flush = () => {
-    if (current && pendingText) {
-      const parsed = parseAgentAction(pendingText);
-      if (parsed.action === "reply" && parsed.content) {
-        replies.push({
-          targetId: current.targetId,
-          markerSeq: current.seq,
-          content: parsed.content,
-        });
-      }
-    }
-    pendingText = null;
-  };
-
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    let entry: {
-      type?: string;
-      message?: { role?: string; content?: unknown };
-    };
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (entry?.type !== "message" || !entry.message) continue;
-    const message = entry.message;
-    if (message.role === "user") {
-      const text = textFromContent(message.content);
-      const match = ROOM_MARKER_PATTERN.exec(text);
-      // 新的 user 条目（无论是否带标记）结束上一轮；带标记才开启新的 协作轮。
-      // 若该条目是 revise prompt（带 [worksplice:revision]），上一轮 assistant 是
-      // 被 held 的草稿（实时路径从未落库）——丢弃而非按回复补写。
-      if (!text.includes("[worksplice:revision]")) flush();
-      pendingText = null;
-      current = match ? { targetId: match[1], seq: Number(match[2]) } : null;
-      continue;
-    }
-    if (message.role !== "assistant") continue;
-    const text = textFromContent(message.content).trim();
-    if (!text) continue;
-    pendingText = text; // 最后一条胜出
+  const scanner = createSessionReplyScanner();
+  let offset = 0;
+  while (offset < raw.length) {
+    const newline = raw.indexOf("\n", offset);
+    const end = newline < 0 ? raw.length : newline;
+    scanner.push(raw.slice(offset, end));
+    offset = newline < 0 ? raw.length : newline + 1;
   }
-  flush();
-  return replies;
+  return scanner.finish();
+}
+
+export interface BackfillTargetFailure {
+  targetId: string;
+  reason: string;
 }
 
 export interface BackfillResult {
   inserted: number;
   targets: string[];
+  failedTargets?: BackfillTargetFailure[];
 }
 
-/**
- * 单个 agent 的补拉：缺失回复按序补写。
- * 游标推进到每个标记轮的标记 seq（标记存在即证明该轮 prompt 已进入 agent 上下文，
- * agent 读过 ≤ 标记 seq 的全部消息）——即使回复已存在（崩溃于补写后 ack 前）也推进。
- */
-export function backfillAgentReplies(agent: MemberRow): BackfillResult {
-  const file = agent.pi_session_file;
-  if (!file || !existsSync(file)) return { inserted: 0, targets: [] };
+interface PreparedBackfill {
+  skippedReason: string | null;
+  repliesByTarget: Map<string, SessionReply[]>;
+}
 
-  // ticket 04 归属门禁：文件级校验不过 → 整文件跳过（不补写、不推进游标）。
-  const gate = backfillOwnershipGate(
-    agent,
-    referencedSessionFilesExcluding(agent.id),
-  );
-  if (!gate.pass) {
-    console.warn(
-      `[backfill] skipping session file ${file} for member ${agent.id}: ${gate.reason}`,
-    );
-    return { inserted: 0, targets: [] };
+function sessionHeaderCwdFromLine(line: string): string | null | undefined {
+  if (!line.trim()) return undefined;
+  try {
+    const entry = JSON.parse(line) as { type?: string; cwd?: unknown } | null;
+    if (entry?.type !== "session") return undefined;
+    return typeof entry.cwd === "string" && entry.cwd ? entry.cwd : null;
+  } catch {
+    return undefined;
+  }
+}
+
+interface BackfillScanInput {
+  agent: MemberRow;
+  file: string;
+  mtimeMs: number;
+  options: BackfillOptions;
+  chunks: AsyncIterable<string>;
+}
+
+async function scanBackfillChunks({
+  agent,
+  file,
+  mtimeMs,
+  options,
+  chunks,
+}: BackfillScanInput): Promise<PreparedBackfill> {
+  const batchLines = Math.max(1, options.batchLines ?? BACKFILL_BATCH_LINES);
+  const referencedFiles = referencedSessionFilesExcluding(agent.id);
+  const scanner = createSessionReplyScanner();
+  let headerFound = false;
+  let skippedReason: string | null = null;
+  let linesInBatch = 0;
+  let lineBuffer = "";
+
+  const processLine = async (line: string): Promise<void> => {
+    throwIfBackfillAborted(options.signal);
+    if (!headerFound) {
+      const headerCwd = sessionHeaderCwdFromLine(line);
+      if (headerCwd !== undefined) {
+        headerFound = true;
+        if (headerCwd === null) {
+          skippedReason = "session file header has no cwd";
+        } else if (
+          !agent.workspace_path ||
+          normalize(headerCwd) !== normalizeWorkspacePath(agent.workspace_path)
+        ) {
+          skippedReason = `header cwd (${headerCwd}) != workspace (${agent.workspace_path})`;
+        } else if (referencedFiles.has(normalize(file))) {
+          skippedReason = "session file also referenced by another member";
+        } else if (mtimeMs < new Date(agent.created_at).getTime()) {
+          skippedReason = `file mtime (${new Date(mtimeMs).toISOString()}) predates member creation (${agent.created_at})`;
+        }
+      }
+    } else {
+      scanner.push(line);
+    }
+
+    linesInBatch += 1;
+    if (linesInBatch >= batchLines) {
+      await (options.yieldToEventLoop ?? yieldToEventLoop)();
+      options.onBatchYield?.(agent.id, linesInBatch);
+      linesInBatch = 0;
+    }
+  };
+
+  for await (const chunk of chunks) {
+    throwIfBackfillAborted(options.signal);
+    let cursor = 0;
+    while (cursor < chunk.length) {
+      const newline = chunk.indexOf("\n", cursor);
+      if (newline < 0) break;
+      lineBuffer += chunk.slice(cursor, newline);
+      cursor = newline + 1;
+      await processLine(lineBuffer);
+      lineBuffer = "";
+      if (skippedReason) break;
+    }
+    if (skippedReason) break;
+    lineBuffer += chunk.slice(cursor);
+  }
+  if (!skippedReason && lineBuffer.length > 0) await processLine(lineBuffer);
+  throwIfBackfillAborted(options.signal);
+
+  if (skippedReason) return { skippedReason, repliesByTarget: new Map() };
+  if (!headerFound) {
+    return { skippedReason: "session file header has no cwd", repliesByTarget: new Map() };
   }
 
-  const replies = scanSessionReplies(file);
-  if (replies.length === 0) return { inserted: 0, targets: [] };
+  const repliesByTarget = new Map<string, SessionReply[]>();
+  for (const reply of scanner.finish()) {
+    const targetReplies = repliesByTarget.get(reply.targetId) ?? [];
+    targetReplies.push(reply);
+    repliesByTarget.set(reply.targetId, targetReplies);
+  }
+  return { skippedReason: null, repliesByTarget };
+}
 
+async function* readBackfillChunks(
+  fileOps: BackfillFileOps,
+  file: string,
+  signal?: AbortSignal,
+): AsyncIterable<string> {
+  if (fileOps.readChunks) {
+    yield* fileOps.readChunks(file, signal);
+    return;
+  }
+  yield await fileOps.readFile(file, signal);
+}
+
+async function prepareAgentBackfill(
+  agent: MemberRow,
+  options: BackfillOptions = {},
+): Promise<PreparedBackfill> {
+  throwIfBackfillAborted(options.signal);
+  const file = agent.pi_session_file;
+  if (!file) return { skippedReason: "no session file bound", repliesByTarget: new Map() };
+  const fileOps = options.fileOps ?? defaultBackfillFileOps;
+  let stat: { mtimeMs: number };
+  try {
+    stat = await fileOps.stat(file);
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return { skippedReason: "session file missing on disk", repliesByTarget: new Map() };
+    }
+    throw error;
+  }
+  throwIfBackfillAborted(options.signal);
+  if (!agent.workspace_path) {
+    return { skippedReason: "member has no workspace", repliesByTarget: new Map() };
+  }
+
+  try {
+    return await scanBackfillChunks({
+      agent,
+      file,
+      mtimeMs: stat.mtimeMs,
+      options,
+      chunks: readBackfillChunks(fileOps, file, options.signal),
+    });
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return { skippedReason: "session file missing on disk", repliesByTarget: new Map() };
+    }
+    throw error;
+  }
+}
+
+function applyBackfillTarget(
+  agent: MemberRow,
+  targetId: string,
+  replies: SessionReply[],
+): number {
   const db = getDb();
   let inserted = 0;
-  const targets = new Set<string>();
-  const cursorByTarget = new Map<string, number>();
-  const contentBlockedTargets = new Set<string>();
+  let cursorSeq: number | null = null;
+  let contentBlocked = 0;
   db.withTransaction(() => {
     for (const reply of replies) {
-      // ticket 04 轮级兑底（跨作者内容去重）：同 target 同内容已被他人落库 =
-      // 疑似继承文件的他人回复（soft-delete 保留消息）——跳过补写，且该 target
-      // 游标不推进（保持 pending，留给正常 wake 流程重读重做），避免把他人回复
-      // 冒充为本 agent 的投递。真实崩溃恢复中同内容跨作者几乎不可能（各 agent
-      // 回复独立），误杀率极低。
+      // ADR-0004 轮级跨作者去重；命中轮跳过，不把他人回复冒充为本 agent 投递。
       if (
         db.hasMessageByContentByOther(reply.targetId, agent.id, reply.content)
       ) {
-        contentBlockedTargets.add(reply.targetId);
+        contentBlocked += 1;
         continue;
       }
-      cursorByTarget.set(
-        reply.targetId,
-        Math.max(cursorByTarget.get(reply.targetId) ?? 0, reply.markerSeq),
-      );
+      cursorSeq = Math.max(cursorSeq ?? 0, reply.markerSeq);
       if (db.hasMessage(reply.targetId, agent.id, reply.content)) continue;
       const seq = db.maxSeq(reply.targetId) + 1;
       db.insertMessageAt({
@@ -1939,36 +2241,414 @@ export function backfillAgentReplies(agent: MemberRow): BackfillResult {
         seq,
       });
       inserted += 1;
-      targets.add(reply.targetId);
     }
   });
-  if (contentBlockedTargets.size > 0) {
+  if (contentBlocked > 0) {
     console.warn(
-      `[backfill] member ${agent.id}: skipped ${contentBlockedTargets.size} reply round(s) whose ` +
-        `content already exists under another author (targets: ${[...contentBlockedTargets].join(", ")}); ` +
-        `cursor left pending for re-read`,
+      `[backfill] member ${agent.id}: skipped ${contentBlocked} reply round(s) whose ` +
+        `content already exists under another author (target: ${targetId}); cursor left pending for re-read`,
     );
   }
-  for (const [targetId, seq] of cursorByTarget) {
+  if (cursorSeq !== null) {
     db.setConsumedSeq(
       agent.id,
       targetId,
-      Math.max(db.getConsumedSeq(agent.id, targetId), seq),
+      Math.max(db.getConsumedSeq(agent.id, targetId), cursorSeq),
     );
   }
-  return { inserted, targets: [...targets] };
+  return inserted;
 }
 
-/** 启动时全量补拉（对所有未删除 agent）；补写直接落库，不触发 wake。 */
-export function backfillAllAgents(): BackfillResult {
+/**
+ * 单个 agent 的补拉：异步读取文件、按有限行数让出事件循环，再逐 target 原子补写。
+ * marker 存在即推进对应游标；同作者幂等、跨作者去重与 revision 语义保持不变。
+ */
+export async function backfillAgentReplies(
+  agent: MemberRow,
+  options: BackfillOptions = {},
+): Promise<BackfillResult> {
+  const plan = await prepareAgentBackfill(agent, options);
+  if (plan.skippedReason) {
+    if (
+      plan.skippedReason !== "no session file bound" &&
+      plan.skippedReason !== "session file missing on disk"
+    ) {
+      console.warn(
+        `[backfill] skipping session file ${agent.pi_session_file} for member ${agent.id}: ${plan.skippedReason}`,
+      );
+    }
+    return { inserted: 0, targets: [] };
+  }
+
+  let inserted = 0;
+  const targets: string[] = [];
+  const failedTargets: BackfillTargetFailure[] = [];
+  for (const [targetId, replies] of plan.repliesByTarget) {
+    throwIfBackfillAborted(options.signal);
+    try {
+      const targetInserted = applyBackfillTarget(agent, targetId, replies);
+      inserted += targetInserted;
+      if (targetInserted > 0) targets.push(targetId);
+    } catch (error) {
+      failedTargets.push({ targetId, reason: backfillErrorText(error) });
+    }
+  }
+  return {
+    inserted,
+    targets,
+    ...(failedTargets.length > 0 ? { failedTargets } : {}),
+  };
+}
+
+/** 全员补拉的测试适配器：补写直接落库，不触发 wake。 */
+export async function backfillAllAgents(
+  options: BackfillOptions = {},
+): Promise<BackfillResult> {
   let inserted = 0;
   const targets = new Set<string>();
+  const failedTargets: BackfillTargetFailure[] = [];
   for (const agent of listAgents()) {
-    const result = backfillAgentReplies(agent);
-    inserted += result.inserted;
-    for (const targetId of result.targets) targets.add(targetId);
+    throwIfBackfillAborted(options.signal);
+    try {
+      const result = await backfillAgentReplies(agent, options);
+      inserted += result.inserted;
+      for (const targetId of result.targets) targets.add(targetId);
+      failedTargets.push(...(result.failedTargets ?? []));
+    } catch (error) {
+      console.error(
+        `[backfill] failed for member ${agent.id}: ${backfillErrorText(error)}`,
+      );
+    }
+    await (options.yieldToEventLoop ?? yieldToEventLoop)();
   }
-  return { inserted, targets: [...targets] };
+  return {
+    inserted,
+    targets: [...targets],
+    ...(failedTargets.length > 0 ? { failedTargets } : {}),
+  };
+}
+
+function backfillRetryDelay(options: BackfillOptions, attempt: number): number {
+  return (options.retryDelayMs ?? BACKFILL_RETRY_DELAY_MS) * 2 ** (attempt - 1);
+}
+
+async function waitForBackfillRetry(
+  delayMs: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (delayMs <= 0) {
+    await yieldToEventLoop();
+    throwIfBackfillAborted(signal);
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, delayMs);
+    signal.addEventListener("abort", finish, { once: true });
+  });
+  throwIfBackfillAborted(signal);
+}
+
+function pendingTargetsForFailedScan(
+  state: DriverState,
+  agentId: string,
+): string[] {
+  const targets = new Set<string>(state.queues.get(agentId)?.map((item) => item.targetId) ?? []);
+  try {
+    for (const targetId of getPendingTargets(agentId)) targets.add(targetId);
+  } catch {
+    // inbox 查询也可能暂时失败；至少隔离已观察到 wake 的键。
+  }
+  return [...targets];
+}
+
+interface BackfillTargetRetry {
+  state: DriverState;
+  agent: MemberRow;
+  targetId: string;
+  replies: SessionReply[];
+  options: BackfillOptions;
+  controller: AbortController;
+  firstAttempt?: number;
+}
+
+async function applyBackfillTargetWithRetry({
+  state,
+  agent,
+  targetId,
+  replies,
+  options,
+  controller,
+  firstAttempt = 1,
+}: BackfillTargetRetry): Promise<void> {
+  const signal = controller.signal;
+  const key = backfillTargetKey(agent.id, targetId);
+  for (let attempt = firstAttempt; attempt <= BACKFILL_MAX_ATTEMPTS; attempt += 1) {
+    if (!isCurrentBackfill(state, controller)) return;
+    try {
+      applyBackfillTarget(agent, targetId, replies);
+      if (!isCurrentBackfill(state, controller)) return;
+      state.backfillPendingTargets.delete(key);
+      state.backfillQuarantine.delete(key);
+      void processAgent(agent.id);
+      return;
+    } catch (error) {
+      if (!isCurrentBackfill(state, controller)) return;
+      const reason = backfillErrorText(error);
+      console.error(
+        `[backfill] member ${agent.id} target ${targetId} attempt ${attempt}/${BACKFILL_MAX_ATTEMPTS} failed: ${reason}`,
+      );
+      if (attempt === BACKFILL_MAX_ATTEMPTS) {
+        state.backfillQuarantine.set(key, {
+          agent,
+          targetId,
+          reason,
+          replies,
+        });
+        return;
+      }
+      try {
+        await waitForBackfillRetry(backfillRetryDelay(options, attempt), signal);
+      } catch (retryError) {
+        if (!isCurrentBackfill(state, controller)) return;
+        if (isAbortError(retryError)) return;
+        throw retryError;
+      }
+    }
+  }
+}
+
+interface AgentBackfillRun {
+  state: DriverState;
+  agent: MemberRow;
+  options: BackfillOptions;
+  controller: AbortController;
+  onlyTargetId?: string;
+}
+
+function quarantineScanFailure(
+  state: DriverState,
+  agent: MemberRow,
+  reason: string,
+  controller: AbortController,
+  onlyTargetId?: string,
+): void {
+  if (!isCurrentBackfill(state, controller)) return;
+  const targets = onlyTargetId
+    ? [onlyTargetId]
+    : pendingTargetsForFailedScan(state, agent.id);
+  state.backfillScanFailures.set(agent.id, { agent, reason });
+  for (const targetId of targets) {
+    const key = backfillTargetKey(agent.id, targetId);
+    state.backfillPendingTargets.add(key);
+    state.backfillQuarantine.set(key, { agent, targetId, reason });
+  }
+  state.backfillScanning.delete(agent.id);
+  void processAgent(agent.id);
+}
+
+async function scanAgentBackfillWithRetries(
+  run: AgentBackfillRun,
+): Promise<PreparedBackfill | null> {
+  const { state, agent, options, controller, onlyTargetId } = run;
+  const signal = controller.signal;
+  for (let attempt = 1; attempt <= BACKFILL_MAX_ATTEMPTS; attempt += 1) {
+    if (!isCurrentBackfill(state, controller)) return null;
+    try {
+      const plan = await prepareAgentBackfill(agent, { ...options, signal });
+      return isCurrentBackfill(state, controller) ? plan : null;
+    } catch (error) {
+      if (!isCurrentBackfill(state, controller)) return null;
+      if (isAbortError(error)) {
+        state.backfillScanning.delete(agent.id);
+        void processAgent(agent.id);
+        return null;
+      }
+      const reason = backfillErrorText(error);
+      console.error(
+        `[backfill] member ${agent.id} scan attempt ${attempt}/${BACKFILL_MAX_ATTEMPTS} failed: ${reason}`,
+      );
+      if (attempt === BACKFILL_MAX_ATTEMPTS) {
+        quarantineScanFailure(state, agent, reason, controller, onlyTargetId);
+        return null;
+      }
+      try {
+        await waitForBackfillRetry(backfillRetryDelay(options, attempt), signal);
+      } catch (retryError) {
+        if (!isCurrentBackfill(state, controller)) return null;
+        if (isAbortError(retryError)) {
+          state.backfillScanning.delete(agent.id);
+          void processAgent(agent.id);
+          return null;
+        }
+        throw retryError;
+      }
+    }
+  }
+  return null;
+}
+
+function releaseSkippedBackfill(
+  state: DriverState,
+  agent: MemberRow,
+  reason: string,
+  controller: AbortController,
+  onlyTargetId?: string,
+): void {
+  if (!isCurrentBackfill(state, controller)) return;
+  state.backfillScanFailures.delete(agent.id);
+  if (reason !== "no session file bound" && reason !== "session file missing on disk") {
+    console.warn(
+      `[backfill] skipping session file ${agent.pi_session_file} for member ${agent.id}: ${reason}`,
+    );
+  }
+  if (onlyTargetId) {
+    const key = backfillTargetKey(agent.id, onlyTargetId);
+    state.backfillPendingTargets.delete(key);
+    state.backfillQuarantine.delete(key);
+  }
+  state.backfillScanning.delete(agent.id);
+  void processAgent(agent.id);
+}
+
+async function runAgentBackfill(run: AgentBackfillRun): Promise<void> {
+  const { state, agent, options, controller, onlyTargetId } = run;
+  const plan = await scanAgentBackfillWithRetries(run);
+  if (!plan || !isCurrentBackfill(state, controller)) return;
+  if (plan.skippedReason) {
+    releaseSkippedBackfill(state, agent, plan.skippedReason, controller, onlyTargetId);
+    return;
+  }
+
+  state.backfillScanFailures.delete(agent.id);
+  const targetEntries = [...plan.repliesByTarget].filter(
+    ([targetId]) => !onlyTargetId || targetId === onlyTargetId,
+  );
+  for (const [targetId] of targetEntries) {
+    state.backfillPendingTargets.add(backfillTargetKey(agent.id, targetId));
+  }
+  if (onlyTargetId && !plan.repliesByTarget.has(onlyTargetId)) {
+    const key = backfillTargetKey(agent.id, onlyTargetId);
+    state.backfillPendingTargets.delete(key);
+    state.backfillQuarantine.delete(key);
+  }
+  state.backfillScanning.delete(agent.id);
+  void processAgent(agent.id);
+  for (const [targetId, replies] of targetEntries) {
+    void applyBackfillTargetWithRetry({
+      state,
+      agent,
+      targetId,
+      replies,
+      options,
+      controller,
+    });
+  }
+}
+
+function startAgentBackfill(options: BackfillOptions = {}): void {
+  const state = getDriverState();
+  if (state.backfillAbort) stopAgentBackfill();
+  const controller = new AbortController();
+  state.backfillAbort = controller;
+  state.backfillOptions = options;
+  let agents: MemberRow[];
+  try {
+    agents = listAgents();
+  } catch (error) {
+    console.error(`[backfill] failed to list agents: ${backfillErrorText(error)}`);
+    return;
+  }
+  for (const agent of agents) state.backfillScanning.add(agent.id);
+  setImmediate(() => {
+    let nextAgent = 0;
+    const worker = async () => {
+      while (isCurrentBackfill(state, controller)) {
+        const agent = agents[nextAgent];
+        nextAgent += 1;
+        if (!agent) return;
+        try {
+          await runAgentBackfill({ state, agent, options, controller });
+        } catch (error) {
+          if (isCurrentBackfill(state, controller)) {
+            const reason = backfillErrorText(error);
+            console.error(`[backfill] member ${agent.id} failed: ${reason}`);
+            state.backfillScanFailures.set(agent.id, { agent, reason });
+            state.backfillScanning.delete(agent.id);
+            for (const targetId of pendingTargetsForFailedScan(state, agent.id)) {
+              const key = backfillTargetKey(agent.id, targetId);
+              state.backfillPendingTargets.add(key);
+              state.backfillQuarantine.set(key, {
+                agent,
+                targetId,
+                reason,
+              });
+            }
+            void processAgent(agent.id);
+          }
+        }
+        if (isCurrentBackfill(state, controller)) await yieldToEventLoop();
+      }
+    };
+    const workers = Array.from(
+      { length: Math.min(BACKFILL_CONCURRENCY, agents.length) },
+      () => worker(),
+    );
+    void Promise.all(workers);
+  });
+}
+
+function stopAgentBackfill(): void {
+  const state = getDriverState();
+  const controller = state.backfillAbort;
+  state.backfillAbort = null;
+  controller?.abort();
+  state.backfillOptions = null;
+  state.backfillScanning.clear();
+  state.backfillPendingTargets.clear();
+  state.backfillQuarantine.clear();
+  state.backfillScanFailures.clear();
+}
+
+/** 仅显式重试被隔离的一个补拉键；其他 target 不受影响。 */
+export function retryAgentBackfillTarget(
+  agentId: string,
+  targetId: string,
+): boolean {
+  const state = getDriverState();
+  const key = backfillTargetKey(agentId, targetId);
+  const quarantined = state.backfillQuarantine.get(key);
+  const controller = state.backfillAbort;
+  if (!quarantined || !state.started || !controller || controller.signal.aborted) {
+    return false;
+  }
+  state.backfillQuarantine.delete(key);
+  state.backfillPendingTargets.add(key);
+  const options = state.backfillOptions ?? {};
+  if (quarantined.replies) {
+    void applyBackfillTargetWithRetry({
+      state,
+      agent: quarantined.agent,
+      targetId,
+      replies: quarantined.replies,
+      options,
+      controller,
+    });
+  } else {
+    state.backfillScanning.add(agentId);
+    void runAgentBackfill({
+      state,
+      agent: quarantined.agent,
+      options,
+      controller,
+      onlyTargetId: targetId,
+    });
+  }
+  return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -2064,23 +2744,28 @@ export interface AgentLoop {
 }
 
 export function createAgentLoop(
-  deps: { runtime?: LoopRuntime; pollMs?: number; now?: () => Date } = {},
+  deps: {
+    runtime?: LoopRuntime;
+    pollMs?: number;
+    now?: () => Date;
+    backfill?: BackfillOptions;
+  } = {},
 ): AgentLoop {
+  let started = false;
   return {
     start(): void {
+      if (started) return;
+      started = true;
       startAgentStatusSweeper();
-      try {
-        backfillAllAgents();
-      } catch (error) {
-        console.error(
-          "[worksplice] agent reply backfill failed:",
-          error instanceof Error ? error.message : String(error),
-        );
-      }
+      // 先同步建立各 agent 的补拉屏障，再启动 driver 和 cron；会话文件 I/O 与解析
+      // 留到后续事件循环轮次执行。
+      startAgentBackfill(deps.backfill);
       startAgentLoopDriver({ runtime: deps.runtime });
       startReminderCron({ pollMs: deps.pollMs, now: deps.now });
     },
     stop(): void {
+      started = false;
+      stopAgentBackfill();
       stopAgentLoopDriver();
       stopReminderCron();
     },
