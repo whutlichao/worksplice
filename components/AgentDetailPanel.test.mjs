@@ -423,6 +423,33 @@ test("AgentDetailPanel renders four named avatar choices and the automatic defau
   );
 });
 
+test("unselected avatar tint choices preserve the global keyboard focus ring", async () => {
+  const tree = AgentAvatarTintPicker({
+    selectedTint: 0,
+    saving: false,
+    error: null,
+    onSelect: () => undefined,
+    t: avatarTintText,
+  });
+  const selected = findButton(tree, "Avatar color 1");
+  const unselected = findButton(tree, "Avatar color 2");
+  assert.equal(selected.props["aria-pressed"], true);
+  assert.equal(selected.props.style.borderWidth, 2, "the selected tint keeps its visual marker");
+  assert.equal(unselected.props["aria-pressed"], false);
+  assert.equal(unselected.props.style.borderWidth, 1);
+  assert.equal(
+    unselected.props.style.outlineWidth,
+    undefined,
+    "unselected inline styles must not suppress :focus-visible outline",
+  );
+
+  const globalCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(
+    globalCss,
+    /:focus-visible\s*\{\s*outline:\s*2px solid var\(--accent-graphic\);\s*outline-offset:\s*2px;/,
+  );
+});
+
 test("avatar color button persists before showing the saved tint", async () => {
   let selectedTint = 0;
   let error = null;
