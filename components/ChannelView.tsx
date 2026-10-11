@@ -62,6 +62,7 @@ export type CenterTab = "messages" | "tasks";
 
 /** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */
 export const NOTICE_TOAST_MS = 3500;
+const PINNED_MESSAGE_HIGHLIGHT_MS = 1800;
 
 /** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */
 export interface NoticeSlots {
@@ -936,6 +937,7 @@ export const MessageRow = memo(function MessageRow({
   message,
   task,
   isAnchor,
+  highlighted,
   canConvertToTask,
   convertInActionBar,
   currentMemberId,
@@ -955,6 +957,7 @@ export const MessageRow = memo(function MessageRow({
   message: ChannelMessage;
   task?: Pick<ChannelTask, "id" | "number" | "status" | "unreadReplyCount">;
   isAnchor?: boolean;
+  highlighted?: boolean;
   canConvertToTask?: boolean;
   /** §3.7 创建途径 4：动作栏「转为任务」键——只有频道调用点传 true（线程面不传 ⇒ 键根本不存在）。 */
   convertInActionBar?: boolean;
@@ -1026,6 +1029,14 @@ export const MessageRow = memo(function MessageRow({
         isAnchor
           ? "msg ws-message-row ws-message-row-anchor"
           : "msg ws-message-row"
+      }
+      style={
+        highlighted
+          ? {
+              background: "var(--selected-soft)",
+              boxShadow: "inset 0 0 0 2px var(--selected-graphic)",
+            }
+          : undefined
       }
       onContextMenu={(e) => {
         e.preventDefault();
@@ -2626,6 +2637,17 @@ export function ChannelView({
   }, [taskEventChannelId, messages, messagesLoading]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [highlightedPinnedMessage, setHighlightedPinnedMessage] = useState<{
+    messageId: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!highlightedPinnedMessage) return;
+    const timer = setTimeout(
+      () => setHighlightedPinnedMessage(null),
+      PINNED_MESSAGE_HIGHLIGHT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [highlightedPinnedMessage]);
 
   // 单槽 notice toast：held / task 两个 notice 槽经 pickNoticeToast 合成至多一条可见项，
   // 挂在滚动流**之外**（消息区底部、composer 上方），到点自动消退。
@@ -2745,6 +2767,7 @@ export function ChannelView({
     setHeldNotice(null);
     setTaskNotice(null);
     setToast(null);
+    setHighlightedPinnedMessage(null);
     setPinnedOpen(false);
     setMuteOpen(false);
     setMuteNotice(null);
@@ -2882,17 +2905,17 @@ export function ChannelView({
       if (message.target_id === channel?.id) {
         const already = messages.some((m) => m.id === message.id);
         if (already) {
-          document
-            .getElementById(`msg-${message.id}`)
-            ?.scrollIntoView({ block: "center" });
+          const element = document.getElementById(`msg-${message.id}`);
+          element?.scrollIntoView({ block: "center" });
+          if (element) setHighlightedPinnedMessage({ messageId: message.id });
           return;
         }
         // 新消息经 hook 轮询/重拉收敛（下次轮询或 loadLatest）。
         loadLatest();
         requestAnimationFrame(() => {
-          document
-            .getElementById(`msg-${message.id}`)
-            ?.scrollIntoView({ block: "center" });
+          const element = document.getElementById(`msg-${message.id}`);
+          element?.scrollIntoView({ block: "center" });
+          if (element) setHighlightedPinnedMessage({ messageId: message.id });
         });
       } else {
         onOpenPanel?.({ kind: "thread", id: message.target_id });
@@ -3725,6 +3748,7 @@ export function ChannelView({
                     <MessageRow
                       message={m}
                       task={task}
+                      highlighted={highlightedPinnedMessage?.messageId === m.id}
                       currentMemberId={currentMemberId}
                       pinned={pinnedSet.has(m.id)}
                       canConvertToTask={!taskIndexes.byMessageId.has(m.id)}

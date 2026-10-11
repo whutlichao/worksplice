@@ -69,6 +69,22 @@ test("MessageRow renders author, seq, content and the three §3.2 actions", () =
     assert.doesNotMatch(html, /Set a reminder on this message/);
 });
 
+test("MessageRow renders pinned navigation feedback on the target message", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            highlighted: true,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+        }),
+    );
+    const row = html.slice(html.indexOf('<div class="msg ws-message-row"'));
+
+    assert.match(row, /style="[^"]*background:var\(--selected-soft\)/);
+    assert.match(row, /box-shadow:inset 0 0 0 2px var\(--selected-graphic\)/);
+    assert.match(row, /hello <strong>world<\/strong>/);
+});
+
 test('MessageRow preserves readable long-form Markdown and visible message metadata', () => {
     const message = {
         ...MESSAGE,
