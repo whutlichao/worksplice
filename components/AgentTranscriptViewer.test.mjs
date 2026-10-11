@@ -13,7 +13,7 @@ const {
   AgentTranscriptViewer,
   AgentTranscriptToggle,
 } = await jiti.import('./AgentTranscriptViewer.tsx');
-const { AgentDetailPanel } = await jiti.import('./AgentDetailPanel.tsx');
+const { AgentAvatarTintPicker, AgentDetailPanel } = await jiti.import('./AgentDetailPanel.tsx');
 const { I18nProvider } = await jiti.import('../hooks/useI18n.tsx');
 
 function renderContent(props) {
@@ -23,6 +23,7 @@ function renderContent(props) {
       null,
       React.createElement(AgentTranscriptContent, {
         sessionId: null,
+        memberId: null,
         messages: [],
         hasMore: false,
         loadingEarlier: false,
@@ -146,6 +147,18 @@ function transcriptItem(entryId, text) {
   };
 }
 
+function transcriptAssistantItem(entryId, text) {
+  return {
+    entryId,
+    message: {
+      role: 'assistant',
+      content: [{ type: 'text', text }],
+      provider: 'test',
+      model: 'model',
+    },
+  };
+}
+
 function transcriptPage(sessionId, messages, { hasMore = false, cursor = null } = {}) {
   return { status: 'ready', sessionId, messages, hasMore, cursor };
 }
@@ -240,6 +253,105 @@ test('ready transcript is a bounded read-only message view with refresh and pagi
   assert.doesNotMatch(html, /<textarea|>Fork<|>Edit<|>Reply</);
 });
 
+test('only assistant messages in the member-scoped transcript show the current agent avatar', () => {
+  const agent = transcriptAgent({ id: 'transcript-agent', avatar_tint: 2 });
+  const html = renderContent({
+    status: 'ready',
+    memberId: agent.id,
+    agent,
+    messages: [
+      {
+        entryId: 'assistant-entry',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'assistant history' }],
+          provider: 'test',
+          model: 'model',
+        },
+      },
+      {
+        entryId: 'user-entry',
+        message: { role: 'user', content: 'user message' },
+      },
+      {
+        entryId: 'tool-entry',
+        message: {
+          role: 'toolResult',
+          toolCallId: 'tool-1',
+          toolName: 'read',
+          content: [{ type: 'text', text: 'tool output' }],
+        },
+      },
+      {
+        entryId: 'custom-entry',
+        message: {
+          role: 'custom',
+          customType: 'transcript-test',
+          content: 'custom message',
+          display: true,
+        },
+      },
+      {
+        entryId: 'bash-entry',
+        message: {
+          role: 'bashExecution',
+          command: 'pwd',
+          output: '/workspace',
+          truncated: false,
+        },
+      },
+    ],
+  });
+
+  assert.match(html, /class="avatar sm av-2" role="img" aria-label="Transcript agent"/);
+  assert.equal((html.match(/class="avatar\b/g) ?? []).length, 1);
+  assert.match(html, /assistant history/);
+  assert.match(html, /user message/);
+  assert.match(html, /tool output/);
+  assert.match(html, /custom message/);
+  assert.match(html, /pwd/);
+});
+
+test('the same assistant history uses the current tint and unassociated transcripts have no agent avatar', () => {
+  const assistant = {
+    entryId: 'assistant-history',
+    message: {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'stable assistant history' }],
+      provider: 'test',
+      model: 'model',
+    },
+  };
+  const renderWithTint = (avatar_tint) => renderContent({
+    status: 'ready',
+    memberId: 'transcript-agent',
+    agent: transcriptAgent({ avatar_tint }),
+    messages: [assistant],
+  });
+
+  const beforeTintChange = renderWithTint(1);
+  const afterTintChange = renderWithTint(3);
+  const restoredAutomaticTint = renderWithTint(null);
+  assert.match(beforeTintChange, /class="avatar sm av-1"/);
+  assert.match(afterTintChange, /class="avatar sm av-3"/);
+  assert.match(restoredAutomaticTint, /class="avatar sm av-3"/);
+  assert.match(afterTintChange, /stable assistant history/);
+
+  const unassociated = renderContent({
+    status: 'ready',
+    memberId: null,
+    messages: [assistant],
+  });
+  const mismatchedMember = renderContent({
+    status: 'ready',
+    memberId: 'another-agent',
+    agent: transcriptAgent({ avatar_tint: 3 }),
+    messages: [assistant],
+  });
+  assert.doesNotMatch(unassociated, /class="avatar\b/);
+  assert.doesNotMatch(mismatchedMember, /class="avatar\b/);
+});
+
 test('transcript controls have copy in both supported language packs', async () => {
   const { enLocale } = await import('../lib/i18n/messages/en.ts');
   const { zhCNLocale } = await import('../lib/i18n/messages/zh-CN.ts');
@@ -318,9 +430,10 @@ test('AgentDetailPanel expands, refreshes, paginates, and reopens a fresh transc
     id: 'transcript-agent',
     name: 'Transcript agent',
     pi_session_file: '/sessions/transcript-agent.jsonl',
+    avatar_tint: 2,
   });
   const responses = [
-    transcriptPage('session-1', [transcriptItem('initial', 'initial snapshot')]),
+    transcriptPage('session-1', [transcriptAssistantItem('initial', 'initial snapshot')]),
     transcriptPage('session-1', [transcriptItem('refreshed', 'refreshed snapshot')], {
       hasMore: true,
       cursor: 'cursor-1',
@@ -333,7 +446,10 @@ test('AgentDetailPanel expands, refreshes, paginates, and reopens a fresh transc
   ];
   const requestUrls = [];
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = async (url, init) => {
+    if (init?.method === 'PATCH') {
+      return { ok: true, status: 200, json: async () => ({ agent: { avatar_tint: 3 } }) };
+    }
     requestUrls.push(String(url));
     const page = responses.shift();
     assert.ok(page, `unexpected transcript request: ${url}`);
@@ -381,6 +497,20 @@ test('AgentDetailPanel expands, refreshes, paginates, and reopens a fresh transc
     await settleRequest();
     viewer.render();
     assert.deepEqual(currentTranscript().messages.map((item) => item.entryId), ['initial']);
+    assert.equal(currentTranscript().memberId, agent.id);
+    assert.equal(currentTranscript().agent.avatar_tint, 2);
+    assert.match(renderContent(currentTranscript()), /class="avatar sm av-2"/);
+
+    const tintPicker = findElement(panel.tree, AgentAvatarTintPicker);
+    assert.ok(tintPicker, 'the agent detail panel exposes its current avatar tint picker');
+    await tintPicker.props.onSelect(3);
+    panel.render();
+    const updatedViewer = findElement(panel.tree, AgentTranscriptViewer);
+    assert.equal(updatedViewer.props.agent.avatar_tint, 3);
+    assert.match(
+      renderContent({ ...currentTranscript(), agent: updatedViewer.props.agent }),
+      /class="avatar sm av-3"/,
+    );
 
     currentTranscript().onRefresh();
     await settleRequest();

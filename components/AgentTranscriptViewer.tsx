@@ -3,13 +3,18 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentTranscriptPage, ImageContent, SessionTranscriptItem, ToolResultMessage } from '@/lib/types';
 import { useI18n } from '@/hooks/useI18n';
+import type { MemberRow } from '@/lib/data/types';
 import { imageSource, MessageView } from './MessageView';
+import { Avatar } from './Avatar';
 
 type TranscriptStatus = 'loading' | 'empty' | 'ready' | 'error';
+type TranscriptAgent = Pick<MemberRow, 'id' | 'name' | 'avatar_tint'>;
 
 interface TranscriptContentProps {
   status: TranscriptStatus;
   sessionId: string | null;
+  memberId?: string | null;
+  agent?: TranscriptAgent | null;
   messages: SessionTranscriptItem[];
   hasMore: boolean;
   loadingEarlier: boolean;
@@ -137,6 +142,8 @@ function TranscriptRetryAlert({ error, onRetry }: { error: string; onRetry: () =
 export function AgentTranscriptContent({
   status,
   sessionId,
+  memberId = null,
+  agent = null,
   messages,
   hasMore,
   loadingEarlier,
@@ -148,6 +155,7 @@ export function AgentTranscriptContent({
   const { t } = useI18n();
   const toolResults = useMemo(() => indexTranscriptToolResults(messages), [messages]);
   const toolCallIds = useMemo(() => indexTranscriptToolCallIds(messages), [messages]);
+  const associatedAgent = agent?.id === memberId ? agent : null;
 
   return (
     <section
@@ -236,8 +244,8 @@ export function AgentTranscriptContent({
                 }
               }
 
-              return (
-                <Fragment key={entryId}>
+              const messageView = (
+                <>
                   <MessageView
                     message={message}
                     toolResults={toolResults}
@@ -251,6 +259,23 @@ export function AgentTranscriptContent({
                       imagesOnly
                     />
                   ))}
+                </>
+              );
+
+              return (
+                <Fragment key={entryId}>
+                  {message.role === 'assistant' && associatedAgent ? (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--sp-3)' }}>
+                      <Avatar
+                        name={associatedAgent.name}
+                        type="agent"
+                        size="sm"
+                        colorKey={associatedAgent.id}
+                        agentTint={associatedAgent.avatar_tint}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>{messageView}</div>
+                    </div>
+                  ) : messageView}
                 </Fragment>
               );
             })}
@@ -267,7 +292,10 @@ export function AgentTranscriptContent({
 }
 
 /** 加载成员范围内的单次快照；卸载后重新挂载（关闭再打开）会重新读取。 */
-export function AgentTranscriptViewer({ memberId }: { memberId: string }) {
+export function AgentTranscriptViewer({ memberId, agent = null }: {
+  memberId: string;
+  agent?: TranscriptAgent | null;
+}) {
   const { t } = useI18n();
   const [status, setStatus] = useState<TranscriptStatus>('loading');
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -380,6 +408,8 @@ export function AgentTranscriptViewer({ memberId }: { memberId: string }) {
       <AgentTranscriptContent
         status={status}
         sessionId={sessionId}
+        memberId={memberId}
+        agent={agent}
         messages={messages}
         hasMore={hasMore}
         loadingEarlier={loadingEarlier}
