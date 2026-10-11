@@ -1,7 +1,7 @@
 # 03 — 缩小混合长短词搜索的候选集并保留结果契约
 
 Type: task
-Status: in-progress
+Status: resolved
 Blocked by: None (can start immediately)
 Spec: ../spec.md
 
@@ -18,7 +18,7 @@ Spec: ../spec.md
 
 ## Answer
 
-Outcome: **本地实施与验收完成；远端发布待 coordinator 处理**。保留混合查询优化，真实 base commit `01369c574c6284dee6d6db54b3685c42451aa0de` 与候选在临时合成数据上的基准显示稳定改善。代码提交：`943e4e8`、`9ccaab2`；当前 Status 保持 `in-progress`，因为行为规则第 3 条要求第三方远端操作先升级，已向 coordinator escalation（消息 `msg_350f6810ae03`），尚未创建 PR、没有 PR 号。
+Outcome: **产品实现与本地验收已完成；PR #150 已由 coordinator 在用户授权后创建**（https://github.com/whutlichao/worksplice/pull/150）。保留混合查询优化，真实 base commit `01369c574c6284dee6d6db54b3685c42451aa0de` 与候选在临时合成数据上的基准显示稳定改善。代码提交：`943e4e8`、`9ccaab2`；远端 push 与 PR 创建由 coordinator 按用户授权完成，本 follow-up 只收敛票据记录。
 
 Files modified: `lib/data/sqlite.ts`、`lib/data/data-layer.test.mjs`、`lib/domain/collab/search.test.mjs`、本票文件。
 
@@ -54,3 +54,9 @@ Review 初版报告 1 项 P1：`lib/data/data-layer.test.mjs` 的 `prepare` spy 
 #### Spec
 
 Review 确切 diff 后未发现遗漏、范围外改动或实现错误；移除白盒测试后的针对性复审确认结果差分覆盖充分、没有正确性缺口，先前疑虑不再成立，结论 **OK**。
+
+### Decisions
+
+1. 原 worker 对远端 push/创建 PR 的第三方操作先发起 escalation（`msg_350f6810ae03`），未代办。
+2. 用户授权 coordinator 执行 `git push` 与 `gh pr create`。
+3. coordinator 按授权完成推送并创建 [PR #150](https://github.com/whutlichao/worksplice/pull/150)；本 follow-up 仅更新本票记录，不重复操作 GitHub。
