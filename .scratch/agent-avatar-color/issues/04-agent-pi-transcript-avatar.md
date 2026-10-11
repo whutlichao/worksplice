@@ -53,4 +53,4 @@
 ### 提交与 PR
 
 - 分支 `agent-transcript-avatar-04`，基于 `origin/main` 提交 `74746c2`；提交：`80b071a`、`b71f392`。
-- PR 链接待 coordinator 创建：本 worker 的派单行为规则要求对第三方 GitHub 操作 escalation，不代为 push/open PR；代码已本地提交，未自行合并。
+- PR：[#164](https://github.com/whutlichao/worksplice/pull/164)（base `main`）。已 push 并创建，未自行合并。
