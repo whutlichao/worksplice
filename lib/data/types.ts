@@ -11,6 +11,17 @@ export type ChannelType = "public" | "private" | "dm";
 export type MemberType = "human" | "agent";
 export type MemberRole = "owner" | "member";
 export type MemberStatus = "online" | "working" | "error" | "offline";
+export type AgentAvatarTint = 0 | 1 | 2 | 3;
+
+export function isAgentAvatarTint(value: unknown): value is AgentAvatarTint {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 3
+  );
+}
+
 export type TaskStatus = "todo" | "in_progress" | "in_review" | "done" | "closed";
 export type ReminderStatus = "scheduled" | "fired" | "canceled";
 
@@ -38,6 +49,8 @@ export interface MemberRow {
   model_id: string | null;
   thinking_level: string | null;
   created_at: string;
+  /** 身份头像色：null 表示继续按 member id 自动取色。 */
+  avatar_tint: AgentAvatarTint | null;
 }
 
 export interface ChannelMemberRow {

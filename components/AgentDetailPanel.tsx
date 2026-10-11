@@ -3,12 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { MessageSquare, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
+import { isAgentAvatarTint } from "@/lib/data/types";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import { BrutalModal } from "./BrutalModal";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { ModelPicker } from "./ModelPicker";
-import type { MemberRow, MemberStatus, TaskStatus } from "@/lib/data/types";
+import type {
+  AgentAvatarTint,
+  MemberRow,
+  MemberStatus,
+  TaskStatus,
+} from "@/lib/data/types";
 import type { ModelsData } from "@/lib/models-cache";
 
 /** 分节标题（`.d-sec-title`，票 07）：mono 大写分组标签（形态在 globals.css 的 `.d-sec-title`）。 */
@@ -396,6 +402,138 @@ export function RuntimeProbeFeedback({ probe }: { probe: RuntimeProbeSummary }) 
   );
 }
 
+const AGENT_AVATAR_TINT_INDICES: AgentAvatarTint[] = [0, 1, 2, 3];
+
+interface AvatarTintSelectionHandlerInput {
+  agentId: string;
+  request?: typeof fetch;
+  setTint: (tint: AgentAvatarTint | null) => void;
+  setError: (message: string | null) => void;
+  setSaving: (saving: boolean) => void;
+  onChanged: () => void;
+}
+
+/** 唯一保存路径：成功后采用服务端回传值；失败时不触碰当前 tint。 */
+export function createAvatarTintSelectionHandler({
+  agentId,
+  request = fetch,
+  setTint,
+  setError,
+  setSaving,
+  onChanged,
+}: AvatarTintSelectionHandlerInput) {
+  return async (tint: AgentAvatarTint | null): Promise<void> => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await request(`/api/members/${encodeURIComponent(agentId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarTint: tint }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+        agent?: { avatar_tint?: unknown };
+      };
+      if (!response.ok || body.error) {
+        throw new Error(
+          typeof body.error === "string" ? body.error : `HTTP ${response.status}`,
+        );
+      }
+      const savedTint = body.agent?.avatar_tint;
+      if (savedTint !== null && !isAgentAvatarTint(savedTint)) {
+        throw new Error("The server returned an invalid avatar color");
+      }
+      setTint(savedTint);
+      onChanged();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+}
+
+/** Agent 身份头像色选择器：名称、选中态与失败状态都由可访问 markup 表达。 */
+export function AgentAvatarTintPicker({
+  selectedTint,
+  saving,
+  error,
+  onSelect,
+  t,
+}: {
+  selectedTint: AgentAvatarTint | null;
+  saving: boolean;
+  error: string | null;
+  onSelect: (tint: AgentAvatarTint | null) => void | Promise<void>;
+  t: ReturnType<typeof useI18n>["t"];
+}) {
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div
+        role="group"
+        aria-label={t("agent.avatarTint")}
+        aria-busy={saving}
+        style={{ display: "flex", alignItems: "center", gap: 5 }}
+      >
+        {AGENT_AVATAR_TINT_INDICES.map((tint) => (
+          <button
+            key={tint}
+            type="button"
+            aria-label={t("agent.avatarTint.option", { index: tint + 1 })}
+            aria-pressed={selectedTint === tint}
+            title={t("agent.avatarTint.option", { index: tint + 1 })}
+            disabled={saving}
+            onClick={() => onSelect(tint)}
+            style={{
+              width: 24,
+              height: 24,
+              padding: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "var(--surface)",
+              border: "1px solid var(--border-strong)",
+              outlineWidth: selectedTint === tint ? 2 : 0,
+              outlineStyle: "solid",
+              outlineColor: "var(--fg)",
+              outlineOffset: 1,
+              borderRadius: "var(--r-sm)",
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                backgroundColor: `var(--av-${tint})`,
+              }}
+            />
+          </button>
+        ))}
+        <button
+          type="button"
+          aria-label={t("agent.avatarTint.auto")}
+          aria-pressed={selectedTint === null}
+          disabled={saving}
+          onClick={() => onSelect(null)}
+          className="btn btn-sm"
+          style={{ padding: "3px 7px", marginLeft: 2 }}
+        >
+          {t("agent.avatarTint.auto")}
+        </button>
+      </div>
+      {error && (
+        <div role="alert" style={{ color: "var(--error)", fontSize: 11, marginTop: 4 }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** 右栏：agent 详情面板（§3.6/§3.10/§6.5）。重置 / workspace / runtime（per-agent 模型） / 可观测性。 */
 export function AgentDetailPanel({
   agent,
@@ -423,6 +561,11 @@ export function AgentDetailPanel({
   const [busyOp, setBusyOp] = useState<BusyOp | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avatarTint, setAvatarTint] = useState<AgentAvatarTint | null>(
+    agent.avatar_tint ?? null,
+  );
+  const [avatarTintSaving, setAvatarTintSaving] = useState(false);
+  const [avatarTintError, setAvatarTintError] = useState<string | null>(null);
 
   // §6.5 可观测性数据
   const [obs, setObs] = useState<ObservabilityData | null>(null);
@@ -535,6 +678,19 @@ export function AgentDetailPanel({
     void loadRuntime(agent.id);
   }, [agent.id, loadObservability, loadRuntime]);
 
+  useEffect(() => {
+    setAvatarTint(agent.avatar_tint ?? null);
+    setAvatarTintError(null);
+  }, [agent.id, agent.avatar_tint]);
+
+  const selectAvatarTint = createAvatarTintSelectionHandler({
+    agentId: agent.id,
+    setTint: setAvatarTint,
+    setError: setAvatarTintError,
+    setSaving: setAvatarTintSaving,
+    onChanged,
+  });
+
   const run = async (
     op: BusyOp,
     request: () => Promise<Response>,
@@ -624,7 +780,12 @@ export function AgentDetailPanel({
       {/* 身份头（`.dock-head` / `.dock-id` / `.avatar.lg` / `.dock-name` / `.dock-role`，票 07） */}
       <header className="dock-head">
         <div className="dock-id">
-          <Avatar name={agent.name} type={agent.type} size="lg" colorKey={agent.id} />
+          <Avatar
+            name={agent.name}
+            type={agent.type}
+            size="lg"
+            colorKey={avatarTint ?? agent.id}
+          />
           <div className="meta">
             <div className="dock-name">
               <span
@@ -656,6 +817,13 @@ export function AgentDetailPanel({
                   : t("status." + agent.status)}
               </span>
             </div>
+            <AgentAvatarTintPicker
+              selectedTint={avatarTint}
+              saving={avatarTintSaving}
+              error={avatarTintError}
+              onSelect={selectAvatarTint}
+              t={t}
+            />
           </div>
           <button
             type="button"

@@ -10,6 +10,7 @@ import type { DataPaths } from "./dirs.ts";
 import type {
   AppendMessageInput,
   AttachmentRow,
+  AgentAvatarTint,
   ChannelMemberRow,
   ChannelMuteRow,
   ChannelRow,
@@ -107,6 +108,7 @@ export interface Store {
     createdAt?: string;
   }): MemberRow;
   updateMemberStatus(id: string, status: MemberStatus): void;
+  setMemberAvatarTint(id: string, tint: AgentAvatarTint | null): void;
   /** 成员描述更新（存量内容英文化迁移脚本专用写路径：只改 description，其余字段不动）。 */
   updateMemberDescription(id: string, description: string): void;
   setMemberWorkspace(id: string, workspacePath: string, piSessionFile: string): void;
