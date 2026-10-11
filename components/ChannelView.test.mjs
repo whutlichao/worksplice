@@ -15,6 +15,8 @@ const {
     createTaskCreationAnnouncementTracker,
     Composer,
     ChannelView,
+    getPinnedNavigationStep,
+    hasPinnedNavigationError,
 } = await jiti.import("./ChannelView.tsx");
 const { mergeIncomingMessages } = await jiti.import(
     "../hooks/useChannelData.ts",
@@ -83,6 +85,59 @@ test("MessageRow renders pinned navigation feedback on the target message", () =
     assert.match(row, /style="[^"]*background:var\(--selected-soft\)/);
     assert.match(row, /box-shadow:inset 0 0 0 2px var\(--selected-graphic\)/);
     assert.match(row, /hello <strong>world<\/strong>/);
+});
+
+test("pinned navigation pages backward until an older target is loaded", () => {
+    const target = { id: "message-4", seq: 4 };
+    const latestPage = Array.from({ length: 50 }, (_, index) => ({
+        id: `message-${index + 101}`,
+        seq: index + 101,
+    }));
+    const middlePage = Array.from({ length: 50 }, (_, index) => ({
+        id: `message-${index + 51}`,
+        seq: index + 51,
+    }));
+    const oldestPage = Array.from({ length: 50 }, (_, index) => ({
+        id: `message-${index + 1}`,
+        seq: index + 1,
+    }));
+
+    assert.equal(getPinnedNavigationStep(target, latestPage, true), "earlier");
+    assert.equal(
+        getPinnedNavigationStep(target, [...middlePage, ...latestPage], true),
+        "earlier",
+    );
+    assert.equal(
+        getPinnedNavigationStep(
+            target,
+            [...oldestPage, ...middlePage, ...latestPage],
+            true,
+        ),
+        "loaded",
+    );
+});
+
+test("pinned navigation refreshes when the target is newer than the loaded page", () => {
+    const page = Array.from({ length: 50 }, (_, index) => ({
+        id: `message-${index + 1}`,
+        seq: index + 1,
+    }));
+
+    assert.equal(
+        getPinnedNavigationStep({ id: "message-51", seq: 51 }, page, false),
+        "latest",
+    );
+    assert.equal(
+        getPinnedNavigationStep({ id: "missing", seq: 0 }, page, false),
+        "unavailable",
+    );
+});
+
+test("pinned navigation detects a failed request without treating the initial state as failure", () => {
+    assert.equal(hasPinnedNavigationError(undefined, null), false);
+    assert.equal(hasPinnedNavigationError(null, null), false);
+    assert.equal(hasPinnedNavigationError(null, "GET messages: 500"), true);
+    assert.equal(hasPinnedNavigationError("previous error", "previous error"), false);
 });
 
 test('MessageRow preserves readable long-form Markdown and visible message metadata', () => {
