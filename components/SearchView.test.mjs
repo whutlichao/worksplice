@@ -325,12 +325,17 @@ test("测试自己也得守门：SearchView.tsx 落在允许的改动面内（UI
     [
       "@/hooks/useI18n",
       "@/lib/domain/collab",
+      "@/lib/data/types",
+      "@/lib/member-index",
       "lucide-react",
       "react",
       "./Avatar",
     ].sort(),
   );
-  // 工程规范 §1：UI 不直连数据层（数据一律经 协作服务层 / 路由）
-  assert.doesNotMatch(searchViewSource, /@\/lib\/data/);
+  // 工程规范 §1：UI 不直连数据层；仅允许擦除后的类型导入。
+  assert.doesNotMatch(
+    searchViewSource,
+    /^import(?!\s+type\b)[^\n]*from "@\/lib\/data\//m,
+  );
   assert.doesNotMatch(searchViewSource, /\/api\/search\/[^?]/);
 });

@@ -286,7 +286,13 @@ export function WorkspaceSidebar({
                 onClick={() => onOpenAgent(agent.id)}
                 className="nav-row"
               >
-                <Avatar name={agent.name} size="sm" colorKey={agent.id} />
+                <Avatar
+                  name={agent.name}
+                  type={agent.type}
+                  size="sm"
+                  colorKey={agent.id}
+                  agentTint={agent.avatar_tint}
+                />
                 <span className="grow">{agent.name}</span>
                 <StatusDot status={agent.status} />
               </button>

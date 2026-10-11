@@ -491,6 +491,8 @@ export function AppShell() {
           <SearchView
             key={`search-${searchQuery}`}
             initialQuery={searchQuery}
+            agents={agents}
+            owner={owner}
             onClose={() => setSearchOpen(false)}
             onOpenMessage={openMessageFromSearch}
           />

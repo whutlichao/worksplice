@@ -56,6 +56,7 @@ import {
 } from "@/lib/file-fuzzy";
 import { composerMentionCandidates } from "@/lib/mention";
 import { memberPanel, type PanelContent } from "@/lib/panel-state";
+import { indexCurrentMembersById } from "@/lib/member-index";
 import { useChannelData } from "@/hooks/useChannelData";
 
 export type CenterTab = "messages" | "tasks";
@@ -980,6 +981,7 @@ function ContextMenu({
  *  memo 化：切换频道/轮询合并时父级重渲染频繁，单行 props 不变则跳过（头像/Markdown 解析是主要开销）。 */
 export const MessageRow = memo(function MessageRow({
   message,
+  currentAuthor,
   task,
   isAnchor,
   highlighted,
@@ -1000,6 +1002,8 @@ export const MessageRow = memo(function MessageRow({
   onOpenThread,
 }: {
   message: ChannelMessage;
+  /** 最新的共享 MemberRow；message.author 可能是取数时嵌入的旧行。 */
+  currentAuthor?: MemberRow | null;
   task?: Pick<ChannelTask, "id" | "number" | "status" | "unreadReplyCount">;
   isAnchor?: boolean;
   highlighted?: boolean;
@@ -1095,6 +1099,7 @@ export const MessageRow = memo(function MessageRow({
         type={message.author?.type}
         size="md"
         colorKey={message.author_id}
+        agentTint={(currentAuthor ?? message.author)?.avatar_tint}
       />
       <div className="msg-body">
         {/* `flexWrap` 是调用点的偏离：上游 `.msg-head` 不换行，本仓头部还有线程/未回复角标，窄栏需换行兜底。 */}
@@ -1391,6 +1396,7 @@ function taskActionsFor(
  *  点击打开任务 thread；Board 视图可拖拽（落点由 TaskBoard 按 reachable 裁决）。 */
 export function TaskCard({
   task,
+  currentMembersById,
   currentMemberId,
   busy,
   onAction,
@@ -1402,6 +1408,7 @@ export function TaskCard({
   onDragEnd,
 }: {
   task: ChannelTask;
+  currentMembersById?: ReadonlyMap<string, MemberRow>;
   currentMemberId: string;
   busy: boolean;
   onAction: (
@@ -1419,6 +1426,7 @@ export function TaskCard({
 }) {
   const { t } = useI18n();
   const actions = taskActionsFor(task, currentMemberId, onAction, t);
+  const currentOwner = currentMembersById?.get(task.owner_id ?? "") ?? task.owner;
   return (
     <div
       className={dragging ? "card dragging" : "card"}
@@ -1467,6 +1475,7 @@ export function TaskCard({
               type={task.owner.type}
               size="sm"
               colorKey={task.owner_id ?? undefined}
+              agentTint={currentOwner?.avatar_tint}
             />
           ) : null}
           {task.owner ? task.owner.name : t("tasks.unassigned")}
@@ -1498,6 +1507,7 @@ export function TaskCard({
 /** 任务列表（§3.7 任务视图）：按状态分组纵向堆叠（原任务板视图，ADR-0002 后更名）。 */
 export function TaskList({
   tasks,
+  currentMembersById,
   currentMemberId,
   busy,
   folded,
@@ -1507,6 +1517,7 @@ export function TaskList({
   showUnreadDetails = false,
 }: {
   tasks: ChannelTask[];
+  currentMembersById?: ReadonlyMap<string, MemberRow>;
   currentMemberId: string;
   busy: boolean;
   showUnreadDetails?: boolean;
@@ -1562,6 +1573,7 @@ export function TaskList({
                 <TaskCard
                   key={task.id}
                   task={task}
+                  currentMembersById={currentMembersById}
                   currentMemberId={currentMemberId}
                   busy={busy}
                   onAction={onAction}
@@ -1582,6 +1594,7 @@ export function TaskList({
  *  列宽/不拉伸、列底、拖拽态形态全在 globals.css 的任务板 class 块。 */
 export function TaskBoard({
   tasks,
+  currentMembersById,
   currentMemberId,
   busy,
   onAction,
@@ -1590,6 +1603,7 @@ export function TaskBoard({
   showUnreadDetails = false,
 }: {
   tasks: ChannelTask[];
+  currentMembersById?: ReadonlyMap<string, MemberRow>;
   currentMemberId: string;
   busy: boolean;
   showUnreadDetails?: boolean;
@@ -1680,6 +1694,7 @@ export function TaskBoard({
                 <TaskCard
                   key={task.id}
                   task={task}
+                  currentMembersById={currentMembersById}
                   currentMemberId={currentMemberId}
                   busy={busy}
                   onAction={onAction}
@@ -1724,6 +1739,7 @@ export function sortUnreadTasks(tasks: ChannelTask[]): ChannelTask[] {
 /** 任务视图容器（§3.7/ADR-0002）：创建栏 + List|Board 切换（localStorage 记忆）+ 视图；两者共享同一批任务数据。 */
 export function TaskViews({
   tasks,
+  currentMembersById,
   currentMemberId,
   busy,
   disabled,
@@ -1737,6 +1753,7 @@ export function TaskViews({
   onUnreadOnlyChange,
 }: {
   tasks: ChannelTask[];
+  currentMembersById?: ReadonlyMap<string, MemberRow>;
   currentMemberId: string;
   busy: boolean;
   disabled: boolean;
@@ -1913,6 +1930,7 @@ export function TaskViews({
         ) : view === "list" ? (
           <TaskList
             tasks={visibleTasks}
+            currentMembersById={currentMembersById}
             showUnreadDetails={unreadOnly}
             currentMemberId={currentMemberId}
             busy={busy}
@@ -1924,6 +1942,7 @@ export function TaskViews({
         ) : (
           <TaskBoard
             tasks={visibleTasks}
+            currentMembersById={currentMembersById}
             showUnreadDetails={unreadOnly}
             currentMemberId={currentMemberId}
             busy={busy}
@@ -2471,6 +2490,10 @@ export function ChannelView({
   membersVersion?: number;
 }) {
   const { t } = useI18n();
+  const currentMembersById = useMemo(
+    () => indexCurrentMembersById(agents, owner),
+    [agents, owner],
+  );
 
   // 01 票：频道消息数据循环收进 useChannelData（loadLatest/loadEarlier +
   // 轮询合并 + maxSeq/hasMore）；02 票：发送通道（send + heldNotice + busyAction）同收 hook。
@@ -3882,6 +3905,7 @@ export function ChannelView({
                   <div key={m.id} id={`msg-${m.id}`}>
                     <MessageRow
                       message={m}
+                      currentAuthor={currentMembersById.get(m.author_id)}
                       task={task}
                       highlighted={highlightedPinnedMessage?.messageId === m.id}
                       currentMemberId={currentMemberId}
@@ -3908,6 +3932,7 @@ export function ChannelView({
         ) : (
           <TaskViews
             tasks={tasks}
+            currentMembersById={currentMembersById}
             unreadOnly={unreadOnlyTasks}
             onUnreadOnlyChange={setUnreadOnlyTasks}
             currentMemberId={currentMemberId}
