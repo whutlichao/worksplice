@@ -89,4 +89,6 @@ Blocked by: None
 
 ### PR
 
-待协调者授权发布分支并创建 PR 后回填。
+PR **#156** — https://github.com/whutlichao/worksplice/pull/156（open，未合并）。
+
+设计文档提交：`29277d2`；PR 编号回填见后续 Answer 更新提交。
