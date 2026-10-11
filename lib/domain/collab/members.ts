@@ -4,7 +4,8 @@ import { randomUUID } from "crypto";
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel } from "./event-messages.ts";
 import { getDMFor, resumeDirectChannel } from "./channels.ts";
-import type { MemberRow, MemberStatus } from "../../data/types.ts";
+import { isAgentAvatarTint } from "../../data/types.ts";
+import type { AgentAvatarTint, MemberRow, MemberStatus } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID } from "../../data/schema.ts";
 import {
   agentHomeDir,
@@ -98,6 +99,18 @@ export function getAgent(id: string): MemberRow {
     throw new AgentNotFoundError(id);
   }
   return member;
+}
+
+export function setAgentAvatarTint(
+  agentId: string,
+  value: unknown,
+): MemberRow {
+  if (value !== null && !isAgentAvatarTint(value)) {
+    throw new Error("Agent avatar tint must be an integer from 0 to 3 or null");
+  }
+  const agent = getAgent(agentId);
+  getDb().setMemberAvatarTint(agent.id, value as AgentAvatarTint | null);
+  return getAgent(agent.id);
 }
 
 /**

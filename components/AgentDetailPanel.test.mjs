@@ -11,10 +11,13 @@ const jiti = createJiti(import.meta.url, {
 });
 const {
     AgentDetailPanel,
+    AgentAvatarTintPicker,
+    createAvatarTintSelectionHandler,
     TaskHistoryList,
     RoundLogsList,
     RuntimeProbeFeedback,
 } = await jiti.import("./AgentDetailPanel.tsx");
+const { Avatar } = await jiti.import("./Avatar.tsx");
 const { ModelPicker } = await jiti.import("./ModelPicker.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
@@ -36,6 +39,48 @@ function renderPanel(agent, overrides = {}) {
     );
 }
 
+const avatarTintText = (key, params) => {
+    if (key === "agent.avatarTint") return "Avatar color";
+    if (key === "agent.avatarTint.option") return `Avatar color ${params.index}`;
+    if (key === "agent.avatarTint.auto") return "Automatic / restore default";
+    return key;
+};
+
+function findButton(node, label) {
+    if (React.isValidElement(node)) {
+        if (node.type === "button" && node.props["aria-label"] === label) return node;
+        return React.Children.toArray(node.props.children)
+            .map((child) => findButton(child, label))
+            .find(Boolean);
+    }
+    if (Array.isArray(node)) {
+        return node.map((child) => findButton(child, label)).find(Boolean);
+    }
+    return undefined;
+}
+
+function renderAvatarTintState(selectedTint, error, saving = false) {
+    return renderWith(
+        React.createElement(
+            React.Fragment,
+            null,
+            React.createElement(Avatar, {
+                name: AGENT.name,
+                type: "agent",
+                size: "lg",
+                colorKey: selectedTint ?? AGENT.id,
+            }),
+            React.createElement(AgentAvatarTintPicker, {
+                selectedTint,
+                saving,
+                error,
+                onSelect: () => undefined,
+                t: avatarTintText,
+            }),
+        ),
+    );
+}
+
 const AGENT = {
     id: "agent-1",
     type: "agent",
@@ -49,6 +94,7 @@ const AGENT = {
     model_provider: null,
     model_id: null,
     thinking_level: null,
+    avatar_tint: null,
     created_at: "2026-08-03T00:00:00.000Z",
 };
 
@@ -362,4 +408,121 @@ test("formatTime falls back readably for an unparseable date instead of Invalid 
   );
   assert.doesNotMatch(html, /Invalid Date/);
   assert.match(html, /#1 · —/, "非法日期回落到可读的占位符");
+});
+
+test("AgentDetailPanel renders four named avatar choices and the automatic default state", () => {
+  const html = renderPanel(AGENT);
+  assert.match(html, /class="avatar lg av-0"/);
+  assert.match(html, /role="group" aria-label="Avatar color"/);
+  for (const index of [1, 2, 3, 4]) {
+    assert.match(html, new RegExp(`aria-label="Avatar color ${index}"`));
+  }
+  assert.match(
+    html,
+    /aria-label="Automatic \/ restore default"[^>]*aria-pressed="true"/,
+  );
+});
+
+test("avatar color button persists before showing the saved tint", async () => {
+  let selectedTint = 0;
+  let error = null;
+  let saving = false;
+  let changed = 0;
+  let request;
+  const onSelect = createAvatarTintSelectionHandler({
+    agentId: AGENT.id,
+    request: async (url, init) => {
+      request = { url, init };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent: { avatar_tint: JSON.parse(init.body).avatarTint },
+        }),
+      };
+    },
+    setTint: (tint) => { selectedTint = tint; },
+    setError: (message) => { error = message; },
+    setSaving: (value) => { saving = value; },
+    onChanged: () => { changed += 1; },
+  });
+  const tree = AgentAvatarTintPicker({
+    selectedTint,
+    saving,
+    error,
+    onSelect,
+    t: avatarTintText,
+  });
+  const button = findButton(tree, "Avatar color 3");
+  assert.ok(button, "the third color choice should be an operable button");
+  const pending = button.props.onClick();
+  assert.equal(selectedTint, 0, "the requested tint is not shown optimistically");
+  await pending;
+
+  assert.equal(request.url, "/api/members/agent-1");
+  assert.equal(request.init.method, "PATCH");
+  assert.deepEqual(JSON.parse(request.init.body), { avatarTint: 2 });
+  assert.equal(selectedTint, 2);
+  assert.equal(error, null);
+  assert.equal(saving, false);
+  assert.equal(changed, 1);
+  let html = renderAvatarTintState(selectedTint, error, saving);
+  assert.match(html, /class="avatar lg av-2"/);
+  assert.match(html, /aria-label="Avatar color 3"[^>]*aria-pressed="true"/);
+
+  const automaticTree = AgentAvatarTintPicker({
+    selectedTint,
+    saving,
+    error,
+    onSelect,
+    t: avatarTintText,
+  });
+  await findButton(automaticTree, "Automatic / restore default").props.onClick();
+  assert.equal(selectedTint, null);
+  assert.equal(changed, 2);
+  html = renderAvatarTintState(selectedTint, error, saving);
+  assert.match(html, /class="avatar lg av-0"/);
+  assert.match(
+    html,
+    /aria-label="Automatic \/ restore default"[^>]*aria-pressed="true"/,
+  );
+});
+
+test("failed avatar color save keeps the old avatar tint visible and announces the error", async () => {
+  let selectedTint = 1;
+  let error = null;
+  let saving = false;
+  let changed = 0;
+  const onSelect = createAvatarTintSelectionHandler({
+    agentId: AGENT.id,
+    request: async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: "store unavailable" }),
+    }),
+    setTint: (tint) => { selectedTint = tint; },
+    setError: (message) => { error = message; },
+    setSaving: (value) => { saving = value; },
+    onChanged: () => { changed += 1; },
+  });
+  const tree = AgentAvatarTintPicker({
+    selectedTint,
+    saving,
+    error,
+    onSelect,
+    t: avatarTintText,
+  });
+  const button = findButton(tree, "Avatar color 3");
+  assert.ok(button, "the third color choice should be an operable button");
+  await button.props.onClick();
+
+  assert.equal(selectedTint, 1);
+  assert.equal(error, "store unavailable");
+  assert.equal(saving, false);
+  assert.equal(changed, 0);
+  const html = renderAvatarTintState(selectedTint, error, saving);
+  assert.match(html, /class="avatar lg av-1"/);
+  assert.match(html, /aria-label="Avatar color 2"[^>]*aria-pressed="true"/);
+  assert.match(html, /role="alert"[^>]*>store unavailable</);
+  assert.doesNotMatch(html, /class="avatar lg av-2"/);
 });

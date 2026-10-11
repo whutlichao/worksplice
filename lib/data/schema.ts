@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -36,7 +36,8 @@ const SCHEMA_STATEMENTS: string[] = [
     model_provider TEXT,
     model_id TEXT,
     thinking_level TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3))
   )`,
   `CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
@@ -214,6 +215,7 @@ export function runMigrations(db: Database.Database): void {
     }
     migrateMembersDeletedColumn(db);
     migrateMembersModelColumns(db);
+    migrateMembersAvatarTintColumn(db);
     migrateTasksReopenedColumn(db);
     migrateTaskThreadReads(db);
     seed(db);
@@ -221,6 +223,18 @@ export function runMigrations(db: Database.Database): void {
     resumeDirectChannels(db);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   })();
+}
+
+/** v14: agent 身份增加 nullable 头像色索引；存量成员保持 null，继续走 member id 自动取色。 */
+function migrateMembersAvatarTintColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
+  if (!columns.some((column) => column.name === "avatar_tint")) {
+    db.exec(
+      "ALTER TABLE members ADD COLUMN avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3))",
+    );
+  }
 }
 
 /**

@@ -8,10 +8,16 @@ import {
   type DataPaths,
 } from "./dirs.ts";
 import { OWNER_MEMBER_ID, runMigrations, SCHEMA_VERSION } from "./schema.ts";
-import { buildSearchSnippet, escapeLike, toFtsQuery } from "./types.ts";
+import {
+  buildSearchSnippet,
+  escapeLike,
+  isAgentAvatarTint,
+  toFtsQuery,
+} from "./types.ts";
 import type { Store } from "./store.ts";
 import type {
   AppendMessageInput,
+  AgentAvatarTint,
   AttachmentRow,
   ChannelMemberRow,
   ChannelMuteRow,
@@ -270,11 +276,12 @@ export class SQLiteAdapter implements Store {
       model_id: input.modelId ?? null,
       thinking_level: input.thinkingLevel ?? null,
       created_at: input.createdAt ?? new Date().toISOString(),
+      avatar_tint: null,
     };
     this.db
       .prepare(
-        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at, avatar_tint)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -290,12 +297,20 @@ export class SQLiteAdapter implements Store {
         row.model_id,
         row.thinking_level,
         row.created_at,
+        row.avatar_tint,
       );
     return this.withEffectiveWorkspace(row);
   }
 
   updateMemberStatus(id: string, status: MemberStatus): void {
     this.db.prepare("UPDATE members SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  setMemberAvatarTint(id: string, tint: AgentAvatarTint | null): void {
+    if (tint !== null && !isAgentAvatarTint(tint)) {
+      throw new Error("Agent avatar tint must be an integer from 0 to 3 or null");
+    }
+    this.db.prepare("UPDATE members SET avatar_tint = ? WHERE id = ?").run(tint, id);
   }
 
   /** 成员描述更新：只改 description，不动名字/工作区/模型/会话绑定/存活状态。 */
