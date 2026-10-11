@@ -1341,7 +1341,7 @@ function getMessageImages(content: CustomMessage["content"] | UserMessage["conte
   return content.filter((b): b is ImageContent => b.type === "image");
 }
 
-function imageSource(img: ImageContent): string {
+export function imageSource(img: ImageContent): string {
   // SAFETY: same two on-disk shapes as the inline renderer above; both flat fields are
   // optional and the branches below fall back when neither shape is present.
   const flat = img as unknown as { data?: string; mimeType?: string };
