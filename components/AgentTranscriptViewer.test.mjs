@@ -260,15 +260,7 @@ test('only assistant messages in the member-scoped transcript show the current a
     memberId: agent.id,
     agent,
     messages: [
-      {
-        entryId: 'assistant-entry',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'assistant history' }],
-          provider: 'test',
-          model: 'model',
-        },
-      },
+      transcriptAssistantItem('assistant-entry', 'assistant history'),
       {
         entryId: 'user-entry',
         message: { role: 'user', content: 'user message' },
@@ -313,15 +305,7 @@ test('only assistant messages in the member-scoped transcript show the current a
 });
 
 test('the same assistant history uses the current tint and unassociated transcripts have no agent avatar', () => {
-  const assistant = {
-    entryId: 'assistant-history',
-    message: {
-      role: 'assistant',
-      content: [{ type: 'text', text: 'stable assistant history' }],
-      provider: 'test',
-      model: 'model',
-    },
-  };
+  const assistant = transcriptAssistantItem('assistant-history', 'stable assistant history');
   const renderWithTint = (avatar_tint) => renderContent({
     status: 'ready',
     memberId: 'transcript-agent',
@@ -337,19 +321,25 @@ test('the same assistant history uses the current tint and unassociated transcri
   assert.match(restoredAutomaticTint, /class="avatar sm av-3"/);
   assert.match(afterTintChange, /stable assistant history/);
 
-  const unassociated = renderContent({
-    status: 'ready',
-    memberId: null,
-    messages: [assistant],
-  });
   const mismatchedMember = renderContent({
     status: 'ready',
     memberId: 'another-agent',
     agent: transcriptAgent({ avatar_tint: 3 }),
     messages: [assistant],
   });
-  assert.doesNotMatch(unassociated, /class="avatar\b/);
   assert.doesNotMatch(mismatchedMember, /class="avatar\b/);
+});
+
+test('human transcript messages without an agent association have no agent avatar', () => {
+  const html = renderContent({
+    status: 'ready',
+    memberId: null,
+    agent: null,
+    messages: [transcriptAssistantItem('human-session-entry', 'human session assistant reply')],
+  });
+
+  assert.match(html, /human session assistant reply/);
+  assert.doesNotMatch(html, /class="avatar\b/);
 });
 
 test('transcript controls have copy in both supported language packs', async () => {
