@@ -108,9 +108,10 @@ export function mergeIncomingMessages(
   incoming: ChannelMessage[],
 ): ChannelMessage[] {
   if (incoming.length === 0) return prev;
+  const prevIds = new Set(prev.map((message) => message.id));
   const merged = [
     ...prev,
-    ...incoming.filter((m) => !prev.some((p) => p.id === m.id)),
+    ...incoming.filter((message) => !prevIds.has(message.id)),
   ];
   return merged.sort((a, b) => a.seq - b.seq);
 }

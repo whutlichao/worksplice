@@ -44,6 +44,59 @@ test("mergeIncomingMessages dedupes by id and keeps messages sorted by seq", () 
   assert.equal(mergeIncomingMessages(prev, []).length, 2);
 });
 
+test("mergeIncomingMessages preserves the current duplicate and input semantics", () => {
+  const duplicateFirst = Object.freeze(m("prev-duplicate", 5, "prev first"));
+  const keep = Object.freeze(m("keep", 3, "keep"));
+  const duplicateSecond = Object.freeze(m("prev-duplicate", 2, "prev second"));
+  const prev = Object.freeze([duplicateFirst, keep, duplicateSecond]);
+  const overlap = Object.freeze(m("prev-duplicate", 1, "overlap"));
+  const late = Object.freeze(m("late", 7, "late"));
+  const incomingDuplicateFirst = Object.freeze(
+    m("incoming-duplicate", 6, "incoming first"),
+  );
+  const early = Object.freeze(m("early", 4, "early"));
+  const incomingDuplicateSecond = Object.freeze(
+    m("incoming-duplicate", 8, "incoming second"),
+  );
+  const tied = Object.freeze(m("tied", 3, "tied"));
+  const incoming = Object.freeze([
+    overlap,
+    late,
+    incomingDuplicateFirst,
+    early,
+    incomingDuplicateSecond,
+    tied,
+  ]);
+  const prevSnapshot = prev.map((message) => ({ ...message }));
+  const incomingSnapshot = incoming.map((message) => ({ ...message }));
+  const currentReference = [
+    ...prev,
+    ...incoming.filter((message) =>
+      !prev.some((previous) => previous.id === message.id),
+    ),
+  ].sort((a, b) => a.seq - b.seq);
+
+  const merged = mergeIncomingMessages(prev, incoming);
+
+  assert.deepEqual(merged, currentReference);
+  assert.deepEqual(
+    merged.map((message) => message.id),
+    [
+      "prev-duplicate",
+      "keep",
+      "tied",
+      "early",
+      "prev-duplicate",
+      "incoming-duplicate",
+      "late",
+      "incoming-duplicate",
+    ],
+  );
+  assert.deepEqual(prev, prevSnapshot);
+  assert.deepEqual(incoming, incomingSnapshot);
+  assert.equal(mergeIncomingMessages(prev, []), prev);
+});
+
 // 红-绿切片 2：loadPage 取页（limit + before 参数 + 错误映射）
 test("loadMessagesPage requests the channel messages page with limit/before", async () => {
   const calls = [];
