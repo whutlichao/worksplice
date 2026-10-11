@@ -782,7 +782,8 @@ export function AgentDetailPanel({
             name={agent.name}
             type={agent.type}
             size="lg"
-            colorKey={avatarTint ?? agent.id}
+            colorKey={agent.id}
+            agentTint={avatarTint}
           />
           <div className="meta">
             <div className="dock-name">

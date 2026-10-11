@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/hooks/useI18n";
-import type { MemberType } from "@/lib/data/types";
+import type { AgentAvatarTint, MemberType } from "@/lib/data/types";
 
 export type AvatarSize = "sm" | "md" | "lg";
 
@@ -26,8 +26,10 @@ function hashString(input: string): number {
 function avatarTint(
   colorKey: number | string | undefined,
   type: MemberType | null | undefined,
+  agentTint: AgentAvatarTint | null | undefined,
 ): number {
   if (type === "human") return AVATAR_TINTS - 1;
+  if (agentTint !== null && agentTint !== undefined) return agentTint;
   if (typeof colorKey === "number" && Number.isFinite(colorKey)) {
     return ((Math.trunc(colorKey) % AVATAR_TINTS) + AVATAR_TINTS) % AVATAR_TINTS;
   }
@@ -51,15 +53,18 @@ export function Avatar({
   type,
   size = "md",
   colorKey,
+  agentTint,
 }: {
   name?: string;
   type?: MemberType | null;
   size?: AvatarSize;
   /** 取色参数：成员传稳定 member id；数字表示显式色板位置；缺省走色板首位。 */
   colorKey?: number | string;
+  /** agent 当前 MemberRow 的显式色；null/缺省继续按稳定 member id 自动取色。 */
+  agentTint?: AgentAvatarTint | null;
 }) {
   const { t } = useI18n();
-  const tint = avatarTint(colorKey, type);
+  const tint = avatarTint(colorKey, type, agentTint);
   const glyph = type === "human" ? t("avatar.you") : initials(name);
   const label = name?.trim() || (typeof colorKey === "string" ? colorKey : glyph);
   return (

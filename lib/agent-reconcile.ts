@@ -22,6 +22,7 @@ export function shallowEqualAgent(a: MemberRow, b: MemberRow): boolean {
     a.name === b.name &&
     a.description === b.description &&
     a.status === b.status &&
+    a.avatar_tint === b.avatar_tint &&
     a.workspace_path === b.workspace_path &&
     a.pi_session_file === b.pi_session_file &&
     a.created_at === b.created_at

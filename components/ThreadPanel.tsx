@@ -13,6 +13,7 @@ import {
 import { ReminderModal } from "./ReminderModal";
 import type { MemberRow } from "@/lib/data/types";
 import { memberPanel, type PanelContent } from "@/lib/panel-state";
+import { indexCurrentMembersById } from "@/lib/member-index";
 import { composerMentionCandidates } from "@/lib/mention";
 
 /** 面板线程轮询间隔（与中央轮询同纪律：3s、后台 tab 暂停、卸载清理）。 */
@@ -128,6 +129,10 @@ export function ThreadPanel({
         name: m.name,
         type: m.type,
       })),
+    [agents, owner],
+  );
+  const currentMembersById = useMemo(
+    () => indexCurrentMembersById(agents, owner),
     [agents, owner],
   );
 
@@ -399,6 +404,7 @@ export function ThreadPanel({
         {anchor && (
           <MessageRow
             message={anchor}
+            currentAuthor={currentMembersById.get(anchor.author_id)}
             isAnchor
             currentMemberId={currentMemberId}
             canConvertToTask={!taskMessageIds.has(anchor.id)}
@@ -419,6 +425,7 @@ export function ThreadPanel({
             <MessageRow
               key={m.id}
               message={m}
+              currentAuthor={currentMembersById.get(m.author_id)}
               currentMemberId={currentMemberId}
               canConvertToTask={false}
               mentionMembers={mentionMembers}

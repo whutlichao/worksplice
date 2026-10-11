@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Search, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
+import { indexCurrentMembersById } from "@/lib/member-index";
 import { Avatar } from "./Avatar";
 import type { MessageSearchHit } from "@/lib/domain/collab";
+import type { MemberRow } from "@/lib/data/types";
 
 const DEBOUNCE_MS = 250;
 
@@ -34,10 +36,14 @@ export function SearchView({
   initialQuery,
   onClose,
   onOpenMessage,
+  agents = [],
+  owner = null,
 }: {
   initialQuery: string;
   onClose: () => void;
   onOpenMessage: (channelId: string, messageId: string) => void;
+  agents?: MemberRow[];
+  owner?: MemberRow | null;
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState(initialQuery);
@@ -45,6 +51,10 @@ export function SearchView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const currentMembersById = useMemo(
+    () => indexCurrentMembersById(agents, owner),
+    [agents, owner],
+  );
 
   const run = useCallback((q: string) => {
     const trimmed = q.trim();
@@ -169,7 +179,17 @@ export function SearchView({
               <b>{t("search.noResults")}</b>
             </div>
           ) : (
-            results.map((hit) => <SearchHitRow key={hit.id} hit={hit} onOpen={open} />)
+            results.map((hit) => {
+              const currentAuthor = currentMembersById.get(hit.author_id) ?? null;
+              return (
+                <SearchHitRow
+                  key={hit.id}
+                  hit={hit}
+                  currentAuthor={currentAuthor}
+                  onOpen={open}
+                />
+              );
+            })
           )}
         </div>
       </div>
@@ -225,12 +245,15 @@ function renderSnippetMarkup(html: string): ReactNode[] {
  */
 export function SearchHitRow({
   hit,
+  currentAuthor,
   onOpen,
 }: {
   hit: MessageSearchHit;
+  currentAuthor?: MemberRow | null;
   onOpen: (hit: MessageSearchHit) => void;
 }) {
   const { t } = useI18n();
+  const authorForAvatar = currentAuthor ?? hit.author;
   return (
     <div
       className="result"
@@ -256,6 +279,7 @@ export function SearchHitRow({
           type={hit.author?.type}
           size="sm"
           colorKey={hit.author_id}
+          agentTint={authorForAvatar?.avatar_tint}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="r-top">
