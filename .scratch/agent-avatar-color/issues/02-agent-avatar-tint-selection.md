@@ -22,7 +22,7 @@
 - 验证：`npm test`（1375/1375）、`node_modules/.bin/tsc --noEmit`、`npm run lint`（0 errors；只有未改 `hooks/useI18n.tsx:61` 的既有 warning）。
 - PR：[#159](https://github.com/whutlichao/worksplice/pull/159)（base: `main`）。
 
-### Follow-up：键盘焦点环
+### 后续：键盘焦点环
 
 - 修复：色格的选中态改由边框宽度/颜色表达，不再以内联 `outlineWidth: 0` 覆盖全局 `:focus-visible`；未选中色格聚焦时保留 2px `--accent-graphic` 焦点环。
 - TDD：新增回归测试先红（未选中色格 `outlineWidth` 实为 `0`），再绿；测试同时断言选中态视觉标记与全局焦点环规则仍在。
