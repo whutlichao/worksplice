@@ -407,8 +407,8 @@ export class SQLiteAdapter implements Store {
 
   /**
    * 全文搜索（§6.4）：结果 = id + 命中上下文摘要（<mark> 高亮）。
-   * 双路径：全部 token ≥3 字符 → trigram FTS（rank 排序）；
-   * 含短 token（如 CJK 双字词）→ LIKE 兜底（trigram 需 ≥3 字符）。
+   * 全长 token → trigram FTS（rank 排序）；混合长短 → FTS 候选 + 全 token LIKE 校验；
+   * 纯短 token 或不足三字符的候选 → LIKE 兜底（trigram 需 ≥3 字符）。
    * 触发器同步（schema v5）：新消息插入立即可搜。
    */
   searchMessages(query: string, limit = 20): SearchResult[] {
@@ -436,7 +436,36 @@ export class SQLiteAdapter implements Store {
         .all(fts, limit) as MessageRow[];
       return rows.map(pick);
     }
-    // 短 token 兜底：LIKE AND 组合，按插入序倒序（rowid DESC）。
+
+    const candidateTokens = tokens.flatMap((token) => {
+      const characters = Array.from(token);
+      if (characters.length < 3) return [];
+      const prefix = characters.slice(0, 3).join("");
+      return prefix.includes("\0") ? [] : [prefix];
+    });
+    const likeTokens = JSON.stringify(tokens.map(escapeLike));
+    if (candidateTokens.length > 0) {
+      // 含长 token 的字面 LIKE 命中必然包含其首个 trigram；含 NUL 的前缀不参与候选生成。
+      // 全部原 token 仍由 LIKE 校验，FTS 只生成候选，不裁决命中。
+      const fts = toFtsQuery(candidateTokens.join(" "));
+      const rows = this.db
+        .prepare(
+          `SELECT m.id, m.target_id, m.seq, m.author_id, m.created_at, m.content
+           FROM messages_fts
+           JOIN messages m ON m.rowid = messages_fts.rowid
+           WHERE messages_fts MATCH ?
+             AND NOT EXISTS (
+               SELECT 1 FROM json_each(?) AS query_token
+               WHERE m.content NOT LIKE '%' || query_token.value || '%' ESCAPE '\\'
+             )
+           ORDER BY m.rowid DESC
+           LIMIT ?`,
+        )
+        .all(fts, likeTokens, limit) as MessageRow[];
+      return rows.map(pick);
+    }
+
+    // 纯短 token 与无法组成 trigram 的查询保留 LIKE AND 全表路径。
     const conditions = tokens.map(() => "content LIKE ? ESCAPE '\\'").join(" AND ");
     const params = tokens.map((token) => `%${escapeLike(token)}%`);
     const rows = this.db
