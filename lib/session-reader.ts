@@ -3,10 +3,11 @@ import {
   buildContextEntries as piBuildContextEntries,
   buildSessionContext as piBuildSessionContext,
   getAgentDir,
+  parseSessionEntries,
 } from "@earendil-works/pi-coding-agent";
-import { closeSync, openSync, readSync } from "fs";
-import { normalize as normalizePath } from "path";
-import type { AgentMessage, SessionEntry, SessionHeader, SessionInfo, SessionContext } from "./types";
+import { constants as fsConstants, closeSync, fstatSync, lstatSync, openSync, readFileSync, readSync } from "fs";
+import { isAbsolute, normalize as normalizePath } from "path";
+import type { AgentMessage, SessionEntry, SessionHeader, SessionInfo, SessionContext, SessionTranscriptBranch } from "./types";
 import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import { normalizeToolCalls } from "./normalize";
 import { sessionPathKey } from "./session-path";
@@ -199,6 +200,86 @@ export function readSessionHeader(filePath: string): SessionHeader | null {
 export function getSessionEntries(filePath: string): SessionEntry[] {
   const entries = SessionManager.open(filePath).getEntries();
   return entries as unknown as SessionEntry[];
+}
+
+/**
+ * 只读已登记的 session 文件，不打开持久化 SessionManager。
+ * 读取前后校验文件描述符与路径，若文件被替换或变为符号链接则拒绝；SDK 仅在内存中遍历当前分支。
+ */
+export function readSessionTranscriptBranch(filePath: string): SessionTranscriptBranch | null {
+  const normalizedPath = normalizePath(filePath);
+  if (!isAbsolute(normalizedPath)) throw new Error("Session path must be absolute");
+
+  let descriptor: number;
+  let initialStat: ReturnType<typeof lstatSync>;
+  try {
+    initialStat = lstatSync(normalizedPath);
+    if (!initialStat.isFile() || initialStat.isSymbolicLink()) {
+      throw new Error("Session path is not a regular file");
+    }
+    descriptor = openSync(
+      normalizedPath,
+      fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0),
+    );
+  } catch (error) {
+    if (isMissingFile(error)) return null;
+    throw error;
+  }
+
+  let contents: string;
+  try {
+    const openedStat = fstatSync(descriptor);
+    if (!openedStat.isFile() || !sameFileIdentity(initialStat, openedStat)) {
+      throw new Error("Session file changed while opening");
+    }
+    contents = readFileSync(descriptor, "utf8");
+    const finalStat = lstatSync(normalizedPath);
+    if (
+      finalStat.isSymbolicLink() ||
+      !finalStat.isFile() ||
+      !sameFileIdentity(openedStat, finalStat)
+    ) {
+      throw new Error("Session file changed while reading");
+    }
+  } catch (error) {
+    if (isMissingFile(error)) return null;
+    throw error;
+  } finally {
+    closeSync(descriptor);
+  }
+
+  const entries = parseSessionEntries(contents);
+  const lineCount = contents.split(/\r?\n/).filter((line) => line.trim() !== "").length;
+  if (entries.length !== lineCount) {
+    throw new Error("Session file contains invalid entries");
+  }
+
+  if (entries.length === 0) return null;
+  const header = entries[0];
+  if (!header || header.type !== "session") {
+    throw new Error("Session file header is invalid");
+  }
+
+  const manager = SessionManager.inMemory(header.cwd, undefined, entries);
+  const branch = manager.getBranch() as unknown as SessionEntry[];
+  return {
+    sessionId: manager.getSessionId(),
+    messages: branch.flatMap((entry) => {
+      const message = entryToUiMessage(entry, {});
+      return message ? [{ entryId: entry.id, message }] : [];
+    }),
+  };
+}
+
+function isMissingFile(error: unknown): boolean {
+  return isRecord(error) && error.code === "ENOENT";
+}
+
+function sameFileIdentity(
+  first: { dev: number; ino: number },
+  second: { dev: number; ino: number },
+): boolean {
+  return first.dev === second.dev && first.ino === second.ino;
 }
 
 export function buildSessionContext(

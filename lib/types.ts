@@ -109,6 +109,24 @@ export interface BashExecutionMessage {
 
 export type AgentMessage = UserMessage | AssistantMessage | ToolResultMessage | CustomMessage | BashExecutionMessage;
 
+export interface SessionTranscriptItem {
+  entryId: string;
+  message: AgentMessage;
+}
+
+export interface AgentTranscriptPage {
+  status: 'empty' | 'ready';
+  sessionId: string | null;
+  messages: SessionTranscriptItem[];
+  hasMore: boolean;
+  cursor: string | null;
+}
+
+export interface SessionTranscriptBranch {
+  sessionId: string;
+  messages: SessionTranscriptItem[];
+}
+
 export type ExtensionUiRequest =
   | {
       type: "extension_ui_request";

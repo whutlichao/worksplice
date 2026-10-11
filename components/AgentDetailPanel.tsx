@@ -9,6 +9,7 @@ import { StatusDot } from "./StatusDot";
 import { BrutalModal } from "./BrutalModal";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { ModelPicker } from "./ModelPicker";
+import { AgentTranscriptToggle, AgentTranscriptViewer } from "./AgentTranscriptViewer";
 import type {
   AgentAvatarTint,
   MemberRow,
@@ -564,6 +565,7 @@ export function AgentDetailPanel({
   );
   const [avatarTintSaving, setAvatarTintSaving] = useState(false);
   const [avatarTintError, setAvatarTintError] = useState<string | null>(null);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   // §6.5 可观测性数据
   const [obs, setObs] = useState<ObservabilityData | null>(null);
@@ -1234,33 +1236,47 @@ export function AgentDetailPanel({
                   {t("observability.contextNone")}
                 </div>
               )}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  marginTop: "var(--sp-5)",
-                }}
-              >
-                {exportUrl ? (
-                  <a
-                    href={exportUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-sm"
-                    style={{ textDecoration: "none" }}
-                  >
-                    {t("observability.exportAction")}
-                  </a>
-                ) : (
-                  <span style={{ fontSize: "var(--fs-caption)", color: "var(--faint)" }}>
-                    {t("observability.exportUnavailable")}
-                  </span>
-                )}
-              </div>
             </>
           ) : (
             <div style={{ fontSize: "var(--fs-sm)", color: "var(--faint)" }}>
               {t("observability.noSessions")}
+            </div>
+          )}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: "var(--sp-3)",
+              marginTop: "var(--sp-5)",
+            }}
+          >
+            {obs?.session?.file && (exportUrl ? (
+              <a
+                href={exportUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-sm"
+                style={{ textDecoration: "none" }}
+              >
+                {t("observability.exportAction")}
+              </a>
+            ) : (
+              <span style={{ fontSize: "var(--fs-caption)", color: "var(--faint)" }}>
+                {t("observability.exportUnavailable")}
+              </span>
+            ))}
+            <AgentTranscriptToggle
+              isOpen={transcriptOpen}
+              openLabel={t("observability.transcriptOpen")}
+              closeLabel={t("observability.transcriptHide")}
+              controlsId="agent-transcript-viewer"
+              onToggle={() => setTranscriptOpen((open) => !open)}
+            />
+          </div>
+          {transcriptOpen && (
+            <div id="agent-transcript-viewer">
+              <AgentTranscriptViewer key={agent.id} memberId={agent.id} />
             </div>
           )}
         </section>
