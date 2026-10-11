@@ -29,3 +29,4 @@
 - Review — Standards：无硬性 finding；一项低优先级判断是 `AgentTranscriptViewer.test.mjs` 的 hook driver 直接替换 React 私有 dispatcher。按收尾冻结要求未再改源码；实际用户可见的展开/刷新/分页/重开另经 ego-browser 对最新页面复验通过。后续若扩展交互测试，应优先迁至稳定的 DOM 输出/公开状态 seam。
 - Review — Spec：0 项 finding；票内全部验收满足，没有扩展规格范围。
 - 最终门禁：`npm test`（1402/1402）、`node_modules/.bin/tsc --noEmit`、`npm run lint`（0 errors；`hooks/useI18n.tsx:61` 有 1 条既有 warning）、`git diff --check` 均通过。`AGENTS.md` 与 HEAD 一致，未纳入交付。
+- PR：[#163](https://github.com/whutlichao/worksplice/pull/163)（base: `main`，open，未合并）。
