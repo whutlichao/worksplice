@@ -50,7 +50,7 @@
 2. **搜索优先用索引缩小混合查询候选，但不改匹配语义**：当前任何短 token 都让整条查询走 LIKE。候选设计只在有至少一个长度 ≥3 的 token 时用这些长 token 建候选，再以原有转义 LIKE AND 条件验证全部 token。FTS 候选必须是旧 LIKE 匹配集合的超集；大小写、标点或 tokenizer 差异若可能漏掉 LIKE 命中，则该候选路径不能启用，须差分验证并保留安全回退。候选 SQL 必须在短 token 验证后再应用最终 limit；不能先截断 FTS 候选再过滤造成漏结果/少结果。混合候选路径按 `rowid DESC` 排序，以匹配现有 LIKE 路径，而不是把已有结果排序悄悄改成 rank。此处 rowid DESC 是用户对“保留现有按查询路径区分的排序”的明确澄清：混合查询现状属于 LIKE 路径；只有所有 token ≥3 的查询使用 rank。
 3. **纯短查询保守处理**：现有 trigram tokenizer 对小于 3 字符 token 不提供可用 trigram 候选；因此先保留纯短 LIKE 扫描。新增双字符索引会带来存储、维护、初始化和 schema 迁移成本；只有基线显示纯短查询值得该复杂度时，才作为单独设计评估，不预先扩展本票。
 4. **访问范围与 limit 是既有契约**：不改 `searchMessages` 的成员可见频道过滤；成员面依旧先最多取 `MAX_SEARCH_LIMIT=50` 再过滤，Owner 面仍直接按请求 limit 取结果。不改变该既有“宁少不泄”的上限行为，不增加跨范围查询。空查询、`LIKE` 特殊字符转义、snippet HTML 转义/高亮及 FTS trigger 同步均保持。
-5. **补拉应当分批 yield，而非只包一层 Promise**：当前文件读取、stat 与 SQLite 均为同步操作；只把既有全量函数放进 Promise 并不能降低事件循环阻塞。实施需要有界工作单元和让出点，并提供可取消生命周期；以 agent/target 为 wake 排队的最小串行键，避免全局屏障拖慢已完成的其他键。
+5. **补拉应当分批 yield，而非只包一层 Promise**：当前文件读取、stat 与 SQLite 均为同步操作；只把既有全量函数放进 Promise 并不能降低事件循环阻塞。实施需要有界工作单元和让出点，并提供可取消生命周期。当前 driver 的 `queues`、`processing` 与 `waitingForSettle` 均以 agent 为键，`waitForSettle` 会阻塞该 agent 的整个队列；实现必须把 backfill 阻塞/隔离状态落实到 `(agent, target)`，park 单个被阻塞目标且继续依序处理同 agent 其他就绪目标，同时维持每个 agent 最多一个 `runAgentRound` 在执行。现有 `busy` / `busy-cwd` settle 等待仍按 agent 级串行，不将按键独立屏障误解为同 agent 并发 round。
 6. **补拉错误与屏障**：所有权门禁明确拒绝是结束态（维持现有整文件跳过、不推进游标，并允许该键继续正常 wake）；文件系统瞬时错误不是门禁拒绝。对已固化绑定文件的实际 `ENOENT` 保留现有“session file missing on disk”门禁结果：不补写、不推进游标并放行对应 wake。`readSessionHeaderCwd` / `scanSessionReplies` 当前把部分读取失败折叠为 `null` / `[]`，`existsSync` 也可能把无权访问表现成不存在，`statSync` 则会抛错；后台实现必须用能区分 `ENOENT` 与其他文件操作错误的方式，避免把 EACCES、I/O error、临时 stat/read/scan/write 错误误判为缺失或所有权拒绝。后者需记录原因、使对应 agent/target 继续 pending、不推进游标并可重试。隔离键可重试，其他键继续工作；实现需避免重复并发补拉/round。耗尽有限重试后保留隔离状态直到显式重试或新进程恢复扫描。具体最大重试数、退避值及显式重试 seam 留给实施票基于基线和现有 driver 结构落定，不在本设计编造常量。
 7. **依赖与交付独立性**：三项无数据契约依赖，可分别实现和发布；共享的只有基线纪律。搜索若最终需要双字符索引会引入 schema 依赖，必须单独规划迁移/兼容与回滚；在获得新裁决前不包含在本规格。Coordinator 在合并设计后执行 to-spec → to-tickets，确定拆票、依赖和发布顺序。
 
@@ -68,7 +68,7 @@
 
 - `hooks/useChannelData.test.mjs`：验证 empty 返回同一引用、prev 内重复保留、与 prev 冲突的 incoming 被排除、incoming 内重复保留、seq 排序稳定、输入不被修改；以现状参考实现对小型重复/乱序集合做确定性差分验证。
 - `lib/domain/collab/search.test.mjs` 与 `lib/domain/collab/dm-features.test.mjs`：覆盖纯短 CJK、混合长短 AND、多语言、LIKE `%`/`_`/反斜杠转义、snippet 高亮、FTS/LIKE 排序各自保持、默认/最大 limit、成员过滤先取最多 50 再过滤的权限/数量语义；对同一组数据比较候选与旧实现完整命中 ID 序列。
-- `lib/agent-loop/backfill.test.mjs` 与 driver 测试：验证启动先返回/后台扫描可 yield、成功键屏障释放、未完成键 wake 保持排队、不同键可前进、真实 ENOENT/missing-file 与所有权拒绝按现有门禁 no-op 释放；可恢复 EACCES/读/stat/扫描/写入错误不释放、不推进、可见且可重试；重试幂等、停止取消分批工作、每 marker 最后一条 assistant/修订草稿规则、跨作者内容去重、同作者去重、marker 序号游标收口。另以启动调度测试覆盖状态扫掠、backfill、driver、cron 的 ready 顺序和 coordinator 选择的停止/重启语义。
+- `lib/agent-loop/backfill.test.mjs` 与 driver 测试：验证启动先返回/后台扫描可 yield、成功键屏障释放、未完成键 wake 保持排队、不同键可前进；同一 agent 的两个 target 中，一个 backfill 阻塞/隔离不妨碍另一个按序运行，且同一 agent 同时至多一个 round；busy/busy-cwd settle 仍阻塞该 agent 后续 round。验证真实 ENOENT/missing-file 与所有权拒绝按现有门禁 no-op 释放；可恢复 EACCES/读/stat/扫描/写入错误不释放、不推进、可见且可重试；重试幂等、停止取消分批工作、每 marker 最后一条 assistant/修订草稿规则、跨作者内容去重、同作者去重、marker 序号游标收口。另以启动调度测试覆盖状态扫掠、backfill、driver、cron 的 ready 顺序和 coordinator 选择的停止/重启语义。
 - 性能 harness 不替代语义测试；固定随机种子/数据快照，跑本规格规定的至少 30 个预热后样本，并归档输入规模、原始样本与统计。任何性能结果必须附一组相同输入的完整结果集等价检查。
 
 ## Out of Scope
