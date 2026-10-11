@@ -1,7 +1,7 @@
 # 02 — 加速频道与线程消息合并的重复查找
 
 Type: task
-Status: in-progress
+Status: resolved
 Blocked by: None (can start immediately)
 Spec: ../spec.md
 
@@ -21,6 +21,7 @@ Spec: ../spec.md
 - **files-modified:** `hooks/useChannelData.ts`, `hooks/useChannelData.test.mjs`, `.scratch/code-optimization-enhancement/issues/02-message-merge.md`
 - **base commit:** `01369c574c6284dee6d6db54b3685c42451aa0de`（与 `origin/main` 开工时一致）
 - **实现 commit:** `3fe34bc43dc171b37f18aa5281ce40a63d02413e`
+- **PR:** [#149](https://github.com/whutlichao/worksplice/pull/149)
 
 ### 实现与 TDD
 
