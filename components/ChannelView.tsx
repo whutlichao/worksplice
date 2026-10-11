@@ -62,6 +62,7 @@ export type CenterTab = "messages" | "tasks";
 
 /** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */
 export const NOTICE_TOAST_MS = 3500;
+const PINNED_MESSAGE_HIGHLIGHT_MS = 1800;
 
 /** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */
 export interface NoticeSlots {
@@ -163,6 +164,38 @@ export interface ChannelMessage {
     baseSeq: number;
     createdAt: string;
   }>;
+}
+
+type PinnedNavigationMessage = Pick<ChannelMessage, "id" | "seq">;
+type PinnedNavigationStep = "loaded" | "latest" | "earlier" | "unavailable";
+
+interface PendingPinnedNavigation extends PinnedNavigationMessage {
+  channelId: string;
+  requestedEarlierBefore?: number;
+  requestedLatestAtSeq?: number;
+  requestedLoadError?: string | null;
+}
+
+export function getPinnedNavigationStep(
+  target: PinnedNavigationMessage,
+  messages: readonly PinnedNavigationMessage[],
+  hasMore: boolean,
+): PinnedNavigationStep {
+  if (messages.some((message) => message.id === target.id)) return "loaded";
+  if (messages.length === 0) return "latest";
+
+  const oldestSeq = messages[0].seq;
+  const newestSeq = messages[messages.length - 1].seq;
+  if (target.seq > newestSeq) return "latest";
+  if (target.seq < oldestSeq) return hasMore ? "earlier" : "unavailable";
+  return "unavailable";
+}
+
+export function hasPinnedNavigationError(
+  requestLoadError: string | null | undefined,
+  loadError: string | null,
+): boolean {
+  return requestLoadError !== undefined && requestLoadError !== loadError;
 }
 
 /** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */
@@ -949,6 +982,7 @@ export const MessageRow = memo(function MessageRow({
   message,
   task,
   isAnchor,
+  highlighted,
   canConvertToTask,
   convertInActionBar,
   currentMemberId,
@@ -968,6 +1002,7 @@ export const MessageRow = memo(function MessageRow({
   message: ChannelMessage;
   task?: Pick<ChannelTask, "id" | "number" | "status" | "unreadReplyCount">;
   isAnchor?: boolean;
+  highlighted?: boolean;
   canConvertToTask?: boolean;
   /** §3.7 创建途径 4：动作栏「转为任务」键——只有频道调用点传 true（线程面不传 ⇒ 键根本不存在）。 */
   convertInActionBar?: boolean;
@@ -1037,12 +1072,20 @@ export const MessageRow = memo(function MessageRow({
         ]
       : []),
   ];
-  const isAgent = message.author?.type === "agent";
-  return (
-    <div
-      className={`${isAnchor ? "msg ws-message-row ws-message-row-anchor" : "msg ws-message-row"}${actionsDismissed ? " ws-message-actions-dismissed" : ""}`}
-      onMouseEnter={() => setActionsDismissed(false)}
-      onContextMenu={(e) => {
+    const isAgent = message.author?.type === "agent";
+    return (
+      <div
+        className={`${isAnchor ? "msg ws-message-row ws-message-row-anchor" : "msg ws-message-row"}${actionsDismissed ? " ws-message-actions-dismissed" : ""}`}
+        onMouseEnter={() => setActionsDismissed(false)}
+        style={
+          highlighted
+            ? {
+                background: "var(--selected-soft)",
+                boxShadow: "inset 0 0 0 2px var(--selected-graphic)",
+              }
+            : undefined
+        }
+        onContextMenu={(e) => {
         e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY });
       }}
@@ -2642,6 +2685,108 @@ export function ChannelView({
   }, [taskEventChannelId, messages, messagesLoading]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [highlightedPinnedMessage, setHighlightedPinnedMessage] = useState<{
+    messageId: string;
+  } | null>(null);
+  const [pendingPinnedNavigation, setPendingPinnedNavigation] =
+    useState<PendingPinnedNavigation | null>(null);
+  const pendingPinnedNavigationRef =
+    useRef<PendingPinnedNavigation | null>(null);
+  useEffect(() => {
+    if (!highlightedPinnedMessage) return;
+    const timer = setTimeout(
+      () => setHighlightedPinnedMessage(null),
+      PINNED_MESSAGE_HIGHLIGHT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [highlightedPinnedMessage]);
+
+  useEffect(() => {
+    const navigation = pendingPinnedNavigation;
+    if (!navigation) return;
+    if (navigation.channelId !== channel?.id) {
+      pendingPinnedNavigationRef.current = null;
+      setPendingPinnedNavigation(null);
+      return;
+    }
+
+    const step = getPinnedNavigationStep(navigation, messages, hasMore);
+    if (step === "loaded") {
+      const frame = requestAnimationFrame(() => {
+        if (pendingPinnedNavigationRef.current !== navigation) return;
+        const element = document.getElementById(`msg-${navigation.id}`);
+        element?.scrollIntoView({ block: "center" });
+        if (element) {
+          setHighlightedPinnedMessage({ messageId: navigation.id });
+        }
+        pendingPinnedNavigationRef.current = null;
+        setPendingPinnedNavigation(null);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+
+    if (hasPinnedNavigationError(navigation.requestedLoadError, loadError)) {
+      pendingPinnedNavigationRef.current = null;
+      setPendingPinnedNavigation(null);
+      return;
+    }
+
+    if (step === "latest") {
+      const latestSeq = messages[messages.length - 1]?.seq ?? 0;
+      if (navigation.requestedLatestAtSeq === latestSeq) return;
+      const next = {
+        ...navigation,
+        requestedLatestAtSeq: latestSeq,
+        requestedLoadError: null,
+      };
+      pendingPinnedNavigationRef.current = next;
+      setPendingPinnedNavigation(next);
+      loadLatest();
+      return;
+    }
+
+    if (step === "earlier") {
+      if (loadError && navigation.requestedLoadError === undefined) {
+        const latestSeq = messages[messages.length - 1]?.seq ?? 0;
+        const next = {
+          ...navigation,
+          requestedLatestAtSeq: latestSeq,
+          requestedLoadError: null,
+        };
+        pendingPinnedNavigationRef.current = next;
+        setPendingPinnedNavigation(next);
+        loadLatest();
+        return;
+      }
+
+      const beforeSeq = messages[0]?.seq;
+      if (
+        beforeSeq === undefined ||
+        navigation.requestedEarlierBefore === beforeSeq
+      )
+        return;
+      const next = {
+        ...navigation,
+        requestedEarlierBefore: beforeSeq,
+        requestedLoadError: loadError,
+      };
+      pendingPinnedNavigationRef.current = next;
+      setPendingPinnedNavigation(next);
+      void loadEarlier();
+      return;
+    }
+
+    pendingPinnedNavigationRef.current = null;
+    setPendingPinnedNavigation(null);
+  }, [
+    channel?.id,
+    hasMore,
+    loadEarlier,
+    loadError,
+    loadLatest,
+    messages,
+    pendingPinnedNavigation,
+  ]);
 
   // 单槽 notice toast：held / task 两个 notice 槽经 pickNoticeToast 合成至多一条可见项，
   // 挂在滚动流**之外**（消息区底部、composer 上方），到点自动消退。
@@ -2761,6 +2906,7 @@ export function ChannelView({
     setHeldNotice(null);
     setTaskNotice(null);
     setToast(null);
+    setHighlightedPinnedMessage(null);
     setPinnedOpen(false);
     setMuteOpen(false);
     setMuteNotice(null);
@@ -2896,25 +3042,21 @@ export function ChannelView({
   const openPinnedMessage = useCallback(
     (message: ChannelMessage) => {
       if (message.target_id === channel?.id) {
-        const already = messages.some((m) => m.id === message.id);
-        if (already) {
-          document
-            .getElementById(`msg-${message.id}`)
-            ?.scrollIntoView({ block: "center" });
-          return;
-        }
-        // 新消息经 hook 轮询/重拉收敛（下次轮询或 loadLatest）。
-        loadLatest();
-        requestAnimationFrame(() => {
-          document
-            .getElementById(`msg-${message.id}`)
-            ?.scrollIntoView({ block: "center" });
-        });
-      } else {
-        onOpenPanel?.({ kind: "thread", id: message.target_id });
+        if (!channel?.id) return;
+        const navigation = {
+          channelId: channel.id,
+          id: message.id,
+          seq: message.seq,
+        };
+        pendingPinnedNavigationRef.current = navigation;
+        setPendingPinnedNavigation(navigation);
+        return;
       }
+      pendingPinnedNavigationRef.current = null;
+      setPendingPinnedNavigation(null);
+      onOpenPanel?.({ kind: "thread", id: message.target_id });
     },
-    [channel, messages, loadLatest, onOpenPanel],
+    [channel?.id, onOpenPanel],
   );
 
   // 把消息转为任务（§3.7 创建途径 1/2 共用）：ref 化保证回调引用稳定（memo 行 props 不变）。
@@ -3741,6 +3883,7 @@ export function ChannelView({
                     <MessageRow
                       message={m}
                       task={task}
+                      highlighted={highlightedPinnedMessage?.messageId === m.id}
                       currentMemberId={currentMemberId}
                       pinned={pinnedSet.has(m.id)}
                       canConvertToTask={!taskIndexes.byMessageId.has(m.id)}

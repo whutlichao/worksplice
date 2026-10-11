@@ -155,6 +155,18 @@ export function prependPageMessages(
   return [...page, ...prev];
 }
 
+export function isCurrentChannelRequest(
+  requestChannelId: string,
+  currentChannelId: string | undefined,
+  requestGeneration: number,
+  currentGeneration: number,
+): boolean {
+  return (
+    requestChannelId === currentChannelId &&
+    requestGeneration === currentGeneration
+  );
+}
+
 /** 切换频道快照一致性判定：一致时调用方可跳过 setState，避免重复 commit 闪动。 */
 export function isSameMessagesPage(
   prev: ChannelMessagesPage,
@@ -613,6 +625,7 @@ export function useChannelData(
   membersVersion?: number,
 ) {
   const latestRequestRef = useRef(0);
+  const channelGenerationRef = useRef(0);
   const cacheRef = useRef(new Map<string, ChannelMessagesPage>());
   /** 附属区分桶缓存：成员/mute/pinned/任务切回看过的频道直接命中快照，避免计数先空后闪。
    * pinned 缓存键含 sort（`cid:sort`），与服务端排序语义对齐。 */
@@ -784,6 +797,7 @@ export function useChannelData(
   // 切换频道：缓存快照式替换 + 后台重拉；迟到响应由 requestId 丢弃。
   // 03 票：pinned/附属区随频道切换重拉（旧频道状态先清空，避免旧内容闪现）。
   useEffect(() => {
+    channelGenerationRef.current += 1;
     latestRequestRef.current += 1;
     const requestId = latestRequestRef.current;
     const cid = channelId ?? "";
@@ -987,13 +1001,26 @@ export function useChannelData(
   const loadEarlier = useCallback(() => {
     if (!channelId || !hasMore || messages.length === 0)
       return Promise.resolve();
+    const requestChannelId = channelId;
+    const requestGeneration = channelGenerationRef.current;
+    const isCurrentRequest = () =>
+      isCurrentChannelRequest(
+        requestChannelId,
+        channelIdRef.current,
+        requestGeneration,
+        channelGenerationRef.current,
+      );
     const before = messages[0].seq;
-    return loadPage(channelId, before)
+    return loadPage(requestChannelId, before)
       .then((page) => {
+        if (!isCurrentRequest()) return;
         setMessages((prev) => prependPageMessages(prev, page.messages));
         setHasMore(page.hasMore);
       })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => {
+        if (!isCurrentRequest()) return;
+        setLoadError(e instanceof Error ? e.message : String(e));
+      });
   }, [channelId, hasMore, messages, loadPage]);
 
   // 02 票：发送通道——baseSeq 携带、held 后重拉提示、成功后重拉收敛。

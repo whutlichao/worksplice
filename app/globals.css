@@ -979,7 +979,7 @@ span.linenumber {
 /* §3.3 消息行：无分割线，hover 整行高亮；锚点（thread 打开的消息）用选中族淡底表示「当前位置」 */
 .ws-message-row {
   background: var(--surface);
-  transition: background var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .ws-message-row-anchor {
   background: var(--selected-soft);
