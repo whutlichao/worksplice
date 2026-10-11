@@ -1,8 +1,8 @@
-# Agent 头像色选择与一致呈现（设计票）
+# Agent 头像色选择与一致呈现（规格）
 
 日期：2026-10-11 · 来源：`.scratch/agent-avatar-color/issues/01-agent-avatar-color.md`（Type: grilling，已 resolved）。
 
-性质：**设计契约**；本文件记录经产品所有者确认的可观察行为，供后续实现工作使用。本票只做需求对齐与设计，不包含实现、拆票或源码改动。
+性质：**可实施规格**；本文件记录经产品所有者确认的可观察行为与实现约束，供后续实施工作使用。本票只细化规格，不包含源码改动。
 
 ## Problem Statement
 
@@ -55,34 +55,36 @@
 
 ## User Stories
 
-1. 作为产品所有者，我能从 agent 详情面板选择现有四种 agent 头像色之一，并在成功保存后立即看到该 agent 在应用各身份头像位置呈现同一色格。
-2. 作为查看旧频道/线程消息或搜索结果的人，我看到同一个 agent 的历史头像随当前身份头像色一致呈现，而消息内容与作者身份不变。
-3. 作为使用 agent Pi session 的人，我能在该 agent 当前绑定的 Pi transcript 的 assistant 消息旁辨认同一头像；普通人类 session 和不能精确归属的其他 session 不被误标。
-4. 作为使用既有 agent 的人，升级后 agent 仍保留原有 ID 默认色；我可以显式换色，也可以随时恢复自动默认。
-5. 作为有多个 agent 的人，我可以让不同 agent 使用同一个色格，不会遇到被占用而无法选择的颜色。
-6. 作为使用状态点、任务板或其他颜色语义的人，我仍看到这些颜色表达其原有状态，不会因修改 agent 头像色而变义。
-7. 作为操作选色器的人，我点击后无需再提交一次；若保存失败，旧色继续生效且失败可见。
+1. 作为 agent 管理者，我可以从 agent 详情选择 `av-0…av-3`，并在保存成功后看到该 agent 的所有身份 Avatar 呈现同一色格。
+2. 作为新建 agent 的使用者，我看到它按稳定 member ID 使用自动默认色，无需先设置头像色。
+3. 作为既有 agent 的使用者，升级后仍看到相同的 ID 自动默认色；我可以覆盖该默认，也可以清除覆盖恢复自动色。
+4. 作为查看侧栏、详情、频道/线程消息作者、任务 owner、建频道成员选项或搜索结果的人，我看到同一 agent 使用一致的当前头像色，历史消息也随当前身份色更新。
+5. 作为使用 agent Pi session 的人，我能在精确归属该 agent 的 transcript 中从 assistant 消息旁辨认该 agent；普通 human session、同 cwd 但文件不同及无明确归属的 session 不出现 agent Avatar。
+6. 作为 agent 管理者，我可以让多个 agent 使用相同色格，不会遇到颜色被占用而不可选择。
+7. 作为 agent 管理者，我点击色格后无需额外保存；成功后各处呈现同步更新，失败时旧色保持且我能看到失败提示。
+8. 作为 agent 管理者，我在重载、Restart、Session reset、Full reset、换 workspace 或改名后仍保留身份头像色。
+9. 作为使用状态点、任务状态或其他颜色语义的人，我看到这些颜色仍表达原有含义，不受头像色选择影响。
 
 ## Implementation Decisions
 
-1. **选择入口归 AgentDetailPanel**：符合原始需求；选择作用于持久 agent 身份，而非只改详情面板的局部呈现。
-2. **持久字段表达 override**：在 agent 身份记录上保存 nullable 的色格标识；空值继续走稳定 member ID 默认映射，重置“自动”即清除此 override。使用色格标识，不落盘任意 CSS 色值。
-3. **统一读取当前成员颜色**：现有协作消息作者与 agent 列表消费同一 Member 身份数据，所有 Avatar 呈现以当前 agent 属性为准，不在各调用点复制颜色值，也不把颜色快照写进历史消息。
-4. **Pi transcript 只认精确文件归属**：`MessageView` 仅在当前文件路径与某一 agent 的 `pi_session_file` 精确对应时取得该成员身份。不得按 session cwd、project root、文件名或展示顺序猜测。匹配失败时按普通 session 呈现，不加 agent 头像。
-5. **Pi session 文件只读**：头像是展示层身份信息，不写入或重写 Pi jsonl，也不更改 assistant/user/tool message 内容。
-6. **选中即提交**：点色格后保存；成功时刷新共享成员数据，使所有当前应用呈现消费新值。失败不乐观覆盖身份数据，保留当前已保存色并显示错误。
-7. **不新建 ADR**：这是用户直接要求的、局限于单个身份属性的视觉契约；既有 palette、消息作者模型、Pi session 文件所有权均不改变。没有需要通过 ADR 保存的难逆、反直觉的架构权衡。
+1. **头像色属于 agent 身份**：成员身份持久数据保存 nullable 的受限色格索引（`0…3`）；`null` 表示按稳定 member ID 使用既有自动默认，显式索引表示 override。写入只接受 `null` 或整数 `0…3`，不保存任意 CSS 色值。新建及既有 agent 的 `null` 均沿用相同默认映射；清除 override 即恢复该映射。
+2. **成员身份是唯一读写 seam**：详情页色格点击即调用专用成员写入 interface，以索引更新或以 `null` 清除 override。成功后返回/刷新共享的规范成员身份数据，既有身份 Avatar 呈现据此更新；任何展示位置都不复制独立色值或把颜色快照写进消息。写入失败时不乐观改动已保存身份值，保留旧色并提示失败。重复色格始终可选。
+3. **Pi session 归属由详情读取 seam 决定**：服务端读取 Pi session 详情时，对当前 session 文件完整路径和 agent 的 `pi_session_file` 使用同一规范化规则处理，再按完整路径精确相等匹配。仅成功匹配时，详情结果才附带该 agent 的身份 Avatar 信息；不得以 cwd、workspace、project root、文件名、分叉关系或展示顺序推断归属。无匹配时不附带 agent 身份信息。
+4. **Pi transcript 只为 assistant 呈现身份 Avatar**：读取结果中的可选 agent 身份信息仅供该 session 的 assistant 消息呈现 Avatar；user、tool、custom 等非 assistant 消息不加该 Avatar。身份色从当前成员身份读取，历史及后续 assistant 消息一致使用当前色；不把归属或头像色快照附到单条消息。
+5. **颜色语义保持局部**：选择只改变 agent 身份 Avatar tile 的底色。human 固定使用 `av-4`；status dot、任务状态、作者名、human Avatar、主题及其他语义色不变。既有色板与默认映射不扩展或重排。
+6. **身份生命周期不变**：头像色随 agent 身份保留，跨应用重载、Restart、Session reset、Full reset、换 workspace 与改名不变；Pi jsonl 只读，不写入或重写该文件，不更改其中任何消息内容。
+7. **不新建 ADR**：本规格落实已确认的身份外观契约，不改变既有色板、作者归属或 Pi session 文件所有权，没有新增需要 ADR 记录的架构裁决。
 
 ## Testing Decisions
 
-本设计阶段没有源码改动，按票面不运行测试、typecheck、lint、双轴 code-review 或真浏览器检查。后续实现阶段应以产品渲染与持久数据行为验证本契约，最低覆盖：
+本规格票没有源码改动，按票面不运行测试、typecheck、lint、双轴 code-review 或真浏览器检查。后续实现应测试外部可观察行为，不将断言绑定到内部状态形状或具体调用顺序；优先复用现有成员读写、session 详情读取及 Avatar 呈现 seam。先例方向包括成员生命周期持久性测试、session-reader 路径/详情测试，以及消息流中身份呈现测试。
 
-- 默认/显式选色/恢复自动分别渲染预期的 `av-0…av-3`，human 始终为 `av-4`；同一 agent 的侧栏、详情、频道消息、线程回复、任务 owner、成员选择及搜索结果同色。
-- 选择成功后各身份头像消费同一新值；旧消息仍按当前作者身份呈色。保存失败时旧值仍在，且用户获得失败提示。
-- 重载及 Restart、Session reset、Full reset、换 workspace、改名后所选色仍与 agent 身份绑定；恢复自动后回到 ID 确定性默认。
-- 两个或更多 agent 可选择相同色格。
-- Pi transcript 仅在精确命中对应 agent 的 `pi_session_file` 时为 assistant 消息显示头像；cwd 相同但文件不匹配、普通 human session 与无归属历史/分叉文件不显示 agent 头像。
-- status dot、任务状态、作者名、human Avatar、普通 session 及消息正文/作者关系均保持原语义。
+- **模块与 prior art**：覆盖成员身份持久读写、agent 详情选色、共享 Avatar 呈现，以及 Pi session 详情归属和 transcript 呈现。可参照 `lib/agent-lifecycle.test.mjs` 的身份生命周期行为、`lib/session-reader.test.mjs` 的 session 路径/详情行为，以及 `components/message-stream.test.mjs` 的消息呈现行为。
+- **默认与索引约束**：新建和既有 agent 在 `null` 时均按 member ID 映射到 `av-0…av-3`；整数 `0…3` 各自可写入并持久化，`null` 清除覆盖。负数、非整数、超范围值及任意字符串均不能成为持久色格值；human 始终为 `av-4`。
+- **交互与失败**：点选立即提交，成功后侧栏、详情、频道/线程作者、任务 owner、成员选项及搜索等所有身份 Avatar 同步呈现；重复色格可选。写入失败时原值仍呈现且错误可见，不出现未保存的新色；恢复自动后回到同一 member ID 默认色。
+- **身份持久性**：重载、Restart、Session reset、Full reset、换 workspace 与改名后仍使用身份当前色；身份 Avatar 不依赖列表序号。历史消息按当前作者身份色呈现，不因选色改变消息内容或作者关系。
+- **Pi 精确归属**：session 详情读取对规范化后的完整路径作精确相等匹配；命中才附带 agent 身份信息。同 cwd 但 session 文件不同、同名但路径不同、仅有分叉关联及无归属的 session 均不匹配。命中时只有 assistant 消息显示 Avatar，非 assistant 消息不显示；不匹配时全 transcript 不显示 agent Avatar。
+- **语义与文件不变**：头像色更新不改 status dot、任务状态、作者名、human Avatar、主题或其他非 Avatar 语义；不向消息记录或 Pi jsonl 写入头像色/归属快照。
 
 ## Out of Scope
 
@@ -103,6 +105,6 @@
 - agent 可共享 workspace，因此 cwd 不是身份归属。只把精确 `pi_session_file` 关联作为 Pi transcript 身份来源；没有该关联时宁可不加头像，不做猜测。
 - 领域术语“头像色”已 inline 添加至 `CONTEXT.md`。未发现需要新 ADR 的决策；实现状态字段是常规成员身份扩展，不改变已有数据所有权架构。
 
-### 交付内容
+### 本规格收敛
 
-本设计交付仅为本目录 `spec.md`、本目录 `issues/01-agent-avatar-color.md` 与根目录 `CONTEXT.md`。不修改应用源码、测试、设计系统色值、现有 ADR 或其他 `.scratch` effort。所有用户决策与共同理解冻结记录在 issue 的 Answer 中；设计树无待决 frontier。
+本文件承接已 resolved 的 D1–D10，不重开产品决策；实现 seam 已收敛为成员身份持久读写与 Pi session 详情精确归属两处。规格 tracker 文件保持本地 Markdown 形态，不添加 `ready-for-agent`；实施工作按此规格验证外部行为。无待定占位，也不新增 ADR。
