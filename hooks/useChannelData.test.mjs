@@ -6,9 +6,11 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { mergeIncomingMessages, loadMessagesPage } = await jiti.import(
-  "./useChannelData.ts",
-);
+const {
+  mergeIncomingMessages,
+  loadMessagesPage,
+  isCurrentChannelRequest,
+} = await jiti.import("./useChannelData.ts");
 
 const m = (id, seq, content) => ({
   id,
@@ -169,6 +171,12 @@ test("applyPollPage returns the previous state when maxSeq does not advance", as
   };
 
   assert.equal(applyPollPage(prev, page), prev);
+});
+
+test("isCurrentChannelRequest rejects stale pages after a channel switch", () => {
+  assert.equal(isCurrentChannelRequest("c1", "c1", 3, 3), true);
+  assert.equal(isCurrentChannelRequest("c1", "c2", 3, 4), false);
+  assert.equal(isCurrentChannelRequest("c1", "c1", 3, 5), false);
 });
 
 // 红-绿切片 4：向上分页拼接顺序（早页 prepend 到前面）
