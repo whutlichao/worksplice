@@ -1,6 +1,6 @@
 {
   "name": "worksplice",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local workspace for collaborating with persistent pi coding agents",
   "keywords": [
     "pi-coding-agent",
