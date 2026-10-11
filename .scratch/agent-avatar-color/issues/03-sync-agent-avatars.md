@@ -18,4 +18,4 @@
 - Review — Standards：无文档标准违规、无最终 smell finding。独立初审指出重复的当前成员索引与重复的色值断言结构，已分别抽取共享索引函数与测试断言 helper 后复审通过。
 - Review — Spec：无缺失要求、范围蔓延或行为错误；四项验收均通过。
 - 验证：`npm test`（1381/1381）、`node_modules/.bin/tsc --noEmit` 通过；`npm run lint` 0 errors，只有未修改的 `hooks/useI18n.tsx:61` 既有 warning。
-- PR：待创建（base: `main`）。
+- PR：[#162](https://github.com/whutlichao/worksplice/pull/162)（base: `main`，未合并）。
