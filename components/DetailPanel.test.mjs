@@ -77,7 +77,7 @@ const REPLY = {
     target_id: "m1",
     seq: 4,
     author_id: "agent-1",
-    content: "thread reply",
+    content: 'thread reply has `inline-note` for one point.\n\n线程回复也包含第二段中文内容。\n\n```ts\nconst threadReadable = true;\n```',
     created_at: "2026-08-03T08:00:01.000Z",
     author: AGENT,
 };
@@ -143,6 +143,26 @@ test("DetailPanel thread 变体渲染锚点与消息（测试注入 initialAncho
     assert.match(html, /thread reply/);
     assert.match(html, /aria-label="Close panel"/);
     assert.match(html, /textarea/);
+    const replySequence = html.match(
+        /<span class="msg-time mono"[^>]*>#4<\/span>/,
+    )?.[0];
+    const replyHeader = html.slice(
+        html.indexOf("#4"),
+        html.indexOf("thread reply"),
+    );
+    assert.match(html, /<span class="msg-author is-agent">bob<\/span>/);
+    assert.ok(replySequence);
+    assert.match(
+        replyHeader,
+        /^#4<\/span><span class="msg-time mono">[^<]+<\/span>/,
+    );
+    assert.match(
+        html,
+        /<p>thread reply has <code class="markdown-inline-code"[^>]*>inline-note<\/code> for one point\.<\/p>/,
+    );
+    assert.match(html, /<p>线程回复也包含第二段中文内容。<\/p>/);
+    assert.match(html.replace(/<[^>]*>/g, ""), /const threadReadable = true;/);
+    assert.match(html, /font-size:var\(--fs-sm\);line-height:1\.62/);
     // 真实 ThreadPanel 锚点行不传 convertInActionBar ⇒ 动作栏没有「转为任务」键
     // （锚点的右键菜单项不受影响：它由 canConvertToTask + onConvertToTask 组装，与动作栏门控无关）。
     assert.equal(html.split('title="Convert to task"').length - 1, 0);

@@ -160,6 +160,9 @@ test("频道面 class 块逐字搬自上游 app.css（形态来源唯一）", ()
         ".msg-tag",
         ".msg-time",
         ".msg-text",
+        '.msg-text > .markdown-body',
+        '.msg-text p',
+        '.msg-text p:last-child',
         ".msg-tools",
         ".task-chip",
         ".reactions",
@@ -184,6 +187,42 @@ test("频道面 class 块逐字搬自上游 app.css（形态来源唯一）", ()
             `${selector} 与上游 app.css 的声明体不一致`,
         );
     }
+});
+
+test('message prose uses the approved channel and thread reading scales', () => {
+    const prose = blockBody(globalsCss, '.msg-text > .markdown-body');
+    const channelParagraphs = blockBody(globalsCss, '.msg-text p');
+    const threadRow = blockBody(globalsCss, '.ws-right .msg');
+    const threadProse = blockBody(
+        globalsCss,
+        '.ws-right .msg-text > .markdown-body',
+    );
+    const threadParagraphs = blockBody(
+        globalsCss,
+        '.ws-right .msg-text p:not(:last-child)',
+    );
+    const author = blockBody(globalsCss, '.msg-author');
+    const time = blockBody(globalsCss, '.msg-time');
+    const inlineCode = blockBody(globalsCss, '.msg-text code');
+
+    assert.match(
+        blockBody(globalsCss, '.msg'),
+        /padding:\s*var\(--sp-5\)\s+var\(--sp-4\)/,
+    );
+    assert.match(author, /font-size:\s*14px/);
+    assert.match(time, /font-family:\s*var\(--mono\)/);
+    assert.match(time, /font-size:\s*var\(--fs-mono-xs\)/);
+    assert.match(time, /color:\s*var\(--faint\)/);
+    assert.match(prose, /max-width:\s*68ch/);
+    assert.match(prose, /font-size:\s*14px/);
+    assert.match(prose, /line-height:\s*1\.65/);
+    assert.match(channelParagraphs, /margin:\s*0 0 var\(--sp-4\)/);
+    assert.match(threadRow, /padding-inline:\s*var\(--sp-7\)/);
+    assert.match(threadRow, /padding-block:\s*var\(--sp-7\)/);
+    assert.match(threadProse, /line-height:\s*1\.7/);
+    assert.match(threadParagraphs, /margin-bottom:\s*var\(--sp-5\)/);
+    assert.match(inlineCode, /font-size:\s*12px/);
+    assert.doesNotMatch(inlineCode, /line-height:/);
 });
 
 test("消息行 hover 走 --fg-soft；锚点行不再是黄色实心且带左侧 accent 条", () => {
@@ -230,15 +269,6 @@ test("消息动作栏：绝对定位、hover/focus 才出、--shadow-pop、opaci
     assert.doesNotMatch(tools, /2px solid/);
 });
 
-test("消息行垂直内边距取节奏带顶 8px（--sp-4）：相邻行盒间距 10px → 16px", () => {
-    // 用户 2x 截图反馈「两条消息间距太近、过于密集」。取值依据是设计系统
-    // DESIGN.md 自述的垂直节奏带 6–8px（"Density is high (13px base, 6–8px
-    // vertical rhythm) yet never cramped"）——原值 5px 低于该带，取带顶 8px。
-    // 断言钉整条 padding 声明（水平不变、仍 8px）：`5px var(--sp-4)` 这类
-    // 只改垂直轴的旧形态不会再匹配。两处规则体的逐字同步由上一例的
-    // 「形态来源唯一」断言兜底，这里只钉值。
-    assert.match(blockBody(globalsCss, ".msg"), /padding:\s*var\(--sp-4\);/);
-});
 
 // ─── ② 渲染面 ────────────────────────────────────────────────────────────────
 
