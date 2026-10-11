@@ -18,7 +18,7 @@
 
 - 实现：成员身份新增受限 nullable `avatar_tint`（schema v14）；经 Store、协作域和成员 PATCH 路由持久化。Agent 详情页提供四个有名色格及“自动/恢复默认”，服务端成功后才更新头像，失败保留旧色并呈现错误。
 - TDD：覆盖存储/迁移/非法值、PATCH 合法与非法请求、详情页成功/失败与恢复自动、默认色与重复使用、Restart/reset/workspace 生命周期；另以成员行改名验证 tint 仍附着于同一身份行。当前没有独立的成员改名业务入口。
-- Review — Standards：数据访问遵循 `Store → lib/domain/collab → route`；schema 有版本递增及旧库迁移；UI 不直连 DB。Spec：仅允许 0…3 或 null；human `av-4` 与既有自动映射不变；状态/任务/作者等非 Avatar 语义未改。双轴复核未发现遗留问题。
+- 初始双轴复核摘要遗漏了后续独立 Standards review 发现的焦点环硬 finding；该 finding 已由本 follow-up 修复，分别的 Standards 与 Spec 结论见下方新增报告。
 - 验证：`npm test`（1375/1375）、`node_modules/.bin/tsc --noEmit`、`npm run lint`（0 errors；只有未改 `hooks/useI18n.tsx:61` 的既有 warning）。
 - PR：[#159](https://github.com/whutlichao/worksplice/pull/159)（base: `main`）。
 
@@ -27,6 +27,7 @@
 - 修复：色格的选中态改由边框宽度/颜色表达，不再以内联 `outlineWidth: 0` 覆盖全局 `:focus-visible`；未选中色格聚焦时保留 2px `--accent-graphic` 焦点环。
 - TDD：新增回归测试先红（未选中色格 `outlineWidth` 实为 `0`），再绿；测试同时断言选中态视觉标记与全局焦点环规则仍在。
 - 验收：`node --test components/AgentDetailPanel.test.mjs components/Avatar.test.mjs`（34/34）；`node_modules/.bin/tsc --noEmit` 通过；`npm run lint` 0 errors。唯一 warning 位于未改的 `hooks/useI18n.tsx:61`，该文件与 `origin/main` 无差异。
+- PR：[#160](https://github.com/whutlichao/worksplice/pull/160)（base: `main`；follow-up PR，未合并）。
 
 ### Review — Standards
 
