@@ -20,3 +20,4 @@
 - TDD：覆盖存储/迁移/非法值、PATCH 合法与非法请求、详情页成功/失败与恢复自动、默认色与重复使用、Restart/reset/workspace 生命周期；另以成员行改名验证 tint 仍附着于同一身份行。当前没有独立的成员改名业务入口。
 - Review — Standards：数据访问遵循 `Store → lib/domain/collab → route`；schema 有版本递增及旧库迁移；UI 不直连 DB。Spec：仅允许 0…3 或 null；human `av-4` 与既有自动映射不变；状态/任务/作者等非 Avatar 语义未改。双轴复核未发现遗留问题。
 - 验证：`npm test`（1375/1375）、`node_modules/.bin/tsc --noEmit`、`npm run lint`（0 errors；只有未改 `hooks/useI18n.tsx:61` 的既有 warning）。
+- PR：[#159](https://github.com/whutlichao/worksplice/pull/159)（base: `main`）。
