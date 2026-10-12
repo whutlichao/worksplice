@@ -271,4 +271,9 @@ export interface Store {
   replaceSessionArchiveEntries(archiveId: string, entries: SessionArchiveEntryInput[]): void;
   /** 归档会话原文（含 compact summary）的全文检索：命中带归档/源文件/条目定位列。 */
   searchSessionArchives(query: string, limit?: number): SessionArchiveSearchHit[];
+  /**
+   * 删除该 agent 的全部归档索引行（票 09 B7：显式永久删除 agent 时清其私有归档；
+   * 归档目录本体的删除由 `lib/session-archive.ts` 负责；FTS 由既有触发器同步）。
+   */
+  deleteSessionArchiveEntriesForAgent(agentId: string): void;
 }

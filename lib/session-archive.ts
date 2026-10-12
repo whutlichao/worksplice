@@ -11,10 +11,10 @@
  * - 只复制、不删除、不改写原始记录（副本与原文逐字节一致）；
  * - 内容寻址命名（sha256）⇒ 同一内容重复重置不产生重复副本；
  * - 无文件可归档时静默跳过，不造空档、不报错；
- * - 归档只发生在重置路径（显式永久删除的私有归档清理是票 09 的范围）。
+ * - 归档只发生在重置路径；只有显式永久删除 agent 会清除其私有归档（deleteAgentSessionArchives）。
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDb } from "./data/db-singleton.ts";
 import type { SessionArchiveEntryInput, SessionArchiveSearchHit } from "./data/types.ts";
@@ -66,6 +66,21 @@ function isAlreadyExists(error: unknown): boolean {
     error !== null &&
     (error as { code?: unknown }).code === "EEXIST"
   );
+}
+
+/**
+ * 清除该 agent 的私有归档副本与检索索引（票 09 B7：显式永久删除 agent 时调用）。
+ * 目录布局与索引联动是本模块私有知识：先删索引行、再删副本目录——
+ * 索引先删 ⇒ 即使目录删除中途失败，也不会留下「检索可见但副本已删」的悬空命中
+ * （副本若残留只是占盘，不构成检索可见）。
+ * 只作用于 `deleteAgentIdentity`；Session Reset / Full Reset **不得**调用它
+ * （B6：重置保留原始记录，归档只增不删）。
+ */
+export function deleteAgentSessionArchives(agentId: string): void {
+  if (!agentId) return;
+  const db = getDb();
+  db.deleteSessionArchiveEntriesForAgent(agentId);
+  rmSync(join(db.paths.sessionArchivesDir, agentId), { recursive: true, force: true });
 }
 
 /**

@@ -1221,6 +1221,14 @@ export class SQLiteAdapter implements Store {
       .all(...params, limit) as SessionArchiveIndexRow[];
     return rows.map(pick);
   }
+
+  /**
+   * 删除该 agent 的归档索引行（票 09 B7：显式永久删除 agent 时调用）。
+   * 只按 agent_id 精确作用，不动其他 agent 的行；FTS 由既有 delete 触发器同步。
+   */
+  deleteSessionArchiveEntriesForAgent(agentId: string): void {
+    this.db.prepare("DELETE FROM session_archive_index WHERE agent_id = ?").run(agentId);
+  }
 }
 
 /** 归档索引行（sqlite 私有视图类型；对外只暴露 SessionArchiveSearchHit）。 */
