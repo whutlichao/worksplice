@@ -37,8 +37,7 @@ Blocked by: 06
 
 ## Answer
 
-已按目标语义收口（PR [#178](https://github.com/whutlichao/worksplice/pull/178)；
-PR body：[`09-pr-body.md`](./09-pr-body.md)）。
+已按目标语义收口（PR [#178](https://github.com/whutlichao/worksplice/pull/178)；PR body 见该 PR 描述）。
 
 ### 归属判定规则（本案核心设计点）
 
