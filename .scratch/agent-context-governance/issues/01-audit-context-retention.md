@@ -24,3 +24,5 @@ Status: resolved
 - 可以用合成 session 与 fake runtime 建立机制基线；当前没有关键事实召回率或任务质量评估集/阈值。
 
 完整证据与源码/官方文档引用见[研究报告](https://github.com/whutlichao/worksplice/blob/research/agent-context-audit/.scratch/agent-context-governance/research/context-audit.md)（`research/agent-context-audit`，commit `509a28c`，已推送，未开 PR）。本次未读取真实用户 session 数据，也未运行测试。
+
+- 状态注记：研究报告仍位于 `research/agent-context-audit` 分支（`509a28c`），作为本票引用证据保留，不单独合并 main；该分支保持原样。

@@ -12,6 +12,10 @@
 - 持续区分活动上下文、原始会话记录和持久记忆，术语见仓库根目录 `GLOSSARY.md`。
 - 适用技能：`research`（事实审计）、`grilling` 与 `domain-modeling`（后续决策）、必要时 `codebase-design`（方案设计）。
 
+## 阶段二 · 实施规划
+
+目的：把已决方向转成可实施规格（`spec.md`），把遗留雾区转成决策票；本阶段不实施改造，实施另起 effort；入口 `issues/04-decide-archive-and-retrieval.md`。
+
 ## Decisions so far
 
 - [审计 agent 与 coding session 的上下文保留和成本机制](./issues/01-audit-context-retention.md)：两条路径都有 Pi session/compact，但 agent-loop 旧轮仍累积且无轮级 token 计量；`MEMORY.md` 靠提示约定；reset/delete 可能移除原始记录，且共享 cwd 有误删风险。证据见票据答案和所链研究报告。
@@ -22,6 +26,8 @@
 
 - 归档的具体存储、索引、检索权限和与 compact 摘要的协作方式尚未指定；整体建议方向的决策可能将其中部分拆成后续票。
 - 在建立当前基线后，成本、关键事实召回和任务质量的具体数值目标与安全测试场景才能进一步确定。
+
+<!-- 地图闭合：phase-1 收口——票 01/02/03 均已 resolved（审计、重置保留语义、建议方向）；四项遗留雾区（归档存储、索引、检索权限与 compact 协作、基线后的数值目标）移交阶段二实施规划，阶段二完成后由另起 effort 推进实施。阶段二产物位于本目录：`spec.md`、`issues/04-decide-archive-and-retrieval.md`、`issues/05-spec-implementation-plan.md`（由同轮并列 worker 创建，合并顺序以 PR 为准）。 -->
 
 ## Out of scope
 
