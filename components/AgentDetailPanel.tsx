@@ -661,7 +661,10 @@ export function AgentDetailPanel({
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (!(event.target instanceof Node) || !event.currentTarget) return;
       const picker = avatarTintTriggerRef.current?.parentElement;
-      if (picker && !picker.contains(event.target)) setAvatarTintPickerOpen(false);
+      if (picker && !picker.contains(event.target)) {
+        restoreAvatarTintFocus.current = false;
+        setAvatarTintPickerOpen(false);
+      }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -891,8 +894,8 @@ export function AgentDetailPanel({
             triggerRef={avatarTintTriggerRef}
             onToggle={() => setAvatarTintPickerOpen((current) => !current)}
             onSelect={async (tint) => {
-              await selectAvatarTint(tint);
               restoreAvatarTintFocus.current = true;
+              await selectAvatarTint(tint);
               setAvatarTintPickerOpen(false);
             }}
             t={t}

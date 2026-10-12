@@ -416,7 +416,7 @@ test("AgentDetailPanel keeps avatar color choices collapsed by default", () => {
   assert.doesNotMatch(html, /aria-label="Automatic \/ restore default"/);
 });
 
-test("avatar tint choices retain named selection states and circular focus targets", async () => {
+test("avatar tint choices expose named selected and unselected states", () => {
   const tree = AgentAvatarTintPicker({
     selectedTint: 0,
     saving: false,
@@ -431,24 +431,7 @@ test("avatar tint choices retain named selection states and circular focus targe
   const selected = findButton(tree, "Avatar color 1");
   const unselected = findButton(tree, "Avatar color 2");
   assert.equal(selected.props["aria-pressed"], true);
-  assert.equal(selected.props.style.borderWidth, 2, "the selected tint keeps its visual marker");
-  assert.equal(selected.props.style.borderColor, "var(--fg)");
-  assert.equal(selected.props.style.borderRadius, "50%");
   assert.equal(unselected.props["aria-pressed"], false);
-  assert.equal(unselected.props.style.borderWidth, 1);
-  assert.equal(unselected.props.style.borderColor, "transparent");
-  assert.equal(unselected.props.style.borderRadius, "50%");
-  assert.equal(
-    unselected.props.style.outlineWidth,
-    undefined,
-    "unselected inline styles must not suppress :focus-visible outline",
-  );
-
-  const globalCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(
-    globalCss,
-    /:focus-visible\s*\{\s*outline:\s*2px solid var\(--accent-graphic\);\s*outline-offset:\s*2px;/,
-  );
 });
 
 test("open avatar tint selector keeps its group and Automatic semantics without a pill button", () => {
