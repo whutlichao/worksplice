@@ -29,6 +29,8 @@ import type {
   ReminderStatus,
   RoundLogRow,
   SearchResult,
+  SessionArchiveEntryInput,
+  SessionArchiveSearchHit,
   TaskRow,
   TaskStatus,
   TaskThreadReadRow,
@@ -260,4 +262,13 @@ export interface Store {
   clearChannelMute(channelId: string, memberId: string): boolean;
   getChannelMute(channelId: string, memberId: string): ChannelMuteRow | undefined;
   listChannelMutes(channelId: string): ChannelMuteRow[];
+
+  // -- session 归档索引（上下文治理票 06） -----------------------------------
+  /**
+   * 归档副本条目的写入（重索引语义）：先按 archive_id 清旧行、再插入当前投影——
+   * 重复重置与提取规则升级都收敛到同一结果，不产生重复行也不留过期行。
+   */
+  replaceSessionArchiveEntries(archiveId: string, entries: SessionArchiveEntryInput[]): void;
+  /** 归档会话原文（含 compact summary）的全文检索：命中带归档/源文件/条目定位列。 */
+  searchSessionArchives(query: string, limit?: number): SessionArchiveSearchHit[];
 }

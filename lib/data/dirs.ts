@@ -7,6 +7,12 @@ export const DB_FILE_NAME = "worksplice.db";
 export const LEGACY_DB_FILE_NAME = "raft.db";
 export const ATTACHMENTS_DIR_NAME = "attachments";
 export const AGENTS_DIR_NAME = "agents";
+/**
+ * 归档副本目录（上下文治理票 06 / spec B1）：会话重置时原始会话记录以归档副本落这里，
+ * 按 agent 私有（<dir>/<agent id>/<内容哈希>.jsonl）。落在数据目录内 ⇒ 被
+ * 「数据目录整体可复制」的备份口径覆盖；不放 workspace（workspace 会被 full reset 清空）。
+ */
+export const SESSION_ARCHIVES_DIR_NAME = "session-archives";
 export const MEMORY_FILE_NAME = "MEMORY.md";
 
 export function resolveDataDir(env: NodeJS.ProcessEnv = process.env): string {
@@ -19,6 +25,8 @@ export interface DataPaths {
   dbFile: string;
   attachmentsDir: string;
   agentsDir: string;
+  /** 归档副本根目录；每个 agent 一个子目录（见 SESSION_ARCHIVES_DIR_NAME）。 */
+  sessionArchivesDir: string;
 }
 
 export function dataPaths(dataDir: string): DataPaths {
@@ -27,6 +35,7 @@ export function dataPaths(dataDir: string): DataPaths {
     dbFile: path.join(dataDir, DB_FILE_NAME),
     attachmentsDir: path.join(dataDir, ATTACHMENTS_DIR_NAME),
     agentsDir: path.join(dataDir, AGENTS_DIR_NAME),
+    sessionArchivesDir: path.join(dataDir, SESSION_ARCHIVES_DIR_NAME),
   };
 }
 
@@ -35,6 +44,7 @@ export function ensureDataDir(dataDir: string): DataPaths {
   fs.mkdirSync(paths.dataDir, { recursive: true });
   fs.mkdirSync(paths.attachmentsDir, { recursive: true });
   fs.mkdirSync(paths.agentsDir, { recursive: true });
+  fs.mkdirSync(paths.sessionArchivesDir, { recursive: true });
   migrateLegacyDbFileName(dataDir);
   return paths;
 }

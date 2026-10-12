@@ -37,6 +37,8 @@ import type {
   ReminderStatus,
   RoundLogRow,
   SearchResult,
+  SessionArchiveEntryInput,
+  SessionArchiveSearchHit,
   TaskRow,
   TaskStatus,
   TaskThreadReadRow,
@@ -1150,6 +1152,85 @@ export class SQLiteAdapter implements Store {
       .prepare("SELECT * FROM channel_mutes WHERE channel_id = ? ORDER BY created_at, member_id")
       .all(channelId) as ChannelMuteRow[];
   }
+
+  // -- session 归档索引（上下文治理票 06） -----------------------------------
+
+  /**
+   * 归档副本条目写入（重索引语义）：同一事务内先按 archive_id 清旧行、再插入当前投影。
+   * 重复归档 ⇒ 旧行被同键新行替换（不产生重复行）；提取规则升级 ⇒ 索引收敛到新投影；
+   * 删除/插入都经 FTS 触发器同步（session_archive_index_fts_*）。
+   */
+  replaceSessionArchiveEntries(archiveId: string, entries: SessionArchiveEntryInput[]): void {
+    const insert = this.db.prepare(
+      `INSERT INTO session_archive_index
+         (id, archive_id, agent_id, source_path, entry_index, entry_type, content, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const createdAt = new Date().toISOString();
+    this.withTransaction(() => {
+      this.db.prepare("DELETE FROM session_archive_index WHERE archive_id = ?").run(archiveId);
+      for (const entry of entries) {
+        insert.run(
+          randomUUID(),
+          entry.archiveId,
+          entry.agentId,
+          entry.sourcePath,
+          entry.entryIndex,
+          entry.entryType,
+          entry.content,
+          createdAt,
+        );
+      }
+    });
+  }
+
+  /**
+   * 归档会话原文的全文检索（索引层，spec B2/B3）：全 token ≥3 字符 → trigram FTS（rank 排序）；
+   * 含短 token（<3 字符）时整条查询走 LIKE 兜底——归档索引不复制 messages 的 mixed 候选优化
+   * （归档写入一次、查询低频，LIKE 全扫代价可接受），语义保持一致：短词也能命中。
+   * 片段用与 messages 同一 buildSearchSnippet（<mark> 高亮 + HTML 转义）。
+   */
+  searchSessionArchives(query: string, limit = 20): SessionArchiveSearchHit[] {
+    const tokens = query.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return [];
+    const pick = (row: SessionArchiveIndexRow): SessionArchiveSearchHit => ({
+      archive_id: row.archive_id,
+      agent_id: row.agent_id,
+      source_path: row.source_path,
+      entry_index: row.entry_index,
+      entry_type: row.entry_type,
+      snippet: buildSearchSnippet(row.content, tokens),
+    });
+    if (tokens.every((token) => token.length >= 3)) {
+      const fts = toFtsQuery(tokens.join(" "));
+      const rows = this.db
+        .prepare(
+          `SELECT idx.* FROM session_archive_index_fts
+           JOIN session_archive_index idx ON idx.rowid = session_archive_index_fts.rowid
+           WHERE session_archive_index_fts MATCH ?
+           ORDER BY rank
+           LIMIT ?`,
+        )
+        .all(fts, limit) as SessionArchiveIndexRow[];
+      return rows.map(pick);
+    }
+    const conditions = tokens.map(() => "content LIKE ? ESCAPE '\\'").join(" AND ");
+    const params = tokens.map((token) => `%${escapeLike(token)}%`);
+    const rows = this.db
+      .prepare(`SELECT * FROM session_archive_index WHERE ${conditions} ORDER BY rowid DESC LIMIT ?`)
+      .all(...params, limit) as SessionArchiveIndexRow[];
+    return rows.map(pick);
+  }
+}
+
+/** 归档索引行（sqlite 私有视图类型；对外只暴露 SessionArchiveSearchHit）。 */
+interface SessionArchiveIndexRow {
+  archive_id: string;
+  agent_id: string;
+  source_path: string;
+  entry_index: number;
+  entry_type: string;
+  content: string;
 }
 
 declare global {

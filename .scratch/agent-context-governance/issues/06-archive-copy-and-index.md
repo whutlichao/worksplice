@@ -1,7 +1,7 @@
 # 归档副本落盘与索引
 
 Type: task
-Status: pending
+Status: resolved
 
 ## Question
 
@@ -36,3 +36,52 @@ Status: pending
   [`agent-lifecycle.test.mjs`](../../../lib/agent-lifecycle.test.mjs)（归档落点/清理缝），既有断言不因本票失效。
 - 项目文件有改动时：解析并使用本机 pr skill 编写 PR body，推分支创建 PR，PR 号及 body 路径回填
   Answer；最后发送并核实 worker_done 回执。
+
+## Answer
+
+已按票面实施归档副本落盘与索引（B1/B2/B3/B6、迁移与幂等），base 提交 `861d375`：
+
+- **归档副作用**（B1/B6）：重置共用路径 `clearSessionFilesForAgent`（[`agent-lifecycle.ts`](../../../lib/agent-lifecycle.ts)）
+  在既有删除逻辑之前调用新模块 [`lib/session-archive.ts`](../../../lib/session-archive.ts) 的
+  `archiveAgentSessionFiles`——绑定 session 文件 + 家目录（构造上私有）cwd 下的 session 文件以**逐字节副本**
+  落入 `<dataDir>/session-archives/<agent id>/<内容 sha256>.jsonl`（[`dirs.ts`](../../../lib/data/dirs.ts)
+  新增 `SESSION_ARCHIVES_DIR_NAME`/`sessionArchivesDir`，随数据目录创建）；共享项目 cwd 只归档绑定文件，
+  归属不明/他人/人类 session 不归档（清理收口归票 09）。归档只复制不删除，失败即抛出、不进入删除阶段；
+  无文件/空文件静默跳过、不造空档。
+- **索引**（B2/B3）：`SCHEMA_VERSION 14 → 15`，新增索引表 `session_archive_index`（定位列
+  archive/agent/源文件/条目行号 + 提取文本）+ `session_archive_index_fts`（trigram，镜像
+  `messages_fts` 口径）+ insert/delete 两枚同步触发器；compact summary 作为 compaction/branch_summary
+  条目进同一张表，不建独立 summary 面。`Store` 新增 `replaceSessionArchiveEntries`（同事务先按
+  archive_id 清旧行再插当前投影：重复重置幂等、提取规则升级可收敛、索引丢失可自愈）与
+  `searchSessionArchives`（FTS + 短 token LIKE 兜底）；服务层入口 `searchArchivedSessionEntries`。
+  **消费面（search op / UI）未接线**（票 07），删除 agent 清理未动（票 09），`lib/agent-loop/` 未动。
+- **实现级决策**（票面授权自行裁定）：①归档目录 `session-archives/<agent id>/<sha256>.jsonl`
+  ——agent id 稳定不随改名漂移、内容寻址天然幂等；②索引表列形状如上（D1：SQLite 侧只建索引，
+  归档本体是文件副本）；③`entry_type` 不设 CHECK——pi 条目类型会演进，CHECK 会让未知类型中止重置归档；
+  ④文本投影 = message 正文/思考/工具调用参数 + bashExecution command/output + compaction/branch_summary
+  summary + custom_message content（工具结果 `details` 是工具私有结构，不投影）。
+- **测试**：新增 [`lib/session-archive.test.mjs`](../../../lib/session-archive.test.mjs) 9 例；扩展
+  [`lib/agent-lifecycle.test.mjs`](../../../lib/agent-lifecycle.test.mjs) 5 例（fake runtime 增
+  `listSessionFilesForCwd`，既有断言原样通过）；扩展 [`lib/data/data-layer.test.mjs`](../../../lib/data/data-layer.test.mjs)
+  1 例（v14 老库升级补齐 + 重索引收敛 + 定位列检索）及 EXPECTED_TABLES/COLUMNS、数据目录布局断言。
+- **质量门禁**：`npm run typecheck` ✓；`npm run lint` 0 error（仅 `hooks/useI18n.tsx:61` 一条存量
+  warning，非本票文件）；`npm test` 基线 **1420/1420**（同 base commit `861d375` 复核）→ 本票后
+  **1435/1435**（新增 15 例）。
+- **code-review 双轴**（对最终 diff 跑）：**Standards 轴**无硬性违反；7 条 judgement call 中
+  `archiveAgentSessionFiles` 改收 `agentId`、测试归档落点改经 `db.paths`（布局断言移入 data-layer），
+  其余（LIKE 兜底三行与 `searchMessages` 同形不抽公共件、不添加 update 触发器、`clearSessionFilesForAgent`
+  命名、`entry_type` 无 CHECK、两层函数命名词序）为有意保留并注明理由。**Spec 轴**无缺失、无越界
+  （07/09 面均未接线）；2 条实现性 finding 已修复：①投影补 bashExecution `command/output`；
+  ②「已索引即短路」会使旧归档不可重建 → 改为清理式重索引；1 条设计取舍记录（内容寻址去重下同内容
+  双源只留一份副本、`source_path` 记最新来源，符合票面「以内容/来源标识去重」）。
+- **PR**：#<PR_NUMBER>（body 路径：`/Users/apple/orca/workspaces/worksplice/context-governance-06-pr-body.md`），
+  head 与最终提交一致。
+
+## Comments
+
+- 实施过程无决策类提问（实现级决策按票面授权自行裁定，未改变 D1/D4）；按 preamble 节奏发送 heartbeat、
+  各检查点 `check` 无 coordinator follow-up。
+- 红→绿证据：先写 `lib/session-archive.test.mjs`（模块不存在，`ERR_MODULE_NOT_FOUND`，0 pass/1 fail），
+  再补生命周期缝红 4 例（14 pass/4 fail），随后实现转绿；最终 touched 59 例、全量 1435 例全绿。
+- 共享 cwd 中「归属不明/人类 session」在 reset 时仍按现状删除（不归档）；票面已把清理收口归票 09，
+  本票只落归档副作用。
