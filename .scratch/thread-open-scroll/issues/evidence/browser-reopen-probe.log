@@ -1,0 +1,45 @@
+  "firstOpen": {
+   "scrollTop": 724,
+   "atBottom": false,
+   "firstVisibleSeq": 9,
+   "seqsAboveViewport": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "labelAfterFirstOpen": [
+   "打开任务 #1 的讨论，未读回复 3 条",
+   "打开任务 #2 的讨论，未读回复 0 条"
+  ],
+  "labelAfterClose": [
+   "打开任务 #1 的讨论，未读回复 3 条",
+   "打开任务 #2 的讨论，未读回复 0 条"
+  ],
+  "secondOpen": {
+   "scrollTop": 724,
+   "atBottom": false,
+   "firstVisibleSeq": 9,
+   "seqsAboveViewport": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "labelAfterSecondOpen": [
+   "打开任务 #1 的讨论，未读回复 0 条",
+   "打开任务 #2 的讨论，未读回复 0 条"
+  ]
+ }
+}
+

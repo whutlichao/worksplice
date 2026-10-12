@@ -1,0 +1,43 @@
+✔ mergeIncomingMessages dedupes by id and keeps messages sorted by seq (1.041083ms)
+✔ mergeIncomingMessages preserves the current duplicate and input semantics (0.194042ms)
+✔ loadMessagesPage requests the channel messages page with limit/before (0.23175ms)
+✔ loadMessagesPage maps HTTP errors to Error (0.239417ms)
+✔ applyPollPage advances maxSeq and merges new messages (0.276041ms)
+✔ applyPollPage returns the previous state when maxSeq does not advance (0.15725ms)
+✔ isCurrentChannelRequest rejects stale pages after a channel switch (0.095542ms)
+✔ prependPageMessages puts the earlier page first (0.177083ms)
+✔ isSameMessagesPage detects identical snapshots (0.17975ms)
+✔ postChannelMessage posts JSON with baseSeq and returns the sent message (0.494625ms)
+✔ postChannelMessage returns held with whatHappened on 409 held (0.331958ms)
+✔ postChannelMessage throws the server error for non-held failures (0.2025ms)
+✔ postChannelMessage throws on empty success responses (0.16625ms)
+✔ postChannelMessage posts multipart with baseSeq when files are attached (8.4925ms)
+✔ sortPinnedItems orders pinned items by manual/recent/az (8.121041ms)
+✔ sortPinnedItems breaks recent ties by order desc (same-millisecond fallback) (0.181959ms)
+✔ loadPinnedPage requests the pinned list with sort and defaults missing pinned to [] (0.231958ms)
+✔ togglePinnedMessage unpins with DELETE and pins with POST (0.221667ms)
+✔ postPinnedOrder posts the reordered message ids in one request (0.170042ms)
+✔ loadMutesPage and loadChannelMemberIds fetch affiliated state with empty defaults (0.272708ms)
+✔ toggleChannelMute posts the toggled mute state and returns it (0.214875ms)
+✔ loadTasksPage requests the channel task board and defaults missing tasks to [] (0.195459ms)
+✔ claimChannelTask posts baseSeq and maps held/conflict/blocked to yield results (0.317916ms)
+✔ updateChannelTaskStatus posts status with baseSeq and maps held to yield results (0.220042ms)
+✔ loadTasksPage preserves the reopened flag for blocked claim display (0.123958ms)
+✔ completeTaskWithReply delivers the thread reply before the in_review transition (0.198209ms)
+✔ convertMessageToTaskRow and createBoardTaskRow post the task creation payloads (0.214916ms)
+✔ shouldInvalidateMembers only invalidates on an explicit positive version (0.098917ms)
+✔ loadChannelMemberIds converges to include the new member after invalidation (0.131916ms)
+✔ markChannelRead posts to the channel read endpoint and returns readSeq (0.113167ms)
+✔ markChannelRead maps HTTP errors to Error (0.093292ms)
+✔ markChannelRead defaults a missing readSeq to 0 (0.084917ms)
+✔ postTaskThreadRead sends only the addressed Task and presented thread seq (0.122542ms)
+✔ mergeTaskUnreadCounts refreshes unread count and timestamp without replacing stable rows (0.187208ms)
+✔ mergeTaskUnreadCounts advances the Task thread read cursor from the same server refresh (0.134625ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 259.901041

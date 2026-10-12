@@ -1,0 +1,31 @@
+{
+  "unread": {
+    "channelId": "448214c2-d956-4222-a009-5e053dbd5eb0",
+    "anchorSeq": 1,
+    "firstUnreadSeq": 9,
+    "secondUnreadSeq": 10,
+    "lastUnreadSeq": 11,
+    "readSeq": 8,
+    "readHistorySeqs": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "allRead": {
+    "channelId": "448214c2-d956-4222-a009-5e053dbd5eb0",
+    "anchorSeq": 2,
+    "latestSeq": 12,
+    "readSeq": 12
+  },
+  "plainThread": {
+    "channelId": "448214c2-d956-4222-a009-5e053dbd5eb0",
+    "anchorSeq": 3,
+    "latestSeq": 12
+  }
+}

@@ -42,6 +42,11 @@ export interface TaskView extends TaskRow {
   unreadReplyCount: number;
   /** 最新一条未读回复的创建时间；没有未读回复时为 null。 */
   latestUnreadReplyAt: string | null;
+  /**
+   * 该 Task thread 的 Owner 已读游标（`task_thread_reads.read_seq`；无行时为 0）。
+   * 读取面，不推进：线程面板的初始落点判定要用**打开那一刻**的游标。
+   */
+  taskThreadReadSeq: number;
 }
 
 export type TaskClaimResult =
@@ -202,6 +207,7 @@ function toTaskView(
       task.id,
       CURRENT_MEMBER_ID,
     ),
+    taskThreadReadSeq: getDb().getTaskThreadRead(task.id)?.read_seq ?? 0,
   };
 }
 
