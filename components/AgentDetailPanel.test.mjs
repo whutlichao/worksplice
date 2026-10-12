@@ -12,6 +12,7 @@ const jiti = createJiti(import.meta.url, {
 const {
     AgentDetailPanel,
     AgentAvatarTintPicker,
+    AgentDescriptionModal,
     createAgentDescriptionSaveHandler,
     createAvatarTintSelectionHandler,
     TaskHistoryList,
@@ -625,6 +626,82 @@ function createDescriptionSaveState(description = "Original summary") {
 
 test("AgentDetailPanel exposes an accessible description edit control", () => {
     assert.match(renderPanel(AGENT), /aria-label="Edit description"/);
+});
+
+// ── 描述编辑弹窗（本票）：行内展开会撑爆面板头部，改为 BrutalModal 弹窗承载 ──────────
+// 弹窗内容拆成纯展示组件（状态仍归 AgentDescriptionEditor），测试直接渲染真实 markup。
+
+const descriptionText = (key) => {
+    if (key === "agent.editDescription") return "Edit description";
+    if (key === "agent.description") return "Description (optional)";
+    if (key === "agent.currentDescription") return "Current description";
+    if (key === "agent.noDescription") return "No description";
+    if (key === "agent.clearDescription") return "Clear";
+    if (key === "agent.cancelDescription") return "Cancel";
+    if (key === "agent.saveDescription") return "Save";
+    if (key === "agent.savingDescription") return "Saving…";
+    if (key === "agent.descriptionSaveError") return "Could not save description";
+    return key;
+};
+
+function renderDescriptionModal(overrides = {}) {
+    return renderWith(
+        React.createElement(AgentDescriptionModal, {
+            agentId: AGENT.id,
+            draft: "Draft summary",
+            savedDescription: "Saved summary",
+            saving: false,
+            error: null,
+            t: descriptionText,
+            onDraftChange: () => undefined,
+            onClear: () => undefined,
+            onCancel: () => undefined,
+            onSave: () => undefined,
+            ...overrides,
+        }),
+    );
+}
+
+test("description edit modal renders a dialog with the prefilled draft and named actions", () => {
+    const html = renderDescriptionModal();
+
+    assert.match(html, /role="dialog" aria-modal="true" aria-label="Edit description"/);
+    assert.match(html, /aria-label="Description \(optional\)"/);
+    assert.match(html, /<textarea[^>]*>Draft summary<\/textarea>/);
+    assert.match(html, /aria-label="Clear"/);
+    assert.match(html, /aria-label="Cancel"/);
+    assert.match(html, /aria-label="Save"/);
+});
+
+test("description edit modal keeps the current description in a height-limited scrolling area", () => {
+    const html = renderDescriptionModal({ savedDescription: "Saved summary" });
+
+    assert.match(html, /Current description/);
+    assert.match(html, /Saved summary/);
+    // 受限展示：参考区高度封顶 + 自身纵向可滚动——长文本不再撑爆弹窗（本次 bug 的教训）。
+    // 断言语义形态而非具体限高值（限高由实现自选，见 PR Review 小节）。
+    assert.match(html, /max-height:[^;"]+;overflow-y:auto/);
+});
+
+test("description edit modal renders saving and error states without losing the draft", () => {
+    const savingHtml = renderDescriptionModal({ saving: true });
+
+    assert.match(savingHtml, /aria-busy="true"/);
+    assert.match(savingHtml, /<textarea[^>]*disabled/);
+    assert.match(savingHtml, /aria-label="Clear"[^>]*disabled/);
+    assert.match(savingHtml, /aria-label="Cancel"[^>]*disabled/);
+    assert.match(savingHtml, /aria-label="Saving…"[^>]*disabled/);
+    assert.match(savingHtml, /role="status"[^>]*>Saving…</);
+
+    const errorHtml = renderDescriptionModal({ error: "service down" });
+
+    assert.match(errorHtml, /aria-invalid="true"/);
+    assert.match(errorHtml, /aria-describedby="agent-description-error-agent-1"/);
+    assert.match(
+        errorHtml,
+        /role="alert"[^>]*>Could not save description: service down</,
+    );
+    assert.match(errorHtml, /<textarea[^>]*>Draft summary<\/textarea>/);
 });
 
 test("description save handler trims the PATCH payload and applies the saved value", async () => {
