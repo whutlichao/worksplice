@@ -477,6 +477,27 @@ test("open avatar tint selector keeps its group and Automatic semantics without 
   assert.match(html, /role="alert"[^>]*>store unavailable</);
 });
 
+test("avatar tint trigger stays focusable while a color save is pending", () => {
+  const tree = AgentAvatarTintPicker({
+    selectedTint: null,
+    saving: true,
+    error: null,
+    open: true,
+    onToggle: () => undefined,
+    triggerRef: { current: null },
+    onSelect: () => undefined,
+    t: avatarTintText,
+    children: null,
+  });
+  const trigger = findButton(tree, "Avatar color");
+  assert.ok(trigger, "the avatar trigger remains available during a save");
+  assert.equal(
+    trigger.props.disabled,
+    undefined,
+    "the enabled trigger can receive focus when Escape closes the selector",
+  );
+});
+
 test("avatar color button persists before showing the saved tint", async () => {
   let selectedTint = 0;
   let error = null;

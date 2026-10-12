@@ -486,7 +486,6 @@ export function AgentAvatarTintPicker({
         aria-expanded={open}
         aria-controls={open ? "agent-avatar-tint-options" : undefined}
         title={t("agent.avatarTint")}
-        disabled={saving}
         onClick={onToggle}
         style={{
           display: "inline-flex",
@@ -494,7 +493,7 @@ export function AgentAvatarTintPicker({
           border: 0,
           borderRadius: "var(--r-sm)",
           background: "transparent",
-          cursor: saving ? "not-allowed" : "pointer",
+          cursor: "pointer",
         }}
       >
         {children}
