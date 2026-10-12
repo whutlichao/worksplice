@@ -51,7 +51,6 @@ export function AgentDescriptionEditor({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const errorId = `agent-description-error-${agentId}`;
 
   useEffect(() => {
     setSavedDescription(description);
@@ -80,8 +79,9 @@ export function AgentDescriptionEditor({
     onChanged,
   });
 
-  if (!editing) {
-    return (
+  return (
+    <>
+      {/* 视图行保持常驻（本票）：编辑承载迁到弹窗，面板头部高度不再随编辑态变形 */}
       <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", minWidth: 0 }}>
         <span
           title={savedDescription}
@@ -108,63 +108,113 @@ export function AgentDescriptionEditor({
           <Pencil size={14} aria-hidden="true" />
         </button>
       </div>
-    );
-  }
+      {editing && (
+        <AgentDescriptionModal
+          agentId={agentId}
+          draft={draft}
+          savedDescription={savedDescription}
+          saving={saving}
+          error={error}
+          t={t}
+          onDraftChange={setDraft}
+          onClear={() => {
+            setDraft("");
+            setError(null);
+          }}
+          onCancel={cancel}
+          onSave={save}
+        />
+      )}
+    </>
+  );
+}
 
+/**
+ * 描述编辑弹窗（本票）：行内展开会把 `.dock-head` 撑变形（textarea 被裁、按钮被挤走），
+ * 编辑承载改为弹窗——壳沿用 BrutalModal（与同文件危险操作确认弹窗同形态，AgentDetailPanel
+ * 树内渲染、不引 portal）。状态与保存路径仍由 AgentDescriptionEditor 持有，本组件是纯展示面：
+ * 显式 props + 直接 renderToStaticMarkup 断言（与 TaskHistoryList 等拆件同款可测形态）。
+ * Esc / backdrop / 关闭按钮都落在 onClose = onCancel：saving 时由 cancel 守卫拦下，弹窗不关。
+ */
+export function AgentDescriptionModal({
+  agentId,
+  draft,
+  savedDescription,
+  saving,
+  error,
+  t,
+  onDraftChange,
+  onClear,
+  onCancel,
+  onSave,
+}: {
+  agentId: string;
+  draft: string;
+  savedDescription: string;
+  saving: boolean;
+  error: string | null;
+  t: (key: string) => string;
+  onDraftChange: (value: string) => void;
+  onClear: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const errorId = `agent-description-error-${agentId}`;
   return (
-    <div
-      aria-busy={saving}
-      style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", minWidth: 0, flex: 1 }}
-    >
-      <textarea
-        autoFocus
-        aria-label={t("agent.description")}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? errorId : undefined}
-        value={draft}
-        rows={2}
-        disabled={saving}
-        onChange={(event) => setDraft(event.target.value)}
-        style={{
-          width: "100%",
-          minWidth: 0,
-          resize: "vertical",
-          color: "var(--fg)",
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--r-sm)",
-          padding: "var(--sp-2) var(--sp-3)",
-          font: "inherit",
-        }}
-      />
-      <div
-        style={{
-          fontSize: "var(--fs-caption)",
-          color: "var(--faint)",
-          overflowWrap: "anywhere",
-        }}
-      >
-        {t("agent.currentDescription")}: {savedDescription.trim() || t("agent.noDescription")}
+    <BrutalModal title={t("agent.editDescription")} onClose={onCancel}>
+      <div className="modal-body" aria-busy={saving}>
+        <textarea
+          autoFocus
+          className="textarea"
+          aria-label={t("agent.description")}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
+          value={draft}
+          rows={5}
+          disabled={saving}
+          onChange={(event) => onDraftChange(event.target.value)}
+        />
+        {/* 「当前描述」参考区：高度封顶 + 自身可滚动——长文本不得再撑爆容器（本 bug 的教训） */}
+        <div
+          style={{
+            marginTop: "var(--sp-4)",
+            fontSize: "var(--fs-caption)",
+            color: "var(--faint)",
+            maxHeight: 72,
+            overflowY: "auto",
+            overflowWrap: "anywhere",
+          }}
+        >
+          {t("agent.currentDescription")}: {savedDescription.trim() || t("agent.noDescription")}
+        </div>
+        {saving && <div role="status">{t("agent.savingDescription")}</div>}
+        {error && (
+          <div
+            id={errorId}
+            role="alert"
+            style={{ color: "var(--error)", fontSize: "var(--fs-caption)" }}
+          >
+            {t("agent.descriptionSaveError")}: {error}
+          </div>
+        )}
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-2)", flexWrap: "wrap" }}>
+      <div className="modal-foot">
         <button
           type="button"
           className="btn btn-sm"
           aria-label={t("agent.clearDescription")}
           disabled={saving}
-          onClick={() => {
-            setDraft("");
-            setError(null);
-          }}
+          onClick={onClear}
         >
           <Eraser size={13} aria-hidden="true" /> {t("agent.clearDescription")}
         </button>
+        <span className="sep" />
         <button
           type="button"
           className="btn btn-sm"
           aria-label={t("agent.cancelDescription")}
           disabled={saving}
-          onClick={cancel}
+          onClick={onCancel}
         >
           <X size={13} aria-hidden="true" /> {t("agent.cancelDescription")}
         </button>
@@ -174,19 +224,13 @@ export function AgentDescriptionEditor({
           aria-label={saving ? t("agent.savingDescription") : t("agent.saveDescription")}
           aria-busy={saving}
           disabled={saving}
-          onClick={save}
+          onClick={onSave}
         >
           <Check size={13} aria-hidden="true" />
           {saving ? t("agent.savingDescription") : t("agent.saveDescription")}
         </button>
       </div>
-      {saving && <div role="status">{t("agent.savingDescription")}</div>}
-      {error && (
-        <div id={errorId} role="alert" style={{ color: "var(--error)", fontSize: "var(--fs-caption)" }}>
-          {t("agent.descriptionSaveError")}: {error}
-        </div>
-      )}
-    </div>
+    </BrutalModal>
   );
 }
 
