@@ -16,6 +16,7 @@
 
 - [审计 agent 与 coding session 的上下文保留和成本机制](./issues/01-audit-context-retention.md)：两条路径都有 Pi session/compact，但 agent-loop 旧轮仍累积且无轮级 token 计量；`MEMORY.md` 靠提示约定；reset/delete 可能移除原始记录，且共享 cwd 有误删风险。证据见票据答案和所链研究报告。
 - [明确重置与删除对原始会话记忆的保留语义](./issues/03-decide-reset-retention-contract.md)：Reset 清空活动状态而保留可检索原始记录；Full Reset 保留稳定记忆；共享目录只清理可确认归属的 session；删除 agent 清除私有记忆/归档但保留协作历史。
+- [决定上下文治理报告的建议方向](./issues/02-decide-recommendation-direction.md)：采纳两条路径分别治理的非破坏性分层方向；先建各自成本基线，再以召回与任务质量验证，暂不锁定阈值或实现。
 
 ## Not yet specified
 
