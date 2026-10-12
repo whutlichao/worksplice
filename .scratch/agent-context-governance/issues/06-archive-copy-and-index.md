@@ -74,8 +74,9 @@ Status: resolved
   （07/09 面均未接线）；2 条实现性 finding 已修复：①投影补 bashExecution `command/output`；
   ②「已索引即短路」会使旧归档不可重建 → 改为清理式重索引；1 条设计取舍记录（内容寻址去重下同内容
   双源只留一份副本、`source_path` 记最新来源，符合票面「以内容/来源标识去重」）。
-- **PR**：#<PR_NUMBER>（body 路径：`/Users/apple/orca/workspaces/worksplice/context-governance-06-pr-body.md`），
-  head 与最终提交一致。
+- **PR**：[#176](https://github.com/whutlichao/worksplice/pull/176)（body 路径：
+  `/Users/apple/orca/workspaces/worksplice/context-governance-06-pr-body.md`），head 与最终提交一致
+  （实现提交 `8673646` + 本 Answer 回填提交）。
 
 ## Comments
 
