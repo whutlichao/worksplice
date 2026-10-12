@@ -59,25 +59,23 @@ function findButton(node, label) {
     return undefined;
 }
 
-function renderAvatarTintState(selectedTint, error, saving = false) {
+function renderAvatarTintState(selectedTint, error, saving = false, open = true) {
     return renderWith(
-        React.createElement(
-            React.Fragment,
-            null,
-            React.createElement(Avatar, {
+        React.createElement(AgentAvatarTintPicker, {
+            selectedTint,
+            saving,
+            error,
+            open,
+            onToggle: () => undefined,
+            triggerRef: { current: null },
+            onSelect: () => undefined,
+            t: avatarTintText,
+        }, React.createElement(Avatar, {
                 name: AGENT.name,
                 type: "agent",
                 size: "lg",
                 colorKey: selectedTint ?? AGENT.id,
-            }),
-            React.createElement(AgentAvatarTintPicker, {
-                selectedTint,
-                saving,
-                error,
-                onSelect: () => undefined,
-                t: avatarTintText,
-            }),
-        ),
+        })),
     );
 }
 
@@ -410,43 +408,76 @@ test("formatTime falls back readably for an unparseable date instead of Invalid 
   assert.match(html, /#1 · —/, "非法日期回落到可读的占位符");
 });
 
-test("AgentDetailPanel renders four named avatar choices and the automatic default state", () => {
+test("AgentDetailPanel keeps avatar color choices collapsed by default", () => {
   const html = renderPanel(AGENT);
   assert.match(html, /class="avatar lg av-0"/);
-  assert.match(html, /role="group" aria-label="Avatar color"/);
-  for (const index of [1, 2, 3, 4]) {
-    assert.match(html, new RegExp(`aria-label="Avatar color ${index}"`));
-  }
-  assert.match(
-    html,
-    /aria-label="Automatic \/ restore default"[^>]*aria-pressed="true"/,
-  );
+  assert.match(html, /<button[^>]*aria-label="Avatar color"[^>]*aria-expanded="false"/);
+  assert.doesNotMatch(html, /aria-label="Avatar color [1-4]"/);
+  assert.doesNotMatch(html, /aria-label="Automatic \/ restore default"/);
 });
 
-test("unselected avatar tint choices preserve the global keyboard focus ring", async () => {
+test("avatar tint choices expose named selected and unselected states", () => {
   const tree = AgentAvatarTintPicker({
     selectedTint: 0,
     saving: false,
     error: null,
+    open: true,
+    onToggle: () => undefined,
+    triggerRef: { current: null },
     onSelect: () => undefined,
     t: avatarTintText,
+    children: null,
   });
   const selected = findButton(tree, "Avatar color 1");
   const unselected = findButton(tree, "Avatar color 2");
   assert.equal(selected.props["aria-pressed"], true);
-  assert.equal(selected.props.style.borderWidth, 2, "the selected tint keeps its visual marker");
   assert.equal(unselected.props["aria-pressed"], false);
-  assert.equal(unselected.props.style.borderWidth, 1);
-  assert.equal(
-    unselected.props.style.outlineWidth,
-    undefined,
-    "unselected inline styles must not suppress :focus-visible outline",
-  );
+});
 
-  const globalCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+test("open avatar tint selector keeps its group and Automatic semantics without a pill button", () => {
+  const html = renderWith(
+    React.createElement(AgentAvatarTintPicker, {
+      selectedTint: null,
+      saving: true,
+      error: "store unavailable",
+      open: true,
+      onToggle: () => undefined,
+      triggerRef: { current: null },
+      onSelect: () => undefined,
+      t: avatarTintText,
+    }),
+  );
+  assert.match(html, /role="group" aria-label="Avatar color" aria-busy="true"/);
+  for (const index of [1, 2, 3, 4]) {
+    assert.match(html, new RegExp(`aria-label="Avatar color ${index}"`));
+    assert.match(html, new RegExp(`aria-label="Avatar color ${index}"[^>]*disabled`));
+  }
   assert.match(
-    globalCss,
-    /:focus-visible\s*\{\s*outline:\s*2px solid var\(--accent-graphic\);\s*outline-offset:\s*2px;/,
+    html,
+    /aria-label="Automatic \/ restore default"[^>]*aria-pressed="true"[^>]*disabled/,
+  );
+  assert.doesNotMatch(html, /aria-label="Automatic \/ restore default"[^>]*class="btn/);
+  assert.match(html, /role="alert"[^>]*>store unavailable</);
+});
+
+test("avatar tint trigger stays focusable while a color save is pending", () => {
+  const tree = AgentAvatarTintPicker({
+    selectedTint: null,
+    saving: true,
+    error: null,
+    open: true,
+    onToggle: () => undefined,
+    triggerRef: { current: null },
+    onSelect: () => undefined,
+    t: avatarTintText,
+    children: null,
+  });
+  const trigger = findButton(tree, "Avatar color");
+  assert.ok(trigger, "the avatar trigger remains available during a save");
+  assert.equal(
+    trigger.props.disabled,
+    undefined,
+    "the enabled trigger can receive focus when Escape closes the selector",
   );
 });
 
@@ -477,8 +508,12 @@ test("avatar color button persists before showing the saved tint", async () => {
     selectedTint,
     saving,
     error,
+    open: true,
+    onToggle: () => undefined,
+    triggerRef: { current: null },
     onSelect,
     t: avatarTintText,
+    children: null,
   });
   const button = findButton(tree, "Avatar color 3");
   assert.ok(button, "the third color choice should be an operable button");
@@ -501,8 +536,12 @@ test("avatar color button persists before showing the saved tint", async () => {
     selectedTint,
     saving,
     error,
+    open: true,
+    onToggle: () => undefined,
+    triggerRef: { current: null },
     onSelect,
     t: avatarTintText,
+    children: null,
   });
   await findButton(automaticTree, "Automatic / restore default").props.onClick();
   assert.equal(selectedTint, null);
@@ -536,8 +575,12 @@ test("failed avatar color save keeps the old avatar tint visible and announces t
     selectedTint,
     saving,
     error,
+    open: true,
+    onToggle: () => undefined,
+    triggerRef: { current: null },
     onSelect,
     t: avatarTintText,
+    children: null,
   });
   const button = findButton(tree, "Avatar color 3");
   assert.ok(button, "the third color choice should be an operable button");
@@ -552,4 +595,7 @@ test("failed avatar color save keeps the old avatar tint visible and announces t
   assert.match(html, /aria-label="Avatar color 2"[^>]*aria-pressed="true"/);
   assert.match(html, /role="alert"[^>]*>store unavailable</);
   assert.doesNotMatch(html, /class="avatar lg av-2"/);
+  const closedHtml = renderAvatarTintState(selectedTint, error, saving, false);
+  assert.doesNotMatch(closedHtml, /role="group" aria-label="Avatar color"/);
+  assert.match(closedHtml, /role="alert"[^>]*>store unavailable</);
 });
