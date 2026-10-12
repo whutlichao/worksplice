@@ -113,6 +113,18 @@ const renderHit = (hit = HIT) =>
     React.createElement(SearchHitRow, { hit, onOpen: () => undefined }),
   );
 
+// 归档命中夹具（上下文治理票 07）：索引定位列 + agent 归属，无频道/seq 维度。
+const ARCHIVE_HIT = {
+  source: "archive",
+  archive_id: "agent-9/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  agent_id: "agent-9",
+  source_path: "/tmp/archives/agent-9/0123456789abcdef.jsonl",
+  entry_index: 7,
+  entry_type: "compaction",
+  snippet: "迁移窗口 <mark>AURORA-7</mark> 已归档",
+  agent: AUTHOR,
+};
+
 // ─── 搜索框：`.search-field` 是焦点环的落点 ─────────────────────────────────
 
 test("骨架：`.search-view` 列 + `.search-field` 容器包住 input（不是并列的兄弟）", () => {
@@ -220,6 +232,34 @@ test("命中摘要在 `.result mark` 上有高亮形态（票面的 mark 高亮�
   // 与「进行中」无关。取填充档（`--unread`），其上 --muted 文字实测 5.53:1（≥4.5）。
   assert.match(mark, /background:\s*var\(--unread\)/);
   assert.match(mark, /color:\s*inherit/);
+});
+
+// ─── 归档命中行（上下文治理票 07）：标明来自归档会话 + 归档定位呈现 ────────
+
+test("归档命中行：标明来自归档会话 + 归属 agent + 归档定位 token，消息行形态复用", () => {
+  const html = renderHit(ARCHIVE_HIT);
+  assert.match(html, /class="result"/);
+  assert.match(html, /class="r-top"/);
+  assert.match(html, /class="r-snip"/);
+  // 来源标注（card-tag）与归属 agent
+  assert.match(html, /class="card-tag">archived session</);
+  assert.match(html, />Sentry</);
+  // 归档定位 token：archive 哈希前 8 位 + 条目行号；源文件路径在 title 里（可定位呈现，不新造路由）
+  assert.match(html, /class="hash">01234567#7</);
+  assert.match(html, /title="\/tmp\/archives\/agent-9\/0123456789abcdef.jsonl"/);
+  // 摘要照常渲染（<mark> 高亮）
+  assert.match(html, /迁移窗口 <mark>AURORA-7<\/mark> 已归档/);
+  // 归档行没有频道深链：不可点、无 role=button、无「打开」按钮
+  assert.doesNotMatch(html, /role="button"/);
+  assert.doesNotMatch(html, />Open</);
+});
+
+test("归档命中行 i18n：en/zh-CN 两包都有 search.archive 且组件消费该键", async () => {
+  const { enLocale } = await import("../lib/i18n/messages/en.ts");
+  const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
+  assert.equal(enLocale.messages["search.archive"], "archived session");
+  assert.equal(zhCNLocale.messages["search.archive"], "归档会话");
+  assert.match(searchViewSource, /t\("search\.archive"\)/);
 });
 
 // ─── 空态：`.empty` ─────────────────────────────────────────────────────────

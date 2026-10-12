@@ -436,6 +436,7 @@ export const zhCNLocale: LocalePlugin = {
     "search.emptyHint": "输入关键词搜索消息正文（新消息立即可搜）",
     "search.noResults": "没有找到匹配的消息",
     "search.thread": "线程",
+    "search.archive": "归档会话",
     "search.open": "打开",
     "search.error": "搜索失败：{error}",
     "channel.create": "创建频道",
