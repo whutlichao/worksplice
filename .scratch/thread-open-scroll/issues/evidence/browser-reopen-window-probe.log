@@ -1,0 +1,73 @@
+{
+ "spaceId": 21,
+ "out": {
+  "samples": [
+   {
+    "second": 1,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   },
+   {
+    "second": 2,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   },
+   {
+    "second": 3,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   },
+   {
+    "second": 4,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   },
+   {
+    "second": 5,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   },
+   {
+    "second": 6,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   },
+   {
+    "second": 7,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   },
+   {
+    "second": 8,
+    "badge": "打开任务 #1 的讨论，未读回复 0 条",
+    "land": {
+     "firstVisibleSeq": 9,
+     "atBottom": false
+    }
+   }
+  ],
+  "badgeOpen": "打开任务 #1 的讨论，未读回复 0 条"
+ }
+}
+

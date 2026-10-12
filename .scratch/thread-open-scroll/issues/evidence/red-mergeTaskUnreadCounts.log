@@ -1,0 +1,67 @@
+✔ mergeIncomingMessages dedupes by id and keeps messages sorted by seq (0.97675ms)
+✔ mergeIncomingMessages preserves the current duplicate and input semantics (0.199459ms)
+✔ loadMessagesPage requests the channel messages page with limit/before (0.242541ms)
+✔ loadMessagesPage maps HTTP errors to Error (0.426125ms)
+✔ applyPollPage advances maxSeq and merges new messages (0.365ms)
+✔ applyPollPage returns the previous state when maxSeq does not advance (0.665209ms)
+✔ isCurrentChannelRequest rejects stale pages after a channel switch (0.093459ms)
+✔ prependPageMessages puts the earlier page first (0.190333ms)
+✔ isSameMessagesPage detects identical snapshots (0.18525ms)
+✔ postChannelMessage posts JSON with baseSeq and returns the sent message (0.343167ms)
+✔ postChannelMessage returns held with whatHappened on 409 held (0.201875ms)
+✔ postChannelMessage throws the server error for non-held failures (0.202ms)
+✔ postChannelMessage throws on empty success responses (0.163042ms)
+✔ postChannelMessage posts multipart with baseSeq when files are attached (9.36025ms)
+✔ sortPinnedItems orders pinned items by manual/recent/az (8.084208ms)
+✔ sortPinnedItems breaks recent ties by order desc (same-millisecond fallback) (0.383583ms)
+✔ loadPinnedPage requests the pinned list with sort and defaults missing pinned to [] (0.408125ms)
+✔ togglePinnedMessage unpins with DELETE and pins with POST (0.287666ms)
+✔ postPinnedOrder posts the reordered message ids in one request (0.199084ms)
+✔ loadMutesPage and loadChannelMemberIds fetch affiliated state with empty defaults (0.299333ms)
+✔ toggleChannelMute posts the toggled mute state and returns it (0.372ms)
+✔ loadTasksPage requests the channel task board and defaults missing tasks to [] (0.23225ms)
+✔ claimChannelTask posts baseSeq and maps held/conflict/blocked to yield results (0.363166ms)
+✔ updateChannelTaskStatus posts status with baseSeq and maps held to yield results (0.232042ms)
+✔ loadTasksPage preserves the reopened flag for blocked claim display (0.135375ms)
+✔ completeTaskWithReply delivers the thread reply before the in_review transition (0.221042ms)
+✔ convertMessageToTaskRow and createBoardTaskRow post the task creation payloads (0.234834ms)
+✔ shouldInvalidateMembers only invalidates on an explicit positive version (0.108958ms)
+✔ loadChannelMemberIds converges to include the new member after invalidation (0.120125ms)
+✔ markChannelRead posts to the channel read endpoint and returns readSeq (0.123459ms)
+✔ markChannelRead maps HTTP errors to Error (0.109833ms)
+✔ markChannelRead defaults a missing readSeq to 0 (0.092625ms)
+✔ postTaskThreadRead sends only the addressed Task and presented thread seq (0.163208ms)
+✔ mergeTaskUnreadCounts refreshes unread count and timestamp without replacing stable rows (0.2605ms)
+✖ mergeTaskUnreadCounts advances the Task thread read cursor from the same server refresh (0.970667ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 34
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 123.52125
+
+✖ failing tests:
+
+test at hooks/useChannelData.test.mjs:942:1
+✖ mergeTaskUnreadCounts advances the Task thread read cursor from the same server refresh (0.970667ms)
+  AssertionError [ERR_ASSERTION]: 服务端刷新必须带上 Task 已读游标，否则重开后落点永远用陈旧快照
+  + actual - expected
+  
+    [
+  +   8,
+  -   11,
+      12
+    ]
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/hooks/useChannelData.test.mjs:965:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 8, 12 ],
+    expected: [ 11, 12 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

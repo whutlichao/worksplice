@@ -1,0 +1,24 @@
+✔ 有未读回复时落点是最早一条未读回复，不是最新一条 (0.8975ms)
+✔ 已读游标是「大于」边界：seq == readSeq 算已读，之后第一条非 Owner 回复才是落点 (0.103459ms)
+✔ Owner 自己的回复不算未读：不能成为落点，也不能把落点判成 unread (0.087458ms)
+✔ 无未读 / 空列表 ⇒ bottom (0.080334ms)
+✔ 普通非 Task thread（无 taskId）⇒ bottom，即使看起来有未读回复 (0.069333ms)
+✔ 有 taskId 但没有已读游标快照 ⇒ bottom（不猜、不降级成 unread/顶部） (0.059916ms)
+✔ unread 落点把该行贴到滚动区顶部（scrollTop = 该行偏移） (0.115334ms)
+✔ bottom 落点 = scrollHeight；未读那条不在当前渲染里时退到 bottom；容器缺失不抛错 (0.126625ms)
+✔ 面板内容携带 Task 已读游标（`threadPanel` 是唯一装配点） (0.111625ms)
+✔ ThreadPanel 把每条回复标上线程自己的 seq（落点定位的稳定句柄） (52.179458ms)
+✔ DetailPanel 把 Task 已读游标透传给 ThreadPanel，并照常分派到线程面板 (2.785458ms)
+✔ ThreadPanel 的初始落点经 seam 应用一次（layout effect + 可注入滚动容器） (0.102458ms)
+✔ 线程轮询合并新回复时不得抢滚动 (0.080417ms)
+✔ ChannelView 的线程打开收敛到 `threadPanel` 单一装配点 (0.143875ms)
+✔ TaskView 暴露该 Task thread 的已读游标（落点判定的 readSeq 来源） (8.614208ms)
+✔ 已读推进语义不变：Owner 回复不推游标，超过已呈现序号的回复不算已读 (3.545458ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1527.761417

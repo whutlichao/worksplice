@@ -35,6 +35,9 @@ export interface ChannelTask {
   unreadReplyCount: number;
   /** 最新一条未读回复的创建时间；没有未读回复时为 null。 */
   latestUnreadReplyAt: string | null;
+  /** 该 Task thread 的 Owner 已读游标（`task_thread_reads.read_seq`；无行时为 0）。
+   *  线程面板的初始落点判定用它作为快照（读取面，不推进）。 */
+  taskThreadReadSeq: number;
 }
 
 /** §3.2 mute 行（与 GET /api/channels/[id]/mute 返回形态同形）。 */
@@ -341,7 +344,13 @@ export async function loadTasksPage(
   return body.tasks ?? [];
 }
 
-/** 任务线程回复不进入频道主序列；后台刷新只合并未读数/时间，避免改写任务视图的其他状态。 */
+/** 任务线程回复不进入频道主序列；后台刷新只合并未读状态与 Task 已读游标，避免改写任务视图的其他状态。
+ *
+ * 已读游标必须一起合并（票 B 扩展）：它只用于线程面板的**初始落点**判定（打开那一刻的快照），
+ * 而 tasks 缓存是面板打开路径唯一的 Task 元数据来源——漏掉它，游标就永远停在频道挂载那一刻，
+ * 重开已无未读的 Task 时会一直停在旧的最早未读（规则 2 永久违反；逐秒实测见
+ * .scratch/thread-open-scroll/issues/evidence/browser-reopen-window-probe.log）。
+ * 三个字段同源（同一次 GET /api/channels/[id]/tasks）同权威，一起合并不留新鲜度分叉。 */
 export function mergeTaskUnreadCounts(
   current: ChannelTask[],
   refreshed: ChannelTask[],
@@ -352,6 +361,7 @@ export function mergeTaskUnreadCounts(
       {
         unreadReplyCount: task.unreadReplyCount,
         latestUnreadReplyAt: task.latestUnreadReplyAt,
+        taskThreadReadSeq: task.taskThreadReadSeq,
       },
     ]),
   );
@@ -361,7 +371,8 @@ export function mergeTaskUnreadCounts(
     if (
       unread === undefined ||
       (unread.unreadReplyCount === task.unreadReplyCount &&
-        unread.latestUnreadReplyAt === task.latestUnreadReplyAt)
+        unread.latestUnreadReplyAt === task.latestUnreadReplyAt &&
+        unread.taskThreadReadSeq === task.taskThreadReadSeq)
     ) {
       return task;
     }

@@ -930,3 +930,52 @@ test("mergeTaskUnreadCounts refreshes unread count and timestamp without replaci
   assert.notEqual(refreshed[1], taskB);
   assert.equal(mergeTaskUnreadCounts(current, current), current);
 });
+
+/**
+ * 已读游标也必须随同一份服务端刷新前进（`.scratch/thread-open-scroll/` 的票 B 扩展）。
+ *
+ * 回归对象：早先 mergeTaskUnreadCounts 只合并 unread 两字段，丢弃 taskThreadReadSeq——
+ * 于是 tasks 缓存里的游标永远停在频道挂载那一刻，线程面板的初始落点只能对
+ * 「每次挂载后首次打开」正确，其后每次重开都停在旧的最早未读（规则 2 永久违反）。
+ * 逐秒实测见 .scratch/thread-open-scroll/issues/evidence/browser-reopen-window-probe.log。
+ */
+test("mergeTaskUnreadCounts advances the Task thread read cursor from the same server refresh", async () => {
+  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+  const taskA = {
+    id: "task-a",
+    status: "todo",
+    unreadReplyCount: 3,
+    latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+    taskThreadReadSeq: 8,
+  };
+  const taskB = {
+    id: "task-b",
+    status: "done",
+    unreadReplyCount: 0,
+    latestUnreadReplyAt: null,
+    taskThreadReadSeq: 12,
+  };
+  const current = [taskA, taskB];
+  // 服务端：A 已被前台打开推进到 11（无未读），B 未动。
+  const refreshed = mergeTaskUnreadCounts(current, [
+    { id: "task-a", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 11 },
+    { id: "task-b", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 12 },
+  ]);
+
+  assert.deepEqual(
+    refreshed.map((task) => task.taskThreadReadSeq),
+    [11, 12],
+    "服务端刷新必须带上 Task 已读游标，否则重开后落点永远用陈旧快照",
+  );
+  assert.deepEqual(refreshed.map((task) => task.unreadReplyCount), [0, 0]);
+  // 游标变化本身就算「变了」——即使 unread 两字段一字未动。
+  assert.notEqual(refreshed, current);
+  assert.equal(
+    mergeTaskUnreadCounts(refreshed, [
+      { id: "task-a", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 11 },
+      { id: "task-b", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 12 },
+    ]),
+    refreshed,
+    "全部字段一致时仍返回同一引用（避免无谓的 setState）",
+  );
+});

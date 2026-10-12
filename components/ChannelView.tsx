@@ -55,7 +55,7 @@ import {
   type AtQueryMatch,
 } from "@/lib/file-fuzzy";
 import { composerMentionCandidates } from "@/lib/mention";
-import { memberPanel, type PanelContent } from "@/lib/panel-state";
+import { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";
 import { indexCurrentMembersById } from "@/lib/member-index";
 import { useChannelData } from "@/hooks/useChannelData";
 
@@ -2648,15 +2648,6 @@ export function ChannelView({
     (memberId: string) => onOpenPanel?.(memberPanel(memberId, false)),
     [onOpenPanel],
   );
-  const openThreadPanel = useCallback(
-    (target: ChannelMessage, taskId?: string) =>
-      onOpenPanel?.({
-        kind: "thread",
-        id: target.id,
-        ...(taskId ? { taskId } : {}),
-      }),
-    [onOpenPanel],
-  );
   const handleQuote = useCallback(
     (target: ChannelMessage) => setQuoting(target),
     [],
@@ -2678,11 +2669,40 @@ export function ChannelView({
   );
   const taskIndexes = useMemo(() => {
     const byMessageId = new Map<string, ChannelTask>();
+    const byId = new Map<string, ChannelTask>();
     for (const task of tasks) {
       byMessageId.set(task.message_id, task);
+      byId.set(task.id, task);
     }
-    return { byMessageId };
+    return { byMessageId, byId };
   }, [tasks]);
+  /**
+   * 线程打开唯一装配点：Task 元数据来源就是同一份 tasks 视图，打开时按 taskId 补齐。
+   * 游标取**打开那一刻**的值（面板挂载后会自行推进，之后再也读不到「未读」）。
+   * 经 ref 读取：本回调的引用要稳定，不能随 tasks 重拉而变。
+   */
+  const openThreadPanel = useCallback(
+    (anchorId: string, taskId?: string) => {
+      const task = taskId ? taskIndexesRef.current.byId.get(taskId) : undefined;
+      onOpenPanel?.(
+        threadPanel(anchorId, task ? { id: task.id, readSeq: task.taskThreadReadSeq } : null),
+      );
+    },
+    [onOpenPanel],
+  );
+  /** 打开「某锚点所属的任务线程」：锚点 → Task 的回查只此一处（pinned 跳转 / 深链共用）。 */
+  const openAnchorTaskThread = useCallback(
+    (anchorId: string) =>
+      openThreadPanel(anchorId, taskIndexesRef.current.byMessageId.get(anchorId)?.id),
+    [openThreadPanel],
+  );
+  /** `MessageRow` 的 `onReply` / `onOpenThread` 回调形态（拿 ChannelMessage + 可选 taskId）。 */
+  const openThreadPanelForMessage = useCallback(
+    (target: ChannelMessage, taskId?: string) => openThreadPanel(target.id, taskId),
+    [openThreadPanel],
+  );
+  const taskIndexesRef = useRef(taskIndexes);
+  taskIndexesRef.current = taskIndexes;
   const taskEventTrackerRef = useRef(createTaskCreationAnnouncementTracker());
   const taskEventChannelId = channel?.id;
   const taskEventChannelRef = useRef(taskEventChannelId);
@@ -3077,9 +3097,9 @@ export function ChannelView({
       }
       pendingPinnedNavigationRef.current = null;
       setPendingPinnedNavigation(null);
-      onOpenPanel?.({ kind: "thread", id: message.target_id });
+      openAnchorTaskThread(message.target_id);
     },
-    [channel?.id, onOpenPanel],
+    [channel?.id, openAnchorTaskThread],
   );
 
   // 把消息转为任务（§3.7 创建途径 1/2 共用）：ref 化保证回调引用稳定（memo 行 props 不变）。
@@ -3164,11 +3184,11 @@ export function ChannelView({
               ?.scrollIntoView({ block: "center" });
           });
         } else {
-          onOpenPanel?.({ kind: "thread", id: target.target_id });
+          openAnchorTaskThread(target.target_id);
         }
       })
       .catch(() => undefined);
-  }, [channel, focusMessageId, loadLatest, onOpenPanel]);
+  }, [channel, focusMessageId, loadLatest, openAnchorTaskThread]);
 
   const joined = channel?.joined ?? false;
   const isArchived = channel?.archived === 1;
@@ -3915,14 +3935,14 @@ export function ChannelView({
                       mentionMembers={mentionMembers}
                       onOpenMention={openMention}
                       onOpenMember={openMemberPanel}
-                      onReply={openThreadPanel}
+                      onReply={openThreadPanelForMessage}
                       onQuote={handleQuote}
                       onCopyLink={handleCopyLinkCb}
                       onConvertToTask={handleConvertToTask}
                       onSetReminder={joined ? openMessageReminder : undefined}
                       onToggleReaction={joined ? toggleReaction : undefined}
                       onTogglePin={joined ? togglePinAction : undefined}
-                      onOpenThread={openThreadPanel}
+                      onOpenThread={openThreadPanelForMessage}
                     />
                   </div>
                 );
@@ -3944,13 +3964,7 @@ export function ChannelView({
             onAction={(task, action, status) =>
               void runTaskAction(task, action, status)
             }
-            onOpenThread={(anchor, taskId) =>
-              onOpenPanel?.({
-                kind: "thread",
-                id: anchor.id,
-                ...(taskId ? { taskId } : {}),
-              })
-            }
+            onOpenThread={openThreadPanelForMessage}
             onNotice={setTaskNotice}
           />
         )}

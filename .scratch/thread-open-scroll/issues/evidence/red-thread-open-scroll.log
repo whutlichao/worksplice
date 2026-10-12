@@ -1,0 +1,413 @@
+✖ 有未读回复时落点是最早一条未读回复，不是最新一条 (0.643125ms)
+✖ 已读游标是「大于」边界：seq == readSeq 算已读，之后第一条非 Owner 回复才是落点 (0.088209ms)
+✖ Owner 自己的回复不算未读：不能成为落点，也不能把落点判成 unread (0.073083ms)
+✖ 无未读 / 空列表 ⇒ bottom (0.073041ms)
+✖ 普通非 Task thread（无 taskId）⇒ bottom，即使看起来有未读回复 (0.090167ms)
+✖ 有 taskId 但没有已读游标快照 ⇒ bottom（不猜、不降级成 unread/顶部） (0.058542ms)
+✖ unread 落点把该行贴到滚动区顶部（scrollTop = 该行偏移） (0.0895ms)
+✖ bottom 落点 = scrollHeight；未读那条不在当前渲染里时退到 bottom；容器缺失不抛错 (0.072792ms)
+✖ 面板内容携带 Task 已读游标（`threadPanel` 是唯一装配点） (0.095042ms)
+✖ ThreadPanel 把每条回复标上线程自己的 seq（落点定位的稳定句柄） (44.651958ms)
+✖ DetailPanel 把 Task 已读游标透传给 ThreadPanel，并照常分派到线程面板 (0.597417ms)
+✖ ThreadPanel 的初始落点经 seam 应用一次（layout effect + 可注入滚动容器） (0.093917ms)
+✔ 线程轮询合并新回复时不得抢滚动 (0.122125ms)
+✖ ChannelView 的线程打开收敛到 `threadPanel` 单一装配点 (0.115875ms)
+✖ TaskView 暴露该 Task thread 的已读游标（落点判定的 readSeq 来源） (4.296208ms)
+✖ 已读推进语义不变：Owner 回复不推游标，超过已呈现序号的回复不算已读 (4.091834ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 1
+ℹ fail 15
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1202.1645
+
+✖ failing tests:
+
+test at components/thread-open-scroll.test.mjs:155:1
+✖ 有未读回复时落点是最早一条未读回复，不是最新一条 (0.643125ms)
+  TypeError: threadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:156:20)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.start (node:internal/test_runner/test:1003:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17)
+
+test at components/thread-open-scroll.test.mjs:164:1
+✖ 已读游标是「大于」边界：seq == readSeq 算已读，之后第一条非 Owner 回复才是落点 (0.088209ms)
+  TypeError: threadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:166:5)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+
+test at components/thread-open-scroll.test.mjs:185:1
+✖ Owner 自己的回复不算未读：不能成为落点，也不能把落点判成 unread (0.073083ms)
+  TypeError: threadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:187:5)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at components/thread-open-scroll.test.mjs:207:1
+✖ 无未读 / 空列表 ⇒ bottom (0.073041ms)
+  TypeError: threadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:209:5)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at components/thread-open-scroll.test.mjs:222:1
+✖ 普通非 Task thread（无 taskId）⇒ bottom，即使看起来有未读回复 (0.090167ms)
+  TypeError: threadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:224:5)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at components/thread-open-scroll.test.mjs:229:1
+✖ 有 taskId 但没有已读游标快照 ⇒ bottom（不猜、不降级成 unread/顶部） (0.058542ms)
+  TypeError: threadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:231:5)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at components/thread-open-scroll.test.mjs:240:1
+✖ unread 落点把该行贴到滚动区顶部（scrollTop = 该行偏移） (0.0895ms)
+  TypeError: applyThreadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:242:3)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at components/thread-open-scroll.test.mjs:246:1
+✖ bottom 落点 = scrollHeight；未读那条不在当前渲染里时退到 bottom；容器缺失不抛错 (0.072792ms)
+  TypeError: applyThreadInitialScroll is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:248:3)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at components/thread-open-scroll.test.mjs:263:1
+✖ 面板内容携带 Task 已读游标（`threadPanel` 是唯一装配点） (0.095042ms)
+  TypeError: threadPanel is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:264:20)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at components/thread-open-scroll.test.mjs:279:1
+✖ ThreadPanel 把每条回复标上线程自己的 seq（落点定位的稳定句柄） (44.651958ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /data-thread-message-seq="4"/. Input:
+  
+  '<div class="tt-summary" style="display:flex;align-items:center;gap:var(--sp-3)"><span class="tt-title">Thread #3</span><button type="button" class="icon-btn" aria-label="Close panel" title="Close panel" style="margin-left:auto"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" aria-hidden="true" style="display:block"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div><div class="tt-scroll" style="padding:0"><div class="msg ws-message-row ws-message-row-anchor"><span class="avatar av-4" role="img" aria-label="Owner" title="Owner">You</span><div class="msg-body"><div class="msg-head" style="flex-wrap:wrap"><span class="msg-author">Owner</span><span class="msg-time mono">#3</span><span class="msg-time mono">10/1/2026 08:00 AM</span></div><div class="msg-text"><div class="markdown-body"><p>task anchor</p></div></div><div class="ws-message-actions" style="margin-top:6px;flex-direction:column;align-items:flex-end;gap:4px"><div class="msg-tools"><button type="button" title="Add a reaction"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-face-slightly-smiling-plus" aria-hidden="true"><path d="M13.267 2.08a10 10 0 108.653 8.653"></path><path d="M15 10V9"></path><path d="M16 5h6"></path><path d="M16.472 15a6 6 0 01-8.943 0"></path><path d="M19 2v6"></path><path d="M9 10V9"></path></svg></button><button type="button" title="Quote"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-quote" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path></svg></button><button type="button" title="Copy link"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button><button type="button" title="Set a reminder on this message"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alarm-clock" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path><path d="M6.38 18.7 4 21"></path><path d="M17.64 18.67 20 21"></path></svg></button></div></div></div></div><div class="msg ws-message-row"><span class="avatar av-0" role="img" aria-label="bob" title="bob">B</span><div class="msg-body"><div class="msg-head" style="flex-wrap:wrap"><span class="msg-author is-agent">bob</span><span class="msg-time mono">#4</span><span class="msg-time mono">10/1/2026 08:00 AM</span></div><div class="msg-text"><div class="markdown-body"><p>reply 4</p></div></div><div class="ws-message-actions" style="margin-top:6px;flex-direction:column;align-items:flex-end;gap:4px"><div class="msg-tools"><button type="button" title="Add a reaction"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-face-slightly-smiling-plus" aria-hidden="true"><path d="M13.267 2.08a10 10 0 108.653 8.653"></path><path d="M15 10V9"></path><path d="M16 5h6"></path><path d="M16.472 15a6 6 0 01-8.943 0"></path><path d="M19 2v6"></path><path d="M9 10V9"></path></svg></button><button type="button" title="Quote"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-quote" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path></svg></button><button type="button" title="Copy link"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button></div></div></div></div><div class="msg ws-message-row"><span class="avatar av-0" role="img" aria-label="bob" title="bob">B</span><div class="msg-body"><div class="msg-head" style="flex-wrap:wrap"><span class="msg-author is-agent">bob</span><span class="msg-time mono">#5</span><span class="msg-time mono">10/1/2026 08:00 AM</span></div><div class="msg-text"><div class="markdown-body"><p>reply 5</p></div></div><div class="ws-message-actions" style="margin-top:6px;flex-direction:column;align-items:flex-end;gap:4px"><div class="msg-tools"><button type="button" title="Add a reaction"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-face-slightly-smiling-plus" aria-hidden="true"><path d="M13.267 2.08a10 10 0 108.653 8.653"></path><path d="M15 10V9"></path><path d="M16 5h6"></path><path d="M16.472 15a6 6 0 01-8.943 0"></path><path d="M19 2v6"></path><path d="M9 10V9"></path></svg></button><button type="button" title="Quote"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-quote" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path></svg></button><button type="button" title="Copy link"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button></div></div></div></div></div><div class="tt-reply"><div class="composer" style="flex-shrink:0"><div class="composer-inner"><div class="composer-box"><div style="position:relative"><textarea placeholder="Message… (Enter to send, Shift+Enter for newline)" rows="2" class="composer-input" style="resize:vertical;opacity:1"></textarea></div><div class="composer-bar"><button type="button" title="Attach files (max 50 MB each)" aria-label="Attach files (max 50 MB each)" class="icon-btn" style="opacity:1"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip" aria-hidden="true"><path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"></path></svg></button><input type="file" multiple="" hidden=""/><span class="sep"></span><button type="button" title="Send" aria-label="Send" disabled="" class="composer-send"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></button></div></div></div></div></div>'
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:281:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '<div class="tt-summary" style="display:flex;align-items:center;gap:var(--sp-3)"><span class="tt-title">Thread #3</span><button type="button" class="icon-btn" aria-label="Close panel" title="Close panel" style="margin-left:auto"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" aria-hidden="true" style="display:block"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div><div class="tt-scroll" style="padding:0"><div class="msg ws-message-row ws-message-row-anchor"><span class="avatar av-4" role="img" aria-label="Owner" title="Owner">You</span><div class="msg-body"><div class="msg-head" style="flex-wrap:wrap"><span class="msg-author">Owner</span><span class="msg-time mono">#3</span><span class="msg-time mono">10/1/2026 08:00 AM</span></div><div class="msg-text"><div class="markdown-body"><p>task anchor</p></div></div><div class="ws-message-actions" style="margin-top:6px;flex-direction:column;align-items:flex-end;gap:4px"><div class="msg-tools"><button type="button" title="Add a reaction"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-face-slightly-smiling-plus" aria-hidden="true"><path d="M13.267 2.08a10 10 0 108.653 8.653"></path><path d="M15 10V9"></path><path d="M16 5h6"></path><path d="M16.472 15a6 6 0 01-8.943 0"></path><path d="M19 2v6"></path><path d="M9 10V9"></path></svg></button><button type="button" title="Quote"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-quote" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path></svg></button><button type="button" title="Copy link"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button><button type="button" title="Set a reminder on this message"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alarm-clock" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path><path d="M6.38 18.7 4 21"></path><path d="M17.64 18.67 20 21"></path></svg></button></div></div></div></div><div class="msg ws-message-row"><span class="avatar av-0" role="img" aria-label="bob" title="bob">B</span><div class="msg-body"><div class="msg-head" style="flex-wrap:wrap"><span class="msg-author is-agent">bob</span><span class="msg-time mono">#4</span><span class="msg-time mono">10/1/2026 08:00 AM</span></div><div class="msg-text"><div class="markdown-body"><p>reply 4</p></div></div><div class="ws-message-actions" style="margin-top:6px;flex-direction:column;align-items:flex-end;gap:4px"><div class="msg-tools"><button type="button" title="Add a reaction"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-face-slightly-smiling-plus" aria-hidden="true"><path d="M13.267 2.08a10 10 0 108.653 8.653"></path><path d="M15 10V9"></path><path d="M16 5h6"></path><path d="M16.472 15a6 6 0 01-8.943 0"></path><path d="M19 2v6"></path><path d="M9 10V9"></path></svg></button><button type="button" title="Quote"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-quote" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path></svg></button><button type="button" title="Copy link"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button></div></div></div></div><div class="msg ws-message-row"><span class="avatar av-0" role="img" aria-label="bob" title="bob">B</span><div class="msg-body"><div class="msg-head" style="flex-wrap:wrap"><span class="msg-author is-agent">bob</span><span class="msg-time mono">#5</span><span class="msg-time mono">10/1/2026 08:00 AM</span></div><div class="msg-text"><div class="markdown-body"><p>reply 5</p></div></div><div class="ws-message-actions" style="margin-top:6px;flex-direction:column;align-items:flex-end;gap:4px"><div class="msg-tools"><button type="button" title="Add a reaction"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-face-slightly-smiling-plus" aria-hidden="true"><path d="M13.267 2.08a10 10 0 108.653 8.653"></path><path d="M15 10V9"></path><path d="M16 5h6"></path><path d="M16.472 15a6 6 0 01-8.943 0"></path><path d="M19 2v6"></path><path d="M9 10V9"></path></svg></button><button type="button" title="Quote"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-quote" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"></path></svg></button><button type="button" title="Copy link"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button></div></div></div></div></div><div class="tt-reply"><div class="composer" style="flex-shrink:0"><div class="composer-inner"><div class="composer-box"><div style="position:relative"><textarea placeholder="Message… (Enter to send, Shift+Enter for newline)" rows="2" class="composer-input" style="resize:vertical;opacity:1"></textarea></div><div class="composer-bar"><button type="button" title="Attach files (max 50 MB each)" aria-label="Attach files (max 50 MB each)" class="icon-btn" style="opacity:1"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip" aria-hidden="true"><path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"></path></svg></button><input type="file" multiple="" hidden=""/><span class="sep"></span><button type="button" title="Send" aria-label="Send" disabled="" class="composer-send"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></button></div></div></div></div></div>',
+    expected: /data-thread-message-seq="4"/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/thread-open-scroll.test.mjs:290:1
+✖ DetailPanel 把 Task 已读游标透传给 ThreadPanel，并照常分派到线程面板 (0.597417ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /taskReadSeq=\{content\.taskReadSeq\}/. Input:
+  
+  '"use client";\n' +
+    '\n' +
+    'import { X } from "lucide-react";\n' +
+    'import { useI18n } from "@/hooks/useI18n";\n' +
+    'import { AgentDetailPanel } from "./AgentDetailPanel";\n' +
+    'import { ThreadPanel } from "./ThreadPanel";\n' +
+    'import { Avatar } from "./Avatar";\n' +
+    'import { StatusDot } from "./StatusDot";\n' +
+    'import type { ChannelWithMeta } from "./ChannelView";\n' +
+    'import type { MemberRow } from "@/lib/data/types";\n' +
+    'import type { PanelContent } from "@/lib/panel-state";\n' +
+    '\n' +
+    '/** 单槽容器的入参（AppShell 侧接线；ticket 13 起不变）。 */\n' +
+    'export type DetailPanelProps = {\n' +
+    '  content: NonNullable<PanelContent>;\n' +
+    '  channel: ChannelWithMeta | null;\n' +
+    '  agents: MemberRow[];\n' +
+    '  owner: MemberRow | null;\n' +
+    '  currentMemberId: string;\n' +
+    '  onClose: () => void;\n' +
+    '  onChanged: () => void;\n' +
+    '  /** agent 删除乐观更新（上抛至 AppShell）：确认即从列表移除/关面板，不等 DELETE 返回。 */\n' +
+    '  onDeleteOptimistic?: (agentId: string) => void;\n' +
+    '  /** agent 删除失败回滚（上抛至 AppShell）：恢复列表 + 错误提示。 */\n' +
+    '  onDeleteFailed?: (agentId: string, message: string) => void;\n' +
+    '  /** 面板内跳转（线程内 mention 点击）：单槽替换面板内容（AppShell.openPanel）。 */\n' +
+    '  onOpenPanel: (content: PanelContent) => void;\n' +
+    '  /** DM 懒创建入口（上抛至 AppShell）：幂等建/取 DM → 导航中央 + 聚焦 composer + 关面板。 */\n' +
+    '  onOpenDM: (agentId: string) => void;\n' +
+    '  /** 当前 agent 面板的 DM 是否已有消息（文案动态：发送消息 / 打开私信）。 */\n' +
+    '  dmHasMessages?: boolean;\n' +
+    '};\n' +
+    '\n' +
+    '/**\n' +
+    ' * 单槽分派（ticket 13，逻辑一字未动）：agent → AgentDetailPanel（内容原样），\n' +
+    ' * human → 薄资料卡，thread → 线程面板。找不到对应成员时返回 null（整体空渲染）。\n' +
+    ' */\n' +
+    'function renderPanelSlot({\n' +
+    '  content,\n' +
+    '  channel,\n' +
+    '  agents,\n' +
+    '  owner,\n' +
+    '  currentMemberId,\n' +
+    '  onClose,\n' +
+    '  onChanged,\n' +
+    '  onDeleteOptimistic,\n' +
+    '  onDeleteFailed,\n' +
+    '  onOpenPanel,\n' +
+    '  onOpenDM,\n' +
+    '  dmHasMessages,\n' +
+    '}: DetailPanelProps): React.ReactNode {\n' +
+    '  switch (content.kind) {\n' +
+    '    case "agent": {\n' +
+    '      const agent = agents.find((a) => a.id === content.id);\n' +
+    '      if (!agent) return null;\n' +
+    '      return (\n' +
+    '        <AgentDetailPanel\n' +
+    '          agent={agent}\n' +
+    '          onClose={onClose}\n' +
+    '          onChanged={onChanged}\n' +
+    '          onDeleteOptimistic={onDeleteOptimistic}\n' +
+    '          onDeleteFailed={onDeleteFailed}\n' +
+    '          onOpenDM={onOpenDM}\n' +
+    '          hasMessages={dmHasMessages}\n' +
+    '        />\n' +
+    '      );\n' +
+    '    }\n' +
+    '    case "human": {\n' +
+    '      // 人类 = Owner（恒为唯一 human 成员）；找不到（删除/未加载）时面板空渲染\n' +
+    '      const human = owner && owner.id === content.id ? owner : null;\n' +
+    '      if (!human) return null;\n' +
+    '      return <HumanProfileCard member={human} onClose={onClose} />;\n' +
+    '    }\n' +
+    '    case "thread": {\n' +
+    '      return (\n' +
+    '        <ThreadPanel\n' +
+    '          anchorId={content.id}\n' +
+    '          taskId={content.taskId}\n' +
+    '          channel={channel}\n' +
+    '          currentMemberId={currentMemberId}\n' +
+    '          agents={agents}\n' +
+    '          owner={owner}\n' +
+    '          onOpenPanel={onOpenPanel}\n' +
+    '          onClose={onClose}\n' +
+    '        />\n' +
+    '      );\n' +
+    '    }\n' +
+    '  }\n' +
+    '}\n' +
+    '\n' +
+    '/**\n' +
+    ' * 右栏单槽容器（ticket 13）：按 kind 分派——agent → AgentDetailPanel（内容原样），\n' +
+    ' * human → 薄资料卡，thread → 线程面板。非长驻：panelContent 为 null 时整栏不渲染（AppShell 侧）。\n' +
+    ' * 打开任意内容即替换（单槽互斥，无栈/无回退）。\n' +
+    ' *\n' +
+    ' * 形态（票 07）：`.dock` = `--surface` 底 + flex 列，容器自身不吃圆角；**左发丝归骨架钩子\n' +
+    ' * `.ws-right`**（票 03）——两处都声明会叠成双线。三个 kind 共用这一个外壳。\n' +
+    ' */\n' +
+    'export function DetailPanel(props: DetailPanelProps) {\n' +
+    '  const slot = renderPanelSlot(props);\n' +
+    '  // 保持既有「找不到成员就整体空渲染」语义（AppShell 侧另有 resolvablePanel 预校验）。\n' +
+    '  if (slot === null) return null;\n' +
+    '  return <div className="dock">{slot}</div>;\n' +
+    '}\n' +
+    '\n' +
+    '/** 人类成员薄资料卡：avatar / name / role / status / description（非阻塞，与 agent 同一容器同一生命周期）。 */\n' +
+    'function HumanProfileCard({\n' +
+    '  member,\n' +
+    '  onClose,\n' +
+    '}: {\n' +
+    '  member: MemberRow;\n' +
+    '  onClose: () => void;\n' +
+    '}) {\n' +
+    '  const { t } = useI18n();\n' +
+    '  return (\n' +
+    '    <>\n' +
+    '      <header className="dock-head">\n' +
+    '        <div className="dock-id">\n' +
+    '          <Avatar name={member.name} type={member.type} size="lg" colorKey={member.id} />\n' +
+    '          <div className="meta">\n' +
+    '            <div className="dock-name">\n' +
+    '              <span\n' +
+    '                style={{\n' +
+    '                  minWidth: 0,\n' +
+    '                  overflow: "hidden",\n' +
+    '                  textOverflow: "ellipsis",\n' +
+    '                  whiteSpace: "nowrap",\n' +
+    '                }}\n' +
+    '              >\n' +
+    '                {member.name}\n' +
+    '              </span>\n' +
+    '              <span className="badge soft">\n' +
+    '                {member.role === "owner" ? t("role.owner") : t("role.member")}\n' +
+    '              </span>\n' +
+    '            </div>\n' +
+    '            <div className="dock-role">\n' +
+    '              <StatusDot status={member.status} />\n' +
+    '              <span>{t("status." + member.status)}</span>\n' +
+    '            </div>\n' +
+    '          </div>\n' +
+    '          <button\n' +
+    '            type="button"\n' +
+    '            className="icon-btn"\n' +
+    '            aria-label={t("detail.close")}\n' +
+    '            title={t("detail.close")}\n' +
+    '            onClick={onClose}\n' +
+    '          >\n' +
+    '            <X size={15} style={{ display: "block" }} />\n' +
+    '          </button>\n' +
+    '        </div>\n' +
+    '      </header>\n' +
+    '\n' +
+    '      <div className="dock-scroll">\n' +
+    '        <section className="d-sec">\n' +
+    '          <div className="d-sec-title">{t("memberProfile.description")}</div>\n' +
+    '          <div\n' +
+    '            style={{\n' +
+    '              fontSize: "var(--fs-body)",\n' +
+    '              lineHeight: "var(--lh-text)",\n' +
+    '              color: member.description?.trim() ? "var(--fg)" : "var(--faint)",\n' +
+    '            }}\n' +
+    '          >\n' +
+    '            {member.description?.trim()\n' +
+    '              ? member.description.trim()\n' +
+    '              : t("memberProfile.noDescription")}\n' +
+    '          </div>\n' +
+    '        </section>\n' +
+    '      </div>\n' +
+    '    </>\n' +
+    '  );\n' +
+    '}\n'
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:291:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '"use client";\n\nimport { X } from "lucide-react";\nimport { useI18n } from "@/hooks/useI18n";\nimport { AgentDetailPanel } from "./AgentDetailPanel";\nimport { ThreadPanel } from "./ThreadPanel";\nimport { Avatar } from "./Avatar";\nimport { StatusDot } from "./StatusDot";\nimport type { ChannelWithMeta } from "./ChannelView";\nimport type { MemberRow } from "@/lib/data/types";\nimport type { PanelContent } from "@/lib/panel-state";\n\n/** 单槽容器的入参（AppShell 侧接线；ticket 13 起不变）。 */\nexport type DetailPanelProps = {\n  content: NonNullable<PanelContent>;\n  channel: ChannelWithMeta | null;\n  agents: MemberRow[];\n  owner: MemberRow | null;\n  currentMemberId: string;\n  onClose: () => void;\n  onChanged: () => void;\n  /** agent 删除乐观更新（上抛至 AppShell）：确认即从列表移除/关面板，不等 DELETE 返回。 */\n  onDeleteOptimistic?: (agentId: string) => void;\n  /** agent 删除失败回滚（上抛至 AppShell）：恢复列表 + 错误提示。 */\n  onDeleteFailed?: (agentId: string, message: string) => void;\n  /** 面板内跳转（线程内 mention 点击）：单槽替换面板内容（AppShell.openPanel）。 */\n  onOpenPanel: (content: PanelContent) => void;\n  /** DM 懒创建入口（上抛至 AppShell）：幂等建/取 DM → 导航中央 + 聚焦 composer + 关面板。 */\n  onOpenDM: (agentId: string) => void;\n  /** 当前 agent 面板的 DM 是否已有消息（文案动态：发送消息 / 打开私信）。 */\n  dmHasMessages?: boolean;\n};\n\n/**\n * 单槽分派（ticket 13，逻辑一字未动）：agent → AgentDetailPanel（内容原样），\n * human → 薄资料卡，thread → 线程面板。找不到对应成员时返回 null（整体空渲染）。\n */\nfunction renderPanelSlot({\n  content,\n  channel,\n  agents,\n  owner,\n  currentMemberId,\n  onClose,\n  onChanged,\n  onDeleteOptimistic,\n  onDeleteFailed,\n  onOpenPanel,\n  onOpenDM,\n  dmHasMessages,\n}: DetailPanelProps): React.ReactNode {\n  switch (content.kind) {\n    case "agent": {\n      const agent = agents.find((a) => a.id === content.id);\n      if (!agent) return null;\n      return (\n        <AgentDetailPanel\n          agent={agent}\n          onClose={onClose}\n          onChanged={onChanged}\n          onDeleteOptimistic={onDeleteOptimistic}\n          onDeleteFailed={onDeleteFailed}\n          onOpenDM={onOpenDM}\n          hasMessages={dmHasMessages}\n        />\n      );\n    }\n    case "human": {\n      // 人类 = Owner（恒为唯一 human 成员）；找不到（删除/未加载）时面板空渲染\n      const human = owner && owner.id === content.id ? owner : null;\n      if (!human) return null;\n      return <HumanProfileCard member={human} onClose={onClose} />;\n    }\n    case "thread": {\n      return (\n        <ThreadPanel\n          anchorId={content.id}\n          taskId={content.taskId}\n          channel={channel}\n          currentMemberId={currentMemberId}\n          agents={agents}\n          owner={owner}\n          onOpenPanel={onOpenPanel}\n          onClose={onClose}\n        />\n      );\n    }\n  }\n}\n\n/**\n * 右栏单槽容器（ticket 13）：按 kind 分派——agent → AgentDetailPanel（内容原样），\n * human → 薄资料卡，thread → 线程面板。非长驻：panelContent 为 null 时整栏不渲染（AppShell 侧）。\n * 打开任意内容即替换（单槽互斥，无栈/无回退）。\n *\n * 形态（票 07）：`.dock` = `--surface` 底 + flex 列，容器自身不吃圆角；**左发丝归骨架钩子\n * `.ws-right`**（票 03）——两处都声明会叠成双线。三个 kind 共用这一个外壳。\n */\nexport function DetailPanel(props: DetailPanelProps) {\n  const slot = renderPanelSlot(props);\n  // 保持既有「找不到成员就整体空渲染」语义（AppShell 侧另有 resolvablePanel 预校验）。\n  if (slot === null) return null;\n  return <div className="dock">{slot}</div>;\n}\n\n/** 人类成员薄资料卡：avatar / name / role / status / description（非阻塞，与 agent 同一容器同一生命周期）。 */\nfunction HumanProfileCard({\n  member,\n  onClose,\n}: {\n  member: MemberRow;\n  onClose: () => void;\n}) {\n  const { t } = useI18n();\n  return (\n    <>\n      <header className="dock-head">\n        <div className="dock-id">\n          <Avatar name={member.name} type={member.type} size="lg" colorKey={member.id} />\n          <div className="meta">\n            <div className="dock-name">\n              <span\n                style={{\n                  minWidth: 0,\n                  overflow: "hidden",\n                  textOverflow: "ellipsis",\n                  whiteSpace: "nowrap",\n                }}\n              >\n                {member.name}\n              </span>\n              <span className="badge soft">\n                {member.role === "owner" ? t("role.owner") : t("role.member")}\n              </span>\n            </div>\n            <div className="dock-role">\n              <StatusDot status={member.status} />\n              <span>{t("status." + member.status)}</span>\n            </div>\n          </div>\n          <button\n            type="button"\n            className="icon-btn"\n            aria-label={t("detail.close")}\n            title={t("detail.close")}\n            onClick={onClose}\n          >\n            <X size={15} style={{ display: "block" }} />\n          </button>\n        </div>\n      </header>\n\n      <div className="dock-scroll">\n        <section className="d-sec">\n          <div className="d-sec-title">{t("memberProfile.description")}</div>\n          <div\n            style={{\n              fontSize: "var(--fs-body)",\n              lineHeight: "var(--lh-text)",\n              color: member.description?.trim() ? "var(--fg)" : "var(--faint)",\n            }}\n          >\n            {member.description?.trim()\n              ? member.description.trim()\n              : t("memberProfile.noDescription")}\n          </div>\n        </section>\n      </div>\n    </>\n  );\n}\n',
+    expected: /taskReadSeq=\{content\.taskReadSeq\}/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/thread-open-scroll.test.mjs:312:1
+✖ ThreadPanel 的初始落点经 seam 应用一次（layout effect + 可注入滚动容器） (0.093917ms)
+  AssertionError [ERR_ASSERTION]: 判定必须走纯函数 seam
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:313:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '"use client";\n\nimport { useCallback, useEffect, useMemo, useState } from "react";\nimport { X } from "lucide-react";\nimport { useI18n } from "@/hooks/useI18n";\nimport { copyText } from "@/lib/clipboard";\nimport { previewLine } from "@/lib/preview";\nimport { Composer, MessageRow, type ChannelMessage, type ChannelWithMeta, type ReactionSummary } from "./ChannelView";\nimport {\n  mergeIncomingMessages,\n  postTaskThreadRead,\n} from "@/hooks/useChannelData";\nimport { ReminderModal } from "./ReminderModal";\nimport type { MemberRow } from "@/lib/data/types";\nimport { memberPanel, type PanelContent } from "@/lib/panel-state";\nimport { indexCurrentMembersById } from "@/lib/member-index";\nimport { composerMentionCandidates } from "@/lib/mention";\n\n/** 面板线程轮询间隔（与中央轮询同纪律：3s、后台 tab 暂停、卸载清理）。 */\nconst THREAD_POLL_MS = 3000;\n\nfunction threadMaxSeq(messages: ChannelMessage[], reportedMaxSeq?: number): number {\n  return (\n    reportedMaxSeq ??\n    messages.reduce((maxSeq, message) => Math.max(maxSeq, message.seq), 0)\n  );\n}\n\nexport interface VisibleTaskThreadReadContext {\n  taskId?: string;\n  threadReady: boolean;\n  loading: boolean;\n  pageVisible: boolean;\n  documentHidden: boolean;\n  throughSeq: number;\n}\n\n/** ThreadPanel 挂载且当前 Task 已在前台呈现时才推进；提取为 seam 供门控行为测试。 */\nexport async function markVisibleTaskThreadRead(\n  context: VisibleTaskThreadReadContext,\n  markRead: (taskId: string, throughSeq: number) => Promise<unknown> =\n    postTaskThreadRead,\n): Promise<void> {\n  if (\n    !context.taskId ||\n    !context.threadReady ||\n    context.loading ||\n    !context.pageVisible ||\n    context.documentHidden\n  ) {\n    return;\n  }\n  await markRead(context.taskId, context.throughSeq);\n}\n\n/**\n * 右栏面板：线程视图（ticket 13 从 ChannelView 迁出）。\n *\n * 锚点 + 消息列表 + composer + 引用 + 轮询（agent 在任务线程里的回复自动冒出）；\n * freshness baseSeq 按线程自己的 seq 空间（最后一条消息的 seq），并发下收到 held 提示而非静默丢消息。\n * 引用态是面板局部的——与中央 composer 互不污染。\n *\n * 形态（票 07）：根是 fragment——头（`.tt-summary` sticky）/ 滚动区（`.tt-scroll`）/ composer 槽\n * （`.tt-reply`）是 `.dock` 单槽容器（DetailPanel）的 flex 子项（与上游 `.dock` 内含 `.dock-head` /\n * `.dock-scroll` 同形）。**零行为改动**：轮询 / freshness / 引用态 / 动作栏门控一字未动。\n */\nexport function ThreadPanel({\n  anchorId,\n  taskId,\n  channel,\n  currentMemberId,\n  agents,\n  owner,\n  onOpenPanel,\n  onClose,\n  initialAnchor,\n  initialMessages,\n}: {\n  anchorId: string;\n  /** 仅从 Task 锚点或 Task 卡片进入时提供；普通 thread 不推进 Task 已读位置。 */\n  taskId?: string;\n  channel: ChannelWithMeta | null;\n  currentMemberId: string;\n  agents?: MemberRow[];\n  owner?: MemberRow | null;\n  onOpenPanel: (content: PanelContent) => void;\n  onClose: () => void;\n  /** 测试注入：初始锚点与消息（生产走 anchorId 拉取）。 */\n  initialAnchor?: ChannelMessage | null;\n  initialMessages?: ChannelMessage[];\n}) {\n  const { t } = useI18n();\n\n  const [anchor, setAnchor] = useState<ChannelMessage | null>(initialAnchor ?? null);\n  const [messages, setMessages] = useState<ChannelMessage[]>(initialMessages ?? []);\n  const [latestThreadSeq, setLatestThreadSeq] = useState(() =>\n    threadMaxSeq(initialMessages ?? []),\n  );\n  const [pageVisible, setPageVisible] = useState(true);\n  const [loading, setLoading] = useState(!initialAnchor);\n  const [error, setError] = useState<string | null>(null);\n  const [quoting, setQuoting] = useState<ChannelMessage | null>(null);\n  const threadReady = anchor?.id === anchorId;\n\n  // §5.6 提醒弹窗（锚点消息动作栏 ⏰，与旧 thread 侧栏一致——只锚点行提供）\n  const [reminderTarget, setReminderTarget] = useState<{\n    targetId: string;\n    targetLabel: string;\n    defaultTitle?: string;\n  } | null>(null);\n\n  // §3.7 任务：锚点行"Convert to Task"判定（已转任务不显示菜单项）\n  const [taskMessageIds, setTaskMessageIds] = useState<Set<string>>(new Set());\n\n  // 👥 频道成员 id 集合（@ 补全的 joined 标记 + mention 渲染）\n  const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(new Set());\n\n  /** @ 提及补全候选 = 频道成员 agent（§3.2，镜像中央 Composer；非成员手输名字仍可穿透唤醒）。 */\n  const mentionable = useMemo(\n    () => composerMentionCandidates(agents ?? [], channelMemberIds),\n    [agents, channelMemberIds],\n  );\n\n  /** §3.2 mention 渲染成员表（agents + owner 全量，高亮解析用）。 */\n  const mentionMembers = useMemo(\n    () =>\n      [...(agents ?? []), ...(owner ? [owner] : [])].map((m) => ({\n        id: m.id,\n        name: m.name,\n        type: m.type,\n      })),\n    [agents, owner],\n  );\n  const currentMembersById = useMemo(\n    () => indexCurrentMembersById(agents, owner),\n    [agents, owner],\n  );\n\n  const loadThread = useCallback(async (messageId: string) => {\n    setLoading(true);\n    setError(null);\n    try {\n      const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/thread`);\n      if (!res.ok) throw new Error(`GET thread: ${res.status}`);\n      const body = (await res.json()) as {\n        anchor: ChannelMessage;\n        messages: ChannelMessage[];\n        maxSeq?: number;\n      };\n      setAnchor(body.anchor);\n      setMessages(body.messages);\n      setLatestThreadSeq(threadMaxSeq(body.messages, body.maxSeq));\n    } catch (e) {\n      setError(e instanceof Error ? e.message : String(e));\n    } finally {\n      setLoading(false);\n    }\n  }, []);\n\n  // 页面隐藏时暂停本 Task 的自动标读，与线程轮询的前台纪律保持一致。\n  useEffect(() => {\n    const syncVisibility = () => setPageVisible(!document.hidden);\n    syncVisibility();\n    document.addEventListener("visibilitychange", syncVisibility);\n    return () => document.removeEventListener("visibilitychange", syncVisibility);\n  }, []);\n\n  // 锚点变化 → 全量重拉（测试注入 initialAnchor 时跳过）\n  useEffect(() => {\n    if (initialAnchor) return;\n    void loadThread(anchorId);\n  }, [anchorId, initialAnchor, loadThread]);\n\n  // 只推进已在前台打开面板时呈现的序号；服务端再按 Task 隔离并排除 Owner 回复。\n  useEffect(() => {\n    void markVisibleTaskThreadRead({\n      taskId,\n      threadReady,\n      loading,\n      pageVisible,\n      documentHidden: document.hidden,\n      throughSeq: latestThreadSeq,\n    }).catch(() => undefined);\n  }, [latestThreadSeq, loading, pageVisible, taskId, threadReady]);\n\n  /** §3.7 频道任务列表（只用于锚点行 Convert to Task 判定）。 */\n  const loadTasks = useCallback(() => {\n    if (!channel) return;\n    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/tasks`)\n      .then(async (res) => {\n        if (!res.ok) throw new Error(`GET tasks: ${res.status}`);\n        const body = (await res.json()) as { tasks?: Array<{ message_id: string }> };\n        setTaskMessageIds(new Set((body.tasks ?? []).map((task) => task.message_id)));\n      })\n      .catch(() => undefined);\n  }, [channel]);\n\n  useEffect(() => {\n    loadTasks();\n  }, [loadTasks]);\n\n  /** 👥 频道成员加载（@ 补全 joined 标记）。 */\n  const loadMembers = useCallback(() => {\n    if (!channel) {\n      setChannelMemberIds(new Set());\n      return;\n    }\n    void fetch(`/api/channels/${encodeURIComponent(channel.id)}/members`)\n      .then(async (res) => {\n        if (!res.ok) throw new Error(`GET members: ${res.status}`);\n        const body = (await res.json()) as { members?: MemberRow[] };\n        setChannelMemberIds(new Set((body.members ?? []).map((m) => m.id)));\n      })\n      .catch(() => undefined);\n  }, [channel]);\n\n  useEffect(() => {\n    loadMembers();\n  }, [loadMembers]);\n\n  // 面板线程轮询：与中央轮询并存为两套循环——agent 在任务线程里的回复自动冒出\n  useEffect(() => {\n    if (!anchorId) return;\n    let cancelled = false;\n    const timer = setInterval(() => {\n      if (cancelled || document.hidden) return;\n      void fetch(`/api/messages/${encodeURIComponent(anchorId)}/thread`)\n        .then(async (res) => {\n          if (!res.ok || cancelled) return;\n          const body = (await res.json()) as {\n            anchor: ChannelMessage;\n            messages: ChannelMessage[];\n            maxSeq?: number;\n          };\n          // 初始拉取失败（anchor 为 null）时轮询自愈：只要服务端锚点仍指向同一消息即采纳\n          setAnchor((prev) => (!prev || prev.id === body.anchor.id ? body.anchor : prev));\n          setMessages((prev) => mergeIncomingMessages(prev, body.messages));\n          setLatestThreadSeq(threadMaxSeq(body.messages, body.maxSeq));\n        })\n        .catch(() => undefined);\n    }, THREAD_POLL_MS);\n    return () => {\n      cancelled = true;\n      clearInterval(timer);\n    };\n  }, [anchorId]);\n\n  const joined = channel?.joined ?? false;\n  const isArchived = channel?.archived === 1;\n  const composerDisabled = !channel || !joined || isArchived;\n  const composerDisabledHint = !channel\n    ? ""\n    : isArchived\n      ? t("message.archivedHint")\n      : joined\n        ? ""\n        : t("message.joinHint");\n\n  /** 线程发送：freshness baseSeq = 线程最后一条 seq（自己的 seq 空间）；held → 重拉 + 提示。 */\n  const handleSend = useCallback(\n    async (targetId: string, content: string, quoteId?: string, files?: File[]) => {\n      const baseSeq = messages[messages.length - 1]?.seq ?? 0;\n      let res: Response;\n      if (files && files.length > 0) {\n        const form = new FormData();\n        form.append("targetId", targetId);\n        form.append("content", content);\n        form.append("baseSeq", String(baseSeq));\n        if (quoteId) form.append("quoteId", quoteId);\n        for (const file of files) form.append("files", file);\n        res = await fetch("/api/messages", { method: "POST", body: form });\n      } else {\n        res = await fetch("/api/messages", {\n          method: "POST",\n          headers: { "Content-Type": "application/json" },\n          body: JSON.stringify({ targetId, content, quoteId, baseSeq }),\n        });\n      }\n      const body = (await res.json().catch(() => ({}))) as {\n        message?: ChannelMessage;\n        held?: boolean;\n        error?: string;\n      };\n      if (!res.ok) {\n        if (body.held) {\n          void loadThread(anchorId);\n          throw new Error(t("message.held"));\n        }\n        throw new Error(body.error ?? `POST messages: ${res.status}`);\n      }\n      if (body.message) {\n        setMessages((prev) => [...prev, body.message as ChannelMessage]);\n      }\n      setQuoting(null);\n    },\n    [messages, anchorId, loadThread, t],\n  );\n\n  /** §3.4 reaction 切换：线程内消息各自更新（锚点与列表同步）。 */\n  const toggleReaction = useCallback(async (message: ChannelMessage, emoji: string) => {\n    try {\n      const res = await fetch(`/api/messages/${encodeURIComp'... 5639 more characters,
+    expected: /threadInitialScroll\(\{/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/thread-open-scroll.test.mjs:338:1
+✖ ChannelView 的线程打开收敛到 `threadPanel` 单一装配点 (0.115875ms)
+  AssertionError [ERR_ASSERTION]: 线程打开必须经唯一装配点
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:339:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '"use client";\n\nimport {\n  memo,\n  useCallback,\n  useEffect,\n  useLayoutEffect,\n  useMemo,\n  useRef,\n  useState,\n} from "react";\nimport {\n  AlarmClock,\n  Bell,\n  BellOff,\n  Check,\n  ChevronDown,\n  ChevronRight,\n  ChevronUp,\n  CircleSlash,\n  CornerDownRight,\n  FileText,\n  Kanban,\n  Link,\n  List,\n  ListPlus,\n  Paperclip,\n  Pin,\n  Quote,\n  Reply,\n  Send,\n  SmilePlus,\n  TriangleAlert,\n  Users,\n  X,\n} from "lucide-react";\nimport { useI18n } from "@/hooks/useI18n";\nimport type { TranslationParams } from "@/lib/i18n/types";\nimport { MentionText } from "./MentionText";\nimport { Avatar } from "./Avatar";\nimport { StatusDot } from "./StatusDot";\nimport { ReminderModal } from "./ReminderModal";\nimport { copyText } from "@/lib/clipboard";\nimport { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";\nimport { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "@/lib/data/schema";\nimport type {\n  AttachmentRow,\n  ChannelRow,\n  MemberRow,\n  TaskStatus,\n} from "@/lib/data/types";\nimport {\n  extractAtQuery,\n  buildAtInsertText,\n  type AtQueryMatch,\n} from "@/lib/file-fuzzy";\nimport { composerMentionCandidates } from "@/lib/mention";\nimport { memberPanel, type PanelContent } from "@/lib/panel-state";\nimport { indexCurrentMembersById } from "@/lib/member-index";\nimport { useChannelData } from "@/hooks/useChannelData";\n\nexport type CenterTab = "messages" | "tasks";\n\n/** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */\nexport const NOTICE_TOAST_MS = 3500;\nconst PINNED_MESSAGE_HIGHLIGHT_MS = 1800;\n\n/** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */\nexport interface NoticeSlots {\n  held: string | null;\n  task: string | null;\n}\n\n/** 正在上屏的那一条 notice。 */\nexport interface NoticeToastItem {\n  kind: "held" | "task";\n  text: string;\n}\n\n/**\n * 单槽仲裁：held（§6.3 freshness-hold）与 task（§3.7 任务动作结果）两个槽\n * 合成至多一条可见 toast —— 判据是「谁的槽刚变成新内容」，所以新 notice 顶掉旧的，\n * 被顶掉的那条不会在旧 notice 消失后回弹（纯派生会回弹：held 退场后旧 task 又冒出来）。\n */\nexport function pickNoticeToast(seen: NoticeSlots, next: NoticeSlots): NoticeToastItem | null {\n  const { held, task } = next;\n  if (held !== null && held !== seen.held) return { kind: "held", text: held };\n  if (task !== null && task !== seen.task) return { kind: "task", text: task };\n  return null;\n}\n\n/**\n * 浮层 toast：锚在消息区底部、composer 上方居中，`--z-toast` 压过 composer。\n *\n * 为什么不再挂在滚动流里：notice 原先渲染在 `.stream-inner` 尾部 —— ① 被下方 composer\n * 遮住/挤出视野；② 在消息流最底部，用户不滚动就看不到（用户症状：注意不到有这个提示）。\n * `role="status"` + `aria-live="polite"` 让读屏器把它当状态播报，而不是流内正文。\n */\nexport function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {\n  const { t } = useI18n();\n  if (!toast) return null;\n  return (\n    <div\n      role="status"\n      aria-live="polite"\n      data-notice={toast.kind}\n      style={{\n        position: "absolute",\n        bottom: "var(--sp-6)",\n        left: "50%",\n        transform: "translateX(-50%)",\n        zIndex: "var(--z-toast)",\n        maxWidth: "min(90%, 520px)",\n        padding: "8px 12px",\n        background: toast.kind === "held" ? "var(--accent-soft)" : "var(--panel-2)",\n        border: "1px solid var(--border)",\n        borderRadius: "var(--r-md)",\n        boxShadow: "var(--shadow-pop)",\n        fontFamily: "var(--mono)",\n        fontSize: 12,\n        // 纯提示层不吃指针事件，别挡住 composer 的输入框与拖放。\n        pointerEvents: "none",\n      }}\n    >\n      {toast.kind === "held" ? `${t("message.heldNotice")} ${toast.text}` : toast.text}\n    </div>\n  );\n}\n\nexport interface ChannelWithMeta extends ChannelRow {\n  joined: boolean;\n  memberCount: number;\n  /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */\n  unread: number;\n  /** 含至少一条未读讨论回复的 Task 数；与普通消息未读数分离。 */\n  unreadTaskCount: number;\n  /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */\n  messageCount: number;\n}\n\n/** §3.4 reaction 聚合（与 lib/domain/collab/reactions.ts 同形）。 */\nexport interface ReactionSummary {\n  emoji: string;\n  count: number;\n  memberIds: string[];\n}\n\nexport interface ChannelMessage {\n  id: string;\n  target_id: string;\n  seq: number;\n  author_id: string;\n  content: string;\n  created_at: string;\n  author: MemberRow | null;\n  reactions?: ReactionSummary[];\n  attachments?: AttachmentRow[];\n  /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */\n  threadReplyCount?: number;\n  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/domain/collab/rounds.ts）。 */\n  abandonedMarks?: Array<{\n    agentId: string;\n    agentName: string;\n    reason: string;\n    baseSeq: number;\n    createdAt: string;\n  }>;\n}\n\ntype PinnedNavigationMessage = Pick<ChannelMessage, "id" | "seq">;\ntype PinnedNavigationStep = "loaded" | "latest" | "earlier" | "unavailable";\n\ninterface PendingPinnedNavigation extends PinnedNavigationMessage {\n  channelId: string;\n  requestedEarlierBefore?: number;\n  requestedLatestAtSeq?: number;\n  requestedLoadError?: string | null;\n}\n\nexport function getPinnedNavigationStep(\n  target: PinnedNavigationMessage,\n  messages: readonly PinnedNavigationMessage[],\n  hasMore: boolean,\n): PinnedNavigationStep {\n  if (messages.some((message) => message.id === target.id)) return "loaded";\n  if (messages.length === 0) return "latest";\n\n  const oldestSeq = messages[0].seq;\n  const newestSeq = messages[messages.length - 1].seq;\n  if (target.seq > newestSeq) return "latest";\n  if (target.seq < oldestSeq) return hasMore ? "earlier" : "unavailable";\n  return "unavailable";\n}\n\nexport function hasPinnedNavigationError(\n  requestLoadError: string | null | undefined,\n  loadError: string | null,\n): boolean {\n  return requestLoadError !== undefined && requestLoadError !== loadError;\n}\n\n/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */\nimport type { ChannelTask } from "@/hooks/useChannelData";\n\nexport interface TaskCreationEvent {\n  number: number;\n  preview: string;\n}\n\nexport interface TaskCreationAnnouncement extends TaskCreationEvent {\n  messageId: string;\n}\n\nconst TASK_EVENT_ANNOUNCEMENT_LIMIT = 20;\n\nfunction parseTaskCreationEvent(\n  message: Pick<ChannelMessage, "author_id" | "content">,\n): TaskCreationEvent | null {\n  if (message.author_id !== OWNER_MEMBER_ID) return null;\n  const match = /^Task #(\\d+) created(?: — (.*))?$/.exec(message.content);\n  if (!match) return null;\n  const number = Number(match[1]);\n  if (!Number.isSafeInteger(number)) return null;\n  return { number, preview: match[2] ?? "" };\n}\n\n/** 按频道保留已观察的 seq 水位，切回旧频道时仍能识别新事件。 */\nexport function createTaskCreationAnnouncementTracker() {\n  const observedSeqByChannel = new Map<string, number>();\n\n  return {\n    observe(\n      nextChannelId: string,\n      messages: ChannelMessage[],\n      ready: boolean,\n    ): TaskCreationAnnouncement[] {\n      if (!ready) return [];\n      const observedSeq = observedSeqByChannel.get(nextChannelId);\n      const maxSeq = messages.reduce(\n        (max, message) => Math.max(max, message.seq),\n        0,\n      );\n      if (observedSeq === undefined) {\n        observedSeqByChannel.set(nextChannelId, maxSeq);\n        return [];\n      }\n\n      const announcements: TaskCreationAnnouncement[] = [];\n      for (const message of messages) {\n        if (message.seq <= observedSeq) continue;\n        const event = parseTaskCreationEvent(message);\n        if (event) announcements.push({ ...event, messageId: message.id });\n      }\n      observedSeqByChannel.set(nextChannelId, Math.max(observedSeq, maxSeq));\n      return announcements;\n    },\n  };\n}\n\n/** 创建事件的静态呈现；预览有意保持为普通文本。 */\nexport function TaskCreationEventRow({\n  event,\n}: {\n  event: TaskCreationEvent;\n}) {\n  const { t } = useI18n();\n  return (\n    <div className="ws-task-created-event" role="note">\n      <span>{t("tasks.created", { number: String(event.number) })}</span>\n      {event.preview && <span>{event.preview}</span>}\n    </div>\n  );\n}\n\n/** @ 提及补全菜单最大展示条数。 */\nconst AT_MATCH_LIMIT = 20;\n/** 任务板状态分组顺序（§3.7）。 */\nconst TASK_STATUS_ORDER: TaskStatus[] = [\n  "todo",\n  "in_progress",\n  "in_review",\n  "done",\n  "closed",\n];\n/** §3.4 hover 快捷 reaction（常用若干）。 */\nconst QUICK_REACTIONS = ["👍", "❤️", "🎉", "👀"];\n/** §3.4 表情选择器候选（常用 + 任务场景）。 */\nconst EMOJI_PICKER_OPTIONS = [\n  "👍",\n  "👎",\n  "❤️",\n  "🎉",\n  "👀",\n  "🔥",\n  "✅",\n  "❌",\n  "🙏",\n  "🚀",\n  "💡",\n  "🤔",\n  "😂",\n  "😅",\n  "😮",\n  "😢",\n  "😡",\n  "🥳",\n  "👏",\n  "🙌",\n  "🤝",\n  "📌",\n  "⏰",\n  "🔧",\n];\n\n/** 头部可展开面板（置顶/静音/成员）手风琴过渡时长与缓动：ease-out 曲线，避免瞬间出现/消失。 */\nconst PANEL_COLLAPSE_TRANSITION =\n  "grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1), visibility 220ms";\n\n/** 面板折叠外壳：常驻渲染，靠 grid 行高 0fr↔1fr 过渡展开/收起（互斥手风琴，见 toggle*Panel）。 */\nconst panelShellStyle = (open: boolean): React.CSSProperties => ({\n  flexShrink: 0,\n  display: "grid",\n  gridTemplateRows: open ? "1fr" : "0fr",\n  transition: PANEL_COLLAPSE_TRANSITION,\n  // visibility 参与过渡：收起动画播完才真正隐藏（离散属性在过渡期间保持可见），展开时立即可见。\n  visibility: open ? "visible" : "hidden",\n});\n\n/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。\n    背景取 `--surface`（ED-1：头部展开面板是 chrome，与 `.chan-head` 的底同层），横向 padding 与\n    `.chan-head` 的 `--sp-9` 对齐。\n    ⚠ 关闭态要把 padding 与下边框**也收掉**：网格项自己的 padding/边框不可收缩，\n    否则 0fr 行会停在它的 24px padding + 1px 边框上（面板“关着”却占位，把 tabs 往下顶）。\n    两者与外壳的 `grid-template-rows` 同步过渡（同一时长/缓动）。 */\nconst panelCollapseInnerStyle = (open: boolean): React.CSSProperties => ({\n  minHeight: 0,\n  overflow: "hidden",\n  padding: open ? "var(--sp-5) var(--sp-9)" : "0 var(--sp-9)",\n  borderBottomStyle: "solid",\n  borderBottomColor: "var(--border)",\n  borderBottomWidth: open ? 1 : 0,\n  background: "var(--surface)",\n  transition:\n    "padding 220ms cubic-bezier(0.33, 1, 0.68, 1), border-bottom-width 220ms cubic-bezier(0.33, 1, 0.68, 1)",\n});\n\nconst messageTime = (iso: string): string => {\n  const d = new Date(iso);\n  const now = new Date();\n  const isToday = d.toDateString() === now.toDateString();\n  const time = d.toLocaleTimeString(undefined, {\n    hour: "2-digit",\n    minute: "2-digit",\n  });\n  return isToday ? time : `${d.toLocaleDateString()} ${time}`;\n};\n\n/** 轮询合并由 hooks/useChannelData 持有（01 票起；ThreadPanel 改从 hook 直引，见其 import）。 */\n\n/** 头部图标按钮的计数角标（pinned / mute / members 三处同形）：加载中显示 `…`，无计数则不渲染。 */\nfunction IconCount'... 117936 more characters,
+    expected: /threadPanel\(/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/thread-open-scroll.test.mjs:370:1
+✖ TaskView 暴露该 Task thread 的已读游标（落点判定的 readSeq 来源） (4.296208ms)
+  AssertionError [ERR_ASSERTION]: 新 Task 基线 0，无未读
+  
+  undefined !== 0
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:372:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at components/thread-open-scroll.test.mjs:388:1
+✖ 已读推进语义不变：Owner 回复不推游标，超过已呈现序号的回复不算已读 (4.091834ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  undefined !== 3
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/thread-open-scroll/components/thread-open-scroll.test.mjs:400:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 3,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

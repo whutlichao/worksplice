@@ -1,0 +1,128 @@
+CID=448214c2-d956-4222-a009-5e053dbd5eb0
+{
+ "spaceId": 21,
+ "out": {
+  "s1_taskUnread": {
+   "rowCount": 19,
+   "title": "线程 #1",
+   "scrollTop": 724,
+   "maxScrollTop": 1196,
+   "atBottom": false,
+   "firstVisibleSeq": 9,
+   "firstVisibleOffsetFromTop": 0,
+   "seqsAboveViewport": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "visibleSeqs": [
+    9,
+    10,
+    11,
+    12,
+    13
+   ]
+  },
+  "s1_shot": "/tmp/wsp-1-unread.png",
+  "s1_afterUserScroll": {
+   "rowCount": 19,
+   "title": "线程 #1",
+   "scrollTop": 300,
+   "maxScrollTop": 1196,
+   "atBottom": false,
+   "firstVisibleSeq": 3,
+   "firstVisibleOffsetFromTop": -43,
+   "seqsAboveViewport": [
+    1,
+    2
+   ],
+   "visibleSeqs": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "s1_afterPolls": {
+   "rowCount": 19,
+   "title": "线程 #1",
+   "scrollTop": 300,
+   "maxScrollTop": 1196,
+   "atBottom": false,
+   "firstVisibleSeq": 3,
+   "firstVisibleOffsetFromTop": -43,
+   "seqsAboveViewport": [
+    1,
+    2
+   ],
+   "visibleSeqs": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ]
+  },
+  "s2_taskAllRead": {
+   "rowCount": 12,
+   "title": "线程 #2",
+   "scrollTop": 621,
+   "maxScrollTop": 621,
+   "atBottom": true,
+   "firstVisibleSeq": 7,
+   "firstVisibleOffsetFromTop": -53,
+   "seqsAboveViewport": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "visibleSeqs": [
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+   ]
+  },
+  "s2_shot": "/tmp/wsp-2-allread.png",
+  "s3_plainThread": {
+   "rowCount": 12,
+   "title": "线程 #3",
+   "scrollTop": 621,
+   "maxScrollTop": 621,
+   "atBottom": true,
+   "firstVisibleSeq": 7,
+   "firstVisibleOffsetFromTop": -53,
+   "seqsAboveViewport": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "visibleSeqs": [
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+   ]
+  },
+  "s3_shot": "/tmp/wsp-3-plain.png"
+ }
+}
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { copyText } from "@/lib/clipboard";
@@ -12,7 +12,12 @@ import {
 } from "@/hooks/useChannelData";
 import { ReminderModal } from "./ReminderModal";
 import type { MemberRow } from "@/lib/data/types";
-import { memberPanel, type PanelContent } from "@/lib/panel-state";
+import {
+  applyThreadInitialScroll,
+  memberPanel, threadInitialScroll,
+  type PanelContent,
+  type ThreadScrollPort,
+} from "@/lib/panel-state";
 import { indexCurrentMembersById } from "@/lib/member-index";
 import { composerMentionCandidates } from "@/lib/mention";
 
@@ -67,6 +72,7 @@ export async function markVisibleTaskThreadRead(
 export function ThreadPanel({
   anchorId,
   taskId,
+  taskReadSeq,
   channel,
   currentMemberId,
   agents,
@@ -79,6 +85,11 @@ export function ThreadPanel({
   anchorId: string;
   /** 仅从 Task 锚点或 Task 卡片进入时提供；普通 thread 不推进 Task 已读位置。 */
   taskId?: string;
+  /**
+   * 打开那一刻的 Task thread 已读游标快照（由 `threadPanel` 装配）。
+   * 只用于**初始落点**判定——面板挂载后会自行推进游标，之后再查就晚了。
+   */
+  taskReadSeq?: number;
   channel: ChannelWithMeta | null;
   currentMemberId: string;
   agents?: MemberRow[];
@@ -101,6 +112,71 @@ export function ThreadPanel({
   const [error, setError] = useState<string | null>(null);
   const [quoting, setQuoting] = useState<ChannelMessage | null>(null);
   const threadReady = anchor?.id === anchorId;
+
+  /**
+   * 初始滚动落点（`.scratch/thread-open-scroll/`）：
+   * Task thread 有未读 → 最早一条未读回复贴顶（更早的已读历史留在上方可上翻）；
+   * 无未读 / 普通 thread → 贴底。滚动容器经最小结构子集 `ThreadScrollPort` 接入，
+   * 判定与应用都是可脱离 DOM 断言的 seam（见 lib/panel-state.ts）。
+   *
+   * **只落一次**：`landedRef` 记住已落过的 anchorId，后续轮询合并新回复不改动滚动
+   * （本票不加「新消息自动滚到底」）。
+   */
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const landedRef = useRef<string | null>(null);
+  const messagesRef = useRef<ChannelMessage[]>(messages);
+  messagesRef.current = messages;
+  useLayoutEffect(() => {
+    if (!anchor || loading) return;
+    // `anchor?.id === anchorId` 必须一起判：面板内换线程（pinned 跳转 / Task 卡片）时，本 effect
+    // 会先带着**上一条线程的 anchor** 对新 anchorId 跑一次（anchor state 在后一个 effect 里重拉），
+    // 那时落点会用上一条线程的消息算——实测把普通 thread 停到了顶部（规则 3 违反）。
+    if (threadReady && landedRef.current === anchorId) return;
+    // 被陈旧 anchor 拦下的一轮**不能占坑**：否则真正就绪的那轮看到 landedRef 已填，再也不落点。
+    if (!threadReady) return;
+    landedRef.current = anchorId;
+    const port: ThreadScrollPort = {
+      get scrollTop() {
+        return scrollRef.current?.scrollTop ?? 0;
+      },
+      set scrollTop(value: number) {
+        scrollRef.current?.scrollTo({ top: value });
+      },
+      get scrollHeight() {
+        return scrollRef.current?.scrollHeight ?? 0;
+      },
+      /**
+       * 该行贴到滚动区顶部所需的 scrollTop（= 行相对滚动区**内容**顶部的偏移）。
+       * 不用 `offsetTop`：它相对最近的 offsetParent，而滚动容器自己在那个 offsetParent
+       * 里也有偏移（实测差 58px ⇒ 落点越过该行顶部）。用视口矩形差算，并减掉容器自身
+       * 的上内边距（scrollTop 从内容边而非边框边起算）。
+       */
+      replyRowOffset(seq) {
+        const container = scrollRef.current;
+        if (!container) return null;
+        const node = container.querySelector<HTMLElement>(
+          `[data-thread-message-seq="${seq}"]`,
+        );
+        if (!node) return null;
+        const paddingTop = Number.parseFloat(getComputedStyle(container).paddingTop) || 0;
+        return (
+          node.getBoundingClientRect().top -
+          container.getBoundingClientRect().top +
+          container.scrollTop -
+          paddingTop
+        );
+      },
+    };
+    applyThreadInitialScroll(
+      port,
+      threadInitialScroll({
+        replies: messagesRef.current,
+        taskId,
+        readSeq: taskReadSeq,
+        ownerId: currentMemberId,
+      }),
+    );
+  }, [anchor, anchorId, currentMemberId, loading, taskId, taskReadSeq, threadReady]);
 
   // §5.6 提醒弹窗（锚点消息动作栏 ⏰，与旧 thread 侧栏一致——只锚点行提供）
   const [reminderTarget, setReminderTarget] = useState<{
@@ -400,7 +476,7 @@ export function ThreadPanel({
       </div>
       {/* `.tt-scroll` 的内边距是给 `.tt-log` 条目的；此处装的是 `.ws-message-row`（自带 `10px 16px`），
           再叠一层会双重缩进——故只取滚动职责，内边距归零（见 globals.css 裁剪登记 ④）。 */}
-      <div className="tt-scroll" style={{ padding: 0 }}>
+      <div className="tt-scroll" ref={scrollRef} style={{ padding: 0 }}>
         {anchor && (
           <MessageRow
             message={anchor}
@@ -422,19 +498,20 @@ export function ThreadPanel({
           <div className="tt-empty">{t("message.threadLoading")}</div>
         ) : (
           messages.map((m) => (
-            <MessageRow
-              key={m.id}
-              message={m}
-              currentAuthor={currentMembersById.get(m.author_id)}
-              currentMemberId={currentMemberId}
-              canConvertToTask={false}
-              mentionMembers={mentionMembers}
-              onOpenMention={openMention}
-              onOpenMember={(memberId) => onOpenPanel(memberPanel(memberId, false))}
-              onQuote={setQuoting}
-              onCopyLink={(target) => void handleCopyLink(target)}
-              onToggleReaction={joined ? toggleReaction : undefined}
-            />
+            <div key={m.id} data-thread-message-seq={m.seq}>
+              <MessageRow
+                message={m}
+                currentAuthor={currentMembersById.get(m.author_id)}
+                currentMemberId={currentMemberId}
+                canConvertToTask={false}
+                mentionMembers={mentionMembers}
+                onOpenMention={openMention}
+                onOpenMember={(memberId) => onOpenPanel(memberPanel(memberId, false))}
+                onQuote={setQuoting}
+                onCopyLink={(target) => void handleCopyLink(target)}
+                onToggleReaction={joined ? toggleReaction : undefined}
+              />
+            </div>
           ))
         )}
       </div>
