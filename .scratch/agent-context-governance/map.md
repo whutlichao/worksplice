@@ -22,6 +22,7 @@
 - [明确重置与删除对原始会话记忆的保留语义](./issues/03-decide-reset-retention-contract.md)：Reset 清空活动状态而保留可检索原始记录；Full Reset 保留稳定记忆；共享目录只清理可确认归属的 session；删除 agent 清除私有记忆/归档但保留协作历史。
 - [决定上下文治理报告的建议方向](./issues/02-decide-recommendation-direction.md)：采纳两条路径分别治理的非破坏性分层方向；先建各自成本基线，再以召回与任务质量验证，暂不锁定阈值或实现。
 - [决定归档、索引与检索的实施方案（含基线与防丢失验证）](./issues/04-decide-archive-and-retrieval.md)：归档取「消息面读取层契约＋session 原件落数据目录并索引」、备份口径统一为数据目录整体；检索沿用既有服务层入口与频道可见面、不注册新工具；agent-loop 走 compact＋应用层有界注入；基线与防丢失验证先用合成数据做机制层，真实 provider 评测另起 effort。
+- [产出上下文治理实现规格](./issues/05-spec-implementation-plan.md)：把票 04 的六点裁决与 pre-study 证据合成为可实施 `spec.md`——分路径非破坏分层、归档副本＋索引读取面、检索权限沿用 channel membership、agent-loop 有界注入（机制与预算留实现期按基线定）、基线与防丢失验证两层通过条件；实施票由下一轮 to-tickets 产出。
 
 ## Not yet specified
 
