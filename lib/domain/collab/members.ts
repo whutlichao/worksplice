@@ -113,6 +113,16 @@ export function setAgentAvatarTint(
   return getAgent(agent.id);
 }
 
+/** 更新 agent 资料描述；只改描述字段，不触及身份、工作区或会话状态。 */
+export function updateAgentDescription(
+  agentId: string,
+  description: string,
+): MemberRow {
+  const agent = getAgent(agentId);
+  getDb().updateMemberDescription(agent.id, description);
+  return getAgent(agent.id);
+}
+
 /**
  * §3.2 @mention 解析：内容里的 @名字 token → 成员 id（大小写不敏感、全等 token 匹配）。
  * 支持两种形态：`@名字`（无空白名）与 `@"带空格名字"`（引号形式，兼容含空白成员名）。

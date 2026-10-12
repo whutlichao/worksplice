@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   getAgent,
   setAgentAvatarTint,
+  updateAgentDescription,
   AgentNotFoundError,
 } from "@/lib/domain/collab";
 import { deleteAgentIdentity } from "@/lib/agent-lifecycle";
@@ -20,7 +21,7 @@ export async function GET(
   }
 }
 
-// PATCH /api/members/[id] — body: { avatarTint: 0 | 1 | 2 | 3 | null }
+// PATCH /api/members/[id] — body 为 { avatarTint } 或 { description }
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -28,15 +29,45 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body: unknown = await request.json().catch(() => null);
-    if (
-      !body ||
-      typeof body !== "object" ||
-      Array.isArray(body) ||
-      !Object.hasOwn(body, "avatarTint")
-    ) {
-      return NextResponse.json({ error: "avatarTint is required" }, { status: 400 });
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "request body must be a JSON object" },
+        { status: 400 },
+      );
     }
-    const agent = setAgentAvatarTint(id, (body as { avatarTint: unknown }).avatarTint);
+
+    const hasAvatarTint = Object.hasOwn(body, "avatarTint");
+    const hasDescription = Object.hasOwn(body, "description");
+    if (hasAvatarTint && hasDescription) {
+      return NextResponse.json(
+        { error: "avatarTint and description cannot be updated together" },
+        { status: 400 },
+      );
+    }
+    if (!hasAvatarTint && !hasDescription) {
+      return NextResponse.json(
+        { error: "avatarTint or description is required" },
+        { status: 400 },
+      );
+    }
+
+    if (hasAvatarTint) {
+      const agent = setAgentAvatarTint(
+        id,
+        (body as { avatarTint: unknown }).avatarTint,
+      );
+      return NextResponse.json({ agent });
+    }
+
+    const description = (body as { description: unknown }).description;
+    if (typeof description !== "string") {
+      return NextResponse.json(
+        { error: "description must be a string" },
+        { status: 400 },
+      );
+    }
+
+    const agent = updateAgentDescription(id, description.trim());
     return NextResponse.json({ agent });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

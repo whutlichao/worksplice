@@ -12,6 +12,7 @@ const jiti = createJiti(import.meta.url, {
 const {
     AgentDetailPanel,
     AgentAvatarTintPicker,
+    createAgentDescriptionSaveHandler,
     createAvatarTintSelectionHandler,
     TaskHistoryList,
     RoundLogsList,
@@ -46,17 +47,19 @@ const avatarTintText = (key, params) => {
     return key;
 };
 
-function findButton(node, label) {
-    if (React.isValidElement(node)) {
-        if (node.type === "button" && node.props["aria-label"] === label) return node;
-        return React.Children.toArray(node.props.children)
-            .map((child) => findButton(child, label))
-            .find(Boolean);
-    }
+function findElement(node, predicate) {
     if (Array.isArray(node)) {
-        return node.map((child) => findButton(child, label)).find(Boolean);
+        return node.map((child) => findElement(child, predicate)).find(Boolean);
     }
-    return undefined;
+    if (!React.isValidElement(node)) return undefined;
+    if (predicate(node)) return node;
+    return findElement(node.props.children, predicate);
+}
+
+function findButton(node, label) {
+    return findElement(node, (element) =>
+        element.type === "button" && element.props["aria-label"] === label,
+    );
 }
 
 function renderAvatarTintState(selectedTint, error, saving = false, open = true) {
@@ -598,4 +601,129 @@ test("failed avatar color save keeps the old avatar tint visible and announces t
   const closedHtml = renderAvatarTintState(selectedTint, error, saving, false);
   assert.doesNotMatch(closedHtml, /role="group" aria-label="Avatar color"/);
   assert.match(closedHtml, /role="alert"[^>]*>store unavailable</);
+});
+
+function createDescriptionSaveState(description = "Original summary") {
+    const state = {
+        savedDescription: description,
+        draft: description,
+        editing: true,
+        saving: false,
+        error: "previous error",
+        changed: 0,
+    };
+    return {
+        state,
+        setSavedDescription: (value) => { state.savedDescription = value; },
+        setDraft: (value) => { state.draft = value; },
+        setEditing: (value) => { state.editing = value; },
+        setSaving: (value) => { state.saving = value; },
+        setError: (value) => { state.error = value; },
+        onChanged: () => { state.changed += 1; },
+    };
+}
+
+test("AgentDetailPanel exposes an accessible description edit control", () => {
+    assert.match(renderPanel(AGENT), /aria-label="Edit description"/);
+});
+
+test("description save handler trims the PATCH payload and applies the saved value", async () => {
+    const saveState = createDescriptionSaveState();
+    saveState.state.draft = "  Revised summary  ";
+    const requests = [];
+    const save = createAgentDescriptionSaveHandler({
+        agentId: "agent description/1",
+        draft: saveState.state.draft,
+        saving: false,
+        request: async (url, options) => {
+            assert.equal(saveState.state.saving, true);
+            assert.equal(saveState.state.error, null);
+            requests.push({ url, options });
+            return { ok: true, json: async () => ({ agent: { description: "Revised summary" } }) };
+        },
+        ...saveState,
+    });
+
+    await save();
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, "/api/members/agent%20description%2F1");
+    assert.equal(requests[0].options.method, "PATCH");
+    assert.equal(
+        requests[0].options.body,
+        JSON.stringify({ description: "Revised summary" }),
+    );
+    assert.equal(saveState.state.savedDescription, "Revised summary");
+    assert.equal(saveState.state.draft, "Revised summary");
+    assert.equal(saveState.state.editing, false);
+    assert.equal(saveState.state.saving, false);
+    assert.equal(saveState.state.error, null);
+    assert.equal(saveState.state.changed, 1);
+});
+
+test("description save handler sends an empty string to clear the description", async () => {
+    const saveState = createDescriptionSaveState();
+    saveState.state.draft = "   ";
+    let body;
+    const save = createAgentDescriptionSaveHandler({
+        agentId: "agent-description",
+        draft: saveState.state.draft,
+        saving: false,
+        request: async (_url, options) => {
+            body = options.body;
+            return { ok: true, json: async () => ({ agent: { description: "" } }) };
+        },
+        ...saveState,
+    });
+
+    await save();
+
+    assert.equal(body, JSON.stringify({ description: "" }));
+    assert.equal(saveState.state.savedDescription, "");
+    assert.equal(saveState.state.draft, "");
+    assert.equal(saveState.state.changed, 1);
+});
+
+test("failed description save preserves the draft and reports the server error", async () => {
+    const saveState = createDescriptionSaveState();
+    saveState.state.draft = "Unsaved draft";
+    const save = createAgentDescriptionSaveHandler({
+        agentId: "agent-description",
+        draft: saveState.state.draft,
+        saving: false,
+        request: async () => ({
+            ok: false,
+            status: 503,
+            json: async () => ({ error: "Description service unavailable" }),
+        }),
+        ...saveState,
+    });
+
+    await save();
+
+    assert.equal(saveState.state.savedDescription, "Original summary");
+    assert.equal(saveState.state.draft, "Unsaved draft");
+    assert.equal(saveState.state.editing, true);
+    assert.equal(saveState.state.saving, false);
+    assert.equal(saveState.state.error, "Description service unavailable");
+    assert.equal(saveState.state.changed, 0);
+});
+
+test("agent description editor copy exists in every supported language", async () => {
+    const { enLocale } = await import("../lib/i18n/messages/en.ts");
+    const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
+    for (const key of [
+        "agent.description",
+        "agent.noDescription",
+        "agent.editDescription",
+        "agent.currentDescription",
+        "agent.clearDescription",
+        "agent.cancelDescription",
+        "agent.saveDescription",
+        "agent.savingDescription",
+        "agent.descriptionSaveError",
+    ]) {
+        assert.ok(enLocale.messages[key], `en missing ${key}`);
+        assert.ok(zhCNLocale.messages[key], `zh-CN missing ${key}`);
+    }
 });
