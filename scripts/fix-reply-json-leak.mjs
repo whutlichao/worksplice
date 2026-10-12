@@ -8,13 +8,13 @@
 //   --json       机器可读输出（只打印一个 JSON 对象；错误仍走 stderr 文本）。
 //   退出码       0 = 成功（含 0 changes）；2 = 用法/环境错误；1 = 运行期失败。
 //
-// 存量形态 A（票 01）：模型偶发把结构化回复的开头 `{"` 输出成 `","` / `,"`，围栏剥掉后剩下的
+// 存量第一档（票 01）：模型偶发把结构化回复的开头 `{"` 输出成 `","` / `,"`，围栏剥掉后剩下的
 // 文本没有 `{`，`parseAgentAction` 的几档解析都救不回来 → 整段碎片当正文落库，顺带把本该是换行的
 // `\n` 变成字面反斜杠 n 糊在一行里。原始输出逐字形如：
 //   `","action":"reply","content":"睡前最后一次核对：\n\n2026-10-07 10:41 CST","onConflict":"resend"}`
 //
-// 存量形态 B（票 02）：协议 JSON 的**形状写对了**，但字符串字面量里是**真实换行/制表**（裸控制
-// 字符，码点 < 0x20）而不是 `\n` / `\t`：`JSON.parse` 报 Bad control character，`extractJsonObject`
+// 存量第二档（票 02）：协议 JSON 的**形状写对了**，但字符串字面量里是**真实换行/制表**（裸控制
+// 字符，码点 0x01–0x1f）而不是 `\n` / `\t`：`JSON.parse` 报 Bad control character，`extractJsonObject`
 // 取得到平衡的 `{…}` 却一样 parse 不过 → 整段 JSON 当正文落库。逐字形如：
 //   `{"action":"reply","content":"第一行<裸 LF>第二行","onConflict":"revise"}`
 //
@@ -28,8 +28,8 @@
 // 只有校验通过才修：形状不合法（parse 失败 / action 不是 reply|ignore / content 不是字符串）
 // 的候选一律跳过并进报告，绝不按「看起来像」硬改。跳过项带 id 与原因，JSON 输出里逐条列出。
 //
-// 回填值 = 候选 JSON.parse 后的 `content` 字段——形态 A 在这一步把字面 `\n` 还原为真实换行，
-// 形态 B 在这一步把裸换行**原样保留**为真实换行（它本来就是真的）。两条路径的产物是同一个东西：
+// 回填值 = 候选 JSON.parse 后的 `content` 字段——第一档在这一步把字面 `\n` 还原为真实换行，
+// 第二档在这一步把裸换行**原样保留**为真实换行（它本来就是真的）。两条路径的产物是同一个东西：
 // 这正是当初应该落库、且 parseAgentAction 修复后会落库的那个值。
 //
 // **旁路数据层写路径的理由**：`Store` 契约刻意没有消息写路径（messages 表不可变，有 BEFORE
@@ -71,18 +71,21 @@ export const MESSAGES_NO_UPDATE_SQL = `CREATE TRIGGER IF NOT EXISTS messages_no_
   END`;
 
 /**
- * 形态 B（裸控制字符）的候选捞取条件：content 里含 U+0001–U+001F 中任意一字符。
+ * 第二档（裸控制字符）的候选捞取条件：content 里含 U+0001–U+001F 中任意一字符。
+ * 区间端点抄自 `json-prologue.ts` 的 `RAW_CONTROL_MIN_CODE` / `RAW_CONTROL_MAX_CODE`
+ * （两边唯一权威表示的 SQL 侧字面量，由测试钉住不变式）；
  * GLOB 的字符类由**码点**拼出（不写字面控制字符，那种源码没法读，也容易被编辑器吃掉）；
  * `\n` / `\t` 在 GLOB 里无特殊含义，字面 `\n` 这种「反斜杠 + n」不会被误捞。
- * 与形态 A 那对 LIKE 前缀同理：SQL 只负责「把候选从全表里捞出来」，形态规则不在这写第二份——
- * 真实判定仍由 `json-prologue.ts` 在 JS 侧做（两条表示由测试钉住等价性）。
+ * 与第一档那对 LIKE 前缀同理：SQL 只负责「把候选从全表里捞出来」，真实判定仍由
+ * `json-prologue.ts` 在 JS 侧做（两侧的包含关系由测试钉住）。
  */
 const RAW_CONTROL_GLOB_SQL = `'*[${String.fromCharCode(1)}-${String.fromCharCode(31)}]*'`;
 
 /**
- * 候选行扫描：content 命中形态 A（`","` / `,"` 开头）或形态 B（含裸控制字符）的消息。
- * 判据用 LIKE / GLOB 先收窄（避免全表捞；模式全是字面量，不拼接任何用户输入），
- * 真实形态判定仍由 `json-prologue.ts` 在 JS 侧做——SQL 只负责把候选捞出来。
+ * 候选行扫描：content 命中第一档（`","` / `,"` 开头）或第二档（含裸控制字符）的消息。
+ * 判据用 LIKE / GLOB 先收窄（避免全表捞；模式全是字面量，不拼接任何用户输入）——
+ * 第二档这一侧刻意是**超集**：两端都是全表扫描，超集不额外花 I/O，多捞的代价只是一次
+ * `parseLeakedReply` 早退，换来的是一条不会漏斗的候选面。
  *
  * 排序按 rowid（= 消息实际插入序）而不是 created_at：同毫秒落库的两条消息 created_at 会相等，
  * 按 id 兜底等于按随机 UUID 排序，报告顺序会随机飘（seq 只在单个 target 内有序，跨 target 不可比）。
@@ -155,14 +158,23 @@ function backupDatabase(conn, dataDir) {
  * 计划：把候选行分成「可修」与「跳过」两档。纯读，不写任何东西。
  * 判定全部走 json-prologue.ts（与 parseAgentAction 同源），本函数不重写形态规则。
  */
-function planRepair(conn, parseLeakedReply) {
+function planRepair(conn, parseLeakedReply, isLeakedReplyCandidate) {
   const rows = conn.prepare(CANDIDATE_SQL).all();
   const repaired = [];
   const skipped = [];
   for (const row of rows) {
     const parsed = parseLeakedReply(row.content);
     if (!parsed) {
-      skipped.push({ ...summarize(row), reason: "形态命中但候选 JSON.parse 失败或形状不合协议" });
+      // 第二档的 SQL 侧是**超集**（捕得宽换来不漏），所以「parse 不过」未必是脏数据：
+      // 已回填过的行会被 SQL 再抽一次（回填后的正文含真实换行 → 命中 GLOB），也会走到这里。
+      // 只有**仍落在候选面上**的才算「形态命中但修不了」并进报告；其余是超集多捕，静默跳过——
+      // 不这样分辨，幂等场景就会把已修好的行报成坏候选，与「第二遍报 0 changes」自相矛盾。
+      if (isLeakedReplyCandidate(row.content)) {
+        skipped.push({
+          ...summarize(row),
+          reason: "形态命中但候选 JSON.parse 失败或形状不合协议",
+        });
+      }
       continue;
     }
     if (parsed.content === null) {
@@ -233,7 +245,9 @@ function renderJson(report) {
 async function repair(options) {
   const { openDataDb } = await import("../lib/data/sqlite.ts");
   const { DB_FILE_NAME, resolveDataDir } = await import("../lib/data/dirs.ts");
-  const { parseLeakedReply } = await import("../lib/agent-loop/json-prologue.ts");
+  const { parseLeakedReply, isLeakedReplyCandidate } = await import(
+    "../lib/agent-loop/json-prologue.ts"
+  );
 
   const dataDir = path.resolve(options.dataDir ?? resolveDataDir());
 
@@ -256,7 +270,7 @@ async function repair(options) {
     // 旁路写路径（见头部注释）：Store 契约刻意没有消息写路径，本脚本是 owner 授权的
     // 一次性例外，直接用 adapter 实例暴露的底层连接。
     const conn = db.db;
-    const plan = planRepair(conn, parseLeakedReply);
+    const plan = planRepair(conn, parseLeakedReply, isLeakedReplyCandidate);
     if (options.apply && plan.repaired.length > 0) {
       // 先备份（有改动才备份），再单事务回填
       backups.push(backupDatabase(conn, dataDir));

@@ -1,35 +1,36 @@
 /**
  * 回复 JSON 泄漏修复（reply-json-leak）：**两档相互独立的放宽**，各有已实证形态。
  *
- * **第一形态（票 01）**——模型偶发把 JSON 对象的开头 `{"` 输出成 `","` 或 `,"`：
+ * **第一档（票 01）**——模型偶发把 JSON 对象的开头 `{"` 输出成 `","` 或 `,"`：
  *   ```json","action":"reply","content":"…","onConflict":"resend"}
  *   ```json,"action":"reply","content":"…"}
  * 围栏剥掉后剩下的文本以 `","` / `,"` 开头，**没有** `{`——整串 `JSON.parse` 失败、
  * `extractJsonObject` 也找不到对象开头，解析链一路掉进兜底。判据 `LEAK_PROLOGUE_PATTERN`。
  *
- * **第二形态（票 02）**——协议 JSON 的形状**写对了**，但字符串字面量里吐的是**裸控制字符**
- * （真实换行 / 制表 / …，码点 < 0x20）而不是 JSON 要求的 `\n` / `\t` 转义：
+ * **第二档（票 02）**——协议 JSON 的形状**写对了**，但字符串字面量里吐的是**裸控制字符**
+ * （真实换行 / 制表 / …，码点 0x01–0x1f）而不是 JSON 要求的 `\n` / `\t` 转义：
  *   {"action":"reply","content":"第一行<裸 LF><裸 LF>第二行","onConflict":"revise"}
- * 这一档下 `JSON.parse` 报 `Bad control character in string literal`；`extractJsonObject`
- * 反而**取得到**平衡的 `{…}`（裸换行不影响括号配对），再 parse 报同一个错；第一形态的
- * 序言档也不命中——三档全落空，整段 JSON 当正文落库。判据见 `repairRawControlChars`。
+ * 整串 `JSON.parse` 报 `Bad control character in string literal`；`extractJsonObject` 反而
+ * **取得到**平衡的 `{…}`（裸换行不影响括号配对），再 parse 报同一个错；第一档也不命中——
+ * 三档全落空，整段 JSON 当正文落库。判据见 `repairRawControlChars`。
  *
- * 两档是**各自独立**的放宽，不共用判据：形态复发时重新评估一档，而不是扩大另一档的常量
- * （票 01 的既有纪律）。两档共用的是**同一份形状校验口径**（`acceptProtocolObject`）与
- * **同一个返回形状**（`RepairedReply`），所以调用方只跨 `parseLeakedReply` 一个 seam。
+ * 两档是**各自独立**的放宽，不共用判据：形态复发时重新评估一档，而不是扩大另一档的常量。
+ * 两档共用的是**同一份形状校验口径**（`acceptProtocolObject`）与**同一个返回形状**
+ * （`RepairedReply`），所以调用方只跨 `parseLeakedReply` 一个 seam。
  *
  * 本模块是这两条修复判定的**唯一实现**：`parseAgentAction`（loop.ts，防未来）与
- * `scripts/fix-reply-json-leak.mjs`（一次性存量清洗）都从这里取候选与校验，
- * 两处同源同形，不各写一份。
- *
+ * `scripts/fix-reply-json-leak.mjs`（一次性存量清洗）都从这里取候选与校验，两处同源同形。
  * 零依赖纯函数：不 import 任何模块，不碰 IO，只做「文本 → 修复候选 → 协议形状校验」。
- * 只认上表两种已实证形态，不对未知形态做猜测性修复。
  */
 
-/** 第一形态的已实证坏序言开头：`","` 与 `,"`。`?` 覆盖「多一个引号」那一种。 */
+// ----------------------------------------------------------------------------
+// 第一档：坏序言（`","` / `,"`）
+// ----------------------------------------------------------------------------
+
+/** 第一档的已实证坏序言开头：`","` 与 `,"`。`?` 覆盖「多一个引号」那一种。 */
 export const LEAK_PROLOGUE_PATTERN = /^"?,"/;
 
-/** 修复候选 = 坏序言还原成的正常 JSON 文本；形态不命中则 null。 */
+/** 第一档的修复候选 = 坏序言还原成的正常 JSON 文本；形态不命中则 null。 */
 export function repairJsonPrologue(text: string): string | null {
   const match = LEAK_PROLOGUE_PATTERN.exec(text);
   if (!match) return null;
@@ -37,7 +38,11 @@ export function repairJsonPrologue(text: string): string | null {
   return `{"${text.slice(match[0].length)}`;
 }
 
-/** 命中的是哪一档——报告里要说清（清洗脚本的 repaired / skipped 逐条带出）。 */
+// ----------------------------------------------------------------------------
+// 两档共用的类型与校验
+// ----------------------------------------------------------------------------
+
+/** 命中的是哪一档。 */
 export type ReplyLeakForm = "prologue" | "raw-control";
 
 export interface RepairedReply {
@@ -73,7 +78,7 @@ function parseCandidate(candidate: string, form: ReplyLeakForm): RepairedReply |
   return { form, value, content: typeof value.content === "string" ? value.content : null };
 }
 
-/** 第一形态：坏序言 → 候选 → parse → 形状校验。 */
+/** 第一档：坏序言 → 候选 → parse → 形状校验。 */
 export function parseRepairedReply(text: string): RepairedReply | null {
   const candidate = repairJsonPrologue(text);
   if (candidate === null) return null;
@@ -81,11 +86,27 @@ export function parseRepairedReply(text: string): RepairedReply | null {
 }
 
 // ----------------------------------------------------------------------------
-// 第二形态：字符串字面量里的裸控制字符
+// 第二档：字符串字面量里的裸控制字符
 // ----------------------------------------------------------------------------
 
-/** JSON 只认转义形态的控制字符集合。 */
-const RAW_CONTROL_CHAR = /^[\u0000-\u001f]$/;
+/**
+ * 裸控制字符码点区间（含端点），**唯一权威表示**——源码侧与脚本 SQL 侧都从它派生，
+ * 免得两处对「哪些字符算裸控制字符」各说各话：
+ * - JS 侧转义：下面的 `RAW_CONTROL_CHAR`
+ * - 脚本 SQL 侧的 GLOB 字符类（`scripts/fix-reply-json-leak.mjs` 的 `CANDIDATE_SQL`）
+ *
+ * 起点是 1 而不是 0：SQLite 的 GLOB `[<U+0001>-<U+001F>]` 覆盖不了 NUL（其字符串处理在第一个
+ * NUL 就截断），所以 JS 侧也一并排除——否则会出现「JS 能修、脚本永远捞不到」的单向不一致。
+ */
+export const RAW_CONTROL_MIN_CODE = 1;
+export const RAW_CONTROL_MAX_CODE = 31;
+
+/** 是否为 JSON 只认转义形态的裸控制字符（码点落在上面区间里）。 */
+function isRawControlChar(ch: string): boolean {
+  const code = ch.codePointAt(0) ?? -1;
+  return code >= RAW_CONTROL_MIN_CODE && code <= RAW_CONTROL_MAX_CODE;
+}
+
 /** 能用 JSON 短转义表达的裸控制字符；其余（如 U+001F）走 `\u00XX`。 */
 const CONTROL_ESCAPES: Record<string, string> = {
   "\n": "\\n",
@@ -96,7 +117,7 @@ const CONTROL_ESCAPES: Record<string, string> = {
 };
 
 /**
- * 第二形态的候选判据：`trim()` 后以 `{` 开头且以 `}` 结尾——先排掉绝大多数散文，
+ * 第二档的候选判据：`trim()` 后以 `{` 开头且以 `}` 结尾——先排掉绝大多数散文，
  * 避免对每段自然语言都做逐字符扫描。这是**便宜的前置筛**，不是采纳判据。
  */
 function looksLikeProtocolObject(text: string): boolean {
@@ -105,7 +126,7 @@ function looksLikeProtocolObject(text: string): boolean {
 }
 
 /**
- * 第二形态的修复候选：把**字符串字面量内**的裸控制字符转义掉，让该文本能被 `JSON.parse` 读回来。
+ * 第二档的修复候选：把**字符串字面量内**的裸控制字符转义掉，让该文本能被 `JSON.parse` 读回来。
  *
  * 只动两处，别的都不碰：
  * - **只在字符串字面量内**动手。字面量外的裸换行（美化过的 JSON）本来就是合法空白，
@@ -150,7 +171,7 @@ function repairRawControlChars(text: string): string | null {
       out += ch;
       continue;
     }
-    if (RAW_CONTROL_CHAR.test(ch)) {
+    if (isRawControlChar(ch)) {
       changed = true;
       out +=
         CONTROL_ESCAPES[ch] ??
@@ -162,7 +183,7 @@ function repairRawControlChars(text: string): string | null {
   return changed ? out : null;
 }
 
-/** 第二形态：裸控制字符 → 候选 → parse → 形状校验。 */
+/** 第二档：裸控制字符 → 候选 → parse → 形状校验。 */
 function parseRawControlReply(text: string): RepairedReply | null {
   const candidate = repairRawControlChars(text);
   if (candidate === null) return null;
@@ -172,7 +193,7 @@ function parseRawControlReply(text: string): RepairedReply | null {
 /**
  * 两档合一——`parseAgentAction` 与清洗脚本跨的就是这一个 seam：同一份形状校验、
  * 同一个返回形状，档位由 `RepairedReply.form` 带出。两档判据互不重叠
- * （第一形态要求开头没有 `{`，第二形态要求 `{`…`}`），顺序不影响结果。
+ * （第一档要求开头没有 `{`，第二档要求 `{`…`}`），顺序不影响结果。
  */
 export function parseLeakedReply(text: string): RepairedReply | null {
   return parseRepairedReply(text) ?? parseRawControlReply(text);
@@ -180,7 +201,8 @@ export function parseLeakedReply(text: string): RepairedReply | null {
 
 /**
  * 文本是否落在**任一档的候选面**上（前置判据，不含 parse / 形状校验）。
- * 清洗脚本 SQL 里那份「捞候选」的增补条件与它是同一件事的两份表示，由测试钉住等价性。
+ * 清洗脚本 SQL 里那份「捞候选」的条件与它是同一件事的两份表示，由测试钉住不变式
+ * （JS 候选面必须被 SQL 全部捞到；SQL 多捞的只允许进 skipped）。
  */
 export function isLeakedReplyCandidate(text: string): boolean {
   return LEAK_PROLOGUE_PATTERN.test(text) || repairRawControlChars(text) !== null;
