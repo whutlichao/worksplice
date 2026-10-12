@@ -6,7 +6,7 @@ import { Search, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { indexCurrentMembersById } from "@/lib/member-index";
 import { Avatar } from "./Avatar";
-import type { MessageSearchHit } from "@/lib/domain/collab";
+import type { SearchHit } from "@/lib/domain/collab";
 import type { MemberRow } from "@/lib/data/types";
 
 const DEBOUNCE_MS = 250;
@@ -24,7 +24,9 @@ const hitTime = (iso: string): string => {
  * 全文搜索结果视图（§6.4）：中央区域替代 ChannelView。
  * - 输入框预填侧栏查询，可继续精化（250ms 防抖）；
  * - 结果 = 作者 + 归属 channel/thread + 命中上下文摘要（<mark> 高亮，服务端转义）；
- * - "打开消息"动作 = 深链 #c/<channelId>?m=<messageId>（AppShell 深链处理定位/展开线程）。
+ *   上下文治理票 07 扩面：归档会话原文命中（含 compact summary）同列返回，标明来源与归档定位；
+ * - "打开消息"动作 = 深链 #c/<channelId>?m=<messageId>（AppShell 深链处理定位/展开线程）；
+ *   归档命中没有频道深链：不新造路由，行内给出归档定位（短 id + 条目行号，title 为源文件路径）。
  *
  * 形态（票 09）= 上游 `ui_kits/app/app.css` 的 search view 块（逐字搬进 globals.css）：
  * `.search-view` 列 / `.search-scroll` + `.search-inner`（760px 内栏）/ `.search-field`
@@ -47,7 +49,7 @@ export function SearchView({
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState<MessageSearchHit[] | null>(null);
+  const [results, setResults] = useState<SearchHit[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +74,7 @@ export function SearchView({
           const body = (await res.json().catch(() => ({}))) as { error?: string };
           throw new Error(body.error ?? `search ${res.status}`);
         }
-        const body = (await res.json()) as { results?: MessageSearchHit[] };
+        const body = (await res.json()) as { results?: SearchHit[] };
         setResults(body.results ?? []);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
@@ -89,8 +91,8 @@ export function SearchView({
     return () => clearTimeout(timer);
   }, [query, run]);
 
-  const open = (hit: MessageSearchHit) => {
-    if (hit.channel) onOpenMessage(hit.channel.id, hit.id);
+  const open = (hit: SearchHit) => {
+    if (hit.source === "message" && hit.channel) onOpenMessage(hit.channel.id, hit.id);
   };
 
   return (
@@ -180,10 +182,11 @@ export function SearchView({
             </div>
           ) : (
             results.map((hit) => {
-              const currentAuthor = currentMembersById.get(hit.author_id) ?? null;
+              const currentAuthor =
+                hit.source === "message" ? (currentMembersById.get(hit.author_id) ?? null) : null;
               return (
                 <SearchHitRow
-                  key={hit.id}
+                  key={hit.source === "archive" ? `${hit.archive_id}#${hit.entry_index}` : hit.id}
                   hit={hit}
                   currentAuthor={currentAuthor}
                   onOpen={open}
@@ -238,7 +241,18 @@ function renderSnippetMarkup(html: string): ReactNode[] {
 }
 
 /**
+ * 归档副本短标识（archive_id = `<agent id>/<内容 sha256>`）：取内容哈希前 8 位作 UI 定位 token，
+ * 与条目行号一起构成「可定位到具体归档会话与条目」的呈现（不新造路由，不做深链）。
+ */
+function shortArchiveId(archiveId: string): string {
+  return archiveId.slice(archiveId.lastIndexOf("/") + 1).slice(0, 8);
+}
+
+/**
  * 命中行（`.result` 形态：卡片面 + 发丝 + hover 强化）。
+ * - 消息命中：既有形状（作者 + 归属 channel/thread + `#seq` + 深链打开）；
+ * - 归档命中（上下文治理票 07）：标明来源（`search.archive` 徽标）+ 归属 agent + 归档定位
+ *   token（短 id # 条目行号，`title` 给出源文件路径）；没有频道深链 ⇒ 不可点、不渲染打开钮。
  *
  * 导出供渲染级断言复用（`components/SearchView.test.mjs`）——命中只在异步 fetch 之后出现，
  * 静态渲染不可达；同票 06 的 `TaskCard` / `TaskBoard` 先例。
@@ -248,11 +262,38 @@ export function SearchHitRow({
   currentAuthor,
   onOpen,
 }: {
-  hit: MessageSearchHit;
+  hit: SearchHit;
   currentAuthor?: MemberRow | null;
-  onOpen: (hit: MessageSearchHit) => void;
+  onOpen: (hit: SearchHit) => void;
 }) {
   const { t } = useI18n();
+  if (hit.source === "archive") {
+    return (
+      <div className="result" style={{ cursor: "default" }} title={hit.source_path}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <Avatar
+            name={hit.agent?.name}
+            type={hit.agent?.type}
+            size="sm"
+            colorKey={hit.agent_id}
+            agentTint={hit.agent?.avatar_tint}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="r-top">
+              <span style={{ color: "var(--accent-deep)", fontWeight: "var(--fw-semi)" }}>
+                {hit.agent?.name ?? hit.agent_id}
+              </span>
+              <span className="card-tag">{t("search.archive")}</span>
+              <span className="hash">
+                {shortArchiveId(hit.archive_id)}#{hit.entry_index}
+              </span>
+            </div>
+            <div className="r-snip">{renderSnippetMarkup(hit.snippet)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const authorForAvatar = currentAuthor ?? hit.author;
   return (
     <div

@@ -31,7 +31,7 @@ import {
   toggleReaction,
   type DefaultModelConfig,
   type MemberOpName,
-  type MessageSearchHit,
+  type SearchHit,
 } from "../domain/collab/index.ts";
 import type { MemberRow } from "../data/types.ts";
 
@@ -333,16 +333,28 @@ function channelLabel(targetId: string): string {
   return `thread of ${targetId}`;
 }
 
-/** 搜索命中 → 观察文本（含消息句柄，便于模型用 react / pin 引用命中）。 */
-export function formatSearchObservation(query: string, hits: MessageSearchHit[]): string {
-  const lines = [`Search results for "${query}" (scoped to the channels you belong to):`];
+/** 搜索命中 → 观察文本（含消息句柄，便于模型用 react / pin 引用命中）。
+ *  上下文治理票 07 扩面（spec B2/B3）：命中来源可能是消息或归档会话原文（含 compact summary）——
+ *  归档行标注来源「archived session」并携带归档定位（archive id / 条目行号 / 条目类型）；
+ *  snippet 截断与条数上限沿用既有机制（B8 形状不变）。 */
+export function formatSearchObservation(query: string, hits: SearchHit[]): string {
+  const lines = [
+    `Search results for "${query}" (scoped to the channels you belong to and your own archived sessions):`,
+  ];
   if (hits.length === 0) {
     lines.push("(no matches)");
     return lines.join("\n");
   }
   for (const hit of hits) {
-    const author = hit.author?.name ?? "unknown";
     const snippet = stripMarks(hit.snippet).replace(/\s+/g, " ").slice(0, OBSERVATION_SNIPPET_CAP);
+    if (hit.source === "archive") {
+      const agent = hit.agent?.name ?? hit.agent_id;
+      lines.push(
+        `- [archived session of @${agent}, archive ${hit.archive_id}, entry ${hit.entry_index} (${hit.entry_type})]: ${snippet}`,
+      );
+      continue;
+    }
+    const author = hit.author?.name ?? "unknown";
     // channel 命中：seq + channel 名即可回指（react/pin 的 seq + targetId）；
     // thread 命中：seq 属线程自己的空间，附 messageId 句柄，否则模型拿不到引用。
     const where = hit.inThread
@@ -580,7 +592,7 @@ function runAction(
       return {
         op: "search",
         status: "applied",
-        detail: `${hits.length} hit(s) for "${action.query}" (scoped to your channels)`,
+        detail: `${hits.length} hit(s) for "${action.query}" (scoped to your channels and your own archived sessions)`,
         observation: formatSearchObservation(action.query, hits),
       };
     }

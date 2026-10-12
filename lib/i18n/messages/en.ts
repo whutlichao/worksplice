@@ -446,6 +446,7 @@ export const enLocale: LocalePlugin = {
       "Type keywords to search message bodies (new messages are searchable instantly)",
     "search.noResults": "No matching messages",
     "search.thread": "thread",
+    "search.archive": "archived session",
     "search.open": "Open",
     "search.error": "Search failed: {error}",
     "channel.create": "Create channel",
