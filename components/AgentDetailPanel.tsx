@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, X } from "lucide-react";
+import { Check, Eraser, MessageSquare, Pencil, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { isAgentAvatarTint } from "@/lib/data/types";
 import { Avatar } from "./Avatar";
@@ -29,6 +29,163 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="kv">
       <span className="k">{label}</span>
       <span className="v">{value}</span>
+    </div>
+  );
+}
+
+/** Agent 资料描述的行内编辑器；保存只经成员资料 PATCH，不触碰会话或家目录。 */
+export function AgentDescriptionEditor({
+  agentId,
+  description,
+  onChanged,
+  request = fetch,
+}: {
+  agentId: string;
+  description: string;
+  onChanged: () => void;
+  request?: typeof fetch;
+}) {
+  const { t } = useI18n();
+  const [savedDescription, setSavedDescription] = useState(description);
+  const [draft, setDraft] = useState(description);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const errorId = `agent-description-error-${agentId}`;
+
+  useEffect(() => {
+    setSavedDescription(description);
+    setDraft(description);
+    setEditing(false);
+    setError(null);
+  }, [agentId, description]);
+
+  const cancel = () => {
+    if (saving) return;
+    setDraft(savedDescription);
+    setError(null);
+    setEditing(false);
+  };
+
+  const save = createAgentDescriptionSaveHandler({
+    agentId,
+    draft,
+    saving,
+    request,
+    setSavedDescription,
+    setDraft,
+    setEditing,
+    setSaving,
+    setError,
+    onChanged,
+  });
+
+  if (!editing) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", minWidth: 0 }}>
+        <span
+          title={savedDescription}
+          style={{
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {savedDescription.trim() || t("agent.noDescription")}
+        </span>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={t("agent.editDescription")}
+          title={t("agent.editDescription")}
+          onClick={() => {
+            setDraft(savedDescription);
+            setError(null);
+            setEditing(true);
+          }}
+        >
+          <Pencil size={14} aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      aria-busy={saving}
+      style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", minWidth: 0, flex: 1 }}
+    >
+      <textarea
+        autoFocus
+        aria-label={t("agent.description")}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        value={draft}
+        rows={2}
+        disabled={saving}
+        onChange={(event) => setDraft(event.target.value)}
+        style={{
+          width: "100%",
+          minWidth: 0,
+          resize: "vertical",
+          color: "var(--fg)",
+          background: "var(--bg)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--r-sm)",
+          padding: "var(--sp-2) var(--sp-3)",
+          font: "inherit",
+        }}
+      />
+      <div
+        style={{
+          fontSize: "var(--fs-caption)",
+          color: "var(--faint)",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {t("agent.currentDescription")}: {savedDescription.trim() || t("agent.noDescription")}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-2)", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="btn btn-sm"
+          aria-label={t("agent.clearDescription")}
+          disabled={saving}
+          onClick={() => {
+            setDraft("");
+            setError(null);
+          }}
+        >
+          <Eraser size={13} aria-hidden="true" /> {t("agent.clearDescription")}
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm"
+          aria-label={t("agent.cancelDescription")}
+          disabled={saving}
+          onClick={cancel}
+        >
+          <X size={13} aria-hidden="true" /> {t("agent.cancelDescription")}
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          aria-label={saving ? t("agent.savingDescription") : t("agent.saveDescription")}
+          aria-busy={saving}
+          disabled={saving}
+          onClick={save}
+        >
+          <Check size={13} aria-hidden="true" />
+          {saving ? t("agent.savingDescription") : t("agent.saveDescription")}
+        </button>
+      </div>
+      {saving && <div role="status">{t("agent.savingDescription")}</div>}
+      {error && (
+        <div id={errorId} role="alert" style={{ color: "var(--error)", fontSize: "var(--fs-caption)" }}>
+          {t("agent.descriptionSaveError")}: {error}
+        </div>
+      )}
     </div>
   );
 }
@@ -446,6 +603,66 @@ export function createAvatarTintSelectionHandler({
         throw new Error("The server returned an invalid avatar color");
       }
       setTint(savedTint);
+      onChanged();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+}
+
+interface AgentDescriptionSaveHandlerInput {
+  agentId: string;
+  draft: string;
+  saving: boolean;
+  request?: typeof fetch;
+  setSavedDescription: (description: string) => void;
+  setDraft: (description: string) => void;
+  setEditing: (editing: boolean) => void;
+  setSaving: (saving: boolean) => void;
+  setError: (message: string | null) => void;
+  onChanged: () => void;
+}
+
+/** 描述唯一保存路径：发送去空白值；成功后采用服务端回传值，失败时保留草稿。 */
+export function createAgentDescriptionSaveHandler({
+  agentId,
+  draft,
+  saving,
+  request = fetch,
+  setSavedDescription,
+  setDraft,
+  setEditing,
+  setSaving,
+  setError,
+  onChanged,
+}: AgentDescriptionSaveHandlerInput) {
+  return async (): Promise<void> => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const normalized = draft.trim();
+      const response = await request(`/api/members/${encodeURIComponent(agentId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: normalized }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        agent?: { description?: unknown };
+        error?: string;
+      };
+      if (!response.ok || body.error) {
+        throw new Error(body.error ?? `HTTP ${response.status}`);
+      }
+      const nextDescription =
+        typeof body.agent?.description === "string"
+          ? body.agent.description
+          : normalized;
+      setSavedDescription(nextDescription);
+      setDraft(nextDescription);
+      setEditing(false);
       onChanged();
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
@@ -934,10 +1151,14 @@ export function AgentDetailPanel({
                   whiteSpace: "nowrap",
                 }}
               >
-                {agent.description
-                  ? `${t("status." + agent.status)} · ${agent.description}`
-                  : t("status." + agent.status)}
+                {t("status." + agent.status)}
               </span>
+              <span aria-hidden="true">·</span>
+              <AgentDescriptionEditor
+                agentId={agent.id}
+                description={agent.description}
+                onChanged={onChanged}
+              />
             </div>
           </div>
           <button
