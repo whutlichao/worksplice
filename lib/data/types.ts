@@ -172,6 +172,34 @@ export interface SearchResult {
   snippet: string;
 }
 
+/**
+ * 归档副本的索引条目（上下文治理票 06 / spec B1–B3）：从归档副本逐条提取的可检索文本行。
+ * 归档本体是数据目录内的逐字节文件副本；这里只是检索索引（D1：SQLite 侧只建索引、不建归档表）。
+ */
+export interface SessionArchiveEntryInput {
+  /** 归档副本标识 `<agent id>/<内容 sha256>`：同一副本的全部条目共享它。 */
+  archiveId: string;
+  agentId: string;
+  /** 归档来源：原始 session 文件路径（命中可定位回原文）。 */
+  sourcePath: string;
+  /** 条目在源文件内的 1 基行号（定位到具体条目）。 */
+  entryIndex: number;
+  /** 条目类型（message/compaction/branch_summary/custom_message）。 */
+  entryType: string;
+  /** 提取出的可检索文本（正文/summary）；无文本的条目（头行、usage 等）不进索引。 */
+  content: string;
+}
+
+/** 归档检索命中：定位列（具体归档会话与条目）+ 高亮片段（形状镜像 SearchResult 口径）。 */
+export interface SessionArchiveSearchHit {
+  archive_id: string;
+  agent_id: string;
+  source_path: string;
+  entry_index: number;
+  entry_type: string;
+  snippet: string;
+}
+
 export interface InsertMessageInput {
   id?: string;
   targetId: string;

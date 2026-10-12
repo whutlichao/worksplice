@@ -11,6 +11,7 @@ import {
 } from "./domain/collab/index.ts";
 import { publishAgentStatus } from "./agent-status.ts";
 import { getAgentRuntime, BusyCwdError, type AgentRuntime } from "./agent-runtime.ts";
+import { archiveAgentSessionFiles } from "./session-archive.ts";
 import { MEMORY_FILE_NAME } from "./data/dirs.ts";
 import type { MemberRow } from "./data/types.ts";
 
@@ -50,13 +51,28 @@ function clearWorkspaceContents(workspacePath: string | null): void {
   }
 }
 
-/** 清会话上下文：删绑定文件 + 该 cwd 下全部 session 文件，保证按需重建时是全新会话。 */
+/**
+ * 清会话上下文：删绑定文件 + 该 cwd 下全部 session 文件，保证按需重建时是全新会话。
+ *
+ * 归档副作用先行（上下文治理票 06 / spec B1、B6：重置不再等于丢失原始记录）：
+ * 删除前把**可确认归属该 agent** 的原始会话记录以逐字节副本落数据目录并进索引——
+ * 绑定文件 + 家目录（构造上唯一私有）cwd 下的 session 文件；共享项目目录只归档绑定文件，
+ * 归属不明/他人/人类 session 不归档（清理范围收口是票 09 的范围）。归档只复制不删除，
+ * 失败即抛出、不进入删除阶段（宁可重置失败，不丢原始记录）。
+ */
 async function clearSessionFilesForAgent(
   agentId: string,
   cwd: string | null,
   runtime: AgentRuntime,
 ): Promise<void> {
-  removeSessionFile(agentId, getAgent(agentId).pi_session_file);
+  const agent = getAgent(agentId);
+  const sourcePaths: string[] = [];
+  if (agent.pi_session_file) sourcePaths.push(agent.pi_session_file);
+  if (cwd && isOwnHome(agent)) {
+    sourcePaths.push(...(await runtime.listSessionFilesForCwd(cwd)));
+  }
+  archiveAgentSessionFiles(agent.id, sourcePaths);
+  removeSessionFile(agentId, agent.pi_session_file);
   if (cwd) await runtime.removeSessionFilesForCwd(cwd);
 }
 

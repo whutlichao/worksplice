@@ -29,6 +29,8 @@ export interface AgentRuntime {
   destroySession(member: MemberRow): Promise<void>;
   /** 删除某 cwd 下的全部 pi session 文件（清会话上下文；按需重建时得到全新会话）。 */
   removeSessionFilesForCwd(cwd: string): Promise<void>;
+  /** 列出某 cwd 下 session 清单解析到的 session 文件路径（重置前归档枚举用；不保证文件仍存在）。 */
+  listSessionFilesForCwd(cwd: string): Promise<string[]>;
 }
 
 export class BusyCwdError extends Error {
@@ -332,6 +334,15 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
           rmSync(s.path, { force: true });
         }
       }
+    },
+
+    /** 重置前的归档枚举：不按引用过滤（归属判定由调用方按「绑定/家目录」规则收口）。 */
+    async listSessionFilesForCwd(cwd) {
+      const targetCwd = normalize(cwd);
+      const sessions = await SessionManager.listAll();
+      return sessions
+        .filter((s) => s.cwd && normalize(s.cwd) === targetCwd && s.path)
+        .map((s) => s.path as string);
     },
   };
   return runtime;

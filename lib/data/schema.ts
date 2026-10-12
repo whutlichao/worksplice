@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -166,6 +166,38 @@ const SCHEMA_STATEMENTS: string[] = [
   END`,
   `CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON messages BEGIN
     INSERT INTO messages_fts (messages_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+  END`,
+  // v15 上下文治理票 06：归档副本的检索索引（spec B2/B3）。
+  // 归档本体是数据目录内的逐字节文件副本（`session-archives/<agent id>/<sha256>.jsonl`）；
+  // 这里只建**索引**（D1 的 A+C 分层：SQLite 侧只建索引、否决新增归档表，不搬归档内容进来）：
+  // 每行 = 归档副本里一条提取了文本的条目，含定位列（归档/agent/源文件/条目行号）+ 可检索文本；
+  // compact summary 作为 compaction / branch_summary 条目进入同一张表，不单独建 summary 面。
+  // UNIQUE(archive_id, entry_index) 兜底：重索引是「先按 archive_id 清旧行再插入」
+  // （replaceSessionArchiveEntries），约束保证任何写入路径都不会留下重复条目。
+  `CREATE TABLE IF NOT EXISTS session_archive_index (
+    id TEXT PRIMARY KEY,
+    archive_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    source_path TEXT NOT NULL,
+    entry_index INTEGER NOT NULL,
+    entry_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (archive_id, entry_index)
+  )`,
+  // 同 messages_fts 的 trigram 口径（见上方 §6.4 注释）：中英文子串均可命中；
+  // 查询 token <3 字符时由 searchSessionArchives 走 LIKE 兜底。
+  `CREATE VIRTUAL TABLE IF NOT EXISTS session_archive_index_fts USING fts5(
+    content,
+    content='session_archive_index',
+    content_rowid='rowid',
+    tokenize='trigram'
+  )`,
+  `CREATE TRIGGER IF NOT EXISTS session_archive_index_fts_insert AFTER INSERT ON session_archive_index BEGIN
+    INSERT INTO session_archive_index_fts (rowid, content) VALUES (new.rowid, new.content);
+  END`,
+  `CREATE TRIGGER IF NOT EXISTS session_archive_index_fts_delete AFTER DELETE ON session_archive_index BEGIN
+    INSERT INTO session_archive_index_fts (session_archive_index_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
   END`,
 ];
 
