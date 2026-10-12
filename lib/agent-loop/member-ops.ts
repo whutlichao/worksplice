@@ -592,7 +592,7 @@ function runAction(
       return {
         op: "search",
         status: "applied",
-        detail: `${hits.length} hit(s) for "${action.query}" (scoped to your channels)`,
+        detail: `${hits.length} hit(s) for "${action.query}" (scoped to your channels and your own archived sessions)`,
         observation: formatSearchObservation(action.query, hits),
       };
     }

@@ -53,9 +53,10 @@ export type SearchHit = MessageSearchHit | ArchiveSearchHit;
  *  归档命中的权限语义：归档索引行只有 agent_id 归属、没有频道维度，因此按「归档副本归属
  *  该 agent 私有」（D1/B7）过滤——成员面只命中**该成员自己的归档**，owner 面无过滤
  *  （Owner 语义不变）；不新增 ACL 层、不按 workspace 分区、不做全库可检索。
- *  结果顺序与 limit：消息命中在前（既有顺序不变）、归档命中随后，limit 收口合并后的总条数；
- *  两来源都沿用「在 DB LIMIT 之后过滤」的宁少不泄语义（作用域命中超过取数上限时可能少拿，
- *  不可见内容绝不会多拿）。 */
+ *  结果顺序与 limit：两来源**交替合并**（各自内部顺序不变）——任一来源的命中都不会被
+ *  另一来源整体挤出 limit 名额（否则 owner 默认 limit=20 时，消息命中占满后归档命中永不可达）；
+ *  limit 收口合并后的总条数；两来源都沿用「在 DB LIMIT 之后过滤」的宁少不泄语义（作用域命中
+ *  超过取数上限时可能少拿，不可见内容绝不会多拿）。 */
 export function searchMessages(
   query: string,
   opts: { limit?: number; memberId?: string } = {},
@@ -95,5 +96,12 @@ export function searchMessages(
       source: "archive" as const,
       agent: getMember(hit.agent_id) ?? null,
     }));
-  return [...messageHits, ...archiveHits].slice(0, limit);
+  // 交替合并（见函数头「结果顺序与 limit」）：两来源都不被对方挤出名额，limit 收口总条数。
+  const merged: SearchHit[] = [];
+  const total = Math.max(messageHits.length, archiveHits.length);
+  for (let index = 0; index < total && merged.length < limit; index += 1) {
+    if (index < messageHits.length) merged.push(messageHits[index]);
+    if (merged.length < limit && index < archiveHits.length) merged.push(archiveHits[index]);
+  }
+  return merged;
 }
