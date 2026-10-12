@@ -63,6 +63,16 @@ import {
   type RawMemberOp,
 } from "./member-ops.ts";
 import { parseRepairedReply } from "./json-prologue.ts";
+import {
+  INJECTION_CONTEXT_CHARS,
+  INJECTION_DRAFT_CHARS,
+  INJECTION_TASK_CHARS,
+  INJECTION_TASK_WINDOW,
+  clampLines,
+  clampText,
+  elasticBudget,
+  projectMessages,
+} from "./injection-budget.ts";
 
 /**
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
@@ -270,8 +280,6 @@ export function parseAgentAction(text: string): AgentAction {
 // prompt 组装
 // ----------------------------------------------------------------------------
 
-const MESSAGE_CONTENT_CAP = 4000;
-
 /**
  * 每轮语境注入（ADR-0013 §1.5 的「只读类每轮语境里本来就有」——这就是那两行）：
  * 频道列表（含每个频道的 seq 版本，post 的 freshness 参照）与成员列表。
@@ -299,14 +307,15 @@ function formatChannelContext(channels: ReplyPromptContext["channels"]): string 
       `#${channel.name} (${channel.type}, seq ${channel.seq}${channel.joined ? "" : ", not joined"}${channel.archived ? ", archived" : ""})`,
   );
   if (channels.length > shown.length) parts.push(`(+${channels.length - shown.length} more)`);
-  return parts.join(", ");
+  // 票 08：语境块有硬顶，整轮上界才成立（只截注入投影，频道表本身不动）
+  return clampText(parts.join(", "), INJECTION_CONTEXT_CHARS);
 }
 
 function formatMemberContext(members: ReplyPromptContext["members"]): string {
   const shown = members.slice(0, PROMPT_MEMBER_CAP);
   const parts = shown.map((member) => `@${member.name} (${member.type})`);
   if (members.length > shown.length) parts.push(`(+${members.length - shown.length} more)`);
-  return parts.join(", ");
+  return clampText(parts.join(", "), INJECTION_CONTEXT_CHARS);
 }
 
 /** 每轮 ctx 的组装（runAgentRound 用；频道列表排除与该成员无关的 DM——DM 是 owner↔agent 的一对一，无从加入）。 */
@@ -328,7 +337,14 @@ export function replyPromptContext(agent: MemberRow): ReplyPromptContext {
   return { channels, members, defaultModel: readDefaultModelFromSettings() };
 }
 
-/** decide 的 prompt（§5.4 AX 原则）：新消息（带 seq/作者）+ 相关任务状态 + 明确的 next action 选项。 */
+/**
+ * decide 的 prompt（§5.4 AX 原则）：新消息（带 seq/作者）+ 相关任务状态 + 明确的 next action 选项。
+ *
+ * 票 08（spec B5）：整轮注入形状受 `ROUND_INJECTION_BUDGET_CHARS` 约束——
+ * 固定骨架（指令与 marker）先占位，语境块/任务块各有硬顶，剩下的预算全给消息块；
+ * 消息块按「保近期、裁远期」投影（见 ./injection-budget.ts），超界的历史积压不进注入，
+ * 但原始记录一行不改，仍可经 `search` op 回查（B8 的回查面）。
+ */
 export function buildReplyPrompt(input: {
   agent: MemberRow;
   channel: ChannelRow;
@@ -346,11 +362,10 @@ export function buildReplyPrompt(input: {
   /** 语境注入（频道/成员/默认模型）；缺省不注入（直调本函数的单测保持原状）。 */
   context?: ReplyPromptContext;
 }): string {
-  const lines: string[] = [];
-  lines.push(
-    `You are @${input.agent.name}, a member of the worksplice workspace.`,
-  );
-  lines.push(`New activity arrived in channel ${input.channel.name}:`);
+  // 头部（骨架，永不裁）
+  const head: string[] = [];
+  head.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
+  head.push(`New activity arrived in channel ${input.channel.name}:`);
   // 11-整改（自激循环）：续工轮的 drain 全是 agent 自己的历史回复（线程游标留口），
   // 模型看到 `@自己` 会误以为被 @mention 而继续回复——标注这些是自己的消息，
   // 不是他人新活动，@mention 也不构成"必须回应"信号。
@@ -358,30 +373,33 @@ export function buildReplyPrompt(input: {
     input.messages.length > 0 &&
     input.messages.every((m) => m.author_id === input.agent.id);
   if (ownMessagesOnly) {
-    lines.push(
+    head.push(
       "(The messages below are YOUR OWN — your prior progress in this thread. They are not new activity from others; being @mentioned within them is a self-mention, not a demand. Decide: continue working, complete the task, or say nothing.)",
     );
   }
-  lines.push("");
-  for (const message of input.messages) {
-    const author = message.author?.name ?? "unknown";
-    const content =
-      message.content.length > MESSAGE_CONTENT_CAP
-        ? `${message.content.slice(0, MESSAGE_CONTENT_CAP)}…`
-        : message.content;
-    lines.push(`#${message.seq} @${author}: ${content}`);
-  }
-  if (input.tasks.length > 0) {
-    lines.push("");
-    lines.push("Related open tasks:");
-    for (const task of input.tasks) {
+  head.push("");
+
+  // 尾部（任务/语境/指令/marker）：任务与语境各有硬顶，指令骨架永不裁
+  const lines: string[] = [];
+  const shownTasks = input.tasks.slice(0, INJECTION_TASK_WINDOW);
+  const droppedTasks = input.tasks.length - shownTasks.length;
+  if (shownTasks.length > 0) {
+    const taskLines: string[] = ["", "Related open tasks:"];
+    for (const task of shownTasks) {
       const reopened = task.reopened
         ? " — REOPENED, awaiting the owner: do not claim"
         : "";
-      lines.push(
+      taskLines.push(
         `- task #${task.number} [${task.status}] "${task.preview}" (owner: ${task.ownerName})${reopened}`,
       );
     }
+    // 票 08：任务被裁也要显式声明（不静默丢弃），回查走既有 search op
+    if (droppedTasks > 0) {
+      taskLines.push(
+        `（另有 ${droppedTasks} 条开放任务不在本轮注入中：需要时用 search op 回查）`,
+      );
+    }
+    lines.push(...clampLines(taskLines, INJECTION_TASK_CHARS));
   }
   if (input.context) {
     lines.push("");
@@ -446,7 +464,18 @@ export function buildReplyPrompt(input: {
     );
   }
   lines.push(roomMarker(input.targetId, input.baseSeq));
-  return lines.join("\n");
+
+  // 消息块吃剩余预算：先量出骨架与硬顶块已占的字符，再按「保近期、裁远期」投影
+  const projection = projectMessages(
+    input.messages,
+    elasticBudget(head, lines),
+  );
+  return [
+    ...head,
+    ...projection.lines,
+    ...(projection.notice ? [projection.notice] : []),
+    ...lines,
+  ].join("\n");
 }
 
 /** held 后的 revise prompt（§3.3 修正方式 1）：期间发生了什么 + 新消息正文 + 原稿 + 重写指示。 */
@@ -457,29 +486,26 @@ export function buildRevisionPrompt(input: {
   newMessages: MessageWithAuthor[];
   targetId: string;
 }): string {
-  const lines: string[] = [];
-  lines.push(
+  // 头部（骨架，永不裁）
+  const head: string[] = [];
+  head.push(
     `Your reply to channel ${input.channel.name} was held because the room changed while you were writing.`,
   );
-  lines.push(`What happened: ${input.held.whatHappened}`);
-  lines.push(`The room is now at seq ${input.held.roomSeq}.`);
-  if (input.newMessages.length > 0) {
-    lines.push("");
-    lines.push("Messages that arrived while you were writing:");
-    for (const message of input.newMessages) {
-      const author = message.author?.name ?? "unknown";
-      const content =
-        message.content.length > MESSAGE_CONTENT_CAP
-          ? `${message.content.slice(0, MESSAGE_CONTENT_CAP)}…`
-          : message.content;
-      lines.push(`#${message.seq} @${author}: ${content}`);
-    }
-  }
+  head.push(`What happened: ${input.held.whatHappened}`);
+  head.push(`The room is now at seq ${input.held.roomSeq}.`);
+
+  // 尾部（原稿 + 重写指示 + marker）：原稿是本轮要发的内容，给比普通正文更宽的额度
+  const lines: string[] = [];
+  const draft = clampText(input.originalContent, INJECTION_DRAFT_CHARS);
   lines.push("");
   lines.push("Your held draft was:");
   lines.push("---");
-  lines.push(input.originalContent);
+  lines.push(draft);
   lines.push("---");
+  if (draft !== input.originalContent) {
+    // 截断必须可见：否则模型会把截断稿当成原稿 resend 出去
+    lines.push("（上面的原稿已按本轮注入预算截断，不是原稿全文）");
+  }
   lines.push(
     'Decide one of: rewrite the reply and resend (reply JSON again with your new content); resend the draft as-is ({"action":"reply","content":"<draft>","onConflict":"resend"}); stay silent ({"action":"ignore"}); or send anyway without the freshness check ({"action":"reply","content":"<draft>","onConflict":"anyway"}).',
   );
@@ -488,7 +514,23 @@ export function buildRevisionPrompt(input: {
   );
   lines.push("[worksplice:revision]");
   lines.push(roomMarker(input.targetId, input.held.roomSeq));
-  return lines.join("\n");
+
+  // 消息块吃剩余预算（与 decide 同一套投影：保近期、裁远期）
+  const messageHeader =
+    input.newMessages.length > 0
+      ? ["", "Messages that arrived while you were writing:"]
+      : [];
+  const projection = projectMessages(
+    input.newMessages,
+    elasticBudget(head, lines, messageHeader),
+  );
+  return [
+    ...head,
+    ...messageHeader,
+    ...projection.lines,
+    ...(projection.notice ? [projection.notice] : []),
+    ...lines,
+  ].join("\n");
 }
 
 // ----------------------------------------------------------------------------
@@ -498,31 +540,47 @@ export function buildRevisionPrompt(input: {
 /** 一轮里最多几条观察相 prompt（search 的结果要交回模型；封顶防模型反复搜）。 */
 export const MAX_OPS_OBSERVATION_PHASES = 1;
 
-/** 观察相 prompt：把 op 结果（搜索命中 / 未执行 / 拒绝）交回模型，让它据此写回复。 */
+/**
+ * 观察相 prompt：把 op 结果（搜索命中 / 未执行 / 拒绝）交回模型，让它据此写回复。
+ * 票 08（spec B8）：形状约束不变——命中仍以观察相文本回交、一轮仍最多一次、无新工具；
+ * 只多一层：观察文本吃剩余预算（既有 snippet 240 / 上限 50 的形状在最坏情形下仍在界内）。
+ */
 export function buildOpsObservationPrompt(input: {
   observation: string;
   targetId: string;
   baseSeq: number;
   keptTask?: { number: number; op: TaskOp };
 }): string {
-  const lines: string[] = [];
-  lines.push("Results of the operations you requested:");
-  lines.push(input.observation);
-  lines.push("");
+  // 头部（骨架，永不裁）
+  const head: string[] = ["Results of the operations you requested:"];
+  // 尾部（保留的任务操作 + 重写指示 + marker）
+  const tail: string[] = [""];
   if (input.keptTask) {
-    lines.push(
+    tail.push(
       `Your task operation is kept for this round: ${input.keptTask.op} #${input.keptTask.number} (say so in your next action only if you want to change it).`,
     );
   }
-  lines.push(
+  tail.push(
     'Now write your reply as JSON only: {"action":"reply"|"ignore","content":"your reply text","onConflict":"revise"|"resend"|"silent"|"anyway"}',
   );
-  lines.push(
+  tail.push(
     'Operations that already ran are not repeated — if you still want the ones marked as NOT executed, list them again in "ops":[ ... ].',
   );
-  lines.push("[worksplice:observe]");
-  lines.push(roomMarker(input.targetId, input.baseSeq));
-  return lines.join("\n");
+  tail.push("[worksplice:observe]");
+  tail.push(roomMarker(input.targetId, input.baseSeq));
+  // 观察文本是唯一的弹性块：先量出骨架，剩下的预算全给它（既有 snippet/条数上限不变）。
+  // 截断提示要占位置，先把它预留出来，避免「加了提示反而越界」。
+  const truncatedNote = "（观察结果已按本轮注入预算截断）";
+  const observation = clampText(
+    input.observation,
+    elasticBudget(head, tail) - truncatedNote.length - 1,
+  );
+  return [
+    ...head,
+    observation,
+    ...(observation === input.observation ? [] : [truncatedNote]),
+    ...tail,
+  ].join("\n");
 }
 
 function summarizeMemberOpOutcomes(outcomes: MemberOpOutcome[], note?: string): string {
