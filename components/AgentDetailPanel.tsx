@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { isAgentAvatarTint } from "@/lib/data/types";
@@ -461,71 +461,141 @@ export function AgentAvatarTintPicker({
   saving,
   error,
   onSelect,
+  onToggle,
+  open,
+  triggerRef,
+  children,
   t,
 }: {
   selectedTint: AgentAvatarTint | null;
   saving: boolean;
   error: string | null;
   onSelect: (tint: AgentAvatarTint | null) => void | Promise<void>;
+  onToggle: () => void;
+  open: boolean;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+  children: React.ReactNode;
   t: ReturnType<typeof useI18n>["t"];
 }) {
   return (
-    <div style={{ marginTop: 6 }}>
-      <div
-        role="group"
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <button
+        ref={triggerRef}
+        type="button"
         aria-label={t("agent.avatarTint")}
-        aria-busy={saving}
-        style={{ display: "flex", alignItems: "center", gap: 5 }}
+        aria-expanded={open}
+        aria-controls={open ? "agent-avatar-tint-options" : undefined}
+        title={t("agent.avatarTint")}
+        disabled={saving}
+        onClick={onToggle}
+        style={{
+          display: "inline-flex",
+          padding: 0,
+          border: 0,
+          borderRadius: "var(--r-sm)",
+          background: "transparent",
+          cursor: saving ? "not-allowed" : "pointer",
+        }}
       >
-        {AGENT_AVATAR_TINT_INDICES.map((tint) => (
+        {children}
+      </button>
+      {open && (
+        <div
+          id="agent-avatar-tint-options"
+          role="group"
+          aria-label={t("agent.avatarTint")}
+          aria-busy={saving}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 3,
+            padding: 5,
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-sm)",
+            boxShadow: "var(--shadow-pop)",
+          }}
+        >
+          {AGENT_AVATAR_TINT_INDICES.map((tint) => (
+            <button
+              key={tint}
+              type="button"
+              aria-label={t("agent.avatarTint.option", { index: tint + 1 })}
+              aria-pressed={selectedTint === tint}
+              title={t("agent.avatarTint.option", { index: tint + 1 })}
+              disabled={saving}
+              onClick={() => onSelect(tint)}
+              style={{
+                width: 24,
+                height: 24,
+                padding: 2,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: "1px solid transparent",
+                borderWidth: selectedTint === tint ? 2 : 1,
+                borderColor: selectedTint === tint ? "var(--fg)" : "transparent",
+                borderRadius: "50%",
+                cursor: saving ? "not-allowed" : "pointer",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  backgroundColor: `var(--av-${tint})`,
+                }}
+              />
+            </button>
+          ))}
           <button
-            key={tint}
             type="button"
-            aria-label={t("agent.avatarTint.option", { index: tint + 1 })}
-            aria-pressed={selectedTint === tint}
-            title={t("agent.avatarTint.option", { index: tint + 1 })}
+            aria-label={t("agent.avatarTint.auto")}
+            aria-pressed={selectedTint === null}
             disabled={saving}
-            onClick={() => onSelect(tint)}
+            onClick={() => onSelect(null)}
             style={{
-              width: 24,
-              height: 24,
-              padding: 0,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "var(--surface)",
-              border: "1px solid var(--border-strong)",
-              borderWidth: selectedTint === tint ? 2 : 1,
-              borderColor: selectedTint === tint ? "var(--fg)" : "var(--border-strong)",
-              borderRadius: "var(--r-sm)",
+              padding: "3px 4px",
+              marginLeft: 2,
+              border: 0,
+              borderBottomWidth: selectedTint === null ? 2 : 0,
+              borderBottomStyle: "solid",
+              borderBottomColor: selectedTint === null ? "var(--fg)" : "transparent",
+              borderRadius: 0,
+              background: "transparent",
+              color: "var(--fg)",
+              fontFamily: "var(--font)",
+              fontSize: "var(--fs-caption)",
+              whiteSpace: "nowrap",
               cursor: saving ? "not-allowed" : "pointer",
             }}
           >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: "50%",
-                backgroundColor: `var(--av-${tint})`,
-              }}
-            />
+            {t("agent.avatarTint.auto")}
           </button>
-        ))}
-        <button
-          type="button"
-          aria-label={t("agent.avatarTint.auto")}
-          aria-pressed={selectedTint === null}
-          disabled={saving}
-          onClick={() => onSelect(null)}
-          className="btn btn-sm"
-          style={{ padding: "3px 7px", marginLeft: 2 }}
-        >
-          {t("agent.avatarTint.auto")}
-        </button>
-      </div>
+        </div>
+      )}
       {error && (
-        <div role="alert" style={{ color: "var(--error)", fontSize: 11, marginTop: 4 }}>
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 2px)",
+            left: 0,
+            zIndex: 21,
+            minWidth: "max-content",
+            padding: "3px 5px",
+            background: "var(--panel)",
+            color: "var(--error)",
+            fontSize: 11,
+          }}
+        >
           {error}
         </div>
       )}
@@ -559,6 +629,9 @@ export function AgentDetailPanel({
   const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
   const [busyOp, setBusyOp] = useState<BusyOp | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [avatarTintPickerOpen, setAvatarTintPickerOpen] = useState(false);
+  const avatarTintTriggerRef = useRef<HTMLButtonElement>(null);
+  const restoreAvatarTintFocus = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [avatarTint, setAvatarTint] = useState<AgentAvatarTint | null>(
     agent.avatar_tint ?? null,
@@ -583,6 +656,34 @@ export function AgentDetailPanel({
   const [runtimeMsg, setRuntimeMsg] = useState<string | null>(null);
   // 本次保存的探测结论（出错状态下的恢复路径；未触发时为 null → 显示既有的 runtimeMsg）
   const [runtimeProbe, setRuntimeProbe] = useState<RuntimeProbeSummary | null>(null);
+
+  useEffect(() => {
+    if (!avatarTintPickerOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !event.currentTarget) return;
+      const picker = avatarTintTriggerRef.current?.parentElement;
+      if (picker && !picker.contains(event.target)) setAvatarTintPickerOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      restoreAvatarTintFocus.current = true;
+      setAvatarTintPickerOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [avatarTintPickerOpen]);
+
+  useEffect(() => {
+    if (!avatarTintPickerOpen && restoreAvatarTintFocus.current) {
+      avatarTintTriggerRef.current?.focus();
+      restoreAvatarTintFocus.current = false;
+    }
+  }, [avatarTintPickerOpen]);
 
   const isBusy = busyOp !== null;
 
@@ -778,15 +879,33 @@ export function AgentDetailPanel({
   return (
     <>
       {/* 身份头（`.dock-head` / `.dock-id` / `.avatar.lg` / `.dock-name` / `.dock-role`，票 07） */}
-      <header className="dock-head">
+      <header
+        className="dock-head"
+        style={avatarTintPickerOpen ? { paddingBottom: 40 } : undefined}
+      >
         <div className="dock-id">
-          <Avatar
-            name={agent.name}
-            type={agent.type}
-            size="lg"
-            colorKey={agent.id}
-            agentTint={avatarTint}
-          />
+          <AgentAvatarTintPicker
+            selectedTint={avatarTint}
+            saving={avatarTintSaving}
+            error={avatarTintError}
+            open={avatarTintPickerOpen}
+            triggerRef={avatarTintTriggerRef}
+            onToggle={() => setAvatarTintPickerOpen((current) => !current)}
+            onSelect={async (tint) => {
+              await selectAvatarTint(tint);
+              restoreAvatarTintFocus.current = true;
+              setAvatarTintPickerOpen(false);
+            }}
+            t={t}
+          >
+            <Avatar
+              name={agent.name}
+              type={agent.type}
+              size="lg"
+              colorKey={agent.id}
+              agentTint={avatarTint}
+            />
+          </AgentAvatarTintPicker>
           <div className="meta">
             <div className="dock-name">
               <span
@@ -818,13 +937,6 @@ export function AgentDetailPanel({
                   : t("status." + agent.status)}
               </span>
             </div>
-            <AgentAvatarTintPicker
-              selectedTint={avatarTint}
-              saving={avatarTintSaving}
-              error={avatarTintError}
-              onSelect={selectAvatarTint}
-              t={t}
-            />
           </div>
           <button
             type="button"
