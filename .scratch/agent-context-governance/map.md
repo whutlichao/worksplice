@@ -16,6 +16,8 @@
 
 目的：把已决方向转成可实施规格（`spec.md`），把遗留雾区转成决策票；本阶段不实施改造，实施另起 effort；入口 `issues/04-decide-archive-and-retrieval.md`。
 
+实施票 06–10 已创建（前沿＝票 06）：07 依赖 06、08 依赖 06/07、09 依赖 06、10 依赖 06–09。
+
 ## Decisions so far
 
 - [审计 agent 与 coding session 的上下文保留和成本机制](./issues/01-audit-context-retention.md)：两条路径都有 Pi session/compact，但 agent-loop 旧轮仍累积且无轮级 token 计量；`MEMORY.md` 靠提示约定；reset/delete 可能移除原始记录，且共享 cwd 有误删风险。证据见票据答案和所链研究报告。
