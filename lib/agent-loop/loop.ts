@@ -62,7 +62,7 @@ import {
   type MemberOpOutcome,
   type RawMemberOp,
 } from "./member-ops.ts";
-import { parseRepairedReply } from "./json-prologue.ts";
+import { parseLeakedReply } from "./json-prologue.ts";
 import {
   INJECTION_CONTEXT_CHARS,
   INJECTION_DRAFT_CHARS,
@@ -228,12 +228,16 @@ export function parseAgentAction(text: string): AgentAction {
       }
     }
   }
-  // 序言修复（reply-json-leak）：模型偶发把 `{"` 输出成 `","` / `,"`，上面两档都救不回来
-  // （坏序言之后没有 `{`，提取器找不到对象开头）。命中已实证形态 + 协议形状校验通过才补这一档，
-  // 结果直接合流进下面的 `if (parsed)`——content/onConflict/task/ops 的提取与校验一处不改，
-  // 行为与「直接 parse 成功」完全一致；校验不过则维持现状走兜底。
+  // 泄漏修复（reply-json-leak，两档）：
+  //  ① 坏序言——模型偶发把 `{"` 输出成 `","` / `,"`，上面两档都救不回来（坏序言之后没有 `{`，
+  //     提取器找不到对象开头）；
+  //  ② 裸控制字符——协议 JSON 形状写对了，但字符串字面量里是真实换行/制表（< 0x20）而非 `\n`/`\t`，
+  //     parse 报 Bad control character，提取器取得到对象也一样 parse 不过。
+  // 命中已实证形态 + 协议形状校验通过才补这一档，结果直接合流进下面的 `if (parsed)`——
+  // content/onConflict/task/ops 的提取与校验一处不改，行为与「直接 parse 成功」完全一致；
+  // 校验不过则维持现状走兜底（不猜测、不模糊修复）。
   if (!parsed) {
-    parsed = parseRepairedReply(cleaned)?.value ?? null;
+    parsed = parseLeakedReply(cleaned)?.value ?? null;
   }
   if (parsed) {
     const action: AgentAction["action"] =
