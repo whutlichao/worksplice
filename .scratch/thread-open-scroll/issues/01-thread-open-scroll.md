@@ -131,5 +131,8 @@ Task thread 无未读、以及普通非 Task thread，都落到底部（最新�
 
 ### 交付
 
-- Commit / PR 号见下方追加（随提交与 `gh pr create` 完成后回填）。
+- Commit：`bf19711` — `feat(thread): 线程面板初始滚动落点按未读定位`（分支 `thread-open-scroll`，已推送）
+- PR：https://github.com/whutlichao/worksplice/pull/183
+- PR body：`.scratch/thread-open-scroll/pr-body.md`（按仓库 `.github/pull_request_template.md` 写）
+- 双轴 review 报告与逐条处置：`.scratch/thread-open-scroll/issues/evidence/dual-review.md`
 
