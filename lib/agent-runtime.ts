@@ -27,9 +27,12 @@ export interface AgentRuntime {
   startSession(member: MemberRow): Promise<{ sessionId: string; sessionFile: string | null }>;
   /** 销毁该成员的 session（idle shutdown 同语义）。 */
   destroySession(member: MemberRow): Promise<void>;
-  /** 删除某 cwd 下的全部 pi session 文件（清会话上下文；按需重建时得到全新会话）。 */
-  removeSessionFilesForCwd(cwd: string): Promise<void>;
-  /** 列出某 cwd 下 session 清单解析到的 session 文件路径（重置前归档枚举用；不保证文件仍存在）。 */
+  /**
+   * 删除指定路径的 pi session 文件（清会话上下文；清空语境时不存在则静默）。
+   * 调用方（agent-lifecycle）按归属判定给出路径——本方法不自行扫目录判定归属。
+   */
+  removeSessionFiles(paths: readonly string[]): Promise<void>;
+  /** 列出某 cwd 下 session 清单解析到的 session 文件路径（重置前枚举；归属判定由调用方收口）。 */
   listSessionFilesForCwd(cwd: string): Promise<string[]>;
 }
 
@@ -61,7 +64,7 @@ let runtimePromise: Promise<AgentRuntime> | null = null;
  * pi_session_file 是 ADR-0003 的所有权凭证，被删成员仍登记的文件同样不得被复用；
  * 与 08 backfill 侧 referencedSessionFilesExcluding 同款访问器与排除语义）。
  * excludeMemberId：排除本成员自己的登记（自己的登记不算他人引用）；
- * 未传则全量登记（removeSessionFilesForCwd 删文件时的保留面，含调用方已清绑的成员）。
+ * 未传则全量登记（归属判定中「登记冲突 ⇒ 保留」的保留面，含调用方已清绑的成员）。
  */
 export function referencedSessionFiles(excludeMemberId?: string): Set<string> {
   const referenced = new Set<string>();
@@ -76,6 +79,30 @@ export function referencedSessionFiles(excludeMemberId?: string): Set<string> {
  * 其内 session 文件天然属于本成员，可安全回填。 */
 export function isOwnHomeDir(member: MemberRow, cwd: string): boolean {
   return normalize(cwd) === normalizeWorkspacePath(agentHomePath(member));
+}
+
+export interface OwnedSessionFilesInput {
+  /**
+   * 家目录 cwd 下 session 清单解析到的全部文件路径（runtime.listSessionFilesForCwd 的原样枚举）。
+   * 共享项目目录的清单不得传入：无归属凭证的清单文件（人类会话、已删 agent 遗留、他人历史文件）
+   * 一律保留（**不确定 = 保留**）。
+   */
+  homeCwdSessionFiles: readonly string[];
+  /** 其他成员（含 soft-deleted）固化登记的 session 文件集合（不含本成员自己的登记）。 */
+  referencedByOthers: ReadonlySet<string>;
+}
+
+/**
+ * 归属判定——家目录清单侧（票 09 / 票 03 目标语义，纯函数可测）：家目录由构造唯一私有
+ * （ADR-0001），其内 session 文件可确认归属该成员；排除被其他成员固化登记（ADR-0003
+ * 所有权凭证冲突 ⇒ 归属不确定 ⇒ 保留）的路径。
+ * 凭证①（成员固化登记 `pi_session_file`）由调用方按绑定文件单独处理。
+ * 返回值为清单里的原始路径（只做比较时归一化）——调用方以原路径归档/删除。
+ */
+export function chooseOwnedSessionFilesInHome(input: OwnedSessionFilesInput): string[] {
+  return input.homeCwdSessionFiles.filter(
+    (sessionFile) => !input.referencedByOthers.has(normalize(sessionFile)),
+  );
 }
 
 export interface SessionFileStartInput {
@@ -323,16 +350,13 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
       }
     },
 
-    async removeSessionFilesForCwd(cwd) {
-      const targetCwd = normalize(cwd);
-      // ADR-0001 共享项目目录：只删未被任何成员引用的文件——调用方已先清掉本成员
-      // 的 pi_session_file 引用，故本成员的文件会被删、其他 agent 的会被保留。
-      const referenced = referencedSessionFiles();
-      const sessions = await SessionManager.listAll();
-      for (const s of sessions) {
-        if (s.cwd && normalize(s.cwd) === targetCwd && s.path && !referenced.has(s.path)) {
-          rmSync(s.path, { force: true });
-        }
+    /**
+     * 删除调用方指定的 session 文件（票 09 收口：只按归属判定集合精确作用，不按 cwd 扫除）。
+     * 文件已不存在时静默（重置可重复执行）。
+     */
+    async removeSessionFiles(paths) {
+      for (const sessionFile of paths) {
+        rmSync(sessionFile, { force: true });
       }
     },
 
