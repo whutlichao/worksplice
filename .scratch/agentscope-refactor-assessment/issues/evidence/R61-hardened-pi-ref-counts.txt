@@ -1,0 +1,18 @@
+# 硬化采集规则下的重跑（coordinator follow-up 第 3 条）：
+EX=��本文件先写 /tmp 再拷入 evidence/
+
+## H1 pi 引用（源码后缀，全 EX 排除）
+      67
+      47
+
+## H2 pi 引用（票面命令原文，只排除 node_modules/.next —— 会算上 .scratch/.codegraph/docs 的文字引用）
+    1155
+
+## H3 impl 面：app lib components hooks next.config.ts，ts/tsx，去 *.test.mjs
+      58
+      39
+## H4 票面原文命令在「带全排除」下的同义读数（推荐引用值）
+     209
+      58
+## H5 自指污染说明：R01a 用票面原文（只排 node_modules/.next）在「本票证据已入库」之后重跑，
+##     会把 evidence 里含该字符串的行算进去（E12a 事故的同源机制）。固此报告一律引用 H1/H3/H4。

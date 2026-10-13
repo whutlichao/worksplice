@@ -1,0 +1,31 @@
+# 零命中即是结论：下列 grep 的退出码 1 = 零命中（不是失败）
+# 命令：grep -rniE <pat> <root> --include=<i> $EX  (EX=--exclude-dir=node_modules --exclude-dir=.next --exclude-dir=.git --exclude-dir=.codegraph --exclude-dir=.scratch)
+
+## S1 AgentScope TS 0.0.15 $TS/src: sandbox|workspace|chroot|seccomp|bwrap
+exit=1
+
+## S2 AgentScope Py 2.0.10 $PY2: consumed_seq|read_seq|freshness|base_seq|max_seq
+exit=1
+
+## S3 AgentScope TS 0.0.15 $TS/src: \b(fork|navigate|rewind|branch|checkpoint)\b（排除 resume/compaction）
+exit=1
+
+## S4 AgentScope Py 2.0.10 $PY2: \b(fork|navigate|rewind)\b
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_utils.py:29:keeping it clean, structured, and easy to navigate over time.
+exit=0
+
+## S5 AgentScope TS 0.0.15 $TS/src: oauth|login|bedrock|vertex|gemini|anthropic
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:59:                    'A brief, actionable title in imperative form (e.g., "Fix authentication bug in login flow")'
+exit=0
+
+## S6 AgentScope Py 2.0.10 $PY2: in_review|unclaim|reopen（任务状态机五态词汇）
+/tmp/as-verify/py-2.0.10/agentscope/agent/_realtime/_agent.py:860:        flight after a barge-in must not reopen it.
+exit=0
+
+## S7 AgentScope Py 2.0.10 $PY2 顶层模块里有 hub/pipeline 抽象吗（目录清单）
+/tmp/as-verify/py-2.0.10/agentscope/app/hub
+/tmp/as-verify/py-2.0.10/agentscope/pipeline
+exit=0
+
+## S8 AgentScope TS 0.0.15 $TS/src: Agent 构造是否接受 permission 入参
+exit=1
