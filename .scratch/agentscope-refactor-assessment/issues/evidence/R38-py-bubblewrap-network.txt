@@ -1,0 +1,12 @@
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:4:The backend launches each command through ``bwrap`` with a stable host
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:39:        share_net (`bool`, optional):
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:41:            ``False``, the network namespace created by ``--unshare-all``
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:54:        share_net: bool = True,
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:116:        self._share_net = share_net
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:186:        argv = self._bwrap_argv(command, cwd=cwd)
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:398:    def _bwrap_argv(
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:404:        """Build the ``bwrap`` argv for one sandboxed process."""
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:412:            "bwrap",
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:415:            "--unshare-all",
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:441:        if self._share_net:
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_bubblewrap/_bubblewrap_backend.py:442:            args.append("--share-net")

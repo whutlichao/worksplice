@@ -1,0 +1,22 @@
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:111:    __tablename__ = "credentials"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:125:    __tablename__ = "agents"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:146:    __tablename__ = "sessions"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:194:    __tablename__ = "sops"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:208:    __tablename__ = "sop_runs"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:240:    __tablename__ = "schedules"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:259:    __tablename__ = "teams"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:277:    __tablename__ = "knowledge_bases"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:301:    __tablename__ = "knowledge_documents"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:359:    __tablename__ = "mcps"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:381:    __tablename__ = "skills"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:415:    __tablename__ = "channels"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:459:    __tablename__ = "messages"
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:79:    id: Mapped[str] = mapped_column(String(_ID_LEN), primary_key=True)
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:266:    session_id: Mapped[str] = mapped_column(
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:271:    _indexed_fields = ("user_id", "session_id")
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:450:    identified by the **composite** primary key ``(session_id, msg_id)``
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:453:    ("same ``(session, msg_id)`` → replace", inheriting
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:455:    without having to bound the length of a ``session_id:msg_id`` blob
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:461:    session_id: Mapped[str] = mapped_column(String(_ID_LEN), primary_key=True)
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:462:    msg_id: Mapped[str] = mapped_column(String(_ID_LEN), primary_key=True)
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_sql/_tables.py:470:        Index("ix_messages_session_created", "session_id", "created_at"),

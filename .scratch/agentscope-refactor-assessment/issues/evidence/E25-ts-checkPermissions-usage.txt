@@ -1,0 +1,2 @@
+/tmp/as-audit/ts-0.0.15/package/src/permission/index.ts:8: *   matches, OR the tool's `checkPermissions` explicitly returns `ALLOW`
+/tmp/as-audit/ts-0.0.15/package/src/permission/index.ts:181:     *   check and does not invoke `checkPermissions`).

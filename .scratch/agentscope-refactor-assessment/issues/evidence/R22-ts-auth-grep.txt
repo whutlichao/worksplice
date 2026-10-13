@@ -1,0 +1,10 @@
+/tmp/as-verify/ts-0.0.15/package/src/model/dashscope-model.ts:46:     * The API key for authenticating with DashScope API.
+/tmp/as-verify/ts-0.0.15/package/src/model/dashscope-model.ts:93:     * @param options.apiKey - The API key for authentication.
+/tmp/as-verify/ts-0.0.15/package/src/model/dashscope-model.ts:175:            Authorization: `Bearer ${this.apiKey}`,
+/tmp/as-verify/ts-0.0.15/package/src/model/deepseek-model.ts:40:     * The API key for authenticating with DeepSeek API.
+/tmp/as-verify/ts-0.0.15/package/src/model/deepseek-model.ts:76:     * @param options.apiKey - The API key for authentication.
+/tmp/as-verify/ts-0.0.15/package/src/model/deepseek-model.ts:139:            Authorization: `Bearer ${this.apiKey}`,
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:74:    /** 401 — credential missing or wrong. */
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:75:    AUTHENTICATION = 'authentication',
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:76:    /** 403 — authenticated but not allowed. */
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:59:                    'A brief, actionable title in imperative form (e.g., "Fix authentication bug in login flow")'
