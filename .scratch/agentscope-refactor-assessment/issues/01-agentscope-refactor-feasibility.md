@@ -63,4 +63,6 @@ Blocked by:
 
 - 分支：`agentscope-refactor-assessment`
 - commit：`docs(agentscope-refactor-assessment): AgentScope 重构可行性评估（一手证据）`
-- PR：#（见下）
+- PR：**#184** <https://github.com/whutlichao/worksplice/pull/184>（OPEN）
+- PR body：`.scratch/agentscope-refactor-assessment/pr-body.md`（按 `pr` skill 模板写：Summary / Evidence / Merge Danger；本 PR 为 two-way door、Blast Radius: none）
+- 提醒：#184 是**本轮评估的交付**；它不申请开始 A/B 重构（评估结论是不换底座），也为路径 C 的后续 spike 留了入口。
