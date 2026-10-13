@@ -1,3 +1,0 @@
-# tsc --noEmit · 票 07（零错误）
-$ node_modules/.bin/tsc --noEmit
-exit=0 · 无输出 = 零错误

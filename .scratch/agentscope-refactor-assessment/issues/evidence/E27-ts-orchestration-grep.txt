@@ -1,2 +1,0 @@
-/tmp/as-audit/ts-0.0.15/package/src/message/block.ts:38:     * The sender or origin of this hint. For team messages this is the
-/tmp/as-audit/ts-0.0.15/package/src/event/index.ts:189: * full content is available at creation time (team messages,

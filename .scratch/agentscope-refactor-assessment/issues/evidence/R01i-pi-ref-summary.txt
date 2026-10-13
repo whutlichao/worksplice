@@ -1,7 +1,0 @@
-hits_all=507
-files_all=77
-hits_source=71
-files_source=49
-hits_impl=58
-files_impl=39
-lines_impl=6476
