@@ -1,0 +1,6 @@
+app         ts+tsx=5259
+lib         ts+tsx=22892
+components  ts+tsx=21742
+hooks       ts+tsx=3881
+TOTAL 53774
+FILES 248

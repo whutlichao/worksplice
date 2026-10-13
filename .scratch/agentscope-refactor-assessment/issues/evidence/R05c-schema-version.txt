@@ -1,0 +1,2 @@
+3:export const SCHEMA_VERSION = 15;
+256:    db.pragma(`user_version = ${SCHEMA_VERSION}`);

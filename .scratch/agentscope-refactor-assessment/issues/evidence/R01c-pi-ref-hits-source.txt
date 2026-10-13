@@ -1,0 +1,71 @@
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/project-trust/route.ts:4:import { getAgentDir } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/auth/api-key/[provider]/route.ts:1:import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/auth/providers/route.ts:1:import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/auth/all-providers/route.ts:1:import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/auth/logout/[provider]/route.ts:1:import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/auth/login/[provider]/route.ts:1:import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/auth/login/[provider]/route.ts:2:import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/plugins/route.ts:11:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/models-config/test/route.ts:5:import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/models-config/route.ts:4:import { getAgentDir } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/agent/new/route.ts:2:import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/models/route.ts:3:import { getAgentDir, type SettingsManager } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/models/route.ts:4:import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/sessions/[id]/context/route.ts:2:import { SessionManager } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/sessions/[id]/route.ts:4:import { SessionManager } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/sessions/[id]/export/route.ts:25:    const { getPackageDir } = (await import("@earendil-works/pi-coding-agent")) as PiCodingAgentModule;
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/sessions/[id]/export/route.ts:57:      const indexUrl = await resolver("@earendil-works/pi-coding-agent");
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/sessions/[id]/export/route.ts:68:      "@earendil-works",
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/sessions/[id]/auto-name/route.ts:2:import type { AgentSession } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/members/[id]/transcript/route.test.mjs:7:import { SessionManager } from '@earendil-works/pi-coding-agent';
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/skills/install/route.ts:2:import { getAgentDir } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/app/api/skills/route.ts:5:import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/model-listing.ts:7:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/project-trust.ts:1:import { hasTrustRequiringProjectResources, ProjectTrustStore } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/pi-types.ts:8:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/pi-types.ts:34: * `@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts:162`, which is
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/startup-preferences.ts:1:import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/startup-preferences.ts:2:import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/session-stats.ts:195:    const { SessionManager } = await import("@earendil-works/pi-coding-agent");
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/model-scope.ts:1:import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/model-scope.ts:6:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/model-scope.ts:7:import type { Api, Model } from "@earendil-works/pi-ai";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/session-title.test.mjs:3:import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/model-listing.test.mjs:45:  const { ProjectTrustStore } = await import("@earendil-works/pi-coding-agent");
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/session-title.ts:6:} from "@earendil-works/pi-agent-core";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/session-title.ts:7:import type { AgentSession } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/model-discovery-auth.ts:4:import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/model-probe.ts:6:} from "@earendil-works/pi-ai/compat";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/api-types.ts:1:import type { ResourceDiagnostic } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/bash-containment-extension.test.mjs:26:const pi = await import("@earendil-works/pi-coding-agent");
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/bash-containment-extension.ts:35:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/session-reader.ts:7:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/session-reader.ts:11:import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/provider-credential-store.ts:3:import type { Credential } from "@earendil-works/pi-ai";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/provider-credential-store.ts:4:import { getAgentDir } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/skills-service.ts:1:import { DefaultResourceLoader, getAgentDir } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/tool-path-guard-extension.test.mjs:26:const pi = await import("@earendil-works/pi-coding-agent");
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/agent-runtime.ts:3:import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/agent-runtime.ts:183:  const { SessionManager } = await import("@earendil-works/pi-coding-agent");
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/session.test.mjs:279:  const { Theme } = await jiti.import("@earendil-works/pi-coding-agent");
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/session.test.mjs:323:        "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme-schema.json",
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/forced-empty-system-prompt.ts:24:import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/session.ts:11:import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/session.ts:12:import { SessionManager, Theme, getAgentDir } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/session.ts:13:import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/session.ts:14:import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/rpc/caller.ts:16:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/domain/collab/secretary-auto-create.ts:3:import { getAgentDir } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/startup-preferences.test.mjs:6:import { SettingsManager } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/project-trust.test.mjs:10:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/provider-listing-runtime.ts:1:import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/lib/tool-path-guard-extension.ts:31:} from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/.scratch/architecture-improvements/abandoned-rpc-split/lib-rpc/registry.ts:2:import { createAgentSessionServices, getAgentDir, initTheme, SessionManager } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/.scratch/architecture-improvements/abandoned-rpc-split/lib-rpc/registry.ts:3:import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/.scratch/architecture-improvements/abandoned-rpc-split/lib-rpc/ui.ts:4:import { Theme } from "@earendil-works/pi-coding-agent";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/.scratch/architecture-improvements/abandoned-rpc-split/lib-rpc/ui.ts:5:import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/next.config.ts:12:    "node_modules/@earendil-works/pi-coding-agent/package.json",
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/next.config.ts:34:    "@earendil-works/pi-coding-agent",
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/next.config.ts:35:    "@earendil-works/pi-agent-core",
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/next.config.ts:36:    "@earendil-works/pi-ai",
+/Users/apple/orca/workspaces/worksplice/agentscope-refactor-assessment/next.config.ts:37:    "@earendil-works/pi-tui",

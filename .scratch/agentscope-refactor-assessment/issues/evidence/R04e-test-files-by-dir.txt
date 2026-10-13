@@ -1,0 +1,4 @@
+app         test=6
+lib         test=125
+components  test=30
+hooks       test=4

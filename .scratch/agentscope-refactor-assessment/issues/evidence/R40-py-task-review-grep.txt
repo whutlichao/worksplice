@@ -1,0 +1,37 @@
+/tmp/as-verify/py-2.0.10/agentscope/middleware/_rag.py:755:            """Reject templates the reranker cannot render — a missing
+/tmp/as-verify/py-2.0.10/agentscope/middleware/_rag.py:788:            """Reject templates with anything other than exactly one
+/tmp/as-verify/py-2.0.10/agentscope/middleware/_budget.py:221:                # Don't force it unless the agent did: providers reject a
+/tmp/as-verify/py-2.0.10/agentscope/middleware/_longterm_memory/_mem0/_agentscope_adapter.py:314:    Why a helper? Two private layers inside mem0 reject anything
+/tmp/as-verify/py-2.0.10/agentscope/middleware/_longterm_memory/_mem0/_agentscope_adapter.py:416:            """Allow ``provider == "agentscope"``; reject everything
+/tmp/as-verify/py-2.0.10/agentscope/middleware/_longterm_memory/_mem0/_agentscope_adapter.py:430:            """Allow ``provider == "agentscope"``; reject everything
+/tmp/as-verify/py-2.0.10/agentscope/app/_router/_knowledge_base.py:233:    attribute and to reject drag-dropped files whose extension lies
+/tmp/as-verify/py-2.0.10/agentscope/app/_router/_schema/_knowledge_base.py:281:    ``<input accept>`` and to reject unsupported drops on the client
+/tmp/as-verify/py-2.0.10/agentscope/app/_router/_channel.py:186:    """Open a session and return the URL the operator must approve.
+/tmp/as-verify/py-2.0.10/agentscope/app/_service/_chat.py:829:                # Reject missing records up front with a clear error so the
+/tmp/as-verify/py-2.0.10/agentscope/app/rag/knowledge_base_manager/_dimension_policy.py:76:        """Reject states like ``ANY + dimension=768`` or ``FIXED + None``.
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_model/_channel.py:130:        PermissionMode(v)  # reject values outside the enum
+/tmp/as-verify/py-2.0.10/agentscope/app/storage/_model/_agent.py:52:        """Reject ``invitable=True`` without a non-empty description.
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_base.py:328:    """Credential field that uniquely identifies the bot, used to reject
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_base.py:349:    (scan a QR code, approve a consent screen) instead of pasting them.
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_dingtalk/_card.py:20:    {"allow", "approve", "approved", "accept", "agree"},
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_dingtalk/_card.py:22:_DENY_ACTIONS = frozenset({"deny", "denied", "reject"})
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_dingtalk/_card.py:48:                "id": "reject",
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_discord/_channel.py:488:                label="✅ Approve",
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_discord/_channel.py:491:            async def approve(
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_discord/_channel.py:496:                """Emit an approve decision.
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_credential_binding.py:55:    """Where the operator must go to approve. Rendered as a QR code by
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_feishu/_card_templates.py:5:resolved ``agent_id`` / ``session_id``) plus the click's approve/deny —
+/tmp/as-verify/py-2.0.10/agentscope/app/channel/_feishu/_card_templates.py:13:_APPROVE = "approve"
+/tmp/as-verify/py-2.0.10/agentscope/app/_tool/_agent_create.py:344:            # Also reject ``@`` in the name: invited members display as
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_opensandbox/_opensandbox_workspace.py:305:        created, connected, or resumed sandbox may still briefly reject
+/tmp/as-verify/py-2.0.10/agentscope/workspace/_docker/_docker_workspace.py:247:            # reject the malformed stream.
+/tmp/as-verify/py-2.0.10/agentscope/agent/_a2a_agent.py:621:        """Reject operations after client closure."""
+/tmp/as-verify/py-2.0.10/agentscope/agent/_realtime/_agent.py:860:        flight after a barge-in must not reopen it.
+/tmp/as-verify/py-2.0.10/agentscope/rag/_knowledge.py:211:                models would otherwise reject them.  Callers can
+/tmp/as-verify/py-2.0.10/agentscope/formatter/_anthropic_formatter.py:187:                    # which strict endpoints (e.g. DeepSeek) reject with 400.
+/tmp/as-verify/py-2.0.10/agentscope/model/_anthropic/_model.py:67:                "later accept — those models reject the ``enabled`` "
+/tmp/as-verify/py-2.0.10/agentscope/model/_openai_response/_model.py:36:    explicit ``null`` values, which some Responses-compatible APIs reject
+/tmp/as-verify/py-2.0.10/agentscope/model/_gemini/_model.py:75:    # Gemini (and many third-party proxies) reject `null` as a standalone
+/tmp/as-verify/py-2.0.10/agentscope/tool/_builtin/_ask_user.py:99:        """Reject ambiguous or unsupported option combinations."""
+/tmp/as-verify/py-2.0.10/agentscope/tool/_builtin/_ask_user.py:159:        """Reject question batches whose answers cannot be correlated."""
+/tmp/as-verify/py-2.0.10/agentscope/tool/_base.py:277:        """Reject a result an external executor sent back.

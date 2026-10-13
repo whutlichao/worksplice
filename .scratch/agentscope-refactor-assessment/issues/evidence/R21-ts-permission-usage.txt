@@ -1,0 +1,27 @@
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:1:import { PermissionRule } from '../permission';
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:2: * The mode of permission.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:7: * - `DEFAULT`: Every operation asks for permission unless an allow rule
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:8: *   matches, OR the tool's `checkPermissions` explicitly returns `ALLOW`
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:21: * - `BYPASS`: Skip all permission checks except explicit user-configured
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:36: * The behavior of permission.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:40: * - `ASK`: Ask the user for permission.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:41: * - `PASSTHROUGH`: Let the permission engine continue with rule matching
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:54: * A permission rule defines whether a specific tool or tool operation
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:71:    /** The permission behavior ("allow", "deny", or "ask"). */
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:78: * An additional directory included in permission scope.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:87:     * Where this directory permission originated from
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:94: * Context for permission checking.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:96: * Contains the permission mode, working directories, and all configured
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:97: * permission rules organized by behavior type (allow, deny, ask).
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:103:    /** The current permission mode. Defaults to {@link PermissionMode.DEFAULT}. */
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:119: * @param mode - Initial permission mode. Defaults to {@link PermissionMode.DEFAULT}.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:135: * Decision result from permission checking.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:137: * Represents the outcome of a permission check, including whether the
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:141:    /** The permission behavior decision. */
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:160:     * Optional list of suggested permission rules for the user to apply.
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:181:     *   check and does not invoke `checkPermissions`).
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:194:     * Note: this field is internal metadata for the permission engine.
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:2:import { PermissionRule } from '../permission';
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:77:    PERMISSION = 'permission',
+/tmp/as-verify/ts-0.0.15/package/src/tool/grep.ts:106:- ALWAYS use Grep for search tasks. NEVER invoke \`grep\` or \`rg\` as a Bash command. The Grep tool has been optimized for correct permissions and access.
+/tmp/as-verify/ts-0.0.15/package/src/tool/bash.ts:33:While the Bash tool can do similar things, it's better to use the built-in tools as they provide a better user experience and make it easier to review tool calls and give permission.

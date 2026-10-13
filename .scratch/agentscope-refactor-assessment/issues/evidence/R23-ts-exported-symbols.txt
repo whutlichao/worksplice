@@ -1,0 +1,128 @@
+/tmp/as-verify/ts-0.0.15/package/src/_utils/common.ts:11:export function base64ToBytes(b64: string): Uint8Array {
+/tmp/as-verify/ts-0.0.15/package/src/_utils/common.ts:24:export function bytesToBase64(bytes: Uint8Array): string {
+/tmp/as-verify/ts-0.0.15/package/src/_utils/common.ts:36:export function _createTimestamp(): string {
+/tmp/as-verify/ts-0.0.15/package/src/_utils/common.ts:47:export function _jsonLoadsWithRepair(input: string): Record<string, JSONSerializableObject> {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:3:export interface TextBlock {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:13:export interface ThinkingBlock {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:32:export interface HintBlock {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:49:export type ToolCallState = 'pending' | 'asking' | 'allowed' | 'submitted' | 'finished';
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:51:export interface ToolCallBlock {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:64:export type ToolResultState = 'success' | 'error' | 'interrupted' | 'denied' | 'running';
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:66:export interface ToolResultBlock {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:79:export interface Base64Source {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:85:export interface URLSource {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:91:export interface DataBlock {
+/tmp/as-verify/ts-0.0.15/package/src/message/block.ts:102:export type ContentBlock =
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:17:export interface Msg {
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:101:export function createMsg({
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:140:export function UserMsg({
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:177:export function AssistantMsg({
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:206:export function SystemMsg({
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:242:export function getTextContent(msg: Msg, separator: string = '\n'): string | null {
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:256:export function getContentBlocks(msg: Msg): ContentBlock[];
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:257:export function getContentBlocks(msg: Msg, blockType: 'text'): TextBlock[];
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:258:export function getContentBlocks(msg: Msg, blockType: 'thinking'): ThinkingBlock[];
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:259:export function getContentBlocks(msg: Msg, blockType: 'hint'): HintBlock[];
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:260:export function getContentBlocks(msg: Msg, blockType: 'data'): DataBlock[];
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:261:export function getContentBlocks(msg: Msg, blockType: 'tool_call'): ToolCallBlock[];
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:262:export function getContentBlocks(msg: Msg, blockType: 'tool_result'): ToolResultBlock[];
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:263:export function getContentBlocks(
+/tmp/as-verify/ts-0.0.15/package/src/message/message.ts:291:export function appendEvent(msg: Msg, event: AgentEvent): Msg {
+/tmp/as-verify/ts-0.0.15/package/src/message/enums.ts:1:export enum GenerateReason {
+/tmp/as-verify/ts-0.0.15/package/src/agent/agent.ts:77:export interface CompressionConfig {
+/tmp/as-verify/ts-0.0.15/package/src/agent/agent.ts:108:export interface AgentOptions {
+/tmp/as-verify/ts-0.0.15/package/src/agent/agent.ts:121:export class Agent {
+/tmp/as-verify/ts-0.0.15/package/src/agent/interfaces.ts:7:export interface ReplyOptions {
+/tmp/as-verify/ts-0.0.15/package/src/agent/interfaces.ts:13:export interface ReasoningOptions {
+/tmp/as-verify/ts-0.0.15/package/src/agent/interfaces.ts:17:export interface ActingOptions {
+/tmp/as-verify/ts-0.0.15/package/src/agent/interfaces.ts:21:export interface ObserveOptions {
+/tmp/as-verify/ts-0.0.15/package/src/mcp/base.ts:22:export class MCPTool implements Tool {
+/tmp/as-verify/ts-0.0.15/package/src/mcp/stdio.ts:13:export class StdioMCPClient {
+/tmp/as-verify/ts-0.0.15/package/src/mcp/http.ts:19:export class HTTPMCPClient {
+/tmp/as-verify/ts-0.0.15/package/src/state/index.ts:5:export interface Task {
+/tmp/as-verify/ts-0.0.15/package/src/state/index.ts:21:export interface TaskContext {
+/tmp/as-verify/ts-0.0.15/package/src/storage/file-system.ts:13:export class LocalFileStorage extends StorageBase {
+/tmp/as-verify/ts-0.0.15/package/src/storage/base.ts:6:export interface AgentState {
+/tmp/as-verify/ts-0.0.15/package/src/storage/base.ts:22:export abstract class StorageBase {
+/tmp/as-verify/ts-0.0.15/package/src/formatter/base.ts:6:export abstract class FormatterBase {
+/tmp/as-verify/ts-0.0.15/package/src/formatter/ollama-chat-formatter.ts:8:export class OllamaChatFormatter extends FormatterBase {
+/tmp/as-verify/ts-0.0.15/package/src/formatter/dashscope-chat-formatter.ts:23:export class DashScopeChatFormatter extends FormatterBase {
+/tmp/as-verify/ts-0.0.15/package/src/formatter/openai-chat-formatter.ts:26:export class OpenAIChatFormatter extends FormatterBase {
+/tmp/as-verify/ts-0.0.15/package/src/formatter/deepseek-chat-formatter.ts:21:export class DeepSeekChatFormatter extends FormatterBase {
+/tmp/as-verify/ts-0.0.15/package/src/type/index.ts:3:export type JSONSerializableObject =
+/tmp/as-verify/ts-0.0.15/package/src/type/index.ts:11:export type ToolName = string;
+/tmp/as-verify/ts-0.0.15/package/src/type/index.ts:12:export type ToolChoice = 'auto' | 'none' | 'required' | ToolName;
+/tmp/as-verify/ts-0.0.15/package/src/type/index.ts:14:export interface ToolInputSchema {
+/tmp/as-verify/ts-0.0.15/package/src/type/index.ts:21:export interface ToolSchema {
+/tmp/as-verify/ts-0.0.15/package/src/type/index.ts:41:export type ToolFunction = (
+/tmp/as-verify/ts-0.0.15/package/src/model/base.ts:8:export interface ChatModelOptions {
+/tmp/as-verify/ts-0.0.15/package/src/model/base.ts:17:export interface ChatModelCallOptions {
+/tmp/as-verify/ts-0.0.15/package/src/model/base.ts:26:export interface ChatModelCallStructuredOptions {
+/tmp/as-verify/ts-0.0.15/package/src/model/base.ts:32:export interface ChatModelRequestOptions<T> {
+/tmp/as-verify/ts-0.0.15/package/src/model/base.ts:44:export abstract class ChatModelBase {
+/tmp/as-verify/ts-0.0.15/package/src/model/usage.ts:6:export interface ChatUsage {
+/tmp/as-verify/ts-0.0.15/package/src/model/dashscope-model.ts:81:export class DashScopeChatModel extends ChatModelBase {
+/tmp/as-verify/ts-0.0.15/package/src/model/ollama-model.ts:58:export class OllamaChatModel extends ChatModelBase {
+/tmp/as-verify/ts-0.0.15/package/src/model/deepseek-model.ts:64:export class DeepSeekChatModel extends ChatModelBase {
+/tmp/as-verify/ts-0.0.15/package/src/model/response.ts:5:export interface ChatResponse {
+/tmp/as-verify/ts-0.0.15/package/src/model/response.ts:15:export interface StructuredResponse {
+/tmp/as-verify/ts-0.0.15/package/src/model/openai-model.ts:23:export class OpenAIChatModel extends ChatModelBase {
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:27:export enum PermissionMode {
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:44:export enum PermissionBehavior {
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:66:export interface PermissionRule {
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:83:export interface AdditionalWorkingDirectory {
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:102:export interface PermissionContext {
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:122:export function createPermissionContext(
+/tmp/as-verify/ts-0.0.15/package/src/permission/index.ts:140:export interface PermissionDecision {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:4:export enum EventType {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:45:export interface EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:51:export interface ReplyStartEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:60:export enum ReplyFinishedReason {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:73:export enum ErrorType {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:93:export interface ErrorInfo {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:100:export interface ReplyEndEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:113:export interface ModelCallStartEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:119:export interface ModelCallEndEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:126:export interface TextBlockStartEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:132:export interface TextBlockDeltaEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:139:export interface TextBlockEndEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:145:export interface DataBlockStartEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:152:export interface DataBlockDeltaEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:160:export interface DataBlockEndEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:166:export interface ThinkingBlockStartEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:172:export interface ThinkingBlockDeltaEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:179:export interface ThinkingBlockEndEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:193:export interface HintBlockEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:203:export interface ToolCallStartEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:210:export interface ToolCallDeltaEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:217:export interface ToolCallEndEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:223:export interface ToolResultStartEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:230:export interface ToolResultTextDeltaEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:237:export interface ToolResultDataDeltaEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:248:export interface ToolResultEndEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:256:export interface ExceedMaxItersEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:262:export interface RequireUserConfirmEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:268:export interface RequireExternalExecutionEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:274:export interface ConfirmResult {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:280:export interface UserConfirmResultEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:286:export interface ExternalExecutionResultEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:296:export interface CustomEvent extends EventBase {
+/tmp/as-verify/ts-0.0.15/package/src/event/index.ts:302:export type AgentEvent =
+/tmp/as-verify/ts-0.0.15/package/src/tool/read.ts:14:export function Read() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/base.ts:6:export interface Tool {
+/tmp/as-verify/ts-0.0.15/package/src/tool/glob.ts:12:export function Glob() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/grep.ts:34:export function Grep() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/response.ts:7:export interface ToolResponse {
+/tmp/as-verify/ts-0.0.15/package/src/tool/response.ts:31:export function createToolResponse({
+/tmp/as-verify/ts-0.0.15/package/src/tool/response.ts:69:export function isToolResponse(obj: any): boolean {
+/tmp/as-verify/ts-0.0.15/package/src/tool/edit.ts:12:export function Edit() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/bash.ts:17:export function Bash() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/write.ts:12:export function Write() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/toolkit.ts:24:export class Toolkit {
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:6:export type { Task, TaskContext } from '../state';
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:9:export type TaskState = Task['state'];
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:31:export function _resetTaskStore(): void {
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:39:export function TaskCreate() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:117:export function TaskUpdate() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:256:export function TaskGet() {
+/tmp/as-verify/ts-0.0.15/package/src/tool/task.ts:314:export function TaskList() {

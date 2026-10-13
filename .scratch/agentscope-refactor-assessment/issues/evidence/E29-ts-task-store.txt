@@ -1,0 +1,10 @@
+12:const taskStore = new Map<string, Task>();
+20:    for (const [id] of taskStore) {
+32:    taskStore.clear();
+96:            taskStore.set(id, task);
+173:            const task = taskStore.get(taskId);
+181:                    if (!taskStore.has(depId)) {
+188:                    if (!taskStore.has(depId)) {
+221:                    taskStore.delete(taskId);
+272:            const task = taskStore.get(taskId);
+329:            const activeTasks = Array.from(taskStore.values())
