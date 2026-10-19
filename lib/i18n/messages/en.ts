@@ -427,6 +427,7 @@ export const enLocale: LocalePlugin = {
     "shell.brandSub": "Local workspace",
     "shell.channels": "Channels",
     "shell.dm": "Direct messages",
+    "shell.archivedChannels": "Archived ({count})",
     "shell.createChannel": "New channel",
     "shell.agents": "Agents",
     "shell.createAgent": "New agent",

@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { AlarmClock, List, MessageSquare, Plus, Search, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  AlarmClock,
+  ChevronDown,
+  ChevronRight,
+  List,
+  MessageSquare,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
@@ -139,13 +148,49 @@ export function WorkspaceSidebar({
   const [searchDraft, setSearchDraft] = useState("");
 
   // §03 私信分组：type='dm' 且「有消息」（懒创建：发送了消息才出现）过滤，按 agent 名排序。
+  // 归档项从两个常规分组移出，收进下方的归档组。
   const dmChannels = channels
-    .filter((channel) => channel.type === "dm")
+    .filter((channel) => channel.type === "dm" && channel.archived !== 1)
     .filter((channel) => channel.messageCount > 0)
     .sort((a, b) =>
       compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)),
     );
-  const regularChannels = channels.filter((channel) => channel.type !== "dm");
+  const regularChannels = channels.filter(
+    (channel) => channel.type !== "dm" && channel.archived !== 1,
+  );
+  // 归档组：常规频道保持输入顺序，DM 仅纳入有消息的行并按 agent 名排序。
+  const archivedChannels = [
+    ...channels.filter(
+      (channel) => channel.type !== "dm" && channel.archived === 1,
+    ),
+    ...channels
+      .filter((channel) => channel.type === "dm" && channel.archived === 1)
+      .filter((channel) => channel.messageCount > 0)
+      .sort((a, b) =>
+        compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)),
+      ),
+  ];
+  const selectedArchived =
+    selectedChannelId !== null &&
+    archivedChannels.some((channel) => channel.id === selectedChannelId);
+  // 归档组默认折叠；首次渲染时选中项若落在归档组则初始展开。
+  // 展开状态之后只由用户点击切换，selectedArchived 不再参与派生（否则无法折叠）。
+  const [archivedOpen, setArchivedOpen] = useState(selectedArchived);
+  const archivedChannelsRef = useRef(archivedChannels);
+  archivedChannelsRef.current = archivedChannels;
+
+  // 仅在选中项变化且新选中项属于归档组时自动展开。依赖只取 selectedChannelId：
+  // channels（轮询/刷新）产生新引用时不得把用户手动折叠的分组重新打开。
+  useEffect(() => {
+    if (
+      selectedChannelId !== null &&
+      archivedChannelsRef.current.some(
+        (channel) => channel.id === selectedChannelId,
+      )
+    ) {
+      setArchivedOpen(true);
+    }
+  }, [selectedChannelId]);
 
   return (
     <div
@@ -271,6 +316,39 @@ export function WorkspaceSidebar({
             />
           ))}
         </div>
+
+        {archivedChannels.length > 0 && (
+          <div className="group">
+            <button
+              type="button"
+              className="group-label"
+              style={{ width: "100%" }}
+              aria-expanded={archivedOpen}
+              onClick={() => setArchivedOpen((open) => !open)}
+            >
+              <span>
+                {t("shell.archivedChannels", {
+                  count: String(archivedChannels.length),
+                })}
+              </span>
+              {archivedOpen ? (
+                <ChevronDown size={13} />
+              ) : (
+                <ChevronRight size={13} />
+              )}
+            </button>
+            {archivedOpen &&
+              archivedChannels.map((channel) => (
+                <ChannelRow
+                  key={channel.id}
+                  channel={channel}
+                  isDM={channel.type === "dm"}
+                  isSelected={selectedChannelId === channel.id}
+                  onSelect={onSelectChannel}
+                />
+              ))}
+          </div>
+        )}
 
         <div className="group">
           <div className="group-label">{t("shell.agents")}</div>
