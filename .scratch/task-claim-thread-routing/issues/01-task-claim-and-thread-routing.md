@@ -97,14 +97,14 @@ Spec: [spec.md](../spec.md)
 - 最终 `npm test`：`1511 passed, 1 failed`，失败为 `lib/model-listing.test.mjs:50` 的 `lite path returns a working runtime without loading extensions`。同一命令在隔离基线 `2c5619f048da26d32a0895d229daad7fb91442f3` 得到 `1507 passed, 1 failed`，同一断言意外返回 DeepSeek 模型列表；已按 coordinator 指示记录为无关的基线/环境失败，未改票外文件。
 - `git diff 2c5619f048da26d32a0895d229daad7fb91442f3...HEAD --check`：通过。
 
-**Standards review findings 与处置**
+**规范评审发现与处置**
 
 - 初审指出新增测试使用双引号，违反 `docs/engineering-standards.md` §1 的单引号约定；已在 `38e44e7` 改为单引号，最终 agent-loop 回归通过。
 - 最终 Standards review 指出 `docs/engineering-standards.md` §1 的简体中文正文要求；已将 `Owner-authored` / `one-owner` 改成“由 Owner 发布” / “唯一负责人”。
 - 后续审查指出两条路由路径重复判断 done/closed；已在 `9cdf9e3` 预先筛出 `openTasks` 并复用，避免状态定义漂移。
 - 初审另报告一个可能的 Duplicated Code smell：agent-loop 事件解析与 `ChannelView.tsx` 显示解析相似。后续 Standards review 未保留此项为 finding；仍未让服务端依赖 UI 组件或越出三文件范围抽取共享模块。
 
-**Spec review**
+**规格评审**
 
 - Spec review 发现 agent-authored 锚点被 `incoming` 排除，导致锚点 + 创建事件路径退回 channel target。处置：锚点从 `roundMessages` 匹配，Owner-authored 事件仍从 `incoming` 匹配；新增红绿回归，验证实际 thread target、Task owner/status 与 channel 无回复。
 - 最终双轴 review 的 Standards 与 Spec 报告均为 `findings: []`、`overall_correctness: correct`。Standards 摘要另提到两项 §1 风格问题和一项重复代码 smell，但没有给出可复核位置；此前有具体依据的问题及其处置见上文。
@@ -114,3 +114,8 @@ Spec: [spec.md](../spec.md)
 - [PR #188：修复任务创建后的回复线程路由](https://github.com/whutlichao/worksplice/pull/188)
 - PR body 文件：`/tmp/worksplice-task8-thread-routing-pr-body.md`。
 - 按 coordinator 指示，最终 head SHA 随 worker_done 外部报告提交；不写入同一 PR 内的 Answer，避免 Answer 提交后该 SHA 立即失效。
+
+**PR #188 单引号门禁补充**
+
+- 修正：仅将本 PR 新增代码行的 JS/TS 字符串分隔双引号改为单引号；JSON payload 内容中的双引号保留；两个评审标题改为“规范评审发现与处置”和“规格评审”。
+- 验证：`node --test lib/agent-loop/loop-tasks.test.mjs` 为 27 passed、0 failed；`npm run typecheck` 通过；`npm run lint` 为 0 errors、1 条 `hooks/useI18n.tsx:61` warning；`git diff --check` 通过。

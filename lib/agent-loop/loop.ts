@@ -949,7 +949,7 @@ function claimTaskFromReply(input: {
     return action;
   }
   const openTasks = getDb().listChannelTasks(channel.id).filter(
-    (task) => task.status !== "done" && task.status !== "closed",
+    (task) => task.status !== 'done' && task.status !== 'closed',
   );
   const activityIds = new Set(roundMessages.map((message) => message.id));
   const anchoredTasks = openTasks.filter((task) =>
@@ -971,7 +971,7 @@ function claimTaskFromReply(input: {
     if (taskEvent && !hasOtherActivity) {
       return {
         ...action,
-        task: { number: task.number, op: "claim" },
+        task: { number: task.number, op: 'claim' },
       };
     }
   }
@@ -991,7 +991,7 @@ function claimTaskFromReply(input: {
   if (matchingTasks.length !== 1) return action;
   return {
     ...action,
-    task: { number: taskNumber, op: "claim" },
+    task: { number: taskNumber, op: 'claim' },
   };
 }
 
