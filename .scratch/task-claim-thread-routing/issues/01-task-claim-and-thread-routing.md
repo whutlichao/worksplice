@@ -75,3 +75,35 @@ Spec: [spec.md](../spec.md)
 ### PR
 
 [PR #134：修复新建任务认领与线程回复路由](https://github.com/whutlichao/worksplice/pull/134)
+
+### Task8 后续：仅收到任务创建事件时的回复路由
+
+**实现**
+
+- `runAgentRound` 对普通非空 reply 仅在本轮 channel 新活动恰好为以下之一时合成现有 `task: claim` 操作：单个可识别的 Owner `Task #N created` 事件，或唯一任务锚点及其紧随的创建事件。锚点从本轮全部 drained messages 中匹配（包含接收 agent 自己发出的消息）；创建事件仍须由 Owner 发布。任务经既有 claim/freshness/reopened 裁决；成功回复到锚点 thread，失败让路且不在 channel 发回复。
+- task protocol 与 `docs/spec.md` §3.7 已同步：多任务、混合 channel 活动、普通消息或不确定匹配不自动选任务；明确 task op 保留，规则文字使用中文描述 Owner 发布与唯一负责人约束。
+- 回归与复现均使用 agent-loop 测试夹具创建的临时数据库；默认 `~/.worksplice` 未使用。
+
+**红绿证据**
+
+- 红：在隔离基线 `2c5619f048da26d32a0895d229daad7fb91442f3` 中只带入新增测试文件，运行 `node --test --test-name-pattern='an ordinary reply claims a task created from an already consumed anchor' lib/agent-loop/loop-tasks.test.mjs`。结果 `tests 1, pass 0, fail 1`；channel-target 断言的实际值为 `['60f44c2c-afa8-4a29-b698-3ee02fd3fd01']`，期望 `[]`，明确显示修复前回复落在 channel。
+- 新增 agent-authored 锚点 + Owner 创建事件回归：`node --test --test-name-pattern='an agent-authored task anchor and creation event route an ordinary reply to the thread' lib/agent-loop/loop-tasks.test.mjs`。实现前 channel-target 断言失败（`pass 0, fail 1`，实际 target 为 channel ID `4f3dbc5d-8f6f-4346-bddf-f5547c046cf7`，期望 `[]`）；实现后定向测试 `pass 1, fail 0`。
+- 绿：event-only 定向命令 `tests 1, pass 1, fail 0`；最终 `node --test lib/agent-loop/loop-tasks.test.mjs` 为 `tests 27, pass 27, fail 0`。
+
+**门禁**
+
+- `npm run typecheck`：退出码 0。
+- `npm run lint`：退出码 0，0 errors；1 条未修改文件中的 warning：`hooks/useI18n.tsx:61` 缺少 `locale` dependency。
+- 最终 `npm test`：`1511 passed, 1 failed`，失败为 `lib/model-listing.test.mjs:50` 的 `lite path returns a working runtime without loading extensions`。同一命令在隔离基线 `2c5619f048da26d32a0895d229daad7fb91442f3` 得到 `1507 passed, 1 failed`，同一断言意外返回 DeepSeek 模型列表；已按 coordinator 指示记录为无关的基线/环境失败，未改票外文件。
+- `git diff 2c5619f048da26d32a0895d229daad7fb91442f3...HEAD --check`：通过。
+
+**Standards review findings 与处置**
+
+- 初审指出新增测试使用双引号，违反 `docs/engineering-standards.md` §1 的单引号约定；已在 `38e44e7` 改为单引号，最终 agent-loop 回归通过。
+- 最终 Standards review 指出 `docs/engineering-standards.md` §1 的简体中文正文要求；已将 `Owner-authored` / `one-owner` 改成“由 Owner 发布” / “唯一负责人”。
+- 后续审查指出两条路由路径重复判断 done/closed；已在 `9cdf9e3` 预先筛出 `openTasks` 并复用，避免状态定义漂移。
+- 初审另报告一个可能的 Duplicated Code smell：agent-loop 事件解析与 `ChannelView.tsx` 显示解析相似。后续 Standards review 未保留此项为 finding；仍未让服务端依赖 UI 组件或越出三文件范围抽取共享模块。
+
+**Spec review**
+
+- Spec review 发现 agent-authored 锚点被 `incoming` 排除，导致锚点 + 创建事件路径退回 channel target。处置：锚点从 `roundMessages` 匹配，Owner-authored 事件仍从 `incoming` 匹配；新增红绿回归，验证实际 thread target、Task owner/status 与 channel 无回复。

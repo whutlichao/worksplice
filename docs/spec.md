@@ -169,7 +169,7 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 | 创建途径 | 右键消息 **Convert to Task**（顶层消息可转，thread 内不可）/ 发送时勾 **As Task** / Tasks tab **Create Task** | **[锁定]** 03 |
 | task = 消息 + 元数据 | `message_id`（锚点）、`number`（channel 内递增 #1 #2…）、`status`、`owner`；住在创建它的 channel 里，天然可搜索 | **[锁定]** 03、05 |
 | 认领 | 一个任务同时只有一个 owner；claim 即"我负责"，unclaim 释放回池子；已认领的其他人不碰 | **[锁定]** 03 |
-| **自动认领** | 普通非空答复仅在本轮唯一新 channel 活动符合以下之一时自动尝试 claim 并将回复投到任务锚点 thread：一个开放任务锚点及其紧随、Owner-authored 且格式匹配的 `Task #N created` 事件；或一个 Owner-authored、格式匹配且唯一对应单个开放任务的 `Task #N created` 事件。claim 仍受 one-owner、freshness-hold 与 reopened 封锁裁决；失败就让路且不在 channel 回复。多任务事件、其他并发 channel 活动、普通消息或不确定匹配均不自动选择任务；明确的 `task` op 仍按既有路径处理 | **[锁定]** 03 |
+| **自动认领** | 普通非空答复仅在本轮新 channel 活动恰好符合以下之一时自动尝试 claim 并将回复投到任务锚点 thread：一个开放任务锚点及其紧随、由 Owner 发布且格式匹配的 `Task #N created` 事件；或一个由 Owner 发布、格式匹配且唯一对应单个开放任务的 `Task #N created` 事件。claim 仍受唯一负责人、freshness-hold 与 reopened 封锁裁决；失败就让路且不在 channel 回复。多任务事件、其他并发 channel 活动、普通消息或不确定匹配均不自动选择任务；明确的 `task` op 仍按既有路径处理 | **[锁定]** 03 |
 | 互审 | "构建者不验证"：完成者置 in_review，审查者（另一 agent 或人）审核后置 done | **[锁定]** 03 |
 | 并发保护 | claim / updateStatus 均受 freshness-hold 保护（§6.3） | **[锁定]** 03、05 |
 | 视图 | 每个 channel 一个 Tasks tab，按 status 分组展示；任务 thread 承载全部进展，board 只显示状态 | **[锁定]** 03 |

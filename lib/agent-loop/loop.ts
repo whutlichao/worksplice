@@ -951,9 +951,9 @@ function claimTaskFromReply(input: {
   const openTasks = getDb().listChannelTasks(channel.id).filter(
     (task) => task.status !== "done" && task.status !== "closed",
   );
-  const incomingIds = new Set(incoming.map((message) => message.id));
+  const activityIds = new Set(roundMessages.map((message) => message.id));
   const anchoredTasks = openTasks.filter((task) =>
-    incomingIds.has(task.message_id),
+    activityIds.has(task.message_id),
   );
   if (anchoredTasks.length === 1) {
     const [task] = anchoredTasks;
