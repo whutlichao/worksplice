@@ -166,4 +166,11 @@ Review 后重跑：`node --test app/api/models-route.test.mjs lib/models-cache.t
 
 ## Answer
 
-（PR 号、分支、提交待回填。）
+**PR:** [#186](https://github.com/whutlichao/worksplice/pull/186)　**分支:** `agent-detail-model-picker`　**提交:** `0499593`
+**PR body:** `/tmp/agent-detail-model-picker-pr-body.md`（仓库外临时路径；同内容见 PR #186，按 `pr` skill 的 Summary / Evidence / Merge Danger 模板）
+
+- **修复**：`app/api/models/route.ts` 增加 `hasNonEmptyCwd` 判定——只有非空 `cwd` 查询参数才执行 `getAllowedFileRoots()` + `isExistingFilePathAllowed()`；无 cwd / 空串使用 `resolve(process.cwd())` 并跳过 allowlist。`stat` / `isDirectory` 的 400 检查顺序与显式 cwd 的 403 语义保持不变。
+- **回归测试**：`app/api/models-route.test.mjs` 三例（无 cwd 200 / 显式不在 allowlist 403 / 空串 200），通过 `PI_CODING_AGENT_DIR` + `process.cwd()` 双重隔离，不读写真实用户目录与配置。
+- **红→绿**：base `b1637b9` 隔离 worktree 上 1 pass / 2 fail（`403 !== 200`）；修复后 `node --test app/api/models-route.test.mjs lib/models-cache.test.mjs` 8/8 通过，`npm run typecheck` 与两个改动文件的 eslint 均 EXIT=0。
+- **Review**：双轴 review 完成，Standards 1 条硬违规（英文注释）+ 若干判断题、Spec 1 条测试隔离问题，全部采纳并重跑门禁；未采纳项仅为「规范文本落后于现有 route 测试惯例」，属本票 Out of Scope。
+- **未做**：全量 `npm test`、UI 组件改动、`lib/file-access.ts` / `lib/model-listing.ts` / `lib/models-cache.ts` 改动（均按票面门禁与 Out of Scope）。
