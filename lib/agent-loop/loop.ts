@@ -500,7 +500,7 @@ export function buildRevisionPrompt(input: {
   );
   head.push(`What happened: ${input.held.whatHappened}`);
   head.push(`The room is now at seq ${input.held.roomSeq}.`);
-  if (input.channel.type === "dm") {
+  if (input.channel.type === 'dm') {
     head.push(DM_MENTION_RULE);
   }
 

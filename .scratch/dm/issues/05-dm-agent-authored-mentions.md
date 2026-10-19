@@ -10,7 +10,7 @@
 - [x] 两份指定文档同步窄例外规则。
 - [x] 受影响测试、typecheck、lint 与双轴 code review 已运行；记录全量套件基线失败。
 
-## Answer
+## 答复
 
 ### 实现
 
@@ -32,8 +32,8 @@
 - `npm run typecheck`：exit 0（`tsc --noEmit`）。
 - `npm run lint`：exit 0，0 errors；仓库既有 `hooks/useI18n.tsx:61` 有 1 条 `locale` 缺失依赖 warning。
 
-### Review 小节（code-review 双轴）
+### 审查记录（双轴 code-review）
 
-**Standards**：首轮指出两个测试从协作子模块导入；已改为经 `../domain/collab/index.ts` 导入。后续指出新增字符串应使用单引号；已修复新增 prompt literal、DM 类型判断及对应测试字符串。最终 review 未发现文档化规范违规；另报告 `dm-respond.test.mjs` 与 `loop.test.mjs` 中 fake-session 状态 wiring 可能重复（P3 Duplicated Code）。该 wiring 不在本票 diff 中；抽取 helper 会超出本票“不引入新抽象”的约束，因此保留。最终 review 未发现其他列出的 Fowler smells。
+**Standards**：首轮指出两个测试从协作子模块导入，已改为经 `../domain/collab/index.ts` 导入；后续指出新增字符串字面量需用单引号，包含 held prompt 的 `'dm'` 判断，一并修复。最终全量 diff 未发现文档化规范违规。Review 提到普通回复与 held/revision prompt 中有相同的正则断言；保留两处独立断言以分别覆盖两个 prompt 构造路径，提取共享 helper 会违反本票不引入新抽象的约束。先前提到的 fake-session wiring 重复经 diff 确认为本票未修改的既有代码。
 
 **Spec**：无 findings。Owner-authored DM 跨成员 mention 路由、非 DM mention wake、DM 成员唤醒均保留；parser、storage、rendering、membership 与非 DM 策略未改。
