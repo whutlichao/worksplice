@@ -1,7 +1,7 @@
 # 任务创建后的认领与线程路由
 
 Type: task
-Status: in_progress
+Status: resolved
 Spec: [spec.md](../spec.md)
 
 ## What to build
@@ -164,10 +164,10 @@ Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。St
 
 - 报告：`findings: []`，`overall_correctness: correct`。未发现 `docs/engineering-standards.md` §§1、2、5 的违规或可报告的 smell；回归沿用 agent-loop fake runtime 与隔离数据库约定。
 
-**Standards（最终 diff 复核）**
+**Standards（map 补齐前的最终 diff 复核）**
 
 - 报告：`findings: 1`，`overall_correctness: incorrect`。Finding：`.scratch/task-claim-thread-routing/map.md` 不存在；`docs/engineering-standards.md` §5 要求将 ticket 结论写入该 effort 的 `map.md` → Decisions-so-far。
-- 处置：未新增 `map.md`，因为它不在本票授权 Target 文件内。最终 review 在 Dispatch 已返回 `consumer_fenced` 后完成；按 fencing 规则没有重试邮箱或冒用句柄，无法向 coordinator 发 escalation。此 scope blocker 保留并报告给发起用户。
+- 处置：coordinator follow-up 确认 §5 是必需仓库流程记录，并授权补齐；已新增 `.scratch/task-claim-thread-routing/map.md`，记录 Task #9 决定及 ticket / PR #189 链接。此 finding 已处理，ticket 保持 resolved。
 
 **Spec**
 
@@ -179,3 +179,9 @@ Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。St
 **PR**
 
 - [PR #189：忽略自有历史 drain 消息后自动认领任务](https://github.com/whutlichao/worksplice/pull/189)。
+
+### Coordinator follow-up：§5 Decisions-so-far 记录
+
+- Coordinator 确认 `docs/engineering-standards.md` §5 要求每个 ticket 的结论写入 `.scratch/<effort>/map.md`，并指示本票补齐该仓库记录。
+- 已新增 `.scratch/task-claim-thread-routing/map.md`，记录忽略接收 agent 自己的历史 drain 消息、event-only 路径保留“drain 中无开放任务锚点”约束，以及 ticket / PR #189 链接；此前 Standards finding 已处理，Status 保持 `resolved`。
+- 补充复验：三条聚焦回归 `3 passed, 0 failed`；完整 `loop-tasks.test.mjs` `30 passed, 0 failed`；typecheck 通过；lint 为 0 errors、1 条既有 `hooks/useI18n.tsx:61` warning。
