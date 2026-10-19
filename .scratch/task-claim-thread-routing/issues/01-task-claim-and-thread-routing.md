@@ -196,3 +196,8 @@ Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。St
 **Spec（map 补齐后的最终 diff review）**
 
 - 报告：`findings: []`，`overall_correctness: correct`。确认自有历史 drain 消息过滤、两条允许路由、可见未消费锚点 guard、既有 claim/yield 保护及 Answer/map 收口符合要求。
+
+### 最新双轴复核
+
+- Standards 报告：`findings: []`，`overall_correctness: correct`。复核说明无硬性 finding；全量测试例外符合本票明确范围，`map.md` 与隔离 dev-server 复启证据齐备。仅保留非阻塞的 Duplicated Code 判断项；处置：保留两条场景独立的 setup，避免 helper 隐藏不同消息顺序。
+- Spec 报告：`findings: []`，`overall_correctness: correct`。确认其他作者 incoming 活动判定、两条允许路由、可见未消费锚点拒绝条件及既有 claim/yield/freshness 语义符合本票要求。
