@@ -107,3 +107,4 @@ Spec: [spec.md](../spec.md)
 **Spec review**
 
 - Spec review 发现 agent-authored 锚点被 `incoming` 排除，导致锚点 + 创建事件路径退回 channel target。处置：锚点从 `roundMessages` 匹配，Owner-authored 事件仍从 `incoming` 匹配；新增红绿回归，验证实际 thread target、Task owner/status 与 channel 无回复。
+- 最终双轴 review 的 Standards 与 Spec 报告均为 `findings: []`、`overall_correctness: correct`。Standards 摘要另提到两项 §1 风格问题和一项重复代码 smell，但没有给出可复核位置；此前有具体依据的问题及其处置见上文。
