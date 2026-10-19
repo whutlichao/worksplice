@@ -993,10 +993,7 @@ function claimTaskFromReply(input: {
   const matchingTasks = openTasks.filter(
     (task) => task.number === taskNumber,
   );
-  if (
-    matchingTasks.length !== 1 ||
-    activityIds.has(matchingTasks[0].message_id)
-  ) {
+  if (matchingTasks.length !== 1 || anchoredTasks.length !== 0) {
     return action;
   }
   return {
