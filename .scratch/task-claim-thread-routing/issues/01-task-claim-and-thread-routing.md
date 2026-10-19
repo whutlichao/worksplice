@@ -119,3 +119,4 @@ Spec: [spec.md](../spec.md)
 
 - 修正：仅将本 PR 新增代码行的 JS/TS 字符串分隔双引号改为单引号；JSON payload 内容中的双引号保留；两个评审标题改为“规范评审发现与处置”和“规格评审”。
 - 验证：`node --test lib/agent-loop/loop-tasks.test.mjs` 为 27 passed、0 failed；`npm run typecheck` 通过；`npm run lint` 为 0 errors、1 条 `hooks/useI18n.tsx:61` warning；`git diff --check` 通过。
+- 最终双轴评审（Standards / Spec）：两份报告均为 `findings: []`、`overall_correctness: correct`；Standards 未发现剩余规范违规或可报告的 code smell，Spec 未发现行为或范围问题。
