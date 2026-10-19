@@ -1,7 +1,7 @@
 # 任务创建后的认领与线程路由
 
 Type: task
-Status: in_progress
+Status: resolved
 Spec: [spec.md](../spec.md)
 
 ## What to build
@@ -15,9 +15,9 @@ Spec: [spec.md](../spec.md)
 - [x] 覆盖成功认领、锚点线程答复、竞争失败者不发频道顶层任务回复、普通频道回复仍正常。
 - [x] 完成 diagnosing-bugs 假设验证；全量测试、typecheck、lint 记录真实输出。
 - [x] Answer 包含两份独立 Standards / Spec review 报告及 PR 号；Status 为 resolved，工作区干净。
-- [ ] Task #9 回归覆盖本 agent 自己的旧 drain 消息，以及“锚点 + 创建事件”和 event-only 两条入口；两者均须认领成功并将答复持久化到任务锚点线程。
-- [ ] 其他作者的额外活动、多任务、同轮锚点与创建事件非相邻或不匹配、closed / reopened / 已有 owner 与竞争 claim 仍按原规则阻止或让路；普通频道回复语义保持不变。
-- [ ] `docs/spec.md` §3.7 与本地 spec 明确忽略本 agent 自己的历史 drain 消息；追加 Task #9 Answer，记录红绿证据、改动文件、双轴 review 处置和 PR。
+- [x] Task #9 回归覆盖本 agent 自己的旧 drain 消息，以及“锚点 + 创建事件”和 event-only 两条入口；两者均须认领成功并将答复持久化到任务锚点线程。
+- [x] 其他作者的额外活动、多任务、同轮锚点与创建事件非相邻或不匹配、closed / reopened / 已有 owner 与竞争 claim 仍按原规则阻止或让路；普通频道回复语义保持不变。
+- [x] `docs/spec.md` §3.7 与本地 spec 明确忽略本 agent 自己的历史 drain 消息；追加 Task #9 Answer，记录红绿证据、改动文件、双轴 review 处置和 PR。
 
 ## Comments
 
@@ -123,3 +123,53 @@ Spec: [spec.md](../spec.md)
 - 修正：仅将本 PR 新增代码行的 JS/TS 字符串分隔双引号改为单引号；JSON payload 内容中的双引号保留；两个评审标题改为“规范评审发现与处置”和“规格评审”。
 - 验证：`node --test lib/agent-loop/loop-tasks.test.mjs` 为 27 passed、0 failed；`npm run typecheck` 通过；`npm run lint` 为 0 errors、1 条 `hooks/useI18n.tsx:61` warning；`git diff --check` 通过。
 - 最终双轴评审（Standards / Spec）：两份报告均为 `findings: []`、`overall_correctness: correct`；Standards 未发现剩余规范违规或可报告的 code smell，Spec 未发现行为或范围问题。
+
+### Task #9 follow-up：忽略本 agent 自己的历史 drain 消息
+
+**根因与修复**
+
+- `claimTaskFromReply` 的混合活动检查使用全部 `roundMessages`，把接收 agent 自己因消费游标未越过其输出而留在 drain 的旧消息当成竞争活动。event-only 分支也要求整个 drain 恰好只有一条消息，因此同样拒绝了包含旧自回复的唯一 Owner 创建事件。
+- 混合活动和 event-only 匹配改为依据 `incoming`（仅其他作者的消息）；唯一开放任务锚点仍从完整 drain 查找，保证 agent-authored 锚点可参与锚点 + 紧邻事件路径。event-only fallback 仅在 drain 不含开放任务锚点时运行，避免非相邻事件或其他可见任务锚点导致误选。
+- Task #9 回归先提交并将 Status 设为 `in_progress`（`b8d3f40`），随后提交实现；本 Answer 完成后 Status 收敛为 `resolved`。旧 PR #188 Answer 与证据保留不变。
+
+**红绿证据**
+
+- 主回归标题：`a self-authored reply left in the drain does not block automatic task claims`。
+- 红命令：`node --test --test-name-pattern='a self-authored reply left in the drain does not block automatic task claims' lib/agent-loop/loop-tasks.test.mjs`。在隔离 worktree 的原实现上 `tests 1, pass 0, fail 1`；锚点 + event 与 event-only 两种情形都实际得到 `taskStatus: 'todo'`、`claimedByAgent: false`、答复 target 为 `channel`、频道任务答复数为 1。
+- 绿：同一命令最终为 `tests 1, pass 1, fail 0`；两种情形均为 `in_progress`、接收 agent 成为 owner、答复 target 等于任务锚点、频道任务答复数为 0。
+- 规格边界回归 `an unconsumed task anchor with a nonadjacent Owner event does not auto-claim`：修正前失败（实际 `in_progress`，预期 `todo`），修正后通过。
+- 规格边界回归 `a visible unmatched task anchor blocks event-only auto-claim`：修正前失败（实际 `in_progress`，预期 `todo`），修正后通过。
+- 测试文件使用 `fs.mkdtempSync` 打开临时 SQLite fixture；未访问默认 Worksplice 数据库。
+
+**最终验证**
+
+- `node --test lib/agent-loop/loop-tasks.test.mjs`：`tests 30, pass 30, fail 0`。
+- `npm run typecheck`：退出码 0。
+- `npm run lint`：退出码 0，0 errors；1 条既有 warning：`hooks/useI18n.tsx:61` 缺少 `locale` dependency。
+- `git diff --check`：通过。未运行全仓全量测试，符合本票范围。
+
+**改动文件**
+
+- `lib/agent-loop/loop.ts`：只以其他作者 incoming 消息判断竞争活动；event-only 需无可见开放任务锚点。
+- `lib/agent-loop/loop-tasks.test.mjs`：覆盖两条成功入口，以及非相邻事件和可见歧义锚点的拒绝行为。
+- `docs/spec.md` §3.7：说明忽略本 agent 的旧 drain 消息，并保留多任务、非相邻事件与可见锚点保护。
+- `.scratch/task-claim-thread-routing/spec.md`：追加 Task #9 follow-up 规则。
+- `.scratch/task-claim-thread-routing/issues/01-task-claim-and-thread-routing.md`：状态、Acceptance 与本 Answer。
+
+**双轴 code review**
+
+Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。Standards 与 Spec 由独立 reviewer 分别执行。
+
+**Standards**
+
+- 报告：`findings: []`，`overall_correctness: correct`。未发现 `docs/engineering-standards.md` §§1、2、5 的违规或可报告的 smell；回归沿用 agent-loop fake runtime 与隔离数据库约定。
+
+**Spec**
+
+- 初审发现 event-only fallback 在 drain 仍含未消费锚点且创建事件不相邻时仍会认领。处置：新增红绿回归；fallback 仅在 drain 没有开放任务锚点时进入。
+- 后续复核发现一个已消费任务的事件可能越过 drain 中另一个可见开放任务锚点。处置：event-only 路径要求 `anchoredTasks.length === 0`；新增可见歧义锚点回归并验证未认领。
+- 初审指出 Task #9 Answer 尚未追加；本节补齐根因、红绿证据、改动文件、双轴发现与处置以及 PR 号。
+
+**PR**
+
+- [PR #189：忽略自有历史 drain 消息后自动认领任务](https://github.com/whutlichao/worksplice/pull/189)。
