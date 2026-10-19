@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlarmClock,
   ChevronDown,
@@ -147,9 +147,6 @@ export function WorkspaceSidebar({
   // §6.4 搜索入口：Enter 发起全文搜索（结果在中央 SearchView，打开动作深链定位）
   const [searchDraft, setSearchDraft] = useState("");
 
-  // 归档分组默认折叠；选中项若落在归档组，则强制展开（选中行不能从侧栏消失）。
-  const [archivedOpen, setArchivedOpen] = useState(false);
-
   // §03 私信分组：type='dm' 且「有消息」（懒创建：发送了消息才出现）过滤，按 agent 名排序。
   // 归档项从两个常规分组移出，收进下方的归档组。
   const dmChannels = channels
@@ -176,7 +173,24 @@ export function WorkspaceSidebar({
   const selectedArchived =
     selectedChannelId !== null &&
     archivedChannels.some((channel) => channel.id === selectedChannelId);
-  const archivedExpanded = archivedOpen || selectedArchived;
+  // 归档组默认折叠；首次渲染时选中项若落在归档组则初始展开。
+  // 展开状态之后只由用户点击切换，selectedArchived 不再参与派生（否则无法折叠）。
+  const [archivedOpen, setArchivedOpen] = useState(selectedArchived);
+  const archivedChannelsRef = useRef(archivedChannels);
+  archivedChannelsRef.current = archivedChannels;
+
+  // 仅在选中项变化且新选中项属于归档组时自动展开。依赖只取 selectedChannelId：
+  // channels（轮询/刷新）产生新引用时不得把用户手动折叠的分组重新打开。
+  useEffect(() => {
+    if (
+      selectedChannelId !== null &&
+      archivedChannelsRef.current.some(
+        (channel) => channel.id === selectedChannelId,
+      )
+    ) {
+      setArchivedOpen(true);
+    }
+  }, [selectedChannelId]);
 
   return (
     <div
@@ -309,7 +323,7 @@ export function WorkspaceSidebar({
               type="button"
               className="group-label"
               style={{ width: "100%" }}
-              aria-expanded={archivedExpanded}
+              aria-expanded={archivedOpen}
               onClick={() => setArchivedOpen((open) => !open)}
             >
               <span>
@@ -317,13 +331,13 @@ export function WorkspaceSidebar({
                   count: String(archivedChannels.length),
                 })}
               </span>
-              {archivedExpanded ? (
+              {archivedOpen ? (
                 <ChevronDown size={13} />
               ) : (
                 <ChevronRight size={13} />
               )}
             </button>
-            {archivedExpanded &&
+            {archivedOpen &&
               archivedChannels.map((channel) => (
                 <ChannelRow
                   key={channel.id}
