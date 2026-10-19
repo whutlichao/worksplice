@@ -948,13 +948,12 @@ function claimTaskFromReply(input: {
   ) {
     return action;
   }
-  const tasks = getDb().listChannelTasks(channel.id);
+  const openTasks = getDb().listChannelTasks(channel.id).filter(
+    (task) => task.status !== "done" && task.status !== "closed",
+  );
   const incomingIds = new Set(incoming.map((message) => message.id));
-  const anchoredTasks = tasks.filter(
-    (task) =>
-      task.status !== "done" &&
-      task.status !== "closed" &&
-      incomingIds.has(task.message_id),
+  const anchoredTasks = openTasks.filter((task) =>
+    incomingIds.has(task.message_id),
   );
   if (anchoredTasks.length === 1) {
     const [task] = anchoredTasks;
@@ -986,11 +985,8 @@ function claimTaskFromReply(input: {
   }
   const taskNumber = taskCreationEventNumber(roundMessages[0]);
   if (taskNumber === null) return action;
-  const matchingTasks = tasks.filter(
-    (task) =>
-      task.number === taskNumber &&
-      task.status !== "done" &&
-      task.status !== "closed",
+  const matchingTasks = openTasks.filter(
+    (task) => task.number === taskNumber,
   );
   if (matchingTasks.length !== 1) return action;
   return {
