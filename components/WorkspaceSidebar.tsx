@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { AlarmClock, List, MessageSquare, Plus, Search, X } from "lucide-react";
+import {
+  AlarmClock,
+  ChevronDown,
+  ChevronRight,
+  List,
+  MessageSquare,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
@@ -138,14 +147,36 @@ export function WorkspaceSidebar({
   // §6.4 搜索入口：Enter 发起全文搜索（结果在中央 SearchView，打开动作深链定位）
   const [searchDraft, setSearchDraft] = useState("");
 
+  // 归档分组默认折叠；选中项若落在归档组，则强制展开（选中行不能从侧栏消失）。
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
   // §03 私信分组：type='dm' 且「有消息」（懒创建：发送了消息才出现）过滤，按 agent 名排序。
+  // 归档项从两个常规分组移出，收进下方的归档组。
   const dmChannels = channels
-    .filter((channel) => channel.type === "dm")
+    .filter((channel) => channel.type === "dm" && channel.archived !== 1)
     .filter((channel) => channel.messageCount > 0)
     .sort((a, b) =>
       compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)),
     );
-  const regularChannels = channels.filter((channel) => channel.type !== "dm");
+  const regularChannels = channels.filter(
+    (channel) => channel.type !== "dm" && channel.archived !== 1,
+  );
+  // 归档组：常规频道保持输入顺序，DM 仅纳入有消息的行并按 agent 名排序。
+  const archivedChannels = [
+    ...channels.filter(
+      (channel) => channel.type !== "dm" && channel.archived === 1,
+    ),
+    ...channels
+      .filter((channel) => channel.type === "dm" && channel.archived === 1)
+      .filter((channel) => channel.messageCount > 0)
+      .sort((a, b) =>
+        compareAgentNames(dmAgentName(a.name), dmAgentName(b.name)),
+      ),
+  ];
+  const selectedArchived =
+    selectedChannelId !== null &&
+    archivedChannels.some((channel) => channel.id === selectedChannelId);
+  const archivedExpanded = archivedOpen || selectedArchived;
 
   return (
     <div
@@ -271,6 +302,39 @@ export function WorkspaceSidebar({
             />
           ))}
         </div>
+
+        {archivedChannels.length > 0 && (
+          <div className="group">
+            <button
+              type="button"
+              className="group-label"
+              style={{ width: "100%" }}
+              aria-expanded={archivedExpanded}
+              onClick={() => setArchivedOpen((open) => !open)}
+            >
+              <span>
+                {t("shell.archivedChannels", {
+                  count: String(archivedChannels.length),
+                })}
+              </span>
+              {archivedExpanded ? (
+                <ChevronDown size={13} />
+              ) : (
+                <ChevronRight size={13} />
+              )}
+            </button>
+            {archivedExpanded &&
+              archivedChannels.map((channel) => (
+                <ChannelRow
+                  key={channel.id}
+                  channel={channel}
+                  isDM={channel.type === "dm"}
+                  isSelected={selectedChannelId === channel.id}
+                  onSelect={onSelectChannel}
+                />
+              ))}
+          </div>
+        )}
 
         <div className="group">
           <div className="group-label">{t("shell.agents")}</div>

@@ -138,16 +138,19 @@ test("message and Task unread badges stay separate, unit-labelled, and exact for
 
 test("an archived channel keeps its archive marker beside unread Task discussions", () => {
     const row = channelRow(
-        sidebarHtml([
-            {
-                id: "c1",
-                name: "archived",
-                type: "public",
-                archived: 1,
-                unread: 0,
-                unreadTaskCount: 2,
-            },
-        ]),
+        sidebarHtml(
+            [
+                {
+                    id: "c1",
+                    name: "archived",
+                    type: "public",
+                    archived: 1,
+                    unread: 0,
+                    unreadTaskCount: 2,
+                },
+            ],
+            { selectedChannelId: "c1" },
+        ),
         "archived",
     );
 
@@ -267,11 +270,84 @@ test("懒创建：有消息的 DM（messageCount > 0）渲染在私信分组", (
 });
 
 test("懒创建：软删 agent 的有消息 DM 仍显示为归档可读（archived 标记）", () => {
-    const html = sidebarHtml([
-        { id: "dm:owner↔Retired", name: "dm:owner↔Retired", type: "dm", unread: 0, messageCount: 2, archived: 1 },
-    ]);
+    const html = sidebarHtml(
+        [
+            { id: "dm:owner↔Retired", name: "dm:owner↔Retired", type: "dm", unread: 0, messageCount: 2, archived: 1 },
+        ],
+        { selectedChannelId: "dm:owner↔Retired" },
+    );
     const row = channelRow(html, "Retired");
     assert.match(row, /Archived/);
+});
+
+function archivedHeader(html) {
+    const header = html.match(
+        /<button[^>]*aria-expanded="(?:true|false)"[^>]*>[\s\S]*?Archived \([\s\S]*?<\/button>/,
+    )?.[0];
+    assert.ok(header, "archived group header should render");
+    return header;
+}
+
+test("归档频道默认折叠：活跃行可见、归档行不在 HTML 中，标题带计数与 aria-expanded=false", () => {
+    const html = sidebarHtml([
+        { id: "c1", name: "active", type: "public", unread: 0, messageCount: 1 },
+        { id: "c2", name: "retired", type: "public", unread: 0, messageCount: 1, archived: 1 },
+    ]);
+
+    assert.match(html, />active</);
+    assert.doesNotMatch(html, />retired</);
+    const header = archivedHeader(html);
+    assert.match(header, /aria-expanded="false"/);
+    assert.match(header, /Archived \(1\)/);
+    assert.match(header, /<svg/);
+});
+
+test("归档分组在选中归档频道时展开：行可见、is-active 且保留 Archived badge", () => {
+    const html = sidebarHtml(
+        [
+            { id: "c2", name: "retired", type: "public", unread: 0, messageCount: 1, archived: 1 },
+        ],
+        { selectedChannelId: "c2" },
+    );
+
+    const header = archivedHeader(html);
+    assert.match(header, /aria-expanded="true"/);
+    const row = channelRow(html, "retired");
+    assert.match(row, /class="nav-row is-active"/);
+    assert.match(row, />Archived<\/span>/);
+});
+
+test("归档 DM 不出现在私信分组，出现在归档组且名称剥离 dm:owner↔ 前缀", () => {
+    const html = sidebarHtml(
+        [
+            { id: "dm:owner↔Nova", name: "dm:owner↔Nova", type: "dm", unread: 0, messageCount: 1 },
+            { id: "dm:owner↔Retired", name: "dm:owner↔Retired", type: "dm", unread: 0, messageCount: 2, archived: 1 },
+            { id: "dm:owner↔Ghost", name: "dm:owner↔Ghost", type: "dm", unread: 0, messageCount: 0, archived: 1 },
+        ],
+        { selectedChannelId: "dm:owner↔Retired" },
+    );
+
+    const headerIndex = html.indexOf("Archived (");
+    assert.ok(headerIndex > -1, "archived group header should render");
+    const beforeHeader = html.slice(0, headerIndex);
+    const afterHeader = html.slice(headerIndex);
+
+    // 活跃 DM 仍在私信分组；归档 DM 只在归档组出现
+    assert.match(beforeHeader, />Nova</);
+    assert.doesNotMatch(beforeHeader, /Retired/);
+    assert.match(afterHeader, />Retired</);
+    assert.match(afterHeader, /Archived<\/span>/);
+    // 空归档 DM 仍不出现（懒创建语义），且任何位置都不泄露原始前缀
+    assert.doesNotMatch(html, /Ghost/);
+    assert.doesNotMatch(html, /dm:owner↔/);
+});
+
+test("没有归档频道时不渲染归档分组标题", () => {
+    const html = sidebarHtml([
+        { id: "c1", name: "active", type: "public", unread: 0, messageCount: 1 },
+    ]);
+    assert.doesNotMatch(html, /Archived \(/);
+    assert.doesNotMatch(html, /aria-expanded=/);
 });
 
 // ─── 票 03：rail 行的形态（class 在 markup，形态在 globals.css 的 .nav-row / .avatar 块） ──

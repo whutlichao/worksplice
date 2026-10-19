@@ -418,6 +418,7 @@ export const zhCNLocale: LocalePlugin = {
     "shell.brandSub": "本地工作区",
     "shell.channels": "频道",
     "shell.dm": "私信",
+    "shell.archivedChannels": "已归档（{count}）",
     "shell.createChannel": "新建频道",
     "shell.agents": "Agent 成员",
     "shell.createAgent": "新建 agent",
