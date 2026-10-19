@@ -303,6 +303,8 @@ export interface ReplyPromptContext {
 
 const PROMPT_CHANNEL_CAP = 100;
 const PROMPT_MEMBER_CAP = 100;
+const DM_MENTION_RULE =
+  '- DM mention rule: do not @mention other agents in this direct message; refer to their names in plain text instead.';
 
 function formatChannelContext(channels: ReplyPromptContext["channels"]): string {
   const shown = channels.slice(0, PROMPT_CHANNEL_CAP);
@@ -424,10 +426,11 @@ export function buildReplyPrompt(input: {
   lines.push(
     "- MUST reply: you are personally @mentioned in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
   );
-  if (input.channel.type === "dm") {
+  if (input.channel.type === 'dm') {
     lines.push(
       "- DM rule: this channel is your direct message with the owner — a human message from the owner here is always a MUST reply; ignoring it is treated as a failure.",
     );
+    lines.push(DM_MENTION_RULE);
   }
   lines.push(
     "- MAY reply: the message concerns your role, your workspace, or your current work — answer when you can add value.",
@@ -497,6 +500,9 @@ export function buildRevisionPrompt(input: {
   );
   head.push(`What happened: ${input.held.whatHappened}`);
   head.push(`The room is now at seq ${input.held.roomSeq}.`);
+  if (input.channel.type === 'dm') {
+    head.push(DM_MENTION_RULE);
+  }
 
   // 尾部（原稿 + 重写指示 + marker）：原稿是本轮要发的内容，给比普通正文更宽的额度
   const lines: string[] = [];
