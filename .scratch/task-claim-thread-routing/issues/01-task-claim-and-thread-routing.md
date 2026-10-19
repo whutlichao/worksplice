@@ -1,7 +1,7 @@
 # 任务创建后的认领与线程路由
 
 Type: task
-Status: resolved
+Status: in_progress
 Spec: [spec.md](../spec.md)
 
 ## What to build
@@ -160,15 +160,21 @@ Spec: [spec.md](../spec.md)
 
 Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。Standards 与 Spec 由独立 reviewer 分别执行。
 
-**Standards**
+**Standards（前一轮复核）**
 
 - 报告：`findings: []`，`overall_correctness: correct`。未发现 `docs/engineering-standards.md` §§1、2、5 的违规或可报告的 smell；回归沿用 agent-loop fake runtime 与隔离数据库约定。
+
+**Standards（最终 diff 复核）**
+
+- 报告：`findings: 1`，`overall_correctness: incorrect`。Finding：`.scratch/task-claim-thread-routing/map.md` 不存在；`docs/engineering-standards.md` §5 要求将 ticket 结论写入该 effort 的 `map.md` → Decisions-so-far。
+- 处置：未新增 `map.md`，因为它不在本票授权 Target 文件内。最终 review 在 Dispatch 已返回 `consumer_fenced` 后完成；按 fencing 规则没有重试邮箱或冒用句柄，无法向 coordinator 发 escalation。此 scope blocker 保留并报告给发起用户。
 
 **Spec**
 
 - 初审发现 event-only fallback 在 drain 仍含未消费锚点且创建事件不相邻时仍会认领。处置：新增红绿回归；fallback 仅在 drain 没有开放任务锚点时进入。
 - 后续复核发现一个已消费任务的事件可能越过 drain 中另一个可见开放任务锚点。处置：event-only 路径要求 `anchoredTasks.length === 0`；新增可见歧义锚点回归并验证未认领。
 - 初审指出 Task #9 Answer 尚未追加；本节补齐根因、红绿证据、改动文件、双轴发现与处置以及 PR 号。
+- 最终 diff 复核：`findings: []`，`overall_correctness: correct`；未发现行为缺口或范围外改动。
 
 **PR**
 
