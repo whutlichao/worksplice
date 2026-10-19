@@ -124,7 +124,7 @@ Spec: [spec.md](../spec.md)
 - 验证：`node --test lib/agent-loop/loop-tasks.test.mjs` 为 27 passed、0 failed；`npm run typecheck` 通过；`npm run lint` 为 0 errors、1 条 `hooks/useI18n.tsx:61` warning；`git diff --check` 通过。
 - 最终双轴评审（Standards / Spec）：两份报告均为 `findings: []`、`overall_correctness: correct`；Standards 未发现剩余规范违规或可报告的 code smell，Spec 未发现行为或范围问题。
 
-### Task #9 follow-up：忽略本 agent 自己的历史 drain 消息
+### Task #9 后续：忽略本 agent 自己的历史 drain 消息
 
 **根因与修复**
 
@@ -180,7 +180,7 @@ Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。St
 
 - [PR #189：忽略自有历史 drain 消息后自动认领任务](https://github.com/whutlichao/worksplice/pull/189)。
 
-### Coordinator follow-up：§5 Decisions-so-far 记录
+### 协调方后续：§5 Decisions-so-far 记录
 
 - Coordinator 确认 `docs/engineering-standards.md` §5 要求每个 ticket 的结论写入 `.scratch/<effort>/map.md`，并指示本票补齐该仓库记录。
 - 已新增 `.scratch/task-claim-thread-routing/map.md`，记录忽略接收 agent 自己的历史 drain 消息、event-only 路径保留“drain 中无开放任务锚点”约束，以及 ticket / PR #189 链接；此前 Standards finding 已处理，Status 保持 `resolved`。
