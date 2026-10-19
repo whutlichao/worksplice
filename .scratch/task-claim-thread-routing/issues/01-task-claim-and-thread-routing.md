@@ -15,6 +15,9 @@ Spec: [spec.md](../spec.md)
 - [x] 覆盖成功认领、锚点线程答复、竞争失败者不发频道顶层任务回复、普通频道回复仍正常。
 - [x] 完成 diagnosing-bugs 假设验证；全量测试、typecheck、lint 记录真实输出。
 - [x] Answer 包含两份独立 Standards / Spec review 报告及 PR 号；Status 为 resolved，工作区干净。
+- [x] Task #9 回归覆盖本 agent 自己的旧 drain 消息，以及“锚点 + 创建事件”和 event-only 两条入口；两者均须认领成功并将答复持久化到任务锚点线程。
+- [x] 其他作者的额外活动、多任务、同轮锚点与创建事件非相邻或不匹配、closed / reopened / 已有 owner 与竞争 claim 仍按原规则阻止或让路；普通频道回复语义保持不变。
+- [x] `docs/spec.md` §3.7 与本地 spec 明确忽略本 agent 自己的历史 drain 消息；追加 Task #9 Answer，记录红绿证据、改动文件、双轴 review 处置和 PR。
 
 ## Comments
 
@@ -120,3 +123,114 @@ Spec: [spec.md](../spec.md)
 - 修正：仅将本 PR 新增代码行的 JS/TS 字符串分隔双引号改为单引号；JSON payload 内容中的双引号保留；两个评审标题改为“规范评审发现与处置”和“规格评审”。
 - 验证：`node --test lib/agent-loop/loop-tasks.test.mjs` 为 27 passed、0 failed；`npm run typecheck` 通过；`npm run lint` 为 0 errors、1 条 `hooks/useI18n.tsx:61` warning；`git diff --check` 通过。
 - 最终双轴评审（Standards / Spec）：两份报告均为 `findings: []`、`overall_correctness: correct`；Standards 未发现剩余规范违规或可报告的 code smell，Spec 未发现行为或范围问题。
+
+### Task #9 后续：忽略本 agent 自己的历史 drain 消息
+
+**根因与修复**
+
+- `claimTaskFromReply` 的混合活动检查使用全部 `roundMessages`，把接收 agent 自己因消费游标未越过其输出而留在 drain 的旧消息当成竞争活动。event-only 分支也要求整个 drain 恰好只有一条消息，因此同样拒绝了包含旧自回复的唯一 Owner 创建事件。
+- 混合活动和 event-only 匹配改为依据 `incoming`（仅其他作者的消息）；唯一开放任务锚点仍从完整 drain 查找，保证 agent-authored 锚点可参与锚点 + 紧邻事件路径。event-only fallback 仅在 drain 不含开放任务锚点时运行，避免非相邻事件或其他可见任务锚点导致误选。
+- Task #9 回归先提交并将 Status 设为 `in_progress`（`b8d3f40`），随后提交实现；本 Answer 完成后 Status 收敛为 `resolved`。旧 PR #188 Answer 与证据保留不变。
+
+**红绿证据**
+
+- 主回归标题：`a self-authored reply left in the drain does not block automatic task claims`。
+- 红命令：`node --test --test-name-pattern='a self-authored reply left in the drain does not block automatic task claims' lib/agent-loop/loop-tasks.test.mjs`。在隔离 worktree 的原实现上 `tests 1, pass 0, fail 1`；锚点 + event 与 event-only 两种情形都实际得到 `taskStatus: 'todo'`、`claimedByAgent: false`、答复 target 为 `channel`、频道任务答复数为 1。
+- 绿：同一命令最终为 `tests 1, pass 1, fail 0`；两种情形均为 `in_progress`、接收 agent 成为 owner、答复 target 等于任务锚点、频道任务答复数为 0。
+- 规格边界回归 `an unconsumed task anchor with a nonadjacent Owner event does not auto-claim`：修正前失败（实际 `in_progress`，预期 `todo`），修正后通过。
+- 规格边界回归 `a visible unmatched task anchor blocks event-only auto-claim`：修正前失败（实际 `in_progress`，预期 `todo`），修正后通过。
+- 测试文件使用 `fs.mkdtempSync` 打开临时 SQLite fixture；未访问默认 Worksplice 数据库。
+
+**Task #9 原始实现验证**
+
+- `node --test lib/agent-loop/loop-tasks.test.mjs`：`tests 30, pass 30, fail 0`。
+- `npm run typecheck`：退出码 0。
+- `npm run lint`：退出码 0，0 errors；1 条既有 warning：`hooks/useI18n.tsx:61` 缺少 `locale` dependency。
+- 当时的 `git diff --check` 通过；原始实现阶段未运行全仓 `npm test`，这不符合本票 Acceptance、spec 与 `docs/engineering-standards.md` §2.2。完整结果及固定 base 对照见下方「Task #9 最终全量测试证据更正」。
+
+**改动文件**
+
+- `lib/agent-loop/loop.ts`：只以其他作者 incoming 消息判断竞争活动；event-only 需无可见开放任务锚点。
+- `lib/agent-loop/loop-tasks.test.mjs`：覆盖两条成功入口，以及非相邻事件和可见歧义锚点的拒绝行为。
+- `docs/spec.md` §3.7：说明忽略本 agent 的旧 drain 消息，并保留多任务、非相邻事件与可见锚点保护。
+- `.scratch/task-claim-thread-routing/spec.md`：追加 Task #9 follow-up 规则。
+- `.scratch/task-claim-thread-routing/issues/01-task-claim-and-thread-routing.md`：状态、Acceptance 与本 Answer。
+
+**双轴 code review**
+
+Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。Standards 与 Spec 由独立 reviewer 分别执行。
+
+**Standards（前一轮复核）**
+
+- 报告：`findings: []`，`overall_correctness: correct`。未发现 `docs/engineering-standards.md` §§1、2、5 的违规或可报告的 smell；回归沿用 agent-loop fake runtime 与隔离数据库约定。
+
+**Standards（map 补齐前的最终 diff 复核）**
+
+- 报告：`findings: 1`，`overall_correctness: incorrect`。Finding：`.scratch/task-claim-thread-routing/map.md` 不存在；`docs/engineering-standards.md` §5 要求将 ticket 结论写入该 effort 的 `map.md` → Decisions-so-far。
+- 处置：coordinator follow-up 确认 §5 是必需仓库流程记录，并授权补齐；已新增 `.scratch/task-claim-thread-routing/map.md`，记录 Task #9 决定及 ticket / PR #189 链接。此 finding 已处理，ticket 保持 resolved。
+
+**Spec**
+
+- 初审发现 event-only fallback 在 drain 仍含未消费锚点且创建事件不相邻时仍会认领。处置：新增红绿回归；fallback 仅在 drain 没有开放任务锚点时进入。
+- 后续复核发现一个已消费任务的事件可能越过 drain 中另一个可见开放任务锚点。处置：event-only 路径要求 `anchoredTasks.length === 0`；新增可见歧义锚点回归并验证未认领。
+- 初审指出 Task #9 Answer 尚未追加；本节补齐根因、红绿证据、改动文件、双轴发现与处置以及 PR 号。
+- 最终 diff 复核：`findings: []`，`overall_correctness: correct`；未发现行为缺口或范围外改动。
+
+**PR**
+
+- [PR #189：忽略自有历史 drain 消息后自动认领任务](https://github.com/whutlichao/worksplice/pull/189)。
+
+### 协调方后续：§5 Decisions-so-far 记录
+
+- 协调方确认 `docs/engineering-standards.md` §5 要求每个 ticket 的结论写入 `.scratch/<effort>/map.md`，并指示本票补齐该仓库记录。
+- 已新增 `.scratch/task-claim-thread-routing/map.md`，记录忽略接收 agent 自己的历史 drain 消息、event-only 路径保留“drain 中无开放任务锚点”约束，以及 ticket / PR #189 链接；此前 Standards finding 已处理，Status 保持 `resolved`。
+- 补充复验：三条聚焦回归 `3 passed, 0 failed`；完整 `loop-tasks.test.mjs` `30 passed, 0 failed`；typecheck 通过；lint 为 0 errors、1 条既有 `hooks/useI18n.tsx:61` warning。
+
+**Standards（map 补齐后的最终 diff review）**
+
+- 报告：`findings: 3`，`overall_correctness: incorrect`。
+- §2.2 全量门禁 finding：规范要求 `npm test`。此前“Task #9 禁止全量测试、跳过属于范围内”的说明不正确；Task #9 Acceptance、spec §实施与验收及 standards §2.2 均要求全量测试。本次补记 candidate 与 fixed-base 实际结果；同一断言在两边失败后，才将其判定为本票无关的 baseline failure。
+- §5 的 retained agent-loop dev-server finding 已处理：`loop.ts` 最后相关提交为 `2026-10-19T22:54:52+08:00`；随后以 `WORKSPLICE_DATA_DIR=/tmp/worksplice-task9-dev-smoke npm run dev` 启动，进程开始时间 `2026-10-19 23:24:14 +0800`，首页 HTTP 200、HTML 26,552 bytes；使用隔离目录，随后停止进程并确认端口无 listener。
+- 判断项（非硬性 finding）：可能的 Duplicated Code（`loop-tasks.test.mjs` 两条用例的首轮 fixture setup）；保留独立 setup。两用例分别验证锚点 + 创建 event / event-only 成功路由与可见未消费锚点 + 非相邻 Owner event 的拒绝顺序；抽取共享 helper 会隐藏各自的消息时序。
+
+**Spec（map 补齐后的最终 diff review）**
+
+- 报告：`findings: []`，`overall_correctness: correct`。确认自有历史 drain 消息过滤、两条允许路由、可见未消费锚点 guard、既有 claim/yield 保护及 Answer/map 收口符合要求。
+
+### 全量证据更正前的双轴复核
+
+- 本节记录全量证据更正前的上一轮 review，不作为本次最终结论。
+- Spec（该轮）报告：`findings: []`，`overall_correctness: correct`。确认其他作者 incoming 活动判定、两条允许路由、可见未消费锚点拒绝条件及既有 claim/yield/freshness 语义符合本票要求。
+
+### Task #9 最终全量测试证据更正
+
+**全量测试与门禁**
+
+- Candidate `b219ae67fa0d4fb9eca37e5a265e8f5c22639404`：`npm test` 为 1518 passed / 1 failed（1519 tests）。唯一失败是 `lib/model-listing.test.mjs:50` 的 “lite path returns a working runtime without loading extensions”：实际 model list 含 `deepseek-flash` 与 `deepseek-v4-pro`，断言期望 `[]`。
+- Fixed base `1e5741e120a946ee0e973cb762d10e21fa05d103`：同一 `npm test` 为 1515 passed / 1 failed（1516 tests），同一测试、同一实际/期望不匹配。base 运行使用未修改的 `package.json` 与 `package-lock.json`，以及 candidate 已安装的依赖树。
+- Candidate 比 fixed base 多 3 个测试且没有新增失败。依据两边相同的 model-listing 失败，将其记录为与本次路由改动无关的 baseline failure；不能将未跑全量测试描述为符合范围。
+- `node --test lib/agent-loop/loop-tasks.test.mjs`：30 passed，0 failed。
+- `npm run typecheck`：通过，退出码 0。
+- `npm run lint`：0 errors，1 条既有 warning：`hooks/useI18n.tsx:61` 的 `react-hooks/exhaustive-deps` 缺少 `locale` dependency。
+- `git diff --check`：通过。
+
+**标准 finding 与判断项**
+
+- §2.2 的全量测试要求已执行并记录真实结果；candidate 唯一失败与 fixed base 的同一断言失败，按对照记录为 baseline failure。此次不声称测试全绿；全量测试未运行也不属于合规范围例外。
+- 判断项（非硬性 finding）：上述可能的 Duplicated Code smell 保留为两套独立 fixture setup，避免隐藏不同消息时序。
+- 既有 §5 dev-server finding 已有隔离目录重启及 HTTP 200 证据，处置保持完成。
+
+### Task #9 最终独立双轴复核
+
+Fixed point：`1e5741e120a946ee0e973cb762d10e21fa05d103`；Standards 与 Spec 均由独立 reviewer 对更正后的完整 diff 复核。
+
+**Standards**
+
+- 最终报告：`findings: []`，`overall_correctness: correct`；未发现本次 diff 新增的规范违规。§2.2 全绿门禁仍未通过（candidate `npm test` 1518 passed / 1 failed），但 fixed base 同一 model-listing 断言也失败（1515 passed / 1 failed），因此这是既有 baseline blocker，不是本次改动回归，且已在 Answer 与 PR body 如实记录。
+- 判断项（非硬性 finding）：可能的 Duplicated Code——`loop-tasks.test.mjs` 中 `runAgentRound(...)` / `assert.equal(..., 'replied')` 首轮 setup 在 350–351 与 428–429 重复；两例验证不同消息时序，故保留独立 setup。
+- 更正已处置的前轮发现：已将 Answer 中的普通英文角色称呼译为“协调方”；PR body 中“全量测试未运行且符合范围”的错误说明已替换为 candidate/base 结果。
+
+**Spec**
+
+- 最终报告：`findings: []`，`overall_correctness: correct`。确认 Answer 与 PR #189 Evidence 记录完整测试结果、边界行为、改动文件、评审处置及 PR；未发现剩余要求遗漏或 scope creep。
+- 前一轮 Spec review 曾指出 fixed-point diff 含 `map.md`；最终复核依据既有 Task #9 §5 协调授权确认这是已完成的前序产物，且本次未修改，故无剩余 Spec finding。

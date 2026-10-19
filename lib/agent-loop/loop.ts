@@ -970,10 +970,13 @@ function claimTaskFromReply(input: {
         message.seq === anchor.seq + 1 &&
         taskCreationEventNumber(message) === task.number,
     );
-    const hasOtherActivity = roundMessages.some(
-      (message) =>
-        message.id !== task.message_id && message.id !== taskEvent?.id,
-    );
+    let hasOtherActivity = false;
+    for (const message of incoming) {
+      if (message.id !== task.message_id && message.id !== taskEvent?.id) {
+        hasOtherActivity = true;
+        break;
+      }
+    }
     if (taskEvent && !hasOtherActivity) {
       return {
         ...action,
@@ -982,19 +985,17 @@ function claimTaskFromReply(input: {
     }
   }
 
-  if (
-    roundMessages.length !== 1 ||
-    incoming.length !== 1 ||
-    roundMessages[0].id !== incoming[0].id
-  ) {
+  if (incoming.length !== 1) {
     return action;
   }
-  const taskNumber = taskCreationEventNumber(roundMessages[0]);
+  const taskNumber = taskCreationEventNumber(incoming[0]);
   if (taskNumber === null) return action;
   const matchingTasks = openTasks.filter(
     (task) => task.number === taskNumber,
   );
-  if (matchingTasks.length !== 1) return action;
+  if (matchingTasks.length !== 1 || anchoredTasks.length !== 0) {
+    return action;
+  }
   return {
     ...action,
     task: { number: taskNumber, op: 'claim' },
