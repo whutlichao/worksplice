@@ -1,7 +1,7 @@
 # 任务创建后的认领与线程路由
 
 Type: task
-Status: resolved
+Status: in_progress
 Spec: [spec.md](../spec.md)
 
 ## What to build
@@ -15,6 +15,9 @@ Spec: [spec.md](../spec.md)
 - [x] 覆盖成功认领、锚点线程答复、竞争失败者不发频道顶层任务回复、普通频道回复仍正常。
 - [x] 完成 diagnosing-bugs 假设验证；全量测试、typecheck、lint 记录真实输出。
 - [x] Answer 包含两份独立 Standards / Spec review 报告及 PR 号；Status 为 resolved，工作区干净。
+- [ ] Task #9 回归覆盖本 agent 自己的旧 drain 消息，以及“锚点 + 创建事件”和 event-only 两条入口；两者均须认领成功并将答复持久化到任务锚点线程。
+- [ ] 其他作者的额外活动、多任务、closed / reopened / 已有 owner 与竞争 claim 仍按原规则阻止或让路；普通频道回复语义保持不变。
+- [ ] `docs/spec.md` §3.7 与本地 spec 明确忽略本 agent 自己的历史 drain 消息；追加 Task #9 Answer，记录红绿证据、改动文件、双轴 review 处置和 PR。
 
 ## Comments
 
