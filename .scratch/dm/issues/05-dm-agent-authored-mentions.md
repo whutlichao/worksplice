@@ -1,8 +1,8 @@
-# 05: Agent-authored DM mention wake
+# 05：Agent 在 DM 中 @mention 其他 agent 的唤醒规则
 
 **What to build:** 修复 agent 在 Owner↔agent 一对一 DM 中回复时 @mention 其他 agent 会触发非成员唤醒的问题；DM 普通回复与 held/revision prompt 明确要求使用纯文本姓名。
 
-**Status:** in progress
+**Status:** resolved
 
 - [x] agent-authored DM 中对非成员 agent 的 @mention 不产生 wake；DM 成员正常收消息。
 - [x] Owner-authored DM 对非成员的 mention 路由保持；普通频道的非成员 mention wake 保持。
@@ -37,3 +37,9 @@
 **Standards**：首轮指出两个测试从协作子模块导入，已改为经 `../domain/collab/index.ts` 导入；后续指出新增字符串字面量需用单引号，包含 held prompt 的 `'dm'` 判断，一并修复。最终全量 diff 未发现文档化规范违规。Review 提到普通回复与 held/revision prompt 中有相同的正则断言；保留两处独立断言以分别覆盖两个 prompt 构造路径，提取共享 helper 会违反本票不引入新抽象的约束。先前提到的 fake-session wiring 重复经 diff 确认为本票未修改的既有代码。
 
 **Spec**：无 findings。Owner-authored DM 跨成员 mention 路由、非 DM mention wake、DM 成员唤醒均保留；parser、storage、rendering、membership 与非 DM 策略未改。
+
+### 交付记录
+
+- PR：[#187](https://github.com/whutlichao/worksplice/pull/187)
+- PR 创建时 head SHA：`fc1ab5d7b28a0e97c02ec361bccc20313fcd0420`
+- PR body：`/tmp/dm-agent-mentions-pr-body.md`
