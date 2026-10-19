@@ -185,3 +185,14 @@ Review fixed point：`main`（`1e5741e120a946ee0e973cb762d10e21fa05d103`）。St
 - Coordinator 确认 `docs/engineering-standards.md` §5 要求每个 ticket 的结论写入 `.scratch/<effort>/map.md`，并指示本票补齐该仓库记录。
 - 已新增 `.scratch/task-claim-thread-routing/map.md`，记录忽略接收 agent 自己的历史 drain 消息、event-only 路径保留“drain 中无开放任务锚点”约束，以及 ticket / PR #189 链接；此前 Standards finding 已处理，Status 保持 `resolved`。
 - 补充复验：三条聚焦回归 `3 passed, 0 failed`；完整 `loop-tasks.test.mjs` `30 passed, 0 failed`；typecheck 通过；lint 为 0 errors、1 条既有 `hooks/useI18n.tsx:61` warning。
+
+**Standards（map 补齐后的最终 diff review）**
+
+- 报告：`findings: 3`，`overall_correctness: incorrect`。
+- `docs/engineering-standards.md` §2.2 要求 `npm test` 全量门禁；本票明确要求不跑全仓全量测试，因此按任务范围跳过，已运行完整受影响文件 `node --test lib/agent-loop/loop-tasks.test.mjs`（30 passed）。不以另一 base 的全量数字替代，也不扩跑全量。
+- §5 的 retained agent-loop dev-server finding 已处理：`loop.ts` 最后相关提交为 `2026-10-19T22:54:52+08:00`；随后以 `WORKSPLICE_DATA_DIR=/tmp/worksplice-task9-dev-smoke npm run dev` 启动，进程开始时间 `2026-10-19 23:24:14 +0800`，首页 HTTP 200、HTML 26,552 bytes；使用隔离目录，随后停止进程并确认端口无 listener。
+- 可能的 Duplicated Code（`loop-tasks.test.mjs` 两条用例的首轮 fixture setup）：判定为非阻塞判断项，保留独立 setup。两用例分别验证锚点 + 创建 event / event-only 成功路由与可见未消费锚点 + 非相邻 Owner event 的拒绝顺序；抽取共享 helper 会隐藏各自的消息时序。
+
+**Spec（map 补齐后的最终 diff review）**
+
+- 报告：`findings: []`，`overall_correctness: correct`。确认自有历史 drain 消息过滤、两条允许路由、可见未消费锚点 guard、既有 claim/yield 保护及 Answer/map 收口符合要求。
