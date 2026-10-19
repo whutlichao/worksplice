@@ -89,8 +89,12 @@ const EMPTY_MODELS: ModelsData = {
 };
 
 export async function GET(req: Request) {
-  const requestedCwd = new URL(req.url).searchParams.get("cwd") || process.cwd();
-  const cwd = resolve(requestedCwd);
+  const requestedCwd = new URL(req.url).searchParams.get("cwd");
+  // 未传 cwd（含空串）时用服务端自己选定的工作目录（打包模式为安装目录，
+  // 开发模式为仓库目录）。它不属于用户可控输入，因此不适用文件访问 allowlist
+  // （allowlist 的职责是约束用户传入的路径）。非空 cwd 仍按下方逻辑校验。
+  const hasNonEmptyCwd = Boolean(requestedCwd);
+  const cwd = resolve(requestedCwd || process.cwd());
 
   let cwdStat;
   try {
@@ -101,9 +105,11 @@ export async function GET(req: Request) {
   if (!cwdStat.isDirectory()) {
     return Response.json({ error: `Not a directory: ${cwd}` }, { status: 400 });
   }
-  const allowedRoots = await getAllowedFileRoots();
-  if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-    return Response.json({ error: "Access denied" }, { status: 403 });
+  if (hasNonEmptyCwd) {
+    const allowedRoots = await getAllowedFileRoots();
+    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
+      return Response.json({ error: "Access denied" }, { status: 403 });
+    }
   }
 
   try {
