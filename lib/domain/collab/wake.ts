@@ -77,7 +77,7 @@ export function notifyMessageWakes(message: MessageRow): void {
     emitWake({ agentId: member.id, targetId: message.target_id, seq: message.seq, reason: "message" });
   }
   // agent-authored DM 正文不通过非成员 @mention 穿透唤醒其他 agent。
-  if (channel.type === "dm" && getMember(message.author_id)?.type === "agent") return;
+  if (channel.type === 'dm' && getMember(message.author_id)?.type === 'agent') return;
 
   for (const mentionedId of extractMentionedMemberIds(message.content)) {
     const member = getMember(mentionedId);
