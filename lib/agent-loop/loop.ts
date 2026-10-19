@@ -448,7 +448,10 @@ export function buildReplyPrompt(input: {
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
   );
   lines.push(
-    '- Task protocol: if the only new user message is the anchor of exactly one open task (alongside its generated "Task #N created" event), a non-empty reply automatically attempts to claim it and posts in its thread. If the claim fails, yield without posting. If other channel messages arrived too, add {"task":{"number":N,"op":"claim"}} when replying to a task; ordinary replies stay in the channel. A successful claim posts your reply in that task\'s thread.',
+    '- Task protocol: a non-empty ordinary reply auto-claims only when this round\'s only new channel activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
+    '  In both cases, claim first and post in the task thread; if claim fails (freshness hold, another owner, reopened block), yield without posting anywhere.',
+    '  Multiple task events, unmatched events, other channel activity, and ordinary messages do not auto-select a task.',
+    '  If other activity arrives, add an explicit {"task":{"number":N,"op":"claim"}} op only when choosing to claim that task; ordinary replies stay in the channel.',
   );
   lines.push(
     '- When you finish a task you own: {"task":{"number":N,"op":"complete"}} — the task moves to in_review for someone else to verify (builders never verify their own work). To step away: {"task":{"number":N,"op":"unclaim"}}.',
@@ -925,14 +928,24 @@ function taskInChannel(
   return getDb().getTaskByChannelNumber(channelId, taskNumber);
 }
 
-/** 新到达的任务锚点答复复用既有认领逻辑与线程 target。 */
-function claimTaskFromAnchorReply(input: {
+/** 解析 Owner 的任务创建事件；格式与频道中的创建事件一致。 */
+function taskCreationEventNumber(message: MessageWithAuthor): number | null {
+  if (message.author_id !== OWNER_MEMBER_ID) return null;
+  const match = /^Task #(\d+) created(?: — (.*))?$/.exec(message.content);
+  if (!match) return null;
+  const number = Number(match[1]);
+  return Number.isSafeInteger(number) ? number : null;
+}
+
+/** 普通答复只有在唯一匹配任务时才转成 claim 操作。 */
+function claimTaskFromReply(input: {
   action: AgentAction;
   channel: ChannelRow;
   targetId: string;
   incoming: MessageWithAuthor[];
+  roundMessages: MessageWithAuthor[];
 }): AgentAction {
-  const { action, channel, targetId, incoming } = input;
+  const { action, channel, targetId, incoming, roundMessages } = input;
   if (
     targetId !== channel.id ||
     action.task ||
@@ -941,34 +954,50 @@ function claimTaskFromAnchorReply(input: {
   ) {
     return action;
   }
-  const incomingIds = new Set(incoming.map((message) => message.id));
-  const anchoredTasks = getDb()
-    .listChannelTasks(channel.id)
-    .filter(
-      (task) =>
-        task.status !== "done" &&
-        task.status !== "closed" &&
-        incomingIds.has(task.message_id),
+  const openTasks = getDb().listChannelTasks(channel.id).filter(
+    (task) => task.status !== 'done' && task.status !== 'closed',
+  );
+  const activityIds = new Set(roundMessages.map((message) => message.id));
+  const anchoredTasks = openTasks.filter((task) =>
+    activityIds.has(task.message_id),
+  );
+  if (anchoredTasks.length === 1) {
+    const [task] = anchoredTasks;
+    const anchor = getDb().getMessage(task.message_id);
+    const taskEvent = incoming.find(
+      (message) =>
+        anchor &&
+        message.seq === anchor.seq + 1 &&
+        taskCreationEventNumber(message) === task.number,
     );
-  if (anchoredTasks.length !== 1) return action;
-  const [task] = anchoredTasks;
-  const anchor = getDb().getMessage(task.message_id);
-  const taskEvent = incoming.find(
-    (message) =>
-      anchor &&
-      message.author_id === OWNER_MEMBER_ID &&
-      message.seq === anchor.seq + 1 &&
-      message.content.startsWith(`Task #${task.number} created`),
+    const hasOtherActivity = roundMessages.some(
+      (message) =>
+        message.id !== task.message_id && message.id !== taskEvent?.id,
+    );
+    if (taskEvent && !hasOtherActivity) {
+      return {
+        ...action,
+        task: { number: task.number, op: 'claim' },
+      };
+    }
+  }
+
+  if (
+    roundMessages.length !== 1 ||
+    incoming.length !== 1 ||
+    roundMessages[0].id !== incoming[0].id
+  ) {
+    return action;
+  }
+  const taskNumber = taskCreationEventNumber(roundMessages[0]);
+  if (taskNumber === null) return action;
+  const matchingTasks = openTasks.filter(
+    (task) => task.number === taskNumber,
   );
-  const hasOtherActivity = incoming.some(
-    (message) =>
-      message.id !== task.message_id &&
-      message.id !== taskEvent?.id,
-  );
-  if (hasOtherActivity) return action;
+  if (matchingTasks.length !== 1) return action;
   return {
     ...action,
-    task: { number: task.number, op: "claim" },
+    task: { number: taskNumber, op: 'claim' },
   };
 }
 
@@ -1389,11 +1418,12 @@ export async function runAgentRound(
       effectiveAction = opsApplied.action;
       opsSummary = opsApplied.summary;
     }
-    effectiveAction = claimTaskFromAnchorReply({
+    effectiveAction = claimTaskFromReply({
       action: effectiveAction,
       channel,
       targetId,
       incoming,
+      roundMessages: drained.messages,
     });
     // §3.7 任务操作：先 claim 再开工；claim 失败就让路（不回复、只收口游标）
     if (effectiveAction.task) {
