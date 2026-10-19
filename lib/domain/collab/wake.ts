@@ -54,7 +54,7 @@ export function emitWake(hint: WakeHint): void {
  * 消息落库后的 wake 分发（§3.2 通知规则）：
  * - 目标 channel 的 agent 成员（不含作者）全部唤醒——加入 channel = 订阅全部消息；
  *   §3.2 mute：静音了该 channel 的成员不因普通消息被唤醒（个人 @mention 仍由下方穿透）；
- * - 未加入 channel 的 agent 被个人 @mention 时仍穿透送达（注意力信号）。
+ * - 未加入 channel 的 agent 被个人 @mention 时仍穿透送达；唯一例外是 agent-authored DM（Owner-authored DM 仍穿透）。
  * - §3.7 任务延续自醒：任务 owner 的回复落任务线程且任务仍在进行中 → 自醒续工
  *   （agent 干完活才有下一步，进度更新后继续或 complete，见 loop.ts 的 continuation）。
  * thread 消息以锚点消息 id 为目标（drain 用同一 target 归一化）。
@@ -76,6 +76,9 @@ export function notifyMessageWakes(message: MessageRow): void {
     woken.add(member.id);
     emitWake({ agentId: member.id, targetId: message.target_id, seq: message.seq, reason: "message" });
   }
+  // agent-authored DM 正文不通过非成员 @mention 穿透唤醒其他 agent。
+  if (channel.type === "dm" && getMember(message.author_id)?.type === "agent") return;
+
   for (const mentionedId of extractMentionedMemberIds(message.content)) {
     const member = getMember(mentionedId);
     if (!member || member.type !== "agent" || member.id === message.author_id) continue;

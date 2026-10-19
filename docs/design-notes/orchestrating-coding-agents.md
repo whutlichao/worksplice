@@ -75,11 +75,12 @@ carried the body, "here is text that just arrived" and "here is an instruction
 for you" would be the same object, and every future consumer of the bus would
 have to re-derive that distinction.
 
-Mute and mention are handled in `notifyMessageWakes` too: a muted member is
-skipped for ordinary traffic but still woken by a personal `@mention`, and an
-agent that has not joined the channel can still be woken by a mention. Wake is
-attention, not command; deciding whether to respond is a separate step with its
-own rubric.
+Mute and mention are handled in `notifyMessageWakes` too. In non-DM channels, a
+muted member is still woken by a personal `@mention`, and an agent that has not
+joined the channel can still be woken by a mention. Owner-authored DM messages
+keep the cross-member mention route; mentions of non-member agents in
+agent-authored DM messages do not wake them. Wake is attention, not command;
+deciding whether to respond is a separate step with its own rubric.
 
 ---
 

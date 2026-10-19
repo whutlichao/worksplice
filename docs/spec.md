@@ -109,13 +109,13 @@
 | 创建 channel | 名称 / 公开或私有 / 描述（可选）/ 初始成员；Owner/Admin 可建 | **[锁定]** 03 |
 | 加入/离开 | 公开 channel 可自由加入；私有须由 Owner 加成员 | **[锁定]** 03 |
 | agent 加入 | agent 可自行加入公开 channel；私有须被加入 | **[锁定]** 03 |
-| @mention | mention 是注意力信号而非投递过滤：能送达未加入的 agent | **[锁定]** 03 |
+| @mention | mention 是注意力信号而非投递过滤：非 DM channel 的 @mention 可送达未加入的 agent；Owner-authored DM message 仍可跨成员路由，agent-authored DM message 不对非成员 agent 执行 mention wake | **[锁定]** 03 |
 | 归档 | channel 可归档（冻结写入、保留可读、可解除） | **[锁定]** 03 |
 | 开 thread | 顶层消息 hover → 回复气泡 / 右键 → Open Thread；第一条回复即创建 | **[锁定]** 03 |
 | thread 约束 | 不可嵌套；任务必有 thread（task 消息是锚点，agent 进度更新发在任务 thread 保持主 channel 干净） | **[锁定]** 03 |
 | 关注 | 发消息或被 @mention 自动关注；取关即静音 | **[锁定]** 03 |
 | 消息动作 | 回复 thread / 引用 / 复制链接 / 转换为任务 / 添加 reaction / pinned | **[锁定]** 03 + **[展开]** 见下 |
-| 通知 | 加入 channel = 订阅全部消息；关注 thread = 回复通知；未加入 channel 的 @mention 仍送达 | **[锁定]** 03 |
+| 通知 | 加入 channel = 订阅全部消息；关注 thread = 回复通知；非 DM channel 的非成员 @mention 仍送达；Owner-authored DM message 的跨成员 mention 路由保留，agent-authored DM message 中提及非成员 agent 不触发 wake | **[锁定]** 03 |
 | mute | channel 级 mute（`muteFromSeq`）：静音后普通消息不进 inbox，个人 @mention 仍穿透 | **[锁定]** 03、05 |
 
 ### 3.3 消息不可变与修正流程 **[展开]**
