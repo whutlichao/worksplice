@@ -2590,12 +2590,15 @@ function applyBackfillTarget(
   replies: SessionReply[],
 ): number {
   const db = getDb();
-  // target 本身是频道才需要跨 target 判重；thread 锚点返回 undefined。
-  const channelId = db.getChannel(targetId)?.id ?? null;
+  // 只有「marker 指向频道本身」才需要跨 target 判重。target 归一化沿用 §6.1 的唯一实现
+  // （resolveTargetChannel），这里再收窄一层：解析出的频道必须**就是** target 本身。
+  const resolvedChannel = resolveTargetChannel(targetId);
+  const topLevelChannelId =
+    resolvedChannel && resolvedChannel.id === targetId ? resolvedChannel.id : null;
   let inserted = 0;
   let cursorSeq: number | null = null;
   let contentBlocked = 0;
-  let threadDelivered = 0;
+  let skippedAsThreadDelivered = 0;
   db.withTransaction(() => {
     for (const reply of replies) {
       // ADR-0004 轮级跨作者去重；命中轮跳过，不把他人回复冒充为本 agent 投递。
@@ -2610,10 +2613,10 @@ function applyBackfillTarget(
       // 跨 target：同一内容已在本频道的某个 task thread 里由本 agent 投递过 → 顶层不再补写。
       // 游标照常推进（与同 target 幂等同一口径：标记轮已投递，不该反复重读）。
       if (
-        channelId &&
-        db.hasAuthorContentInChannel(channelId, agent.id, reply.content)
+        topLevelChannelId &&
+        db.hasAuthorContentInChannel(topLevelChannelId, agent.id, reply.content)
       ) {
-        threadDelivered += 1;
+        skippedAsThreadDelivered += 1;
         continue;
       }
       const seq = db.maxSeq(reply.targetId) + 1;
@@ -2626,10 +2629,10 @@ function applyBackfillTarget(
       inserted += 1;
     }
   });
-  if (threadDelivered > 0) {
+  if (skippedAsThreadDelivered > 0) {
     console.warn(
-      `[backfill] member ${agent.id}: skipped ${threadDelivered} channel reply round(s) ` +
-        `already delivered to a task thread in this channel (target: ${targetId}); ` +
+      `[backfill] member ${agent.id}: skipped ${skippedAsThreadDelivered} channel reply ` +
+        `round(s) already delivered to a task thread in this channel (target: ${targetId}); ` +
         `cursor advanced`,
     );
   }
