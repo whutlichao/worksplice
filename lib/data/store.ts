@@ -85,6 +85,14 @@ export interface Store {
   listMessagesByAuthor(authorId: string, limit?: number): MessageRow[];
   hasMessage(targetId: string, authorId: string, content: string): boolean;
   hasMessageByContentByOther(targetId: string, authorId: string, content: string): boolean;
+  /**
+   * 同一频道范围内（频道顶层 + 以其顶层消息为锚点的全部 thread）该作者是否已有同内容消息。
+   * backfill 跨 target 判重用：房间标记记的是**频道版本**，而任务回复的真实投递目标是
+   * task thread 的锚点消息——只按同 target 判重会把已投递的回复再写一份到频道顶层。
+   * 频道 id 由调用方从 target 推导；只跨 target 判重**同作者**，ADR-0004 的轮级跨作者
+   * 去重仍按原口径（同 target）判定。
+   */
+  hasAuthorContentInChannel(channelId: string, authorId: string, content: string): boolean;
 
   // -- members --------------------------------------------------------------
   // 读侧派生（ADR-0001）：agent 行的 `workspace_path` 表达**有效工作区**——显式项目目录绑定原样返回，

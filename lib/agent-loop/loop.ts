@@ -2570,15 +2570,32 @@ async function prepareAgentBackfill(
   }
 }
 
+/**
+ * 单个 target 的补写。
+ *
+ * 判重分两层（后者是本票新增的跨 target 层）：
+ * - **同 target 幂等**：该 target 里已有本 agent 的同内容 ⇒ 已投递，跳过但推进游标；
+ * - **跨 target（仅频道顶层）**：marker 记的是频道版本，而 §3.7 起任务回复的真实投递目标是
+ *   task thread 的锚点消息（PR #190 的路由）。所以补写频道顶层前，还要查同作者同内容是否
+ *   已存在于**本频道任一 thread**——命中说明该轮已投递，只是 target 不是频道。否则崩溃恢复
+ *   会把同一段内容在频道顶层与线程里各存一份。
+ *
+ * 作用域刻意收窄：只有「marker 指向频道」的顶层补写做跨 target 判重。marker 指向线程的补写
+ * 仍只看该线程本身——线程回复不会反向漏到频道，多判一层只会增加误伤真实补拉的面。
+ * 跨 target 层只认同作者（ADR-0004 的轮级跨作者去重保持同 target 原口径）。
+ */
 function applyBackfillTarget(
   agent: MemberRow,
   targetId: string,
   replies: SessionReply[],
 ): number {
   const db = getDb();
+  // target 本身是频道才需要跨 target 判重；thread 锚点返回 undefined。
+  const channelId = db.getChannel(targetId)?.id ?? null;
   let inserted = 0;
   let cursorSeq: number | null = null;
   let contentBlocked = 0;
+  let threadDelivered = 0;
   db.withTransaction(() => {
     for (const reply of replies) {
       // ADR-0004 轮级跨作者去重；命中轮跳过，不把他人回复冒充为本 agent 投递。
@@ -2590,6 +2607,15 @@ function applyBackfillTarget(
       }
       cursorSeq = Math.max(cursorSeq ?? 0, reply.markerSeq);
       if (db.hasMessage(reply.targetId, agent.id, reply.content)) continue;
+      // 跨 target：同一内容已在本频道的某个 task thread 里由本 agent 投递过 → 顶层不再补写。
+      // 游标照常推进（与同 target 幂等同一口径：标记轮已投递，不该反复重读）。
+      if (
+        channelId &&
+        db.hasAuthorContentInChannel(channelId, agent.id, reply.content)
+      ) {
+        threadDelivered += 1;
+        continue;
+      }
       const seq = db.maxSeq(reply.targetId) + 1;
       db.insertMessageAt({
         targetId: reply.targetId,
@@ -2600,6 +2626,13 @@ function applyBackfillTarget(
       inserted += 1;
     }
   });
+  if (threadDelivered > 0) {
+    console.warn(
+      `[backfill] member ${agent.id}: skipped ${threadDelivered} channel reply round(s) ` +
+        `already delivered to a task thread in this channel (target: ${targetId}); ` +
+        `cursor advanced`,
+    );
+  }
   if (contentBlocked > 0) {
     console.warn(
       `[backfill] member ${agent.id}: skipped ${contentBlocked} reply round(s) whose ` +
