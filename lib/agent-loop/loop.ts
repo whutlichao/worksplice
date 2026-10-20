@@ -371,6 +371,8 @@ export function buildReplyPrompt(input: {
   memoryFile?: string | null;
   /** 语境注入（频道/成员/默认模型）；缺省不注入（直调本函数的单测保持原状）。 */
   context?: ReplyPromptContext;
+  /** peer 收束（thread 内 peer 最后一条是收束语）：与判定同源，明确告知本轮不再发帖。 */
+  peerClosedExchange?: boolean;
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
@@ -445,6 +447,11 @@ export function buildReplyPrompt(input: {
   lines.push(
     '- "conclude": acknowledge receipt without posting when a settled thread or @mention needs only a closing confirmation; legal under a certain signal instead of "ignore"; never to dodge direct questions or explicit work requests.',
   );
+  if (input.peerClosedExchange) {
+    lines.push(
+      '- Closed exchange: the latest message from another agent is an explicit sign-off (e.g. "agreed, nothing to add", "stopping here", "no more"). Do not post another message in this thread — choose "conclude" (or "ignore"); a "reply" is dropped before it is posted.',
+    );
+  }
   lines.push(
     "- Never @mention yourself: writing @your-own-name in a reply mentions no one and only creates noise.",
   );
@@ -1461,6 +1468,24 @@ export function hasMustRespondSignal(
     author?: { type?: string } | null;
   }>,
 ): boolean {
+  if (hasHumanMustRespondSignal(agentId, targetId, incoming)) return true;
+  if (incoming.length > 0 && ownsInProgressTaskAt(agentId, targetId)) {
+    return true;
+  }
+  return false;
+}
+
+/** 人类确定信号（本票不变量 (1)，不得放宽）：人类的个人 @mention，或 DM 里 owner 的消息。
+ * peer 收束/注意力信号都压不过它——人类 @ 仍然是「必须回应」。 */
+function hasHumanMustRespondSignal(
+  agentId: string,
+  targetId: string,
+  incoming: Array<{
+    content: string;
+    author_id: string;
+    author?: { type?: string } | null;
+  }>,
+): boolean {
   if (
     incoming.some(
       (message) =>
@@ -1473,15 +1498,66 @@ export function hasMustRespondSignal(
   // DM 确定信号（R4）：DM target 下作者为 owner（人类）的消息必须回应。
   // DM 内 agent 自己的消息/系统事件已由 drain 的 author 过滤与 reminder 轮次规则
   // 挡在 incoming 之外，此处的 owner 消息即真实的人类私信。
-  if (
+  return (
     incoming.length > 0 &&
     isDM(targetId) &&
     incoming.some((message) => message.author_id === OWNER_MEMBER_ID)
-  ) {
-    return true;
-  }
-  if (incoming.length > 0 && ownsInProgressTaskAt(agentId, targetId)) {
-    return true;
+  );
+}
+
+/**
+ * 收束语判据：peer 明确表示交流到此为止（现场形态：「一致，无补充」「停在」「stop」「no more」）。
+ * 只用于 thread 内 peer 收束判定，命中的轮次不再把本 agent 拉回对话（见 hasPeerCloseSignal）。
+ */
+const PEER_CLOSE_PATTERNS: readonly RegExp[] = [
+  /一致[，,、\s]*无补充/,
+  /无补充/,
+  /没有补充/,
+  /没有更多(?:的)?(?:补充|问题|要说)/,
+  /没有更多了/,
+  /没什么补充/,
+  /(?:先|就)?停在(?:这里|这|此)?/,
+  /到此为止/,
+  /就到这里/,
+  /先这样|就这样/,
+  /不再回复/,
+  /无需回复|不用回复/,
+  /\bno more\b(?!\s+than)/i,
+  /\bnothing (?:more|further|else) (?:to add|to say)\b/i,
+  /\bnothing (?:more|further)\b/i,
+  /\bstop(?:ping)? here\b/i,
+  /\b(?:let'?s|i'?ll|we'?ll) stop\b/i,
+  /\bwe'?re done\b/i,
+  /\bdone here\b/i,
+  /\bsign(?:ing)?[- ]off\b/i,
+  /\bwrap (?:it|this) up\b/i,
+  /\bclose (?:the|this) (?:exchange|thread)\b/i,
+  /\bno further (?:comment|reply|replies)\b/i,
+];
+
+function isPeerCloseText(content: string): boolean {
+  return PEER_CLOSE_PATTERNS.some((pattern) => pattern.test(content));
+}
+
+/**
+ * peer 收束信号（本票新增不变量 (3)）：thread 内其他 agent 的**最后一条消息**是明确收束语。
+ * 命中后本 agent 不再被对话拉回——即使那条消息 @ 了本 agent，普通回复也不落库
+ * （runAgentRound 在代码层收口，不依赖模型自觉）。人类的 @ 优先，不受此压制。
+ */
+export function hasPeerCloseSignal(
+  agentId: string,
+  incoming: Array<{
+    content: string;
+    author_id: string;
+    author?: { type?: string } | null;
+  }>,
+): boolean {
+  for (let i = incoming.length - 1; i >= 0; i -= 1) {
+    const message = incoming[i];
+    // incoming 通常已剔除自己的消息；这里再兜一层，且只认 agent 作者（人类消息不参与）。
+    if (message.author_id === agentId) continue;
+    if (message.author?.type !== "agent") continue;
+    return isPeerCloseText(message.content);
   }
   return false;
 }
@@ -1572,6 +1648,15 @@ export async function runAgentRound(
   // §3.9 reminder 唤醒：系统提醒消息以作者署名投递（作者本人视角 = 全是自己的消息），
   // reminder 驱动的轮次不能按"只有自己的消息"跳过——agent 要看到自己的提醒并行动
   const reminderDriven = reason === "reminder";
+  // 本票不变量 (3)：peer 明确收束（thread 内其他 agent 的最后一条消息是收束语）⇒ 本 agent
+  // 不再被对话拉回。优先级：人类的确定信号（不变量 (1)）与进行中任务线程的工作信号都不压制；
+  // reminder 轮次照常（提醒指向自己，不是 peer 对话）。
+  const peerClosedExchange =
+    targetId !== channel.id &&
+    !reminderDriven &&
+    !continuing &&
+    !hasHumanMustRespondSignal(agent.id, targetId, incoming) &&
+    hasPeerCloseSignal(agent.id, incoming);
   if (effectiveIncoming.length === 0 && !continuing && !reminderDriven) {
     ack(agentId, targetId, drained.maxSeq);
     return {
@@ -1641,6 +1726,7 @@ export async function runAgentRound(
     baseSeq,
     memoryFile: agentMemoryFile(agent),
     context: replyPromptContext(agent),
+    peerClosedExchange,
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
@@ -1716,6 +1802,19 @@ export async function runAgentRound(
         publishAgentStatus(agent.id, "online");
       }
       return withOps(outcome);
+    }
+    if (effectiveAction.action === "reply" && peerClosedExchange) {
+      // 本票不变量 (3)：peer 已明确收束 ⇒ 普通回复不落库——代码层收口，不依赖模型自觉。
+      // 行位在任务 op / 自动路由之后：任务进展（claim / complete / 回线程）照常，收束的是对话。
+      // 语义与 conclude 同款：ack 房间版本、streak 清零、状态回 online，不记 error。
+      ack(agentId, targetId, baseSeq);
+      resetMustRespondFailures(agent.id, targetId);
+      publishAgentStatus(agent.id, "online");
+      return withOps({
+        status: "ignored",
+        reason: "peer closed the exchange",
+        baseSeq,
+      });
     }
     if (effectiveAction.action === "conclude") {
       // 纯收束确认：确认收到但不发帖——ack 游标、清零 must-respond streak、状态回 online，
