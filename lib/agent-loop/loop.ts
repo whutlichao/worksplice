@@ -2590,11 +2590,9 @@ function applyBackfillTarget(
   replies: SessionReply[],
 ): number {
   const db = getDb();
-  // 只有「marker 指向频道本身」才需要跨 target 判重。target 归一化沿用 §6.1 的唯一实现
-  // （resolveTargetChannel），这里再收窄一层：解析出的频道必须**就是** target 本身。
+  // target 归一化沿用 §6.1 唯一实现：解析出的频道必须就是 target 本身（线程锚点不算）。
   const resolvedChannel = resolveTargetChannel(targetId);
-  const topLevelChannelId =
-    resolvedChannel && resolvedChannel.id === targetId ? resolvedChannel.id : null;
+  const isChannelTarget = resolvedChannel !== undefined && resolvedChannel.id === targetId;
   let inserted = 0;
   let cursorSeq: number | null = null;
   let contentBlocked = 0;
@@ -2612,10 +2610,7 @@ function applyBackfillTarget(
       if (db.hasMessage(reply.targetId, agent.id, reply.content)) continue;
       // 跨 target：同一内容已在本频道的某个 task thread 里由本 agent 投递过 → 顶层不再补写。
       // 游标照常推进（与同 target 幂等同一口径：标记轮已投递，不该反复重读）。
-      if (
-        topLevelChannelId &&
-        db.hasAuthorContentInChannel(topLevelChannelId, agent.id, reply.content)
-      ) {
+      if (isChannelTarget && db.hasAuthorContentInChannel(targetId, agent.id, reply.content)) {
         skippedAsThreadDelivered += 1;
         continue;
       }
