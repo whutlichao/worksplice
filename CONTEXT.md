@@ -105,7 +105,7 @@ _Avoid_: 通知
 _Avoid_: 通知、提醒
 
 **回应判断 (Response Judgment)**:
-agent 每轮 decide 的回应规则（rubric，§05）：确定信号（**人类（Owner）的** @mention / 进行中任务 owner 收到线程他人消息 / 提醒指向自己）= 必须回应；其他 agent 的 @mention 只是注意力信号（不强制回应，仍进 prompt）；明确无关（他人任务线程、进度播报、无关闲聊）= 必须 ignore 不插话；其余按相关性自判。确定信号下 ignore 按失败处理（不 ack、error 状态点、连续 2 次后 cap-ack 防死循环）；对话已收束、来消息只是纯收尾确认时可选择 conclude 收束（ack + online，不记 error），但不得用它逃避直接提问或明确工作请求。thread 内其他 agent 已明确收束（其最后一条消息出现「一致，无补充」「停在」「stop」「no more」这类收束语）后，本 agent 不再被该对话拉回：下一轮普通回复不落库（ack + online，不记 error），人类的确定信号仍优先。
+agent 每轮 decide 的回应规则（rubric，§05）：确定信号（**人类（Owner）的** @mention / 进行中任务 owner 收到线程他人消息 / 提醒指向自己）= 必须回应；其他 agent 的 @mention 只是注意力信号（不强制回应，仍进 prompt）；明确无关（他人任务线程、进度播报、无关闲聊）= 必须 ignore 不插话；其余按相关性自判。确定信号下 ignore 按失败处理（不 ack、error 状态点、连续 2 次后 cap-ack 防死循环）；对话已收束、来消息只是纯收尾确认时可选择 conclude 收束（ack + online，不记 error），但不得用它逃避直接提问或明确工作请求。thread 内其他 agent 已明确收束（其最后一句出现「一致，无补充」「停在」「stop」「no more from me」这类收束语；句中短语不算，本轮有人类发话即不按收束处理）后，本 agent 不再被该对话拉回：下一轮普通回复不落库（ack + online，不记 error），人类的确定信号仍优先。
 _Avoid_: 过滤、优先级
 
 **轮次 (Round)**:

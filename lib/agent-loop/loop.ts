@@ -1450,7 +1450,7 @@ export function ownsInProgressTaskAt(
 }
 
 /** 信号判定共用的入站消息形状（drain 出的 `MessageWithAuthor` 结构子集）。 */
-interface IncomingMessage {
+export interface IncomingMessage {
   content: string;
   author_id: string;
   author?: { type?: MemberType } | null;
@@ -1510,7 +1510,8 @@ function hasHumanMustRespondSignal(
 /**
  * 收束语判据：peer 明确表示交流到此为止（现场形态：「一致，无补充」「停在」「stop」「no more」）。
  * 只用于 thread 内 peer 收束判定，命中的轮次不再把本 agent 拉回对话（见 hasPeerCloseSignal）。
- * 收束语必须落在**最后一句**：中段出现的「无补充」可能后接明确工作请求（「无补充，但请修 X」）。
+ * 收束语必须**结束最后一句**：中段出现的「无补充」可能后接明确工作请求（「无补充，但请修 X」），
+ * `We're done with step 1, now run step 2` 里的 done 同理不算。
  */
 const PEER_CLOSE_PATTERNS: readonly RegExp[] = [
   /无补充/,
@@ -1524,7 +1525,6 @@ const PEER_CLOSE_PATTERNS: readonly RegExp[] = [
   /不再回复/,
   /无需回复|不用回复/,
   /\bno more (?:from me|for now|here|comments?|questions?|replies|to add|to say)\b/i,
-  /\bno more[.!]?$/i,
   /\bnothing (?:more|further|else) (?:to add|to say)\b/i,
   /\bnothing (?:more|further)\b/i,
   /\bstop(?:ping)? here\b/i,
@@ -1537,11 +1537,13 @@ const PEER_CLOSE_PATTERNS: readonly RegExp[] = [
   /\bno further (?:comment|reply|replies)\b/i,
 ];
 
-/** 直接提问 / 明确请求 = 工作信号：即使句末带收束措辞也不按收束处理（保守一侧）。 */
+/** 直接提问 / 明确请求 = 工作信号：即使句末带收束措辞也不按收束处理（保守一侧）。
+ * 问号已由 lastSentence 的断句处理（问句之后没有可匹配的收束尾巴）。 */
 const PEER_CLOSE_VETO =
-  /[?？]|(?:请|麻烦|帮忙|需要你)|please|could you|can you|would you|need you/i;
+  /(?:请|麻烦|帮忙|需要你|能不能|能否|是否)|please|could you|can you|would you|need you/i;
 
-/** 最后一句（去掉句末的句号/感叹号/空白；问号保留，供提问 veto 判定）。 */
+/** 最后一句：按中英文句末标点/换行断句，去掉句末标点与空白（问号是断句点，
+ * 问句之后的残尾不含收束语，因此不会被误判）。 */
 function lastSentence(content: string): string {
   const body = content.trim().replace(/[\s。！!]+$/, "");
   const cut = Math.max(
@@ -1555,10 +1557,18 @@ function lastSentence(content: string): string {
   return cut >= 0 ? body.slice(cut + 1).trim() : body;
 }
 
+/**
+ * 收束语必须**结束**最后一句（不止出现在句中）：`We're done with step 1, now run step 2`
+ * 或「这个 bug 停在登录流程」里的短语不算收束。
+ */
 function isPeerCloseText(content: string): boolean {
   const tail = lastSentence(content);
   if (!tail || PEER_CLOSE_VETO.test(tail)) return false;
-  return PEER_CLOSE_PATTERNS.some((pattern) => pattern.test(tail));
+  const body = tail.replace(/[\s。！？!?，,、.]+$/, "");
+  return PEER_CLOSE_PATTERNS.some((pattern) => {
+    const match = pattern.exec(body);
+    return Boolean(match && match.index + match[0].length === body.length);
+  });
 }
 
 /**
@@ -1593,14 +1603,10 @@ export const CHANNEL_NOISE_MAX_LENGTH = 80;
 
 export function isChannelNoise(
   agentId: string,
-  message: {
-    content: string;
-    author_id: string;
-    author?: { type?: string } | null;
-  },
+  message: IncomingMessage,
 ): boolean {
   // 人类（Owner）消息永不过滤
-  if (message.author?.type === "human") return false;
+  if (isHumanAuthor(message)) return false;
   // @了我 = 注意力信号，不是 noise
   if (extractMentionedMemberIds(message.content).includes(agentId))
     return false;
@@ -1670,9 +1676,13 @@ export async function runAgentRound(
   // 本票不变量 (3)：peer 明确收束（thread 内其他 agent 的最后一条消息是收束语）⇒ 本 agent
   // 不再被对话拉回。确定信号一律优先（人类 @ / DM owner 消息 / 进行中任务线程的工作信号）；
   // reminder 轮次照常（提醒指向自己，不是 peer 对话）。
+  // 成本：判定是纯本地计算（不新增 LLM 调用路径）；收束轮仍走一次既有轮次 prompt，
+  // 好让合法的任务 op / 成员 op 照常执行——一个收束线程至多一次（ack 后无新消息不再唤醒）。
   const peerClosedExchange =
     targetId !== channel.id &&
     !reminderDriven &&
+    // 人类在本轮说过话（哪怕没 @）= 人类语境：不静默收口，免得吞掉人类指向的工作。
+    !incoming.some(isHumanAuthor) &&
     !hasMustRespondSignal(agent.id, targetId, incoming) &&
     hasPeerCloseSignal(agent.id, incoming);
   if (effectiveIncoming.length === 0 && !continuing && !reminderDriven) {
@@ -1757,14 +1767,11 @@ export async function runAgentRound(
         }
       : outcome;
   /** 不发帖收口（conclude / peer 收束共用）：ack 房间版本、streak 清零、状态回 online，零新增消息。 */
-  const closeWithoutPosting = (
-    status: RoundStatus,
-    reason: string,
-  ): RoundOutcome => {
+  const closeWithoutPosting = (reason: string): RoundOutcome => {
     ack(agentId, targetId, baseSeq);
     resetMustRespondFailures(agent.id, targetId);
     publishAgentStatus(agent.id, "online");
-    return withOps({ status, reason, baseSeq });
+    return withOps({ status: "yielded", reason, baseSeq });
   };
   try {
     const first = await promptSession(session, prompt);
@@ -1834,13 +1841,12 @@ export async function runAgentRound(
     if (effectiveAction.action === "reply" && peerClosedExchange) {
       // 本票不变量 (3)：peer 已明确收束 ⇒ 普通回复不落库——代码层收口，不依赖模型自觉。
       // 行位在任务 op / 自动路由之后：任务进展（claim / complete / 回线程）照常，收束的是对话。
-      return closeWithoutPosting("yielded", "peer closed the exchange");
+      return closeWithoutPosting("peer closed the exchange");
     }
     if (effectiveAction.action === "conclude") {
       // 纯收束确认：确认收到但不发帖。行位在任务 op / 自动路由之后、ignore 之前：
       // 任务优先级不变；确定信号下 conclude 是合法收束，不进入下方 ignore 的 error / cap-ack 路径。
       return closeWithoutPosting(
-        "yielded",
         effectiveAction.reason
           ? `concluded: ${effectiveAction.reason}`
           : "concluded by agent",

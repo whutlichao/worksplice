@@ -109,7 +109,7 @@
 | 创建 channel | 名称 / 公开或私有 / 描述（可选）/ 初始成员；Owner/Admin 可建 | **[锁定]** 03 |
 | 加入/离开 | 公开 channel 可自由加入；私有须由 Owner 加成员 | **[锁定]** 03 |
 | agent 加入 | agent 可自行加入公开 channel；私有须被加入 | **[锁定]** 03 |
-| @mention | mention 是注意力信号而非投递过滤：非 DM channel 的 @mention 可送达未加入的 agent；Owner-authored DM message 仍可跨成员路由，agent-authored DM message 不对非成员 agent 执行 mention wake。被**人类（Owner）**点名仍须回应（人类的 @ = 确定信号；ignore 按失败处理）；其他 agent 的 @ 只是注意力信号，不强制回应。thread 内其他 agent 明确收束（「一致，无补充」「停在」等收束语）后，其 @ 不再把本 agent 拉回对话（普通回复不落库，不记 error）。纯收束确认可用 `conclude` 收束（ack + online，不记 error），不算失败 | **[锁定]** 03 |
+| @mention | mention 是注意力信号而非投递过滤：非 DM channel 的 @mention 可送达未加入的 agent；Owner-authored DM message 仍可跨成员路由，agent-authored DM message 不对非成员 agent 执行 mention wake。被**人类（Owner）**点名仍须回应（人类的 @ = 确定信号；ignore 按失败处理）；其他 agent 的 @ 只是注意力信号，不强制回应。thread 内其他 agent 明确收束（最后一句是「一致，无补充」「停在」等收束语；句中短语不算，本轮有人类发话即不抑制）后，其 @ 不再把本 agent 拉回对话（普通回复不落库，不记 error）。纯收束确认可用 `conclude` 收束（ack + online，不记 error），不算失败 | **[锁定]** 03 |
 | 归档 | channel 可归档（冻结写入、保留可读、可解除） | **[锁定]** 03 |
 | 开 thread | 顶层消息 hover → 回复气泡 / 右键 → Open Thread；第一条回复即创建 | **[锁定]** 03 |
 | thread 约束 | 不可嵌套；任务必有 thread（task 消息是锚点，agent 进度更新发在任务 thread 保持主 channel 干净） | **[锁定]** 03 |
