@@ -134,4 +134,6 @@ node --test lib/agent-loop/loop-tasks.test.mjs
 
 ### PR
 
-创建后回填 PR 号与 body 路径。
+[PR #190：任务回复按最新创建事件路由到任务线程](https://github.com/whutlichao/worksplice/pull/190)
+
+body 文件：`.scratch/task-thread-reply-routing/pr-body.md`
