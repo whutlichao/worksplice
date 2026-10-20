@@ -124,7 +124,7 @@ const CONFLICT_CHOICES = new Set(["revise", "resend", "silent", "anyway"]);
 export type TaskOp = "claim" | "complete" | "unclaim";
 export const TASK_OPS = new Set<TaskOp>(["claim", "complete", "unclaim"]);
 
-/** §05 兜底上限：确定信号（个人 @mention / 进行中任务线程收到他人消息）下连续 ignore 达此值 → ack 并记 error（防死循环）。 */
+/** §05 兜底上限：确定信号（人类的 @mention / 进行中任务线程收到他人消息）下连续 ignore 达此值 → ack 并记 error（防死循环）。 */
 export const MUST_RESPOND_FAILURE_CAP = 2;
 
 declare global {
@@ -428,7 +428,7 @@ export function buildReplyPrompt(input: {
   lines.push('- "reply" posts content to this target; task replies may be routed to an anchor thread; "ignore" says nothing.');
   lines.push("- Deciding is yours, but follow these response rules:");
   lines.push(
-    "- MUST reply: you are personally @mentioned in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
+    "- MUST reply: a human (the Owner) personally @mentions you in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
   );
   if (input.channel.type === 'dm') {
     lines.push(
@@ -440,7 +440,7 @@ export function buildReplyPrompt(input: {
     "- MAY reply: the message concerns your role, your workspace, or your current work — answer when you can add value.",
   );
   lines.push(
-    "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. An @mention of you overrides all of this — being mentioned is a demand for a response, and ignoring it is treated as a failure.",
+    "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. A human @mention overrides all of this — ignoring it is a failure. An @mention from another agent is an attention signal, not a demand: you may still ignore it under these rules, especially when the peer has explicitly closed the exchange or there is nothing new.",
   );
   lines.push(
     '- "conclude": acknowledge receipt without posting when a settled thread or @mention needs only a closing confirmation; legal under a certain signal instead of "ignore"; never to dodge direct questions or explicit work requests.',
@@ -1441,16 +1441,31 @@ export function ownsInProgressTaskAt(
   );
 }
 
-/** §05 确定信号：当轮 incoming 里个人 @mention 了本 agent，或本 agent 是进行中任务 owner
- * 且任务线程来了别人的消息——这类轮次必须回应，ignore 按失败处理（rubric 同款标准）。 */
+/** 确定信号的作者判据：只有人类（members.type='human'，本工作区即 owner）的 @ 强制回应；
+ * agent 的 @ 只是注意力信号。 */
+function isHumanAuthor(message: {
+  author?: { type?: string } | null;
+}): boolean {
+  return message.author?.type === "human";
+}
+
+/** §05 确定信号：当轮 incoming 里人类作者个人 @mention 了本 agent，或本 agent 是进行中任务
+ * owner 且任务线程来了别人的消息——这类轮次必须回应，ignore 按失败处理（rubric 同款标准）。
+ * peer agent 的 @ 不在此列：它是注意力信号（isChannelNoise 不过滤），是否回应仍按 rubric 自判。 */
 export function hasMustRespondSignal(
   agentId: string,
   targetId: string,
-  incoming: Array<{ content: string; author_id: string }>,
+  incoming: Array<{
+    content: string;
+    author_id: string;
+    author?: { type?: string } | null;
+  }>,
 ): boolean {
   if (
-    incoming.some((message) =>
-      extractMentionedMemberIds(message.content).includes(agentId),
+    incoming.some(
+      (message) =>
+        isHumanAuthor(message) &&
+        extractMentionedMemberIds(message.content).includes(agentId),
     )
   ) {
     return true;
@@ -1718,7 +1733,7 @@ export async function runAgentRound(
       });
     }
     if (effectiveAction.action === "ignore") {
-      // §05 兜底：确定信号（个人 @mention / 进行中任务线程收到他人消息）下 ignore 不合法——
+      // §05 兜底：确定信号（人类的 @mention / 进行中任务线程收到他人消息）下 ignore 不合法——
       // 本轮按失败处理（不 ack、error 状态点可见、触发消息保持 pending 供下次 wake 重试）。
       // 连续失败达 MUST_RESPOND_FAILURE_CAP 后 ack 并记 error：防模型系统性 ignore 造成的
       // 永久 pending + 反复失败（cap-ack 是逃逸口，状态点仍可见 error）。
