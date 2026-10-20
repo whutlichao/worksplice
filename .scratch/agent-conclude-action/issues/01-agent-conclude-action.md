@@ -100,7 +100,7 @@ Status: resolved
 
 ### PR
 
-- PR：待创建后回填
+- [PR #192：Agent 回复协议新增 conclude](https://github.com/whutlichao/worksplice/pull/192)
 - body：`.scratch/agent-conclude-action/pr-body.md`
 
 ### 越界与遗留
