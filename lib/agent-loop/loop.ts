@@ -45,6 +45,7 @@ import { OWNER_MEMBER_ID } from "../data/schema.ts";
 import type {
   ChannelRow,
   MemberRow,
+  MemberType,
   MessageRow,
   TaskRow,
 } from "../data/types.ts";
@@ -124,7 +125,7 @@ const CONFLICT_CHOICES = new Set(["revise", "resend", "silent", "anyway"]);
 export type TaskOp = "claim" | "complete" | "unclaim";
 export const TASK_OPS = new Set<TaskOp>(["claim", "complete", "unclaim"]);
 
-/** §05 兜底上限：确定信号（个人 @mention / 进行中任务线程收到他人消息）下连续 ignore 达此值 → ack 并记 error（防死循环）。 */
+/** §05 兜底上限：确定信号（人类的 @mention / 进行中任务线程收到他人消息）下连续 ignore 达此值 → ack 并记 error（防死循环）。 */
 export const MUST_RESPOND_FAILURE_CAP = 2;
 
 declare global {
@@ -371,6 +372,8 @@ export function buildReplyPrompt(input: {
   memoryFile?: string | null;
   /** 语境注入（频道/成员/默认模型）；缺省不注入（直调本函数的单测保持原状）。 */
   context?: ReplyPromptContext;
+  /** peer 收束（thread 内 peer 最后一条是收束语）：与判定同源，明确告知本轮不再发帖。 */
+  peerClosedExchange?: boolean;
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
@@ -428,7 +431,7 @@ export function buildReplyPrompt(input: {
   lines.push('- "reply" posts content to this target; task replies may be routed to an anchor thread; "ignore" says nothing.');
   lines.push("- Deciding is yours, but follow these response rules:");
   lines.push(
-    "- MUST reply: you are personally @mentioned in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
+    "- MUST reply: a human (the Owner) personally @mentions you in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
   );
   if (input.channel.type === 'dm') {
     lines.push(
@@ -440,11 +443,16 @@ export function buildReplyPrompt(input: {
     "- MAY reply: the message concerns your role, your workspace, or your current work — answer when you can add value.",
   );
   lines.push(
-    "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. An @mention of you overrides all of this — being mentioned is a demand for a response, and ignoring it is treated as a failure.",
+    "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. A human @mention overrides all of this — ignoring it is a failure. An @mention from another agent is an attention signal, not a demand: you may still ignore it under these rules, especially when the peer has explicitly closed the exchange or there is nothing new.",
   );
   lines.push(
     '- "conclude": acknowledge receipt without posting when a settled thread or @mention needs only a closing confirmation; legal under a certain signal instead of "ignore"; never to dodge direct questions or explicit work requests.',
   );
+  if (input.peerClosedExchange) {
+    lines.push(
+      '- Closed exchange: the latest message from another agent is an explicit sign-off (e.g. "agreed, nothing to add", "stopping here", "no more"). Do not post another message in this thread — choose "conclude" (or "ignore"); a "reply" is dropped before it is posted.',
+    );
+  }
   lines.push(
     "- Never @mention yourself: writing @your-own-name in a reply mentions no one and only creates noise.",
   );
@@ -1441,16 +1449,50 @@ export function ownsInProgressTaskAt(
   );
 }
 
-/** §05 确定信号：当轮 incoming 里个人 @mention 了本 agent，或本 agent 是进行中任务 owner
- * 且任务线程来了别人的消息——这类轮次必须回应，ignore 按失败处理（rubric 同款标准）。 */
+/** 信号判定共用的入站消息形状（drain 出的 `MessageWithAuthor` 结构子集）。 */
+export interface IncomingMessage {
+  content: string;
+  author_id: string;
+  author?: { type?: MemberType } | null;
+}
+
+/** 确定信号的作者判据：只有人类（members.type='human'，本工作区即 owner）的 @ 强制回应；
+ * agent 的 @ 只是注意力信号。 */
+function isHumanAuthor(message: IncomingMessage): boolean {
+  return message.author?.type === "human";
+}
+
+function isAgentAuthor(message: IncomingMessage): boolean {
+  return message.author?.type === "agent";
+}
+
+/** §05 确定信号：当轮 incoming 里人类作者个人 @mention 了本 agent，或本 agent 是进行中任务
+ * owner 且任务线程来了别人的消息——这类轮次必须回应，ignore 按失败处理（rubric 同款标准）。
+ * peer agent 的 @ 不在此列：它是注意力信号（isChannelNoise 不过滤），是否回应仍按 rubric 自判。 */
 export function hasMustRespondSignal(
   agentId: string,
   targetId: string,
-  incoming: Array<{ content: string; author_id: string }>,
+  incoming: IncomingMessage[],
+): boolean {
+  if (hasHumanMustRespondSignal(agentId, targetId, incoming)) return true;
+  if (incoming.length > 0 && ownsInProgressTaskAt(agentId, targetId)) {
+    return true;
+  }
+  return false;
+}
+
+/** 人类确定信号（本票不变量 (1)，不得放宽）：人类的个人 @mention，或 DM 里 owner 的消息。
+ * peer 收束/注意力信号都压不过它——人类 @ 仍然是「必须回应」。 */
+function hasHumanMustRespondSignal(
+  agentId: string,
+  targetId: string,
+  incoming: IncomingMessage[],
 ): boolean {
   if (
-    incoming.some((message) =>
-      extractMentionedMemberIds(message.content).includes(agentId),
+    incoming.some(
+      (message) =>
+        isHumanAuthor(message) &&
+        extractMentionedMemberIds(message.content).includes(agentId),
     )
   ) {
     return true;
@@ -1458,15 +1500,93 @@ export function hasMustRespondSignal(
   // DM 确定信号（R4）：DM target 下作者为 owner（人类）的消息必须回应。
   // DM 内 agent 自己的消息/系统事件已由 drain 的 author 过滤与 reminder 轮次规则
   // 挡在 incoming 之外，此处的 owner 消息即真实的人类私信。
-  if (
+  return (
     incoming.length > 0 &&
     isDM(targetId) &&
     incoming.some((message) => message.author_id === OWNER_MEMBER_ID)
-  ) {
-    return true;
-  }
-  if (incoming.length > 0 && ownsInProgressTaskAt(agentId, targetId)) {
-    return true;
+  );
+}
+
+/**
+ * 收束语判据：peer 明确表示交流到此为止（现场形态：「一致，无补充」「停在」「stop」「no more」）。
+ * 只用于 thread 内 peer 收束判定，命中的轮次不再把本 agent 拉回对话（见 hasPeerCloseSignal）。
+ * 收束语必须**结束最后一句**：中段出现的「无补充」可能后接明确工作请求（「无补充，但请修 X」），
+ * `We're done with step 1, now run step 2` 里的 done 同理不算。
+ */
+const PEER_CLOSE_PATTERNS: readonly RegExp[] = [
+  /无补充/,
+  /没有补充/,
+  /没有更多(?:的)?(?:补充|问题|要说)/,
+  /没有更多了/,
+  /没什么补充/,
+  /(?:先|就)?停在(?:这里|这|此)?/,
+  /到此为止/,
+  /就到这里/,
+  /不再回复/,
+  /无需回复|不用回复/,
+  /\bno more (?:from me|for now|here|comments?|questions?|replies|to add|to say)\b/i,
+  /\bnothing (?:more|further|else) (?:to add|to say)\b/i,
+  /\bnothing (?:more|further)\b/i,
+  /\bstop(?:ping)? here\b/i,
+  /\b(?:let'?s|i'?ll|we'?ll) stop\b/i,
+  /\bwe'?re done\b/i,
+  /\bdone here\b/i,
+  /\bsign(?:ing)?[- ]off\b/i,
+  /\bwrap (?:it|this) up\b/i,
+  /\bclose (?:the|this) (?:exchange|thread)\b/i,
+  /\bno further (?:comment|reply|replies)\b/i,
+];
+
+/** 直接提问 / 明确请求 = 工作信号：即使句末带收束措辞也不按收束处理（保守一侧）。
+ * 问号已由 lastSentence 的断句处理（问句之后没有可匹配的收束尾巴）。 */
+const PEER_CLOSE_VETO =
+  /(?:请|麻烦|帮忙|需要你|能不能|能否|是否)|please|could you|can you|would you|need you/i;
+
+/** 最后一句：按中英文句末标点/换行断句，去掉句末标点与空白（问号是断句点，
+ * 问句之后的残尾不含收束语，因此不会被误判）。 */
+function lastSentence(content: string): string {
+  const body = content.trim().replace(/[\s。！!]+$/, "");
+  const cut = Math.max(
+    body.lastIndexOf("。"),
+    body.lastIndexOf("！"),
+    body.lastIndexOf("？"),
+    body.lastIndexOf("!"),
+    body.lastIndexOf("?"),
+    body.lastIndexOf("\n"),
+  );
+  return cut >= 0 ? body.slice(cut + 1).trim() : body;
+}
+
+/**
+ * 收束语必须**结束**最后一句（不止出现在句中）：`We're done with step 1, now run step 2`
+ * 或「这个 bug 停在登录流程」里的短语不算收束。
+ */
+function isPeerCloseText(content: string): boolean {
+  const tail = lastSentence(content);
+  if (!tail || PEER_CLOSE_VETO.test(tail)) return false;
+  const body = tail.replace(/[\s。！？!?，,、.]+$/, "");
+  return PEER_CLOSE_PATTERNS.some((pattern) => {
+    const match = pattern.exec(body);
+    return Boolean(match && match.index + match[0].length === body.length);
+  });
+}
+
+/**
+ * peer 收束信号（本票新增不变量 (3)）：thread 内其他 agent 的**最后一条消息**是明确收束语，
+ * 且之后没有人类再发话。命中后本 agent 不再被对话拉回——即使那条消息 @ 了本 agent，
+ * 普通回复也不落库（runAgentRound 在代码层收口，不依赖模型自觉）。人类的 @ 优先，不受此压制。
+ */
+export function hasPeerCloseSignal(
+  agentId: string,
+  incoming: IncomingMessage[],
+): boolean {
+  for (let i = incoming.length - 1; i >= 0; i -= 1) {
+    const message = incoming[i];
+    // incoming 通常已剔除自己的消息；这里再兜一层。
+    if (message.author_id === agentId) continue;
+    // 最新一条他人消息必须是 agent 收束语：人类随后发话（哪怕没 @）= 人类语境，不是收束；
+    // 也避免一条陈旧的收束语为后续任何消息开"静默收口"的口子。
+    return isAgentAuthor(message) && isPeerCloseText(message.content);
   }
   return false;
 }
@@ -1483,14 +1603,10 @@ export const CHANNEL_NOISE_MAX_LENGTH = 80;
 
 export function isChannelNoise(
   agentId: string,
-  message: {
-    content: string;
-    author_id: string;
-    author?: { type?: string } | null;
-  },
+  message: IncomingMessage,
 ): boolean {
   // 人类（Owner）消息永不过滤
-  if (message.author?.type === "human") return false;
+  if (isHumanAuthor(message)) return false;
   // @了我 = 注意力信号，不是 noise
   if (extractMentionedMemberIds(message.content).includes(agentId))
     return false;
@@ -1557,6 +1673,18 @@ export async function runAgentRound(
   // §3.9 reminder 唤醒：系统提醒消息以作者署名投递（作者本人视角 = 全是自己的消息），
   // reminder 驱动的轮次不能按"只有自己的消息"跳过——agent 要看到自己的提醒并行动
   const reminderDriven = reason === "reminder";
+  // 本票不变量 (3)：peer 明确收束（thread 内其他 agent 的最后一条消息是收束语）⇒ 本 agent
+  // 不再被对话拉回。确定信号一律优先（人类 @ / DM owner 消息 / 进行中任务线程的工作信号）；
+  // reminder 轮次照常（提醒指向自己，不是 peer 对话）。
+  // 成本：判定是纯本地计算（不新增 LLM 调用路径）；收束轮仍走一次既有轮次 prompt，
+  // 好让合法的任务 op / 成员 op 照常执行——一个收束线程至多一次（ack 后无新消息不再唤醒）。
+  const peerClosedExchange =
+    targetId !== channel.id &&
+    !reminderDriven &&
+    // 人类在本轮说过话（哪怕没 @）= 人类语境：不静默收口，免得吞掉人类指向的工作。
+    !incoming.some(isHumanAuthor) &&
+    !hasMustRespondSignal(agent.id, targetId, incoming) &&
+    hasPeerCloseSignal(agent.id, incoming);
   if (effectiveIncoming.length === 0 && !continuing && !reminderDriven) {
     ack(agentId, targetId, drained.maxSeq);
     return {
@@ -1626,6 +1754,7 @@ export async function runAgentRound(
     baseSeq,
     memoryFile: agentMemoryFile(agent),
     context: replyPromptContext(agent),
+    peerClosedExchange,
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
@@ -1637,6 +1766,13 @@ export async function runAgentRound(
           reason: outcome.reason ? `${outcome.reason}; ${opsSummary}` : opsSummary,
         }
       : outcome;
+  /** 不发帖收口（conclude / peer 收束共用）：ack 房间版本、streak 清零、状态回 online，零新增消息。 */
+  const closeWithoutPosting = (reason: string): RoundOutcome => {
+    ack(agentId, targetId, baseSeq);
+    resetMustRespondFailures(agent.id, targetId);
+    publishAgentStatus(agent.id, "online");
+    return withOps({ status: "yielded", reason, baseSeq });
+  };
   try {
     const first = await promptSession(session, prompt);
     if (!first.ok) {
@@ -1702,23 +1838,22 @@ export async function runAgentRound(
       }
       return withOps(outcome);
     }
+    if (effectiveAction.action === "reply" && peerClosedExchange) {
+      // 本票不变量 (3)：peer 已明确收束 ⇒ 普通回复不落库——代码层收口，不依赖模型自觉。
+      // 行位在任务 op / 自动路由之后：任务进展（claim / complete / 回线程）照常，收束的是对话。
+      return closeWithoutPosting("peer closed the exchange");
+    }
     if (effectiveAction.action === "conclude") {
-      // 纯收束确认：确认收到但不发帖——ack 游标、清零 must-respond streak、状态回 online，
-      // 不写任何消息。行位在任务 op / 自动路由之后、ignore 之前：任务优先级不变；
-      // 确定信号下 conclude 是合法收束，直接返回，不进入下方 ignore 的 error / cap-ack 路径。
-      ack(agentId, targetId, baseSeq);
-      resetMustRespondFailures(agent.id, targetId);
-      publishAgentStatus(agent.id, "online");
-      return withOps({
-        status: "yielded",
-        reason: effectiveAction.reason
+      // 纯收束确认：确认收到但不发帖。行位在任务 op / 自动路由之后、ignore 之前：
+      // 任务优先级不变；确定信号下 conclude 是合法收束，不进入下方 ignore 的 error / cap-ack 路径。
+      return closeWithoutPosting(
+        effectiveAction.reason
           ? `concluded: ${effectiveAction.reason}`
           : "concluded by agent",
-        baseSeq,
-      });
+      );
     }
     if (effectiveAction.action === "ignore") {
-      // §05 兜底：确定信号（个人 @mention / 进行中任务线程收到他人消息）下 ignore 不合法——
+      // §05 兜底：确定信号（人类的 @mention / 进行中任务线程收到他人消息）下 ignore 不合法——
       // 本轮按失败处理（不 ack、error 状态点可见、触发消息保持 pending 供下次 wake 重试）。
       // 连续失败达 MUST_RESPOND_FAILURE_CAP 后 ack 并记 error：防模型系统性 ignore 造成的
       // 永久 pending + 反复失败（cap-ack 是逃逸口，状态点仍可见 error）。
