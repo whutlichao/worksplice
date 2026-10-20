@@ -921,6 +921,25 @@ export interface RoundOutcome {
 /** 任务状态更新的 freshness 重试上限（回复已落线程，状态更新是机械收口）。 */
 export const MAX_TASK_STATUS_RETRIES = 3;
 
+/** 自动认领的 freshness 重试上限（同一轮内按 held 返回的 roomSeq 重试）。 */
+export const MAX_TASK_CLAIM_RETRIES = 3;
+
+/**
+ * §3.7 自动路由裁决：频道目标的普通答复，本轮**最新一条其他作者消息**是 Owner 发布、
+ * 格式匹配 `Task #N created` 且唯一匹配本频道开放任务 N 的创建事件时：
+ * - 任务无 owner → claim（先认领再回线程）；
+ * - 任务已有 owner（自己或他人）→ thread（不 claim，直接以参与者身份回线程）。
+ * 同轮更早的其他作者未读消息（混合活动）不构成否决——判定只看向最新一条。
+ * 最新一条不是创建事件 / 任务不存在或已 done·closed → 不路由，按普通频道回复。
+ */
+interface TaskReplyRoute {
+  taskNumber: number;
+  /** 触发本轮路由的创建事件 seq；held 让路时游标必须停在其之前。 */
+  eventSeq: number;
+  /** claim = 无 owner，先认领；thread = 已有 owner（自己或他人），直接回线程。 */
+  mode: "claim" | "thread";
+}
+
 function taskInChannel(
   channelId: string,
   taskNumber: number,
@@ -937,75 +956,196 @@ function taskCreationEventNumber(message: MessageWithAuthor): number | null {
   return Number.isSafeInteger(number) ? number : null;
 }
 
-/** 普通答复只有在唯一匹配任务时才转成 claim 操作。 */
-function claimTaskFromReply(input: {
+/**
+ * 普通答复的自动路由裁决（§3.7）：只认**本轮最新一条其他作者消息**。
+ * 旧实现（claimTaskFromReply）用 hasOtherActivity 把「同轮更早的未读消息」当竞争活动，
+ * 导致混合活动时任务信号被压回频道（secretary-office #11）；判定改看最新一条后，
+ * 更早的消息不再否决。返回 null 表示按普通频道回复处理。
+ */
+function resolveTaskReplyRoute(input: {
+  agentId: string;
   action: AgentAction;
   channel: ChannelRow;
   targetId: string;
   incoming: MessageWithAuthor[];
-  roundMessages: MessageWithAuthor[];
-}): AgentAction {
-  const { action, channel, targetId, incoming, roundMessages } = input;
+}): TaskReplyRoute | null {
+  const { agentId, action, channel, targetId, incoming } = input;
   if (
     targetId !== channel.id ||
     action.task ||
     action.action !== "reply" ||
-    !action.content
+    !action.content ||
+    incoming.length === 0
   ) {
-    return action;
+    return null;
   }
-  const openTasks = getDb().listChannelTasks(channel.id).filter(
-    (task) => task.status !== 'done' && task.status !== 'closed',
-  );
-  const activityIds = new Set(roundMessages.map((message) => message.id));
-  const anchoredTasks = openTasks.filter((task) =>
-    activityIds.has(task.message_id),
-  );
-  if (anchoredTasks.length === 1) {
-    const [task] = anchoredTasks;
-    const anchor = getDb().getMessage(task.message_id);
-    const taskEvent = incoming.find(
-      (message) =>
-        anchor &&
-        message.seq === anchor.seq + 1 &&
-        taskCreationEventNumber(message) === task.number,
-    );
-    let hasOtherActivity = false;
-    for (const message of incoming) {
-      if (message.id !== task.message_id && message.id !== taskEvent?.id) {
-        hasOtherActivity = true;
-        break;
-      }
+  const latest = incoming.at(-1);
+  if (!latest) return null;
+  const taskNumber = taskCreationEventNumber(latest);
+  if (taskNumber !== null) {
+    const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+    // 最新一条是创建事件但任务不存在或已 done/closed：按规范不路由，回频道；
+    // 不能落到 pending，否则会把答复投到另一个任务线程（F 的同类错误）。
+    if (!task || task.status === "done" || task.status === "closed") {
+      return null;
     }
-    if (taskEvent && !hasOtherActivity) {
-      return {
-        ...action,
-        task: { number: task.number, op: 'claim' },
-      };
-    }
+    return {
+      taskNumber,
+      eventSeq: latest.seq,
+      // 有 owner（自己或他人）都不 claim：自己持有 → 回线程；他人持有 → 参与者回线程。
+      mode: task.owner_id === null ? "claim" : "thread",
+    };
   }
+  // 最新一条不是任务信号：只对曾经 held 耗尽的任务优先收敛（F 的新轮不受影响）。
+  return pendingTaskRoute(agentId, channel);
+}
 
-  if (incoming.length !== 1) {
-    return action;
+/**
+ * 同进程 pending-claim：claim 重试耗尽、且创建事件仍未被消费的任务。
+ * 不落 DB、不扩 schema；进程重启后丢失可接受——游标仍停在事件之前，若没有更新的
+ * 消息，最新一条仍是创建事件，下一轮可重新收敛。成功后立即清除。
+ */
+interface PendingTaskClaim {
+  agentId: string;
+  channelId: string;
+  taskNumber: number;
+  eventSeq: number;
+}
+
+declare global {
+  var __worksplicePendingTaskClaims:
+    | Map<string, PendingTaskClaim>
+    | undefined;
+}
+
+function pendingTaskStore(): Map<string, PendingTaskClaim> {
+  if (!globalThis.__worksplicePendingTaskClaims) {
+    globalThis.__worksplicePendingTaskClaims = new Map();
   }
-  const taskNumber = taskCreationEventNumber(incoming[0]);
-  if (taskNumber === null) return action;
-  const matchingTasks = openTasks.filter(
-    (task) => task.number === taskNumber,
+  return globalThis.__worksplicePendingTaskClaims;
+}
+
+const pendingClaimKey = (
+  agentId: string,
+  channelId: string,
+  taskNumber: number,
+) => `${agentId}|${channelId}|${taskNumber}`;
+
+function rememberPendingTaskClaim(claim: PendingTaskClaim): void {
+  pendingTaskStore().set(
+    pendingClaimKey(claim.agentId, claim.channelId, claim.taskNumber),
+    claim,
   );
-  if (matchingTasks.length !== 1 || anchoredTasks.length !== 0) {
-    return action;
+}
+
+function clearPendingTaskClaim(
+  agentId: string,
+  channelId: string,
+  taskNumber: number,
+): void {
+  pendingTaskStore().delete(pendingClaimKey(agentId, channelId, taskNumber));
+}
+
+/**
+ * pending 优先级：只在本轮没有新的任务信号时生效（F 不变）。任务仍无 owner → 优先
+ * claim；已被他人持有 → 按 B 以参与者回线程；done/closed 或事件已被消费 → 清除 pending，
+ * 按普通消息处理。返回 null 表示没有可收敛的 pending。
+ */
+function pendingTaskRoute(
+  agentId: string,
+  channel: ChannelRow,
+): TaskReplyRoute | null {
+  const store = pendingTaskStore();
+  const consumed = getDb().getConsumedSeq(agentId, channel.id);
+  const candidates: Array<{
+    key: string;
+    claim: PendingTaskClaim;
+    task: TaskRow;
+  }> = [];
+  for (const [key, claim] of store) {
+    if (claim.agentId !== agentId || claim.channelId !== channel.id) continue;
+    if (consumed >= claim.eventSeq) {
+      store.delete(key);
+      continue;
+    }
+    const task = getDb().getTaskByChannelNumber(channel.id, claim.taskNumber);
+    if (!task || task.status === "done" || task.status === "closed") {
+      store.delete(key);
+      continue;
+    }
+    candidates.push({ key, claim, task });
   }
+  // 多条 pending 时取 eventSeq 最新（与 A 的最新信号取向一致），避免 Map 插入序
+  // 让较新的任务长期饿死。
+  candidates.sort((a, b) => b.claim.eventSeq - a.claim.eventSeq);
+  const next = candidates[0];
+  if (!next) return null;
+  if (next.task.owner_id === null) {
+    return {
+      taskNumber: next.claim.taskNumber,
+      eventSeq: next.claim.eventSeq,
+      mode: "claim",
+    };
+  }
+  // 已被持有（自己或他人）：按 B/D 回线程，pending 已无 claim 价值。
+  store.delete(next.key);
   return {
-    ...action,
-    task: { number: taskNumber, op: 'claim' },
+    taskNumber: next.claim.taskNumber,
+    eventSeq: next.claim.eventSeq,
+    mode: "thread",
   };
+}
+
+/** 该 agent 在频道里是否有仍可收敛的 pending 任务（崩溃窗口早退前检查）。 */
+function hasPendingTaskClaim(agentId: string, channelId: string): boolean {
+  const consumed = getDb().getConsumedSeq(agentId, channelId);
+  for (const claim of pendingTaskStore().values()) {
+    if (claim.agentId !== agentId || claim.channelId !== channelId) continue;
+    if (consumed >= claim.eventSeq) continue;
+    const task = getDb().getTaskByChannelNumber(channelId, claim.taskNumber);
+    if (task && task.status !== "done" && task.status !== "closed") {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** 本轮是否有可路由的创建事件（开放任务；done/closed 不算任务信号）。 */
+function hasRoutableTaskEvent(
+  agentId: string,
+  channel: ChannelRow,
+  messages: MessageWithAuthor[],
+): boolean {
+  return messages.some((message) => {
+    if (message.author_id === agentId) return false;
+    const taskNumber = taskCreationEventNumber(message);
+    if (taskNumber === null) return false;
+    const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+    return Boolean(task && task.status !== "done" && task.status !== "closed");
+  });
+}
+
+/** claim 失败的原因文案（自动路由与显式 claim 共用，避免两处分派漂移）。 */
+function claimFailureReason(claim: {
+  status: "held" | "conflict" | "blocked";
+}): string {
+  switch (claim.status) {
+    case "held":
+      return "claim held — the room changed";
+    case "blocked":
+      return "claim blocked — task was reopened, awaiting the owner";
+    default:
+      return "claim conflict — task already claimed";
+  }
 }
 
 /**
  * 带任务操作的一轮（§3.7）：
- * - claim：先认领（channel freshness）；成功 → 回复投递到任务线程（thread freshness）；
- *   失败（held/conflict）→ 让路：不回复、channel 游标只推进到已读版本（更新的消息经 wake 重试）；
+ * - 自动路由（route）：无 owner 先 claim（held 按 roomSeq 同轮重试，上限 MAX_TASK_CLAIM_RETRIES）；
+ *   已有 owner（自己或他人）不 claim，直接把回复作为参与者写入任务线程；重试耗尽才让路，
+ *   且游标停在创建事件之前，事件保持未消费供后续轮次再收敛到 claim；
+ * - 显式 claim：先认领（channel freshness）；成功 → 回复投递到任务线程（thread freshness）；
+ *   失败（held/conflict/blocked）→ 让路：不回复、channel 游标只推进到已读版本（更新的消息经 wake 重试）；
  * - complete：完成者置 in_review（互审约定）；回复先落线程，状态更新 held 时按 roomSeq 重试；
  * - unclaim：释放回池（owner 清空）。
  * 游标收口：channel 推进到本轮已读版本；任务线程仅在任务离开进行中状态时收口
@@ -1017,13 +1157,17 @@ export async function runTaskOperation(input: {
   targetId: string;
   action: AgentAction;
   baseSeq: number;
+  /** 自动路由裁决；与 action.task 二选一。 */
+  route?: TaskReplyRoute;
   promptFn: (promptText: string) => Promise<string>;
   send?: ReplySender;
 }): Promise<RoundOutcome> {
-  const { agent, channel, action, baseSeq } = input;
+  const { agent, channel, action, baseSeq, route } = input;
   const taskOp = action.task;
-  if (!taskOp) throw new Error("runTaskOperation requires a task op");
-  const taskNumber = taskOp.number;
+  if (!taskOp && !route) {
+    throw new Error("runTaskOperation requires a task op or a reply route");
+  }
+  const taskNumber = taskOp?.number ?? route!.taskNumber;
 
   const task = taskInChannel(channel.id, taskNumber);
   if (!task) {
@@ -1044,9 +1188,110 @@ export async function runTaskOperation(input: {
     input.targetId === channel.id
       ? input.baseSeq
       : getDb().getConsumedSeq(agent.id, channel.id);
+  const deliverReply = (anchorId: string) =>
+    deliverToTaskThread({
+      agent,
+      channel,
+      targetId: input.targetId,
+      anchorId,
+      action,
+      threadBaseSeq,
+      promptFn: input.promptFn,
+      send: input.send,
+    });
+  // 自动路由的线程回复失败（error / silent）时不推进 channel 游标：创建事件保持
+  // pending，下一轮重新路由；只有回复真正落线程才收口到本轮已读版本。
+  const finishRoutedReply = async (anchorId: string): Promise<RoundOutcome> => {
+    const delivered = await deliverReply(anchorId);
+    if (delivered.status === "error" || delivered.status === "silent") {
+      return delivered;
+    }
+    ack(agent.id, input.targetId, baseSeq);
+    return delivered;
+  };
+
+  // ---- 自动路由（§3.7）：最新创建事件 → 任务线程；无 owner 先 claim ----------
+  if (route) {
+    if (route.mode === "thread") {
+      // B/D：任务已有 owner（自己或他人）→ 不发起 claim，直接把回复作为参与者写入线程。
+      clearPendingTaskClaim(agent.id, channel.id, taskNumber);
+      return finishRoutedReply(task.message_id);
+    }
+    // C：无 owner → 先 claim；held 时同一轮用返回的 roomSeq 重试，上限 MAX_TASK_CLAIM_RETRIES。
+    // （route.mode === "thread" 已在上面返回。）
+    let claimSeq = baseSeq;
+    let claim = claimTask({
+      channelId: channel.id,
+      taskNumber,
+      memberId: agent.id,
+      baseSeq: claimSeq,
+    });
+    for (
+      let retry = 0;
+      claim.status === "held" && retry < MAX_TASK_CLAIM_RETRIES;
+      retry += 1
+    ) {
+      claimSeq = claim.roomSeq;
+      claim = claimTask({
+        channelId: channel.id,
+        taskNumber,
+        memberId: agent.id,
+        baseSeq: claimSeq,
+      });
+    }
+    if (claim.status === "held") {
+      // 重试耗尽才让路；游标停在创建事件之前——事件保持 pending，后续轮次可重新收敛到 claim，
+      // 不会像旧实现那样 ack 到 baseSeq 把事件静默消费成「永无 owner」（secretary-office #10）。
+      const consumed = getDb().getConsumedSeq(agent.id, input.targetId);
+      const yieldSeq = Math.max(
+        consumed,
+        Math.min(baseSeq, route.eventSeq - 1),
+      );
+      ack(agent.id, input.targetId, yieldSeq);
+      // 记住这次未完成的认领：下一轮没有更新的任务信号时优先收敛（不落 DB）。
+      rememberPendingTaskClaim({
+        agentId: agent.id,
+        channelId: channel.id,
+        taskNumber,
+        eventSeq: route.eventSeq,
+      });
+      return {
+        status: "yielded",
+        reason: `claim held after ${MAX_TASK_CLAIM_RETRIES} retries — the room kept changing`,
+        baseSeq,
+      };
+    }
+    if (claim.status === "claimed") {
+      clearPendingTaskClaim(agent.id, channel.id, taskNumber);
+      return finishRoutedReply(claim.task.anchor.id);
+    }
+    if (claim.status === "conflict") {
+      // 竞争窗口里任务被别人拿走：按 B 作为参与者回线程，不因 claim conflict 丢掉这条回复。
+      clearPendingTaskClaim(agent.id, channel.id, taskNumber);
+      const current = getDb().getTaskById(task.id);
+      if (current && current.owner_id !== null) {
+        // 他人持有 → B；自己持有（同一 agent 的竞争窗口）→ D。两种都回线程，不丢回复。
+        return finishRoutedReply(current.message_id);
+      }
+      ack(agent.id, input.targetId, baseSeq);
+      return {
+        status: "yielded",
+        reason: claimFailureReason(claim),
+        baseSeq,
+      };
+    }
+    // blocked：reopened 封锁（仅人类可接管）；明确让路，不把回复投到别处。
+    clearPendingTaskClaim(agent.id, channel.id, taskNumber);
+    ack(agent.id, input.targetId, baseSeq);
+    return {
+      status: "yielded",
+      reason: claimFailureReason(claim),
+      baseSeq,
+    };
+  }
 
   // ---- claim：先认领再开工；失败就让路 --------------------------------------
-  if (taskOp.op === "claim") {
+  if (taskOp!.op === "claim") {
     const claim = claimTask({
       channelId: channel.id,
       taskNumber,
@@ -1054,28 +1299,16 @@ export async function runTaskOperation(input: {
       baseSeq,
     });
     if (claim.status !== "claimed") {
+      clearPendingTaskClaim(agent.id, channel.id, taskNumber);
       ack(agent.id, input.targetId, baseSeq);
       return {
         status: "yielded",
-        reason:
-          claim.status === "held"
-            ? "claim held — the room changed"
-            : claim.status === "blocked"
-              ? "claim blocked — task was reopened, awaiting the owner"
-              : "claim conflict — task already claimed",
+        reason: claimFailureReason(claim),
         baseSeq,
       };
     }
-    const delivered = await deliverToTaskThread({
-      agent,
-      channel,
-      targetId: input.targetId,
-      anchorId: claim.task.anchor.id,
-      action,
-      threadBaseSeq,
-      promptFn: input.promptFn,
-      send: input.send,
-    });
+    clearPendingTaskClaim(agent.id, channel.id, taskNumber);
+    const delivered = await deliverReply(claim.task.anchor.id);
     ack(agent.id, input.targetId, baseSeq);
     return delivered;
   }
@@ -1090,23 +1323,15 @@ export async function runTaskOperation(input: {
     };
   }
 
+  clearPendingTaskClaim(agent.id, channel.id, taskNumber);
   const replyOutcome =
     action.action === "reply" && action.content
-      ? await deliverToTaskThread({
-          agent,
-          channel,
-          targetId: input.targetId,
-          anchorId: task.message_id,
-          action,
-          threadBaseSeq,
-          promptFn: input.promptFn,
-          send: input.send,
-        })
+      ? await deliverReply(task.message_id)
       : { threadAckSeq: getDb().maxSeq(task.message_id) };
 
   // 状态收口（§6.3）：以 agent 语境里的 channel 版本起步，held 后按 roomSeq 重试；
   // 并发审查者已 close/reject（转移失效/越权）→ 不炸本轮：进展已在线程里，收口游标后让路
-  const targetStatus = taskOp.op === "complete" ? "in_review" : "todo";
+  const targetStatus = taskOp!.op === "complete" ? "in_review" : "todo";
   let statusSeq = channelVersion;
   try {
     for (let attempt = 0; ; attempt += 1) {
@@ -1155,7 +1380,7 @@ export async function runTaskOperation(input: {
   }
   return {
     status: "silent",
-    reason: `task ${taskOp.op} → ${targetStatus}`,
+    reason: `task ${taskOp!.op} → ${targetStatus}`,
     baseSeq,
   };
 }
@@ -1333,13 +1558,20 @@ export async function runAgentRound(
       baseSeq: drained.maxSeq,
     };
   }
-  // 崩溃窗口（回复已写、游标未推）内的自愈：最新消息是自己的回复 → 只推进游标，不重复应答
+  // 崩溃窗口（回复已写、游标未推）内的自愈：最新消息是自己的回复 → 只推进游标，不重复应答。
+  // 但若本轮还带着未处理的任务信号（创建事件 / held 耗尽的 pending），早退会把事件
+  // 静默消费成「永无 owner」——放行给下面的路由裁决（A 以其他作者消息为准）。
   const latest = getDb().getLatestMessage(targetId);
+  const hasUnhandledTaskSignal =
+    targetId === channel.id &&
+    (hasPendingTaskClaim(agent.id, channel.id) ||
+      hasRoutableTaskEvent(agent.id, channel, drained.messages));
   if (
     latest &&
     latest.author_id === agent.id &&
     !continuing &&
-    !reminderDriven
+    !reminderDriven &&
+    !hasUnhandledTaskSignal
   ) {
     ack(agentId, targetId, drained.maxSeq);
     return {
@@ -1419,15 +1651,15 @@ export async function runAgentRound(
       effectiveAction = opsApplied.action;
       opsSummary = opsApplied.summary;
     }
-    effectiveAction = claimTaskFromReply({
+    const route = resolveTaskReplyRoute({
+      agentId: agent.id,
       action: effectiveAction,
       channel,
       targetId,
       incoming,
-      roundMessages: drained.messages,
     });
     // §3.7 任务操作：先 claim 再开工；claim 失败就让路（不回复、只收口游标）
-    if (effectiveAction.task) {
+    if (effectiveAction.task || route) {
       // 非成员无 channel 成员资格，不做任务操作（claim 服务层会拒绝）
       if (!isMember) {
         ack(agentId, targetId, baseSeq);
@@ -1443,6 +1675,7 @@ export async function runAgentRound(
         targetId,
         action: effectiveAction,
         baseSeq,
+        route: route ?? undefined,
         promptFn: async (revisionPrompt) => {
           const revised = await promptSession(session, revisionPrompt);
           return revised.ok ? revised.text : "";
