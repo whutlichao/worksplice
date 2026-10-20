@@ -54,14 +54,28 @@ export interface RepairedReply {
   readonly content: string | null;
 }
 
+/** 协议合法 action 集合：reply | ignore | conclude（parseAgentAction 的提取分支同源）。 */
+export type ProtocolAction = "reply" | "ignore" | "conclude";
+const PROTOCOL_ACTIONS: ReadonlySet<string> = new Set<ProtocolAction>([
+  "reply",
+  "ignore",
+  "conclude",
+]);
+
+/** 严格判定协议 action：只接受字符串字面量，数组/对象等一律拒绝。 */
+export function isProtocolAction(value: unknown): value is ProtocolAction {
+  return typeof value === "string" && PROTOCOL_ACTIONS.has(value);
+}
+
 /**
  * 协议形状校验——**两档共用同一份口径**（与 parseAgentAction 里 extractJsonObject 分支
- * 逐条同款）：对象、非数组、`action` ∈ {reply, ignore}。绝不把「碰巧长得像」的文本当回复。
+ * 逐条同款）：对象、非数组、`action` ∈ {reply, ignore, conclude}。绝不把「碰巧长得像」
+ * 的文本当回复。
  */
 function acceptProtocolObject(parsed: unknown): Record<string, unknown> | null {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const value = parsed as Record<string, unknown>;
-  if (value.action !== "reply" && value.action !== "ignore") return null;
+  if (!isProtocolAction(value.action)) return null;
   return value;
 }
 

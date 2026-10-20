@@ -62,7 +62,8 @@ import {
   type MemberOpOutcome,
   type RawMemberOp,
 } from "./member-ops.ts";
-import { parseLeakedReply } from "./json-prologue.ts";
+import { parseLeakedReply, isProtocolAction } from "./json-prologue.ts";
+import type { ProtocolAction } from "./json-prologue.ts";
 import {
   INJECTION_CONTEXT_CHARS,
   INJECTION_DRAFT_CHARS,
@@ -154,9 +155,11 @@ function resetMustRespondFailures(agentId: string, targetId: string): void {
 }
 
 export interface AgentAction {
-  action: "reply" | "ignore";
+  action: ProtocolAction;
   content: string;
   onConflict: ConflictChoice;
+  /** 可选：conclude 的简短理由（仅保留 trim 后非空的字符串）。 */
+  reason?: string;
   /** 可选：本轮附带的任务操作（先 claim 再开工；claim 失败就让路）。 */
   task?: { number: number; op: TaskOp };
   /** 可选：本轮附带的成员 op（ADR-0013 决策一；解析见 ./member-ops.ts）。 */
@@ -219,7 +222,7 @@ export function parseAgentAction(text: string): AgentAction {
           extracted &&
           typeof extracted === "object" &&
           !Array.isArray(extracted) &&
-          (extracted.action === "reply" || extracted.action === "ignore")
+          isProtocolAction(extracted.action)
         ) {
           parsed = extracted;
         }
@@ -240,10 +243,13 @@ export function parseAgentAction(text: string): AgentAction {
     parsed = parseLeakedReply(cleaned)?.value ?? null;
   }
   if (parsed) {
-    const action: AgentAction["action"] =
-      parsed.action === "ignore" ? "ignore" : "reply";
+    const action: AgentAction["action"] = isProtocolAction(parsed.action)
+      ? parsed.action
+      : "reply";
     const content =
       typeof parsed.content === "string" ? parsed.content.trim() : "";
+    const reason =
+      typeof parsed.reason === "string" ? parsed.reason.trim() : "";
     const onConflict: ConflictChoice = CONFLICT_CHOICES.has(
       String(parsed.onConflict),
     )
@@ -264,14 +270,12 @@ export function parseAgentAction(text: string): AgentAction {
     }
     // 成员 op（ADR-0013 决策一）：与 task 同一条缝；空数组不落字段（向后兼容既有 deepEqual 断言）
     const ops = parseMemberOps(parsed.ops);
-    if (ops.length > 0) {
-      return task
-        ? { action, content, onConflict, task, ops }
-        : { action, content, onConflict, ops };
-    }
-    return task
-      ? { action, content, onConflict, task }
-      : { action, content, onConflict };
+    const result: AgentAction = { action, content, onConflict };
+    // reason 只属于 conclude；空串/非字符串不落字段。
+    if (action === "conclude" && reason) result.reason = reason;
+    if (task) result.task = task;
+    if (ops.length > 0) result.ops = ops;
+    return result;
   }
   return {
     action: "reply",
@@ -419,7 +423,7 @@ export function buildReplyPrompt(input: {
   }
   lines.push("");
   lines.push(
-    'Choose ONE next action and reply with JSON only: {"action":"reply"|"ignore","content":"your reply text","onConflict":"revise"|"resend"|"silent"|"anyway"}',
+    'Choose ONE next action and reply with JSON only: {"action":"reply"|"ignore"|"conclude","content":"your reply text","onConflict":"revise"|"resend"|"silent"|"anyway"}',
   );
   lines.push('- "reply" posts content to this target; task replies may be routed to an anchor thread; "ignore" says nothing.');
   lines.push("- Deciding is yours, but follow these response rules:");
@@ -437,6 +441,9 @@ export function buildReplyPrompt(input: {
   );
   lines.push(
     "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. An @mention of you overrides all of this — being mentioned is a demand for a response, and ignoring it is treated as a failure.",
+  );
+  lines.push(
+    '- "conclude": acknowledge receipt without posting when a settled thread or @mention needs only a closing confirmation; legal under a certain signal instead of "ignore"; never to dodge direct questions or explicit work requests.',
   );
   lines.push(
     "- Never @mention yourself: writing @your-own-name in a reply mentions no one and only creates noise.",
@@ -869,6 +876,9 @@ export async function deliverWithFreshness(input: {
           }),
         );
         const revised = parseAgentAction(revisedText);
+        if (revised.action === "conclude") {
+          return { status: "silent", reason: "revised to conclude", ackSeq };
+        }
         if (revised.action === "ignore") {
           return { status: "silent", reason: "revised to ignore", ackSeq };
         }
@@ -1691,6 +1701,21 @@ export async function runAgentRound(
         publishAgentStatus(agent.id, "online");
       }
       return withOps(outcome);
+    }
+    if (effectiveAction.action === "conclude") {
+      // 纯收束确认：确认收到但不发帖——ack 游标、清零 must-respond streak、状态回 online，
+      // 不写任何消息。行位在任务 op / 自动路由之后、ignore 之前：任务优先级不变；
+      // 确定信号下 conclude 是合法收束，直接返回，不进入下方 ignore 的 error / cap-ack 路径。
+      ack(agentId, targetId, baseSeq);
+      resetMustRespondFailures(agent.id, targetId);
+      publishAgentStatus(agent.id, "online");
+      return withOps({
+        status: "yielded",
+        reason: effectiveAction.reason
+          ? `concluded: ${effectiveAction.reason}`
+          : "concluded by agent",
+        baseSeq,
+      });
     }
     if (effectiveAction.action === "ignore") {
       // §05 兜底：确定信号（个人 @mention / 进行中任务线程收到他人消息）下 ignore 不合法——
