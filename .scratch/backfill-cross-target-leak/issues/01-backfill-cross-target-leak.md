@@ -203,4 +203,5 @@ task 锚点 / 引用文本 / FTS），并决定被删消息留下的 seq 空洞�
   - `.scratch/backfill-cross-target-leak/issues/01-backfill-cross-target-leak.md`、`pr-body.md`
 - commit：`4fe0e45`（修复 + 回归）、`71fd28f`（查询改 UNION ALL、归一化收窄）、`af1c553`（布尔谓词）、
   后续 docs commit（本 Answer + PR body）
-- PR：见 PR body 路径 `.scratch/backfill-cross-target-leak/pr-body.md`；PR 号回填于 worker_done 摘要。
+- PR：**#193**，body 路径 `.scratch/backfill-cross-target-leak/pr-body.md`，
+  https://github.com/whutlichao/worksplice/pull/193
