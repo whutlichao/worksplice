@@ -1071,6 +1071,32 @@ export class SQLiteAdapter implements Store {
     return row !== undefined;
   }
 
+  /**
+   * backfill 跨 target 判重：频道顶层（target_id = 频道）与以其顶层消息为锚点的 thread
+   * （target_id = 该顶层消息 id）里是否已有该作者的同内容消息。thread 不可嵌套（§6.1），
+   * 所以一层锚点解析即穷尽频道内全部 target；两段都是 target_id 索引上的范围查，不扫全表。
+   */
+  hasAuthorContentInChannel(
+    channelId: string,
+    authorId: string,
+    content: string,
+  ): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS hit FROM messages
+           WHERE target_id = ? AND author_id = ? AND content = ?
+         UNION ALL
+         SELECT 1 AS hit FROM messages t
+           JOIN messages m ON m.target_id = t.id
+          WHERE t.target_id = ? AND m.author_id = ? AND m.content = ?
+         LIMIT 1`,
+      )
+      .get(channelId, authorId, content, channelId, authorId, content) as
+      | { hit: number }
+      | undefined;
+    return row !== undefined;
+  }
+
   getConsumedSeq(agentId: string, targetId: string): number {
     const row = this.db
       .prepare("SELECT seq FROM consumed_seqs WHERE agent_id = ? AND target_id = ?")
