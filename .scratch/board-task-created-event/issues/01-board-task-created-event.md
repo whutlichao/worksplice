@@ -99,3 +99,10 @@ note 是刻意**低强调**的静态条（米色底 + muted 字、无图标、�
   Blocked by / Status / Type / Acceptance criteria / Answer）。
 - Spec：与票面一致 —— 「先复现、再定位；有真实失败才修」，未改 schema / seed / live 数据，
   未改 wake 策略与任务认领/线程路由语义，未引入依赖、未跑 `next build`。
+
+### Delivery
+
+- Commit: `049a6df`（`docs(board-task-created-event): 三场景复现全绿…`）+ 本 Answer 回填
+- Branch: `board-task-created-event`
+- PR: https://github.com/whutlichao/worksplice/pull/195
+- PR body: `.scratch/board-task-created-event/pr-body.md`
