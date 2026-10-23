@@ -28,6 +28,7 @@ import type {
   ReminderRow,
   ReminderStatus,
   RoundLogRow,
+  RoundUsageAggregate,
   SearchResult,
   SessionArchiveEntryInput,
   SessionArchiveSearchHit,
@@ -210,9 +211,14 @@ export interface Store {
     reason?: string;
     baseSeq?: number;
     createdAt?: string;
+    promptTokens?: number | null;
+    completionTokens?: number | null;
+    cost?: number | null;
   }): RoundLogRow;
   listRoundLogs(agentId: string, limit?: number): RoundLogRow[];
   listRoundLogsByTarget(targetId: string): RoundLogRow[];
+  /** 用量聚合：limit 省略 = ring cap 内全量；给定 = 最近 limit 轮。 */
+  aggregateRoundUsage(agentId: string, limit?: number): RoundUsageAggregate;
   pruneRoundLogs(agentId: string, retain: number): void;
 
   // -- reactions ------------------------------------------------------------

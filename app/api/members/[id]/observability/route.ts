@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgent, AgentNotFoundError, listAgentTasks, buildAgentTimeline, listRoundLogs } from "@/lib/domain/collab";
+import { getAgent, AgentNotFoundError, listAgentTasks, buildAgentTimeline, listRoundLogs, getRoundUsageSummary } from "@/lib/domain/collab";
 import { aggregateAgentUsage } from "@/lib/session-stats";
 import { resolveSessionIdByPath } from "@/lib/session-reader";
 import { getAgentRuntime } from "@/lib/agent-runtime";
@@ -54,6 +54,9 @@ export async function GET(
       tasks: listAgentTasks(agent.id),
       timeline: buildAgentTimeline(agent.id),
       rounds: listRoundLogs(agent.id),
+      // v16 成本双视图：round_logs 每轮用量的全量聚合 + 最近 50 轮滑动聚合
+      // （与 stats 的 session jsonl 只读口径并存：前者是轮次粒度，后者是会话粒度）。
+      roundUsage: getRoundUsageSummary(agent.id),
       session: {
         file: agent.pi_session_file,
         sessionId,

@@ -126,6 +126,24 @@ export interface RoundLogRow {
   reason: string;
   base_seq: number;
   created_at: string;
+  /** v16 每轮用量（SDK 取不到时 null：null ≠ 0）。prompt 侧含缓存读写。 */
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  cost: number | null;
+}
+
+/** round_logs 用量聚合（成本看板双视图：全量 / 最近 N 轮）。 */
+export interface RoundUsageAggregate {
+  /** 纳入聚合的轮次数（含无用量行）。 */
+  rounds: number;
+  /** 至少一列用量非 null 的轮次数——UI 据此区分「真的 0」与「没有数据」。 */
+  roundsWithUsage: number;
+  /** cost 非 null 的轮次数——token 有数但 cost 缺数时，成本列显示占位符。 */
+  roundsWithCost: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cost: number;
 }
 
 export interface ReactionRow {

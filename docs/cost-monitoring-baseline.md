@@ -15,6 +15,8 @@
 
 成本从 pi session jsonl **只读解析**（`lib/session-stats.ts`，与 SDK `getSessionStats` 同口径，不落库），按 agent 聚合展示于详情面板可观测性 tab（spec §6.5）。
 
+轮次粒度成本（v16，schema v16）额外落在 `round_logs` 三列（`prompt_tokens` / `completion_tokens` / `cost`）：agent-loop 在轮前/轮后各取一次会话累计统计（SDK `get_session_stats`），差值为本轮用量；SDK 取不到时写 `null`（不编造数字）。可观测 API 的 `roundUsage` 同时给出**全量**（ring cap 200 内）与**最近 50 轮**两个聚合视图。
+
 解析口径：
 
 - `message.usage`（assistant 消息）与 `compaction`/`branch_summary` 条目的 `usage`；
@@ -45,9 +47,10 @@
 | 层 | 机制 | 位置/入口 |
 | --- | --- | --- |
 | 成员状态 | 状态点四态（online/thinking/error/offline） | UI 频道成员面板 + `GET /api/members` |
-| 轮次结果 | `round_logs` 表（agent/target/status/reason/base_seq/时间），只记有结论 7 种轮次，ring cap 200/agent | `GET /api/members/[id]/observability` → `rounds` |
+| 轮次结果 | `round_logs` 表（agent/target/status/reason/base_seq/prompt_tokens/completion_tokens/cost/时间），只记有结论 7 种轮次，ring cap 200/agent | `GET /api/members/[id]/observability` → `rounds` / `roundUsage` |
 | 任务历史 | 该 agent 参与的任务 + 状态变更时间线（查 messages/tasks，不落额外表） | observability → `tasks` / `timeline` |
-| token/成本 | session jsonl 只读解析，按 agent 聚合 | observability → `stats` |
+| token/成本 | session jsonl 只读解析，按 agent 聚合（会话粒度） | observability → `stats` |
+| 轮次成本双视图 | `round_logs` 三列聚合：全量 + 最近 50 轮滑动 | observability → `roundUsage.allTime` / `roundUsage.recent` |
 | 会话上下文 | 存活会话实时 context usage / compaction / 导出 | observability → `session.live` |
 | 消息/频道 | seq 游标、freshness-hold、FTS 全文搜索 | 业务 API |
 

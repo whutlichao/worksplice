@@ -34,6 +34,7 @@ import {
   sendMessage,
   subscribeWake,
   updateTaskStatus,
+  type RoundUsage,
 } from "../domain/collab/index.ts";
 import {
   publishAgentStatus,
@@ -773,6 +774,70 @@ async function emptyTextFailureReason(session: LoopSession): Promise<string> {
   return message ? `model error: ${message}` : fallback;
 }
 
+/**
+ * v16 每轮用量（05 成本看板）：SDK `get_session_stats` 给的是会话累计值
+ * （`tokens.{input,output,cacheRead,cacheWrite}` + `cost`），一轮的用量 = 轮前/轮后两次
+ * 快照的差值。prompt 侧 = input + cacheRead + cacheWrite（与 lib/session-stats.ts 的
+ * 「未缓存 + 缓存」同口径），completion 侧 = output；cost 直接取 SDK 的累计差值。
+ *
+ * 「取不到」是合法形态：fake 会话、命令失败、会话被替换都返回 null——绝不影响轮次本身，
+ * 落盘为 null（不编造数字，也不按猜测定价）。
+ */
+interface SessionUsageSnapshot {
+  promptTokens: number;
+  completionTokens: number;
+  cost: number | null;
+}
+
+function parseSessionUsageSnapshot(value: unknown): SessionUsageSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const stats = value as { tokens?: unknown; cost?: unknown };
+  const tokens = stats.tokens;
+  if (!tokens || typeof tokens !== "object") return null;
+  const { input, output, cacheRead, cacheWrite } = tokens as Record<
+    string,
+    unknown
+  >;
+  if (typeof input !== "number" || typeof output !== "number") return null;
+  return {
+    promptTokens:
+      input +
+      (typeof cacheRead === "number" ? cacheRead : 0) +
+      (typeof cacheWrite === "number" ? cacheWrite : 0),
+    completionTokens: output,
+    cost: typeof stats.cost === "number" ? stats.cost : null,
+  };
+}
+
+async function readSessionUsage(
+  session: LoopSession,
+): Promise<SessionUsageSnapshot | null> {
+  try {
+    return parseSessionUsageSnapshot(
+      await session.send({ type: "get_session_stats" }),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** 轮前/轮后差值；任一缺失或出现负值（会话被替换/重置）都按「取不到」处理。 */
+function sessionUsageDelta(
+  after: SessionUsageSnapshot | null,
+  before: SessionUsageSnapshot,
+): RoundUsage | null {
+  if (!after) return null;
+  const promptTokens = after.promptTokens - before.promptTokens;
+  const completionTokens = after.completionTokens - before.completionTokens;
+  if (promptTokens < 0 || completionTokens < 0) return null;
+  let cost: number | null = null;
+  if (after.cost !== null && before.cost !== null) {
+    const delta = after.cost - before.cost;
+    if (delta >= 0) cost = delta;
+  }
+  return { promptTokens, completionTokens, cost };
+}
+
 // ----------------------------------------------------------------------------
 // act：freshness-hold 四选一
 // ----------------------------------------------------------------------------
@@ -930,6 +995,8 @@ export interface RoundOutcome {
   reason?: string;
   message?: MessageRow;
   baseSeq?: number;
+  /** v16 本轮用量（driver 收口时从 SDK 会话统计差值取；取不到则缺省）。 */
+  usage?: RoundUsage;
 }
 
 // ----------------------------------------------------------------------------
@@ -2173,6 +2240,17 @@ async function processAgent(agentId: string): Promise<void> {
       if (!queue || readyIndex < 0) break;
       const [queued] = queue.splice(readyIndex, 1);
 
+      // v16 每轮用量：轮前快照会话累计统计（会话不存在/统计读取失败 → 本轮记 null）。
+      let usageSession: LoopSession | undefined;
+      let usageBefore: SessionUsageSnapshot | null = null;
+      try {
+        usageSession = runtime.findSession(getAgent(agentId));
+        if (usageSession) usageBefore = await readSessionUsage(usageSession);
+      } catch {
+        usageSession = undefined;
+        usageBefore = null;
+      }
+
       let outcome;
       try {
         outcome = await runAgentRound(
@@ -2189,9 +2267,24 @@ async function processAgent(agentId: string): Promise<void> {
         );
         continue;
       }
+      // 轮后取值只认同一会话对象（轮内 startSession 换新会话或会话被替换 → 差值无意义）。
+      let usage: RoundUsage | undefined;
+      if (usageSession && usageBefore) {
+        try {
+          if (runtime.findSession(getAgent(agentId)) === usageSession) {
+            usage =
+              sessionUsageDelta(
+                await readSessionUsage(usageSession),
+                usageBefore,
+              ) ?? undefined;
+          }
+        } catch {
+          usage = undefined;
+        }
+      }
       // §07 轮次结果落盘（有结论的轮次；noop/skipped/busy 由服务层过滤）。
       // driver 是 runAgentRound 的唯一生产调用点（index.ts 仅 re-export 供测试）。
-      logRoundOutcome(agentId, queued.targetId, outcome);
+      logRoundOutcome(agentId, queued.targetId, { ...outcome, usage });
       if (outcome.status === "busy" || outcome.status === "busy-cwd") {
         waitForSettle(agentId, queued.targetId, queued.reason);
         break;
