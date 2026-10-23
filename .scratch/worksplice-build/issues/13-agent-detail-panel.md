@@ -1,6 +1,6 @@
 # 13 — Agent 详情面板重构：中央/面板状态解耦 + 非长驻右栏 + 线程迁移
 
-**Status:** ready-for-agent
+**Status:** resolved（2026-10-23）
 
 **What to build:** 右栏从"常驻 300px 占位 + agent 详情"改为"非长驻单槽 dock"：中央（当前频道）与面板（agent | human | thread | null）状态解耦——点 agent/人类/线程只在右栏展示，中央频道消息流不再被清空；无选中时整栏消失、中央占满；面板加宽；切换频道清空面板。channel 内 thread 侧栏删除，线程迁入右栏并自带 3s 轮询；人类简介弹窗删除，人类进右栏薄卡片；左栏只高亮频道行。
 
@@ -84,3 +84,18 @@
 - **深链不变**：`#c/<channelId>?m=<messageId>` 仍只定位中央消息，不承载面板状态。
 - **引用态变化**：现状 channel 与 thread 两 composer 共享单一引用态；线程迁出后引用态变面板局部——"在 channel 引用后切到线程携带引用"的行为消失，视为接受的语义变化。
 - 本 spec 由 /grill-me 会话（agent 详情面板设计）产出，决策点均已与用户逐项确认。
+
+## Answer
+
+**结论**：完成（2026-10-23 复核；本票为只读审计，未改源码）。
+
+**证据**：
+- 状态解耦：`components/AppShell.tsx:79-80` 拆为 `centerSelection`（频道）与 `panelContent`（agent|human|thread|null）；`:273`、`:321` 频道切换时 `onChannelSwitched` 清空面板；`:518-523` 仅 `resolvablePanel` 存在时渲染右栏（非长驻，无选中整栏消失）。
+- 纯状态模块：`lib/panel-state.ts:128` `openPanel`（单槽替换）、`:134` `closePanel`、`:140` `onChannelSwitched`；测试 `lib/panel-state.test.mjs:15-79`（单槽替换、id 透传、关闭、切频道清空）。
+- 容器分派：`components/DetailPanel.tsx:53` agent → `AgentDetailPanel`、`:68` human → `HumanProfileCard`、`:74` thread → 线程面板；人类薄资料卡 `:107`。
+- 线程迁移与轮询：`components/ThreadPanel.tsx:25` `THREAD_POLL_MS = 3000`、`:301-317` `setInterval` + `document.hidden` + 清理；线程 freshness 用自己的 seq 空间（`ThreadPanel.tsx:335-352`）；测试 `components/DetailPanel.test.mjs:177`（轮询纪律）、`:217`（卸载清理）、`components/thread-open-scroll.test.mjs`。
+- 左栏只高亮频道行：`components/WorkspaceSidebar.tsx:298`、`:314`、`:346` 的 `isSelected` 只比较 `selectedChannelId`。
+
+**偏差**：无。
+
+**验证方式**：只读审计（未改源码），核对上述实现与测试文件。本票零源码改动，故未跑 npm test / tsc / lint。

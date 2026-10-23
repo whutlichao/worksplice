@@ -4,10 +4,25 @@
 
 **Blocked by:** 04, 05
 
-**Status:** ready-for-agent
+**Status:** resolved（2026-10-23）
 
-- [ ] drain 按游标拉增量、ack 推进游标；重复 drain 不重不漏
-- [ ] agent 回复经双写流落 SQLite 且 seq 正确；模拟崩溃后重启按 seq 补拉恢复
-- [ ] freshness-hold：写稿期间房间变化 → 返回 held + 摘要；agent 四选一至少 revise 与 send as-is 两条路径可用，--anyway 为显式逃逸口
-- [ ] wake hint 不含正文；agent-loop 每轮结束推进 consumed_seqs
-- [ ] 状态点随 loop 活跃黄脉冲、回复落库回绿；会话错误置橙
+- [x] drain 按游标拉增量、ack 推进游标；重复 drain 不重不漏
+- [x] agent 回复经双写流落 SQLite 且 seq 正确；模拟崩溃后重启按 seq 补拉恢复
+- [x] freshness-hold：写稿期间房间变化 → 返回 held + 摘要；agent 四选一至少 revise 与 send as-is 两条路径可用，--anyway 为显式逃逸口
+- [x] wake hint 不含正文；agent-loop 每轮结束推进 consumed_seqs
+- [x] 状态点随 loop 活跃黄脉冲、回复落库回绿；会话错误置橙
+
+## Answer
+
+**结论**：完成（2026-10-23 复核；本票为只读审计，未改源码）。
+
+**证据**：
+- drain/ack：`lib/domain/collab/inbox.ts:40` `drain`（不推进游标）、`:69` `ack`、`:74` `drainAndAck`；重复 drain/ack 语义测试 `lib/domain/collab/inbox.test.mjs:62`、`:92`。
+- 双写与崩溃补拉：`lib/agent-loop/loop.ts:90` reply 双写注释、`:2789` `backfillAgentReplies`、`:2827` `backfillAllAgents`；测试 `lib/agent-loop/backfill.test.mjs:165`（fresh seq 落库）、`:190`（幂等）、`:265`（补写后 ack 前崩溃）、`lib/agent-loop/driver.test.mjs:109`（wake 驱动回复落 SQLite）。
+- freshness-hold：`loop.ts:121-122` 四选一 `revise|resend|silent|anyway`、`:803` `deliverWithFreshness`、`:507` `buildRevisionPrompt`；测试 `lib/agent-loop/loop.test.mjs:867`（revise）、`:895`（resend）、`:916`（silent）、`:933`（anyway）、`:951`（重试上限）。
+- wake hint 不含正文：`lib/domain/collab/wake.ts:43` `emitWake`（hint 只含 agentId/targetId/seq/reason）；测试 `lib/agent-loop/wake.test.mjs:35`。每轮结束 ack：`loop.ts:90`；测试 `loop.test.mjs:578`。
+- 状态点：`lib/agent-status.ts:59-72`（working/online/error/offline 推导与广播）；测试 `lib/agent-status.test.mjs:33`、`:98`。
+
+**偏差**：无。
+
+**验证方式**：只读审计（未改源码），核对上述实现与测试文件。本票零源码改动，故未跑 npm test / tsc / lint。
