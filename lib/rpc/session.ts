@@ -4,7 +4,7 @@
 // 命令分发（send 的 26 个命令分支）、扩展绑定（session_start / 自定义 UI /
 // 命令上下文动作）、生命周期（start/shutdown/destroy/idle 超时）。
 // 不负责：会话注册表（registry.ts）、会话启动构造（caller.ts）、
-// 运行状态广播（broadcaster.ts）。start() 等处的运行状态通知委托 broadcaster。
+// 运行状态广播（events.ts）。start() 等处的运行状态通知委托 events。
 
 import { randomUUID } from "crypto";
 import { existsSync, writeFileSync } from "fs";
@@ -17,7 +17,7 @@ import { invalidateModelsCache } from "../models-cache";
 import { cacheSessionPath, invalidateSessionListCache } from "../session-reader";
 import { getProjectTrustStatus } from "../project-trust";
 import { createHeadlessCustomUiTui, DEFAULT_CUSTOM_UI_COLUMNS } from "../custom-ui-terminal";
-import { notifyRunningChange } from "./broadcaster.ts";
+import { notifyRunningChange } from "./events.ts";
 import { containmentStatus } from "../bash-containment.ts";
 import type { BashContainmentDeps, ContainedBash } from "../bash-containment-extension.ts";
 import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "../pi-types";

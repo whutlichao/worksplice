@@ -60,3 +60,17 @@ test("reuses an open event stream when connecting", () => {
   assert.match(ensureSource, /current\.readyState === EventSource\.OPEN/);
   assert.match(ensureSource, /attempt\?\.source === current && attempt\.pending/);
 });
+
+test("tool preset changes filter the request against the live tool registry", () => {
+  const presetSource = source.slice(
+    source.indexOf("const handleToolPresetChange"),
+    source.indexOf("const scrollToBottom"),
+  );
+
+  // 预设是请求，登记表是事实：先 get_tools，再按 availableTools 过滤。
+  assert.match(presetSource, /sendAgentCommand<ToolEntry\[\]>\(sid, \{ type: "get_tools" \}\)/);
+  // 探测失败才回退；成功的空清单照常下发（lib/tool-presets.ts 的契约）。
+  assert.match(presetSource, /\.catch\(\(\) => undefined\)/);
+  assert.match(presetSource, /getToolNamesForPreset\(preset, availableTools\)/);
+  assert.match(presetSource, /sendAgentCommand\(sid, \{ type: "set_tools", toolNames \}\)/);
+});
