@@ -34,7 +34,7 @@ export interface ChannelTask {
   /** Task thread 中高于 Owner 已读游标的非 Owner 回复数。 */
   unreadReplyCount: number;
   /** Task thread 内全部回复数（所有作者，含 Owner；不含锚点；不受已读游标影响）。
-   *  轮询合并对缺失该字段的旧响应保留当前值（见 `mergeTaskUnreadCounts`）。 */
+   *  轮询合并对缺失该字段的旧响应保留当前值（见 `mergeTaskPollRows`）。 */
   totalReplyCount?: number;
   /** 最新一条未读回复的创建时间；没有未读回复时为 null。 */
   latestUnreadReplyAt: string | null;
@@ -347,52 +347,71 @@ export async function loadTasksPage(
   return body.tasks ?? [];
 }
 
-/** 任务线程回复不进入频道主序列；后台刷新只合并计数状态与 Task 已读游标，避免改写任务视图的其他状态。
+/** 后台刷新把任务板读到的整行视图并回 tasks 缓存（计数只是其中一部分）。
  *
- * 已读游标必须一起合并（票 B 扩展）：它只用于线程面板的**初始落点**判定（打开那一刻的快照），
- * 而 tasks 缓存是面板打开路径唯一的 Task 元数据来源——漏掉它，游标就永远停在频道挂载那一刻，
- * 重开已无未读的 Task 时会一直停在旧的最早未读（规则 2 永久违反；逐秒实测见
- * .scratch/thread-open-scroll/issues/evidence/browser-reopen-window-probe.log）。
- * 同一次任务板读取的字段同源同权威，一起合并不留新鲜度分叉。
+ * 3s 轮询的这份读取是消息页唯一会前进的任务快照来源：agent-loop 认领/完成、另一页签
+ * 或另一个 agent 的审批，都只表现为服务端任务行变化。所以合并必须整行同源——
+ * status / owner 视图 / reopened / reachable / updated_at / 未读计数 / taskThreadReadSeq /
+ * totalReplyCount 一起以服务端为准；只合并计数会让旅程引导卡与 Tasks 徽标停在旧状态
+ * （用户报告的「去复核」卡面不随任务状态实时更新就是这条路径）。
  *
- * 总回复数同属这份 3s 任务板刷新（spec D3）：Task thread 的回复不改变频道顶层 maxSeq，
- * 所以它只能跟着任务板一起前进；缺失该字段时保留当前值，避免旧服务端把读数清成 undefined。 */
-export function mergeTaskUnreadCounts(
+ * 契约：
+ * - 服务端顺序即事实（number 升序）；
+ * - 未变化的行保持对象身份；整个数组无变化时返回同一数组引用（稳定行契约，避免无谓 setState）；
+ * - 变化行以服务端视图替换；新任务按服务端顺序并入；服务端已不存在的行移除；
+ * - 服务端缺失 totalReplyCount 时保留当前值（旧服务端兼容，spec D3；缺失不算变化）。
+ */
+export function mergeTaskPollRows(
   current: ChannelTask[],
   refreshed: ChannelTask[],
 ): ChannelTask[] {
-  const countersById = new Map(
-    refreshed.map((task) => [
-      task.id,
-      {
-        unreadReplyCount: task.unreadReplyCount,
-        latestUnreadReplyAt: task.latestUnreadReplyAt,
-        taskThreadReadSeq: task.taskThreadReadSeq,
-        totalReplyCount:
-          typeof task.totalReplyCount === "number"
-            ? task.totalReplyCount
-            : undefined,
-      },
-    ]),
-  );
-  let changed = false;
-  const merged = current.map((task) => {
-    const counters = countersById.get(task.id);
-    if (counters === undefined) return task;
-    const totalReplyCount =
-      counters.totalReplyCount ?? task.totalReplyCount;
-    if (
-      counters.unreadReplyCount === task.unreadReplyCount &&
-      counters.latestUnreadReplyAt === task.latestUnreadReplyAt &&
-      counters.taskThreadReadSeq === task.taskThreadReadSeq &&
-      totalReplyCount === task.totalReplyCount
-    ) {
-      return task;
+  const currentById = new Map(current.map((task) => [task.id, task]));
+  let unchanged = refreshed.length === current.length;
+  const merged = refreshed.map((next, index) => {
+    const previous = currentById.get(next.id);
+    if (previous === undefined) {
+      unchanged = false;
+      return next;
     }
-    changed = true;
-    return { ...task, ...counters, totalReplyCount };
+    if (!sameTaskView(previous, next)) {
+      unchanged = false;
+      return typeof next.totalReplyCount === "number"
+        ? next
+        : { ...next, totalReplyCount: previous.totalReplyCount };
+    }
+    if (current[index] !== previous) unchanged = false;
+    return previous;
   });
-  return changed ? merged : current;
+  return unchanged ? current : merged;
+}
+
+/** 行视图等价判定（合并保持对象身份的依据）：只比较服务端会改写的字段。
+ *
+ * anchor 指向不可变消息，number/message_id 也不会变，不参与比较；owner 视图由 owner_id
+ * 派生、reachable 由状态 + 当前身份派生——仍逐项比较，因为服务端可能按身份重新推导落点。
+ * totalReplyCount 缺失按未变化处理（旧服务端兼容），与上面的保留当前值同一条口径。 */
+function sameTaskView(current: ChannelTask, next: ChannelTask): boolean {
+  if (current.status !== next.status) return false;
+  if (current.owner_id !== next.owner_id) return false;
+  if (current.reopened !== next.reopened) return false;
+  if (current.updated_at !== next.updated_at) return false;
+  if (current.unreadReplyCount !== next.unreadReplyCount) return false;
+  if (current.latestUnreadReplyAt !== next.latestUnreadReplyAt) return false;
+  if (current.taskThreadReadSeq !== next.taskThreadReadSeq) return false;
+  if (
+    typeof next.totalReplyCount === "number" &&
+    next.totalReplyCount !== current.totalReplyCount
+  ) {
+    return false;
+  }
+  if ((current.owner?.id ?? null) !== (next.owner?.id ?? null)) return false;
+  const currentReachable = current.reachable ?? [];
+  const nextReachable = next.reachable ?? [];
+  if (currentReachable.length !== nextReachable.length) return false;
+  for (let index = 0; index < currentReachable.length; index += 1) {
+    if (currentReachable[index] !== nextReachable[index]) return false;
+  }
+  return true;
 }
 
 /** 任务转移结果：updated 携带服务端回写的任务视图；held 携带并发摘要（§6.3）；
@@ -984,12 +1003,13 @@ export function useChannelData(
     let cancelled = false;
     const timer = setInterval(() => {
       if (cancelled || document.hidden) return;
-      // Thread 回复不改变 Channel maxSeq；刷新 Task 未读数独立于主序列是否有新消息。
+      // Thread 回复不改变 Channel maxSeq；任务板整行刷新独立于主序列是否有新消息
+      // （未读计数、状态、属主、可达落点同源，旅程卡/徽标才不陈旧）。
       void loadTasksPage(cid)
         .then((rows) => {
           if (cancelled || channelIdRef.current !== cid) return;
           setTasks((current) => {
-            const refreshed = mergeTaskUnreadCounts(current, rows);
+            const refreshed = mergeTaskPollRows(current, rows);
             if (refreshed !== current) tasksCacheRef.current.set(cid, refreshed);
             return refreshed;
           });

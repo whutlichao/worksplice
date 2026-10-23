@@ -1,0 +1,141 @@
+✔ mergeIncomingMessages dedupes by id and keeps messages sorted by seq (1.35225ms)
+✔ mergeIncomingMessages preserves the current duplicate and input semantics (0.235875ms)
+✔ loadMessagesPage requests the channel messages page with limit/before (0.250208ms)
+✔ loadMessagesPage maps HTTP errors to Error (0.425125ms)
+✔ applyPollPage advances maxSeq and merges new messages (0.287958ms)
+✔ applyPollPage returns the previous state when maxSeq does not advance (0.176375ms)
+✔ isCurrentChannelRequest rejects stale pages after a channel switch (0.081917ms)
+✔ prependPageMessages puts the earlier page first (0.178791ms)
+✔ isSameMessagesPage detects identical snapshots (0.197292ms)
+✔ postChannelMessage posts JSON with baseSeq and returns the sent message (0.362291ms)
+✔ postChannelMessage returns held with whatHappened on 409 held (0.227833ms)
+✔ postChannelMessage throws the server error for non-held failures (0.194458ms)
+✔ postChannelMessage throws on empty success responses (0.44025ms)
+✔ postChannelMessage posts multipart with baseSeq when files are attached (0.546333ms)
+✔ sortPinnedItems orders pinned items by manual/recent/az (13.184291ms)
+✔ sortPinnedItems breaks recent ties by order desc (same-millisecond fallback) (0.258667ms)
+✔ loadPinnedPage requests the pinned list with sort and defaults missing pinned to [] (0.281709ms)
+✔ togglePinnedMessage unpins with DELETE and pins with POST (0.543833ms)
+✔ postPinnedOrder posts the reordered message ids in one request (0.272834ms)
+✔ loadMutesPage and loadChannelMemberIds fetch affiliated state with empty defaults (0.300875ms)
+✔ toggleChannelMute posts the toggled mute state and returns it (0.236541ms)
+✔ loadTasksPage requests the channel task board and defaults missing tasks to [] (0.21225ms)
+✔ claimChannelTask posts baseSeq and maps held/conflict/blocked to yield results (0.456083ms)
+✔ updateChannelTaskStatus posts status with baseSeq and maps held to yield results (0.352833ms)
+✔ loadTasksPage preserves the reopened flag for blocked claim display (0.167209ms)
+✔ completeTaskWithReply delivers the thread reply before the in_review transition (0.268167ms)
+✔ convertMessageToTaskRow and createBoardTaskRow post the task creation payloads (0.261208ms)
+✔ shouldInvalidateMembers only invalidates on an explicit positive version (0.101833ms)
+✔ loadChannelMemberIds converges to include the new member after invalidation (0.13575ms)
+✔ markChannelRead posts to the channel read endpoint and returns readSeq (0.1325ms)
+✔ markChannelRead maps HTTP errors to Error (0.112416ms)
+✔ markChannelRead defaults a missing readSeq to 0 (0.102625ms)
+✔ postTaskThreadRead sends only the addressed Task and presented thread seq (0.136833ms)
+✖ mergeTaskUnreadCounts replaces changed rows with the server view while stable rows keep identity (0.708292ms)
+✖ mergeTaskUnreadCounts adopts the reopened marker and the cleared owner from the poll (0.191542ms)
+✖ mergeTaskUnreadCounts drives the journey guide card from the polled task status (6.741ms)
+✖ mergeTaskUnreadCounts takes the server order, adds new tasks and drops vanished ones (0.481167ms)
+✔ mergeTaskUnreadCounts keeps the current total when the poll omits it (0.148959ms)
+✔ mergeTaskUnreadCounts advances the Task thread read cursor from the same server refresh (0.16225ms)
+✔ mergeTaskUnreadCounts refreshes total and unread replies from the same Task poll (0.146791ms)
+✔ mergeTaskUnreadCounts advances the total when only an Owner reply arrives (0.099667ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 37
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 331.121542
+
+✖ failing tests:
+
+test at hooks/useChannelData.test.mjs:892:1
+✖ mergeTaskUnreadCounts replaces changed rows with the server view while stable rows keep identity (0.708292ms)
+  AssertionError [ERR_ASSERTION]: 状态随轮询进入任务视图
+  + actual - expected
+  
+  + 'in_progress'
+  - 'in_review'
+        ^
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/task-card-poll-sync/hooks/useChannelData.test.mjs:934:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'in_progress',
+    expected: 'in_review',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at hooks/useChannelData.test.mjs:943:1
+✖ mergeTaskUnreadCounts adopts the reopened marker and the cleared owner from the poll (0.191542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'done' !== 'todo'
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/task-card-poll-sync/hooks/useChannelData.test.mjs:971:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'done',
+    expected: 'todo',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at hooks/useChannelData.test.mjs:977:1
+✖ mergeTaskUnreadCounts drives the journey guide card from the polled task status (6.741ms)
+  AssertionError [ERR_ASSERTION]: 轮询行必须把 status=in_review 带进任务视图
+  + actual - expected
+  
+    [
+  +   'todo'
+  -   'in_review'
+    ]
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/task-card-poll-sync/hooks/useChannelData.test.mjs:1006:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'todo' ],
+    expected: [ 'in_review' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at hooks/useChannelData.test.mjs:1019:1
+✖ mergeTaskUnreadCounts takes the server order, adds new tasks and drops vanished ones (0.481167ms)
+  AssertionError [ERR_ASSERTION]: 新任务整行来自服务端（不在 current 时原样并入）
+  + actual - expected
+  ... Skipped lines
+  
+    {
+      id: 'task-2',
+      latestUnreadReplyAt: null,
+      number: 2,
+      owner: null,
+  ...
+      reopened: 0,
+  +   status: 'todo',
+  -   status: 'in_progress',
+      taskThreadReadSeq: 0,
+      totalReplyCount: 0,
+      unreadReplyCount: 0,
+      updated_at: '2026-10-10T10:00:00.000Z'
+    }
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/task-card-poll-sync/hooks/useChannelData.test.mjs:1046:10)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { id: 'task-2', number: 2, status: 'todo', owner_id: null, reopened: 0, updated_at: '2026-10-10T10:00:00.000Z', reachable: [ 'in_progress' ], owner: null, unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 0, totalReplyCount: 0 },
+    expected: { id: 'task-2', number: 2, status: 'in_progress', owner_id: null, reopened: 0, updated_at: '2026-10-10T10:00:00.000Z', reachable: [ 'in_progress' ], owner: null, unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 0, totalReplyCount: 0 },
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
