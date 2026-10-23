@@ -98,4 +98,5 @@ $ env -u DEEPSEEK_API_KEY node --test lib/agent-loop/*.test.mjs
 
 - 基准：`3b86a288085022dfc03f3616c5728392a319b1ed`
 - 改动：`lib/agent-loop/loop.ts`、`lib/agent-loop/loop.test.mjs`、`lib/agent-loop/loop-tasks.test.mjs`、`lib/agent-loop/member-ops.test.mjs`、本票据
-- PR：见本轮回填（下方追加）
+- PR：**#198**（https://github.com/whutlichao/worksplice/pull/198）
+- PR body：`/Users/apple/orca/workspaces/worksplice/loop-retry-convergence-pr-body.md`（未合并 PR，交 coordinator 处置）
