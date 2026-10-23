@@ -36,6 +36,7 @@ import type {
   ReminderRow,
   ReminderStatus,
   RoundLogRow,
+  RoundUsageAggregate,
   SearchResult,
   SessionArchiveEntryInput,
   SessionArchiveSearchHit,
@@ -804,6 +805,9 @@ export class SQLiteAdapter implements Store {
     reason?: string;
     baseSeq?: number;
     createdAt?: string;
+    promptTokens?: number | null;
+    completionTokens?: number | null;
+    cost?: number | null;
   }): RoundLogRow {
     const row: RoundLogRow = {
       id: input.id ?? randomUUID(),
@@ -813,12 +817,26 @@ export class SQLiteAdapter implements Store {
       reason: input.reason ?? "",
       base_seq: input.baseSeq ?? 0,
       created_at: input.createdAt ?? new Date().toISOString(),
+      prompt_tokens: input.promptTokens ?? null,
+      completion_tokens: input.completionTokens ?? null,
+      cost: input.cost ?? null,
     };
     this.db
       .prepare(
-        "INSERT INTO round_logs (id, agent_id, target_id, status, reason, base_seq, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO round_logs (id, agent_id, target_id, status, reason, base_seq, created_at, prompt_tokens, completion_tokens, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(row.id, row.agent_id, row.target_id, row.status, row.reason, row.base_seq, row.created_at);
+      .run(
+        row.id,
+        row.agent_id,
+        row.target_id,
+        row.status,
+        row.reason,
+        row.base_seq,
+        row.created_at,
+        row.prompt_tokens,
+        row.completion_tokens,
+        row.cost,
+      );
     return row;
   }
 
@@ -834,6 +852,51 @@ export class SQLiteAdapter implements Store {
     return this.db
       .prepare("SELECT * FROM round_logs WHERE target_id = ? ORDER BY rowid DESC")
       .all(targetId) as RoundLogRow[];
+  }
+
+  /**
+   * 用量聚合（05 成本看板双视图）：limit 省略 = 该 agent ring cap 内全部行；给定 = 最近 limit 轮。
+   * SUM 忽略 NULL（无用量轮不拉低口径）；roundsWithUsage 用三列任一非 null 计数，
+   * 让 UI 能区分「真的 0」与「没有数据」。
+   */
+  aggregateRoundUsage(agentId: string, limit?: number): RoundUsageAggregate {
+    const scope =
+      limit === undefined
+        ? "agent_id = ?"
+        : `agent_id = ? AND rowid IN (
+            SELECT rowid FROM round_logs WHERE agent_id = ? ORDER BY rowid DESC LIMIT ?
+          )`;
+    const params = limit === undefined ? [agentId] : [agentId, agentId, limit];
+    const row = this.db
+      .prepare(
+        `SELECT
+           COUNT(*) AS rounds,
+           COALESCE(SUM(CASE WHEN prompt_tokens IS NOT NULL
+                              OR completion_tokens IS NOT NULL
+                              OR cost IS NOT NULL THEN 1 ELSE 0 END), 0) AS rounds_with_usage,
+           COALESCE(SUM(CASE WHEN cost IS NOT NULL THEN 1 ELSE 0 END), 0) AS rounds_with_cost,
+           COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+           COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
+           COALESCE(SUM(cost), 0) AS cost
+         FROM round_logs WHERE ${scope}`,
+      )
+      .get(...params) as {
+      rounds: number;
+      rounds_with_usage: number;
+      rounds_with_cost: number;
+      prompt_tokens: number;
+      completion_tokens: number;
+      cost: number;
+    };
+    return {
+      rounds: row.rounds,
+      roundsWithUsage: row.rounds_with_usage,
+      roundsWithCost: row.rounds_with_cost,
+      promptTokens: row.prompt_tokens,
+      completionTokens: row.completion_tokens,
+      totalTokens: row.prompt_tokens + row.completion_tokens,
+      cost: row.cost,
+    };
   }
 
   /** 每 agent 保留最近 retain 条，超出删除旧行（§07 ring cap）。 */

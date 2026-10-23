@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -250,6 +250,7 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersAvatarTintColumn(db);
     migrateTasksReopenedColumn(db);
     migrateTaskThreadReads(db);
+    migrateRoundLogsCostColumns(db);
     seed(db);
     cleanupEmptyDms(db);
     resumeDirectChannels(db);
@@ -314,6 +315,27 @@ function migrateTasksReopenedColumn(db: Database.Database): void {
   }>;
   if (!columns.some((c) => c.name === "reopened")) {
     db.exec("ALTER TABLE tasks ADD COLUMN reopened INTEGER NOT NULL DEFAULT 0");
+  }
+}
+
+/**
+ * v16: round_logs 增加每轮用量三列（05 成本看板）：prompt_tokens / completion_tokens / cost。
+ * 老库无列时 ALTER 补上；新库同样走这里补列（08 §版本落点：`SCHEMA_STATEMENTS` 与
+ * FTS5 触发器不动，新库由 `CREATE TABLE` + 本迁移在同一事务内得到最终形状）。
+ * 可空：SDK 取不到用量时写 null，不编造数字（null 与 0 语义不同）。逐列检测保证重复开库幂等。
+ */
+function migrateRoundLogsCostColumns(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(round_logs)").all() as Array<{
+    name: string;
+  }>;
+  if (!columns.some((c) => c.name === "prompt_tokens")) {
+    db.exec("ALTER TABLE round_logs ADD COLUMN prompt_tokens INTEGER");
+  }
+  if (!columns.some((c) => c.name === "completion_tokens")) {
+    db.exec("ALTER TABLE round_logs ADD COLUMN completion_tokens INTEGER");
+  }
+  if (!columns.some((c) => c.name === "cost")) {
+    db.exec("ALTER TABLE round_logs ADD COLUMN cost REAL");
   }
 }
 

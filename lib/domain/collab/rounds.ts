@@ -1,6 +1,6 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { getMember } from "./members.ts";
-import type { RoundLogRow } from "../../data/types.ts";
+import type { RoundLogRow, RoundUsageAggregate } from "../../data/types.ts";
 
 /**
  * §07 轮次结果（Round Outcome）服务层：区分「自判 ignore」与「处理失败」的事实来源。
@@ -30,6 +30,10 @@ export interface RoundLogView {
   baseSeq: number;
   /** ISO 8601（`insertRoundLog` 写入 `new Date().toISOString()`）。 */
   createdAt: string;
+  /** v16 每轮用量：SDK 取不到时 null（null ≠ 0）。 */
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cost: number | null;
 }
 
 function toRoundLogView(row: RoundLogRow): RoundLogView {
@@ -40,6 +44,9 @@ function toRoundLogView(row: RoundLogRow): RoundLogView {
     reason: row.reason,
     baseSeq: row.base_seq,
     createdAt: row.created_at,
+    promptTokens: row.prompt_tokens,
+    completionTokens: row.completion_tokens,
+    cost: row.cost,
   };
 }
 
@@ -47,6 +54,15 @@ export interface RoundOutcomeLike {
   status: string;
   reason?: string;
   baseSeq?: number;
+  usage?: RoundUsage;
+}
+
+/** 单轮用量（agent-loop 从 SDK 会话统计的前后差值取，取不到整段 null）。 */
+export interface RoundUsage {
+  promptTokens: number;
+  completionTokens: number;
+  /** SDK 未给 cost 时 null——不按猜测定价编造。 */
+  cost: number | null;
 }
 
 const LOGGED_STATUSES: ReadonlySet<string> = new Set([
@@ -72,6 +88,9 @@ export function logRoundOutcome(
       status: outcome.status as RoundLogRow["status"],
       reason: outcome.reason ?? "",
       baseSeq: outcome.baseSeq ?? 0,
+      promptTokens: outcome.usage?.promptTokens ?? null,
+      completionTokens: outcome.usage?.completionTokens ?? null,
+      cost: outcome.usage?.cost ?? null,
     });
     getDb().pruneRoundLogs(agentId, ROUND_LOG_RETAIN);
     return row;
@@ -88,6 +107,24 @@ export function listRoundLogs(agentId: string, limit = ROUND_LOG_LIST_LIMIT): Ro
   return getDb()
     .listRoundLogs(agentId, limit)
     .map(toRoundLogView);
+}
+
+/** 成本看板双视图的滑动窗口（最近 50 轮）。 */
+export const ROUND_USAGE_RECENT_LIMIT = 50;
+
+export interface RoundUsageSummary {
+  /** ring cap 内全部轮次（存量上限 200）。 */
+  allTime: RoundUsageAggregate;
+  /** 最近 ROUND_USAGE_RECENT_LIMIT 轮（滑动窗口）。 */
+  recent: RoundUsageAggregate;
+}
+
+/** 可观测 API 的成本双视图：全量聚合 + 最近 50 轮滑动聚合。 */
+export function getRoundUsageSummary(agentId: string): RoundUsageSummary {
+  return {
+    allTime: getDb().aggregateRoundUsage(agentId),
+    recent: getDb().aggregateRoundUsage(agentId, ROUND_USAGE_RECENT_LIMIT),
+  };
 }
 
 // ---------------------------------------------------------------------------

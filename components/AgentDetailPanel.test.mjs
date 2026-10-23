@@ -17,6 +17,7 @@ const {
     createAvatarTintSelectionHandler,
     TaskHistoryList,
     RoundLogsList,
+    RoundCostStats,
     RuntimeProbeFeedback,
 } = await jiti.import("./AgentDetailPanel.tsx");
 const { Avatar } = await jiti.import("./Avatar.tsx");
@@ -363,6 +364,9 @@ const ROUNDS = [
     reason: 'model error: 429: {"message":"Rate limit exceeded. Please try again later."}',
     baseSeq: 12,
     createdAt: "2026-10-01T03:38:05.447Z",
+    promptTokens: 1200,
+    completionTokens: 300,
+    cost: 0.005,
   },
   {
     id: "round-2",
@@ -371,6 +375,9 @@ const ROUNDS = [
     reason: "",
     baseSeq: 7,
     createdAt: "not-a-date",
+    promptTokens: null,
+    completionTokens: null,
+    cost: null,
   },
 ];
 
@@ -410,6 +417,109 @@ test("formatTime falls back readably for an unparseable date instead of Invalid 
   );
   assert.doesNotMatch(html, /Invalid Date/);
   assert.match(html, /#1 · —/, "非法日期回落到可读的占位符");
+});
+
+test("round rows render per-round tokens/cost when present and stay silent when null (v16)", () => {
+  const html = renderWith(
+    React.createElement(RoundLogsList, { rounds: ROUNDS, t: (key) => key }),
+  );
+  // 有数：prompt / completion / cost 一起可见
+  assert.match(html, /1,200 \/ 300 tok · \$0\.0050/);
+  // 无数：不渲染空壳、也不把 null 渲染成 "undefined"
+  assert.doesNotMatch(html, /undefined/);
+  assert.doesNotMatch(html, /null/);
+});
+
+const ROUND_USAGE = {
+  allTime: {
+    rounds: 120,
+    roundsWithUsage: 118,
+    roundsWithCost: 117,
+    promptTokens: 12345,
+    completionTokens: 678,
+    totalTokens: 13023,
+    cost: 0.0456,
+  },
+  recent: {
+    rounds: 50,
+    roundsWithUsage: 50,
+    roundsWithCost: 49,
+    promptTokens: 5000,
+    completionTokens: 500,
+    totalTokens: 5500,
+    cost: 0.01,
+  },
+};
+
+/** 语言包替身：把插值参数摊平进文本，便于断言覆盖率数字。 */
+const costText = (key, params) =>
+  params ? `${key} ${params.withUsage}/${params.rounds}` : key;
+
+test("round cost shows the all-time and last-50-round views with real numbers (v16)", () => {
+  const html = renderWith(
+    React.createElement(RoundCostStats, {
+      usage: ROUND_USAGE,
+      t: costText,
+    }),
+  );
+  // 双视图标签各自在
+  assert.match(html, /observability\.costAllTime/);
+  assert.match(html, /observability\.costRecent50/);
+  // 全量数字
+  assert.match(html, /12,345/);
+  assert.match(html, /13,023/);
+  assert.match(html, /\$0\.05/);
+  // 最近 50 轮数字
+  assert.match(html, /5,000/);
+  assert.match(html, /5,500/);
+  assert.match(html, /\$0\.01/);
+  // 覆盖率：有数据的轮次 / 总轮次
+  assert.match(html, /118\/120/);
+  assert.match(html, /50\/50/);
+  assert.doesNotMatch(html, /undefined/);
+});
+
+test("round cost falls back to — when no round carries usage (null-safe, v16)", () => {
+  const html = renderWith(
+    React.createElement(RoundCostStats, {
+      usage: {
+        allTime: {
+          ...ROUND_USAGE.allTime,
+          roundsWithUsage: 0,
+          roundsWithCost: 0,
+        },
+        recent: {
+          ...ROUND_USAGE.recent,
+          roundsWithUsage: 0,
+          roundsWithCost: 0,
+        },
+      },
+      t: costText,
+    }),
+  );
+  assert.doesNotMatch(html, /undefined/);
+  assert.doesNotMatch(html, /NaN/);
+  assert.match(html, /—/);
+  // 全是占位符：不该出现被伪装成统计结果的 0
+  assert.doesNotMatch(html, />0</);
+});
+
+test("round cost shows — for cost alone when only tokens were recorded (v16)", () => {
+  // token 有数、cost 全 null（SDK 未给价）：token 三格是真数字，成本格必须是占位符，
+  // 不能把「没数据」渲染成 $0.0000。
+  const html = renderWith(
+    React.createElement(RoundCostStats, {
+      usage: {
+        allTime: ROUND_USAGE.allTime,
+        recent: { ...ROUND_USAGE.recent, roundsWithCost: 0 },
+      },
+      t: costText,
+    }),
+  );
+  assert.match(html, /5,000/);
+  assert.match(html, /5,500/);
+  assert.doesNotMatch(html, /\$0\.0000/);
+  assert.match(html, /—/);
 });
 
 test("AgentDetailPanel keeps avatar color choices collapsed by default", () => {

@@ -277,6 +277,16 @@ function formatTime(iso: string): string {
   return "—";
 }
 
+interface RoundUsageAggregateView {
+  rounds: number;
+  roundsWithUsage: number;
+  roundsWithCost: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cost: number;
+}
+
 interface ObservabilityData {
   status: MemberStatus;
   stats: {
@@ -346,7 +356,16 @@ interface ObservabilityData {
     reason: string;
     baseSeq: number;
     createdAt: string;
+    /** v16 每轮用量；null = SDK 未提供（与 0 区分，展示为 "—"）。 */
+    promptTokens: number | null;
+    completionTokens: number | null;
+    cost: number | null;
   }>;
+  /** v16 成本双视图（round_logs 用量聚合）：全量 + 最近 50 轮。 */
+  roundUsage: {
+    allTime: RoundUsageAggregateView;
+    recent: RoundUsageAggregateView;
+  };
   session: {
     file: string | null;
     sessionId: string | null;
@@ -523,31 +542,118 @@ export function RoundLogsList({
 }) {
   return (
     <div style={{ maxHeight: 260, overflowY: "auto" }}>
-      {rounds.map((round) => (
-        <div
-          key={round.id}
-          className={round.reason ? "log-row has-reason" : "log-row"}
-        >
-          <span
-            className="ts"
-            title={`target: ${round.targetId}`}
-            style={{ maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis" }}
+      {rounds.map((round) => {
+        const usage = formatRoundUsage(round);
+        return (
+          <div
+            key={round.id}
+            className={round.reason ? "log-row has-reason" : "log-row"}
           >
-            {round.targetId}
-          </span>
-          <span className={`lv ${ROUND_LEVEL[round.status] ?? "info"}`}>
-            {t("observability.roundStatus." + round.status)}
-          </span>
-          <span className="msg" title={round.reason}>
-            {round.reason || "—"}
-          </span>
-          <span className="ts">
-            #{round.baseSeq} · {formatTime(round.createdAt)}
-          </span>
-        </div>
-      ))}
+            <span
+              className="ts"
+              title={`target: ${round.targetId}`}
+              style={{ maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis" }}
+            >
+              {round.targetId}
+            </span>
+            <span className={`lv ${ROUND_LEVEL[round.status] ?? "info"}`}>
+              {t("observability.roundStatus." + round.status)}
+            </span>
+            <span className="msg" title={round.reason}>
+              {round.reason || "—"}
+            </span>
+            {usage ? (
+              <span
+                className="ts"
+                title={`${t("observability.promptTokens")} / ${t("observability.completionTokens")} · ${t("observability.cost")}`}
+              >
+                {usage}
+              </span>
+            ) : null}
+            <span className="ts">
+              #{round.baseSeq} · {formatTime(round.createdAt)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+/**
+ * v16 成本双视图（round_logs 用量聚合）：全量 + 最近 50 轮滑动。
+ * null 安全：没有任何一轮带用量时（`roundsWithUsage === 0`）展示 "—"——
+ * 「没有数据」与「真的 0」是两件事，不把 0 伪装成统计结果。
+ */
+export function RoundCostStats({
+  usage,
+  t,
+}: {
+  usage: ObservabilityData["roundUsage"];
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const views = [
+    { key: "allTime", label: t("observability.costAllTime"), agg: usage.allTime },
+    { key: "recent", label: t("observability.costRecent50"), agg: usage.recent },
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-5)" }}>
+      {views.map((view) => {
+        const hasTokens = view.agg.roundsWithUsage > 0;
+        const hasCost = view.agg.roundsWithCost > 0;
+        const token = (n: number) => (hasTokens ? formatNumber(n) : "—");
+        return (
+          <div key={view.key}>
+            <div
+              style={{
+                fontSize: "var(--fs-caption)",
+                fontFamily: "var(--mono)",
+                color: "var(--muted)",
+                marginBottom: 6,
+              }}
+            >
+              {view.label} ·{" "}
+              {t("observability.costCoverage", {
+                withUsage: view.agg.roundsWithUsage,
+                rounds: view.agg.rounds,
+              })}
+            </div>
+            <div className="stat-grid">
+              <div className="stat">
+                <div className="n">{token(view.agg.promptTokens)}</div>
+                <div className="l">{t("observability.promptTokens")}</div>
+              </div>
+              <div className="stat">
+                <div className="n">{token(view.agg.completionTokens)}</div>
+                <div className="l">{t("observability.completionTokens")}</div>
+              </div>
+              <div className="stat">
+                <div className="n">{token(view.agg.totalTokens)}</div>
+                <div className="l">{t("observability.totalTokens")}</div>
+              </div>
+              <div className="stat">
+                <div className="n">{hasCost ? formatCost(view.agg.cost) : "—"}</div>
+                <div className="l">{t("observability.cost")}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 单轮用量文本；三列全 null 时返回 null（不渲染空壳）。 */
+function formatRoundUsage(round: ObservabilityData["rounds"][number]): string | null {
+  const promptTokens = round.promptTokens ?? null;
+  const completionTokens = round.completionTokens ?? null;
+  const cost = round.cost ?? null;
+  if (promptTokens === null && completionTokens === null && cost === null) {
+    return null;
+  }
+  return `${promptTokens === null ? "—" : formatNumber(promptTokens)} / ${
+    completionTokens === null ? "—" : formatNumber(completionTokens)
+  } tok · ${cost === null ? "—" : formatCost(cost)}`;
 }
 
 interface RuntimeData {
@@ -1577,7 +1683,12 @@ export function AgentDetailPanel({
               {t("observability.roundsEmpty")}
             </div>
           ) : (
-            <RoundLogsList rounds={obs.rounds} t={t} />
+            <>
+              <RoundCostStats usage={obs.roundUsage} t={t} />
+              <div style={{ marginTop: "var(--sp-5)" }}>
+                <RoundLogsList rounds={obs.rounds} t={t} />
+              </div>
+            </>
           )}
         </section>
 
