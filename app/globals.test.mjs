@@ -224,6 +224,61 @@ test("T-C: reduce 收敛存在，@keyframes 组数只增不减（≥12）", () =
   assert.ok(keyframes.length >= 12, `@keyframes 只剩 ${keyframes.length} 组`);
 });
 
+test("T-C: 旅程引导卡内容过渡 keyframes 存在，卡壳不挂动画，reduce 不显示粒子", () => {
+  const css = stripComments(globalsCss);
+  // 最终设计：内容粒子燃尽/重聚 + 旧内容燃尽淡出。
+  for (const name of [
+    "journey-guide-content-dissolve",
+    "journey-guide-content-reform",
+    "journey-guide-content-burn",
+  ]) {
+    assert.match(css, new RegExp(`@keyframes\\s+${name}\\b`), `缺少 @keyframes ${name}`);
+  }
+  // 旧的整卡动画 keyframes（已被最终设计取代）不得残留。
+  for (const name of [
+    "journey-guide-card-in",
+    "journey-guide-card-switch",
+    "journey-guide-card-out",
+    "journey-guide-particle-out",
+    "journey-guide-particle-in",
+  ]) {
+    assert.doesNotMatch(
+      css,
+      new RegExp(`@keyframes\\s+${name}\\b`),
+      `旧的整卡动画 ${name} 应已删除`,
+    );
+  }
+  // 卡壳静止：.journey-guide-card 不声明 animation，也不存在 is-* 阶段动画类。
+  const cardRule = css.match(/\.journey-guide-card\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.doesNotMatch(cardRule, /animation/i);
+  assert.doesNotMatch(css, /\.journey-guide-card\.is-(entering|switching|exiting)/);
+
+  // 既有全局 reduce reset（animation-duration）仍在。
+  assert.match(
+    css,
+    /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?animation-duration:\s*0\.001ms\s*!important/,
+  );
+  // reduce 下粒子不生成可见位移：断言落在覆盖粒子的 reduce 块内。
+  const reduceBlocks = css
+    .split(/@media\s*\(prefers-reduced-motion:\s*reduce\)/)
+    .slice(1);
+  const particleReduce = reduceBlocks.find((block) =>
+    /\.journey-guide-particle\s*\{[^}]*display:\s*none\s*!important/.test(
+      block,
+    ),
+  );
+  assert.ok(particleReduce, "缺少覆盖粒子的 reduce 块");
+  assert.match(
+    particleReduce,
+    /\.journey-guide-particle\s*\{[^}]*display:\s*none\s*!important/,
+  );
+  // reduce 下内容层立即终态。
+  const contentReduce = reduceBlocks.find((block) =>
+    /\.journey-guide-content\s*\{[^}]*opacity:\s*1\s*!important/.test(block),
+  );
+  assert.ok(contentReduce, "缺少覆盖内容层的 reduce 块");
+});
+
 test("T-C: 断点对齐上游（900 / 1080），旧的 960 退场", () => {
   assert.match(globalsCss, /@media\s*\(max-width:\s*900px\)/);
   assert.match(globalsCss, /@media\s*\(max-width:\s*1080px\)/);

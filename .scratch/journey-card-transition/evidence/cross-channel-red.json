@@ -1,0 +1,72 @@
+{
+  "verdict": "RED",
+  "failures": [
+    "B 的首张消息流卡应按 enter 重建，实际 {\"t\":224,\"label\":\"把想法交给成员，让它跑起来\",\"kind\":\"describe\",\"phase\":\"switch\",\"className\":\"journey-guide-card is-switching\"}",
+    "B 的首张卡形态应为 handoff，实际 {\"t\":224,\"label\":\"把想法交给成员，让它跑起来\",\"kind\":\"describe\",\"phase\":\"switch\",\"className\":\"journey-guide-card is-switching\"}"
+  ],
+  "switchSample": {
+    "headerSwitchedAt": 17,
+    "sampleCount": 52,
+    "cardsAfterSwitch": 26,
+    "firstStream": {
+      "t": 224,
+      "label": "把想法交给成员，让它跑起来",
+      "kind": "describe",
+      "phase": "switch",
+      "className": "journey-guide-card is-switching"
+    },
+    "labelsSeen": [
+      "把想法交给成员，让它跑起来",
+      "把一条消息转为任务",
+      "等待交接或认领"
+    ],
+    "firstSamples": [
+      {
+        "t": 1,
+        "header": false,
+        "hasCard": true
+      },
+      {
+        "t": 17,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 35,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 52,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 69,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 86,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 103,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 120,
+        "header": true,
+        "hasCard": false
+      }
+    ]
+  },
+  "backSample": {
+    "elapsedMs": 18,
+    "firstPhase": "enter",
+    "firstLabel": "去复核",
+    "header": "#cross-a-1792747488193私有离开归档1journey cro"
+  }
+}

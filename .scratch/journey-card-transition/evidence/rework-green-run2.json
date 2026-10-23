@@ -1,0 +1,68 @@
+{
+  "verdict": "GREEN",
+  "failures": [],
+  "switchSample": {
+    "headerSwitchedAt": 17,
+    "sampleCount": 51,
+    "cardsAfterSwitch": 23,
+    "firstStream": {
+      "t": 357,
+      "label": "把一条消息转为任务",
+      "kind": "handoff",
+      "phase": "enter",
+      "className": "journey-guide-card is-entering"
+    },
+    "labelsSeen": [
+      "把一条消息转为任务",
+      "等待交接或认领"
+    ],
+    "firstSamples": [
+      {
+        "t": 0,
+        "header": false,
+        "hasCard": true
+      },
+      {
+        "t": 17,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 34,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 50,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 68,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 85,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 103,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 120,
+        "header": true,
+        "hasCard": false
+      }
+    ]
+  },
+  "backSample": {
+    "elapsedMs": 21,
+    "firstPhase": "enter",
+    "firstLabel": "去复核",
+    "header": "#cross-a-1792749314154私有离开归档…journey cro"
+  }
+}

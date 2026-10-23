@@ -1,0 +1,865 @@
+{
+  "verdict": "GREEN",
+  "failures": [],
+  "labelSequence": [
+    "等待交接或认领",
+    "让它跑",
+    "去复核",
+    null
+  ],
+  "facts": {
+    "channelA": "e2af73a1-0141-470c-8986-8494d661f34f",
+    "taskA": "6bde6274-a6d3-4c89-92cb-e9c8d3eb2254",
+    "steps": [],
+    "initialSeen": {
+      "matched": true,
+      "state": {
+        "label": "等待交接或认领",
+        "kind": "handoff",
+        "phase": "enter",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 116.3
+        },
+        "contentOpacity": "0",
+        "contentText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 1306,
+        "outCount": 0,
+        "inCount": 1306,
+        "outAnim": null,
+        "inAnim": "journey-guide-content-reform",
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 4,
+      "timedOut": false
+    },
+    "enterMid": {
+      "label": "等待交接或认领",
+      "kind": "handoff",
+      "phase": "enter",
+      "className": "journey-guide-card",
+      "cardAnimationName": "none",
+      "cardOpacity": "1",
+      "cardTransform": "none",
+      "cardRect": {
+        "left": 851,
+        "top": 325.6,
+        "width": 520,
+        "height": 116.3
+      },
+      "contentOpacity": "0",
+      "contentText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+      "incomingAnimationName": "none",
+      "incomingClassName": "journey-guide-content",
+      "outgoingCount": 0,
+      "outgoingOpacity": null,
+      "outgoingClassName": null,
+      "outgoingAnimationName": null,
+      "outgoingText": null,
+      "fxCount": 1306,
+      "outCount": 0,
+      "inCount": 1306,
+      "outAnim": null,
+      "inAnim": "journey-guide-content-reform",
+      "layerAriaHidden": "true",
+      "layerPointerEvents": "none",
+      "layerCount": 1
+    },
+    "enterDone": {
+      "matched": true,
+      "state": {
+        "label": "等待交接或认领",
+        "kind": "handoff",
+        "phase": "enter",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 116.3
+        },
+        "contentOpacity": "1",
+        "contentText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 0,
+        "outCount": 0,
+        "inCount": 0,
+        "outAnim": null,
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 2701,
+      "timedOut": false
+    },
+    "switching": {
+      "matched": true,
+      "state": {
+        "label": "让它跑",
+        "kind": "running",
+        "phase": "switch",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 117
+        },
+        "contentOpacity": "0",
+        "contentText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 1,
+        "outgoingOpacity": "1",
+        "outgoingClassName": "journey-guide-content is-burning journey-guide-content-outgoing",
+        "outgoingAnimationName": "journey-guide-content-burn",
+        "outgoingText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+        "fxCount": 884,
+        "outCount": 884,
+        "inCount": 0,
+        "outAnim": "journey-guide-content-dissolve",
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 258,
+      "timedOut": false
+    },
+    "dissolveMid": {
+      "label": "让它跑",
+      "kind": "running",
+      "phase": "switch",
+      "className": "journey-guide-card",
+      "cardAnimationName": "none",
+      "cardOpacity": "1",
+      "cardTransform": "none",
+      "cardRect": {
+        "left": 851,
+        "top": 325.6,
+        "width": 520,
+        "height": 117
+      },
+      "contentOpacity": "0",
+      "contentText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+      "incomingAnimationName": "none",
+      "incomingClassName": "journey-guide-content",
+      "outgoingCount": 1,
+      "outgoingOpacity": "0.0333901",
+      "outgoingClassName": "journey-guide-content is-burning journey-guide-content-outgoing",
+      "outgoingAnimationName": "journey-guide-content-burn",
+      "outgoingText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+      "fxCount": 884,
+      "outCount": 884,
+      "inCount": 0,
+      "outAnim": "journey-guide-content-dissolve",
+      "inAnim": null,
+      "layerAriaHidden": "true",
+      "layerPointerEvents": "none",
+      "layerCount": 1
+    },
+    "dissolveAlign": {
+      "layerWidth": 494,
+      "lines": [
+        {
+          "block": "title",
+          "text": "等待交接或认领",
+          "count": 174,
+          "lineBox": {
+            "left": 194.5,
+            "right": 299.5,
+            "top": 2.5,
+            "bottom": 20
+          },
+          "ink": {
+            "left": 195.05,
+            "right": 298.77,
+            "top": 4.79,
+            "bottom": 18.81
+          },
+          "delta": {
+            "left": 1.3,
+            "right": -0.24,
+            "top": -0.26,
+            "bottom": -0.34
+          }
+        },
+        {
+          "block": "hint",
+          "text": "有任务还在待办：@agent 交接，或到任务板认领。",
+          "count": 369,
+          "lineBox": {
+            "left": 98.55,
+            "right": 395.45,
+            "top": 33,
+            "bottom": 48
+          },
+          "ink": {
+            "left": 98.18,
+            "right": 388,
+            "top": 34.48,
+            "bottom": 48.71
+          },
+          "delta": {
+            "left": 0.17,
+            "right": 0.62,
+            "top": -0.81,
+            "bottom": 0.3
+          }
+        }
+      ],
+      "button": {
+        "count": 341,
+        "rect": {
+          "left": 207,
+          "top": 63.3,
+          "right": 287,
+          "bottom": 90.3
+        },
+        "ink": {
+          "left": 206.07,
+          "right": 287.92,
+          "top": 62.64,
+          "bottom": 90.32
+        },
+        "delta": {
+          "left": -0.93,
+          "right": 0.92,
+          "top": -0.65,
+          "bottom": 0.02
+        }
+      }
+    },
+    "runningFinal": {
+      "matched": true,
+      "state": {
+        "label": "让它跑",
+        "kind": "running",
+        "phase": "switch",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 116.3
+        },
+        "contentOpacity": "1",
+        "contentText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 0,
+        "outCount": 0,
+        "inCount": 0,
+        "outAnim": null,
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 7595,
+      "timedOut": false
+    },
+    "residueBeforeSecond": {
+      "label": "让它跑",
+      "kind": "running",
+      "phase": "switch",
+      "className": "journey-guide-card",
+      "cardAnimationName": "none",
+      "cardOpacity": "1",
+      "cardTransform": "none",
+      "cardRect": {
+        "left": 851,
+        "top": 325.6,
+        "width": 520,
+        "height": 116.3
+      },
+      "contentOpacity": "1",
+      "contentText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+      "incomingAnimationName": "none",
+      "incomingClassName": "journey-guide-content",
+      "outgoingCount": 0,
+      "outgoingOpacity": null,
+      "outgoingClassName": null,
+      "outgoingAnimationName": null,
+      "outgoingText": null,
+      "fxCount": 0,
+      "outCount": 0,
+      "inCount": 0,
+      "outAnim": null,
+      "inAnim": null,
+      "layerAriaHidden": "true",
+      "layerPointerEvents": "none",
+      "layerCount": 1
+    },
+    "switching2": {
+      "matched": true,
+      "state": {
+        "label": "去复核",
+        "kind": "review",
+        "phase": "switch",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 117
+        },
+        "contentOpacity": "0",
+        "contentText": "去复核有任务在等你复核，去任务板看看。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 1,
+        "outgoingOpacity": "0",
+        "outgoingClassName": "journey-guide-content is-burning journey-guide-content-outgoing",
+        "outgoingAnimationName": "journey-guide-content-burn",
+        "outgoingText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+        "fxCount": 1418,
+        "outCount": 726,
+        "inCount": 692,
+        "outAnim": "journey-guide-content-dissolve",
+        "inAnim": "journey-guide-content-reform",
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 3104,
+      "timedOut": false
+    },
+    "reforming": {
+      "matched": true,
+      "state": {
+        "label": "去复核",
+        "kind": "review",
+        "phase": "switch",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 117
+        },
+        "contentOpacity": "0",
+        "contentText": "去复核有任务在等你复核，去任务板看看。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 1,
+        "outgoingOpacity": "0",
+        "outgoingClassName": "journey-guide-content is-burning journey-guide-content-outgoing",
+        "outgoingAnimationName": "journey-guide-content-burn",
+        "outgoingText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+        "fxCount": 1418,
+        "outCount": 726,
+        "inCount": 692,
+        "outAnim": "journey-guide-content-dissolve",
+        "inAnim": "journey-guide-content-reform",
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 3104,
+      "timedOut": false
+    },
+    "reformMid": {
+      "label": "去复核",
+      "kind": "review",
+      "phase": "switch",
+      "className": "journey-guide-card",
+      "cardAnimationName": "none",
+      "cardOpacity": "1",
+      "cardTransform": "none",
+      "cardRect": {
+        "left": 851,
+        "top": 325.6,
+        "width": 520,
+        "height": 117
+      },
+      "contentOpacity": "0",
+      "contentText": "去复核有任务在等你复核，去任务板看看。打开任务板",
+      "incomingAnimationName": "none",
+      "incomingClassName": "journey-guide-content",
+      "outgoingCount": 1,
+      "outgoingOpacity": "0",
+      "outgoingClassName": "journey-guide-content is-burning journey-guide-content-outgoing",
+      "outgoingAnimationName": "journey-guide-content-burn",
+      "outgoingText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+      "fxCount": 1418,
+      "outCount": 726,
+      "inCount": 692,
+      "outAnim": "journey-guide-content-dissolve",
+      "inAnim": "journey-guide-content-reform",
+      "layerAriaHidden": "true",
+      "layerPointerEvents": "none",
+      "layerCount": 1
+    },
+    "reviewFinal": {
+      "matched": true,
+      "state": {
+        "label": "去复核",
+        "kind": "review",
+        "phase": "switch",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 116.3
+        },
+        "contentOpacity": "1",
+        "contentText": "去复核有任务在等你复核，去任务板看看。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 0,
+        "outCount": 0,
+        "inCount": 0,
+        "outAnim": null,
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 2524,
+      "timedOut": false
+    },
+    "exiting": {
+      "matched": true,
+      "state": {
+        "label": "去复核",
+        "kind": "review",
+        "phase": "exit",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 116.3
+        },
+        "contentOpacity": "1",
+        "contentText": "去复核有任务在等你复核，去任务板看看。打开任务板",
+        "incomingAnimationName": "journey-guide-content-burn",
+        "incomingClassName": "journey-guide-content is-burning",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 692,
+        "outCount": 692,
+        "inCount": 0,
+        "outAnim": "journey-guide-content-dissolve",
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 2715,
+      "timedOut": false
+    },
+    "exitMid": {
+      "label": "去复核",
+      "kind": "review",
+      "phase": "exit",
+      "className": "journey-guide-card",
+      "cardAnimationName": "none",
+      "cardOpacity": "1",
+      "cardTransform": "none",
+      "cardRect": {
+        "left": 851,
+        "top": 325.6,
+        "width": 520,
+        "height": 116.3
+      },
+      "contentOpacity": "0.0333901",
+      "contentText": "去复核有任务在等你复核，去任务板看看。打开任务板",
+      "incomingAnimationName": "journey-guide-content-burn",
+      "incomingClassName": "journey-guide-content is-burning",
+      "outgoingCount": 0,
+      "outgoingOpacity": null,
+      "outgoingClassName": null,
+      "outgoingAnimationName": null,
+      "outgoingText": null,
+      "fxCount": 692,
+      "outCount": 692,
+      "inCount": 0,
+      "outAnim": "journey-guide-content-dissolve",
+      "inAnim": null,
+      "layerAriaHidden": "true",
+      "layerPointerEvents": "none",
+      "layerCount": 1
+    },
+    "exitAfterShot": {
+      "label": "去复核",
+      "kind": "review",
+      "phase": "exit",
+      "className": "journey-guide-card",
+      "cardAnimationName": "none",
+      "cardOpacity": "1",
+      "cardTransform": "none",
+      "cardRect": {
+        "left": 851,
+        "top": 325.6,
+        "width": 520,
+        "height": 116.3
+      },
+      "contentOpacity": "0.0333901",
+      "contentText": "去复核有任务在等你复核，去任务板看看。打开任务板",
+      "incomingAnimationName": "journey-guide-content-burn",
+      "incomingClassName": "journey-guide-content is-burning",
+      "outgoingCount": 0,
+      "outgoingOpacity": null,
+      "outgoingClassName": null,
+      "outgoingAnimationName": null,
+      "outgoingText": null,
+      "fxCount": 692,
+      "outCount": 692,
+      "inCount": 0,
+      "outAnim": "journey-guide-content-dissolve",
+      "inAnim": null,
+      "layerAriaHidden": "true",
+      "layerPointerEvents": "none",
+      "layerCount": 1
+    },
+    "gone": {
+      "matched": true,
+      "state": null,
+      "elapsedMs": 3288,
+      "timedOut": false
+    },
+    "reducedInitial": {
+      "matched": true,
+      "state": {
+        "label": "等待交接或认领",
+        "kind": "handoff",
+        "phase": "enter",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 851,
+          "top": 325.6,
+          "width": 520,
+          "height": 116.3
+        },
+        "contentOpacity": "1",
+        "contentText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 0,
+        "outCount": 0,
+        "inCount": 0,
+        "outAnim": null,
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 0,
+      "timedOut": false
+    },
+    "reducedSwitch": {
+      "label": "让它跑",
+      "kind": "running",
+      "phase": "switch",
+      "className": "journey-guide-card",
+      "cardAnimationName": "none",
+      "cardOpacity": "1",
+      "cardTransform": "none",
+      "cardRect": {
+        "left": 851,
+        "top": 325.6,
+        "width": 520,
+        "height": 116.3
+      },
+      "contentOpacity": "1",
+      "contentText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+      "incomingAnimationName": "none",
+      "incomingClassName": "journey-guide-content",
+      "outgoingCount": 0,
+      "outgoingOpacity": null,
+      "outgoingClassName": null,
+      "outgoingAnimationName": null,
+      "outgoingText": null,
+      "fxCount": 0,
+      "outCount": 0,
+      "inCount": 0,
+      "outAnim": null,
+      "inAnim": null,
+      "layerAriaHidden": "true",
+      "layerPointerEvents": "none",
+      "layerCount": 1
+    },
+    "reducedParticleElements": 0,
+    "narrowInitial": {
+      "matched": true,
+      "state": {
+        "label": "等待交接或认领",
+        "kind": "handoff",
+        "phase": "enter",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 20,
+          "top": 403.6,
+          "width": 260,
+          "height": 137.1
+        },
+        "contentOpacity": "1",
+        "contentText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 0,
+        "outCount": 0,
+        "inCount": 0,
+        "outAnim": null,
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 4925,
+      "timedOut": false
+    },
+    "narrowSwitch": {
+      "matched": true,
+      "state": {
+        "label": "让它跑",
+        "kind": "running",
+        "phase": "switch",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 20,
+          "top": 403.6,
+          "width": 260,
+          "height": 138
+        },
+        "contentOpacity": "0",
+        "contentText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 1,
+        "outgoingOpacity": "1",
+        "outgoingClassName": "journey-guide-content is-burning journey-guide-content-outgoing",
+        "outgoingAnimationName": "journey-guide-content-burn",
+        "outgoingText": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板",
+        "fxCount": 876,
+        "outCount": 876,
+        "inCount": 0,
+        "outAnim": "journey-guide-content-dissolve",
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 963,
+      "timedOut": false
+    },
+    "narrowAlign": {
+      "layerWidth": 234,
+      "lines": [
+        {
+          "block": "title",
+          "text": "等待交接或认领",
+          "count": 174,
+          "lineBox": {
+            "left": 64.5,
+            "right": 169.5,
+            "top": 2.5,
+            "bottom": 20
+          },
+          "ink": {
+            "left": 65.05,
+            "right": 168.76,
+            "top": 4.79,
+            "bottom": 18.82
+          },
+          "delta": {
+            "left": 1.3,
+            "right": -0.24,
+            "top": -0.26,
+            "bottom": -0.33
+          }
+        },
+        {
+          "block": "hint",
+          "text": "有任务还在待办：@agent 交接，或到任",
+          "count": 289,
+          "lineBox": {
+            "left": 1.05,
+            "right": 232.95,
+            "top": 33,
+            "bottom": 48
+          },
+          "ink": {
+            "left": 0.68,
+            "right": 233.3,
+            "top": 34.48,
+            "bottom": 48.71
+          },
+          "delta": {
+            "left": 0.17,
+            "right": 0.96,
+            "top": -0.81,
+            "bottom": 0.3
+          }
+        },
+        {
+          "block": "hint",
+          "text": "务板认领。",
+          "count": 73,
+          "lineBox": {
+            "left": 84.5,
+            "right": 149.5,
+            "top": 53.8,
+            "bottom": 68.8
+          },
+          "ink": {
+            "left": 83.9,
+            "right": 142.3,
+            "top": 55.28,
+            "bottom": 68.21
+          },
+          "delta": {
+            "left": -0.04,
+            "right": 0.86,
+            "top": -0.86,
+            "bottom": 0
+          }
+        }
+      ],
+      "button": {
+        "count": 340,
+        "rect": {
+          "left": 77,
+          "top": 84.09,
+          "right": 157,
+          "bottom": 111.09
+        },
+        "ink": {
+          "left": 76.07,
+          "right": 157.92,
+          "top": 83.32,
+          "bottom": 111.38
+        },
+        "delta": {
+          "left": -0.93,
+          "right": 0.92,
+          "top": -0.78,
+          "bottom": 0.29
+        }
+      }
+    },
+    "narrowFinal": {
+      "matched": true,
+      "state": {
+        "label": "让它跑",
+        "kind": "running",
+        "phase": "switch",
+        "className": "journey-guide-card",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "cardRect": {
+          "left": 20,
+          "top": 403.6,
+          "width": 260,
+          "height": 116.3
+        },
+        "contentOpacity": "1",
+        "contentText": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板",
+        "incomingAnimationName": "none",
+        "incomingClassName": "journey-guide-content",
+        "outgoingCount": 0,
+        "outgoingOpacity": null,
+        "outgoingClassName": null,
+        "outgoingAnimationName": null,
+        "outgoingText": null,
+        "fxCount": 0,
+        "outCount": 0,
+        "inCount": 0,
+        "outAnim": null,
+        "inAnim": null,
+        "layerAriaHidden": "true",
+        "layerPointerEvents": "none",
+        "layerCount": 1
+      },
+      "elapsedMs": 6599,
+      "timedOut": false
+    },
+    "hydrationWarnings": [],
+    "consoleMessages": [],
+    "labelSequence": [
+      "等待交接或认领",
+      "让它跑",
+      "去复核",
+      null
+    ]
+  }
+}

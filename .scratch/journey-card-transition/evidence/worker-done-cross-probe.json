@@ -1,0 +1,33 @@
+{
+  "id": "77874744-713a-4cc3-bd6f-d7b73082ed97",
+  "ok": true,
+  "result": {
+    "message": {
+      "id": "msg_d694767af600",
+      "run_id": "run_ddce623f5442",
+      "delivery_contract": "current_delivery",
+      "from_handle": "term_4a08436e-7787-4c7f-87ef-5db2c225c586",
+      "to_handle": "run:run_ddce623f5442",
+      "subject": "跨频道探针语义修正完成，新探针 3/3 GREEN",
+      "body": "修正跨频道探针语义：done 频道 B 不再要求瞬时首卡，改为 900ms 泄漏窗无 A 卡 + 6s 观测后稳定终态无卡（瞬时卡若出现必须 enter/handoff），并新增只有消息的确定性 handoff 频道 C 断言首卡 enter/handoff。新探针复跑 3/3 GREEN、主探针 1× GREEN，窄档 88/88、typecheck 与 lint 通过；Answer/spec/pr-body 与证据已同步，PR #208 原地更新，未发现产品缺陷且产品代码未改。无遗留项。",
+      "type": "worker_done",
+      "priority": "normal",
+      "thread_id": null,
+      "payload": "{\"taskId\":\"task_95977f71e044\",\"dispatchId\":\"ctx_054169875737\",\"outcome\":\"succeeded\",\"filesModified\":[\".scratch/journey-card-transition/probe-cross-channel.ego.mjs\",\".scratch/journey-card-transition/Answer.md\",\".scratch/journey-card-transition/spec.md\",\".scratch/journey-card-transition/pr-body.md\",\".scratch/journey-card-transition/evidence/\"],\"reportPath\":\".scratch/journey-card-transition/Answer.md\"}",
+      "created_at": "2026-10-23T11:27:25Z",
+      "delivered_at": null
+    },
+    "lifecycle": {
+      "action": "completed",
+      "taskId": "task_95977f71e044",
+      "dispatchId": "ctx_054169875737"
+    },
+    "mutation": {
+      "requestId": "26770a21-9c40-424a-bece-9f2674fa61da",
+      "replayed": false
+    }
+  },
+  "_meta": {
+    "runtimeId": "2fde304c-8cb6-49c3-82d7-ea5b2b9722d0"
+  }
+}

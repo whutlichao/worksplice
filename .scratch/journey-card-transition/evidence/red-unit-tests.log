@@ -1,0 +1,162 @@
+✔ T-A: globals.css 从设计系统 token 文件顶层 @import（上游即运行时真源） (1.580125ms)
+✔ T-A: 设计系统每个 token 都在产品里取到，且同名值逐字相同 (24.145041ms)
+✔ T-B: 旧 token 名在 app/components/hooks/lib 的 .tsx/.ts/.css 里出现 0 次 (174.935292ms)
+✔ T-B: Tailwind 的 @theme 别名命名空间（--color-*）已退场 (33.849958ms)
+✔ T-C: 全局 0 圆角压制已解开 (0.247833ms)
+✔ T-C: 旧方向的 2px ink 结构线与 ink 阴影全部退场 (0.274417ms)
+✔ T-C: 焦点环与字段/composer 的 accent-soft 环按设计系统 reset 落位 (0.129ms)
+✔ T-C: reduce 收敛存在，@keyframes 组数只增不减（≥12） (0.148041ms)
+✖ T-C: 旅程引导卡过渡 keyframes 存在，reduce 收敛到粒子时长 (0.824542ms)
+✔ T-C: 断点对齐上游（900 / 1080），旧的 960 退场 (0.276875ms)
+✔ T-C: 有色 2px 结构线在 app/components/hooks 的源码里也为 0（组件侧回归网） (26.591792ms)
+✔ T-C: docs/spec.md §4 不再出现退役色值与旧契约标记 (1.545458ms)
+✔ T-C: AGENTS.md 的 CSS 变量段列的是当前契约名 (1.607292ms)
+✔ T-C: AGENTS.md File Map 不再指向已删除的旧头像组件 (0.776542ms)
+✔ T-D: StatusDot 四态渲染出在线/干活/出错/离线四个新语义 token (3.848125ms)
+✔ MessageRow renders author, seq, content and the three §3.2 actions (41.389417ms)
+✔ MessageRow renders pinned navigation feedback on the target message (3.919584ms)
+✔ pinned navigation pages backward until an older target is loaded (0.293583ms)
+✔ pinned navigation refreshes when the target is newer than the loaded page (0.100209ms)
+✔ pinned navigation detects a failed request without treating the initial state as failure (0.095292ms)
+✔ MessageRow preserves readable long-form Markdown and visible message metadata (12.673ms)
+✔ Task anchor discussion entry shows total replies and an independent exact unread count (6.61725ms)
+✔ MessageRow omits the reply action when onReply is absent (2.790125ms)
+✔ MessageMoreMenu omits the pin item when onTogglePin is absent, even when pinned (0.351708ms)
+✔ MessageMoreMenu pins and unpins through the same item label switch (1.19025ms)
+✔ MessageMoreMenu renders the convert-to-task item on the channel surface (1.51225ms)
+✔ MessageMoreMenu omits the convert item when onConvertToTask is absent (0.835833ms)
+✔ ChannelView wires convertInActionBar and onConvertToTask into the channel message list (5.828916ms)
+✔ MessageMoreMenu renders the ⏰ reminder item when onReminder is provided (§5.6) (2.0955ms)
+✔ MessageRow action handlers fire with the message (4.101583ms)
+✔ Composer shows the quoting chip with the quoted message preview (3.272167ms)
+✔ Composer renders without a quote chip when nothing is quoted (1.251833ms)
+✔ Composer surfaces the disabled hint when the channel is archived or not joined (1.186042ms)
+✔ ChannelView renders the select-a-channel empty state without a channel (2.866167ms)
+✔ ChannelView shows the channel header with the members entry and archive badge (6.928542ms)
+✔ mergeIncomingMessages dedupes by id and keeps messages sorted by seq (agent-loop 轮询合并) (0.142125ms)
+✔ ChannelView 发送通道：发送与 held 由 useChannelData 持有（02 票） (11.774042ms)
+✔ ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（01 票） (1.328333ms)
+✔ ChannelView pinned 与附属区：pinned/mute/members 数据循环由 useChannelData 持有（03 票） (1.336ms)
+✔ MessageRow renders reaction chips and attachments; secondary actions live in ··· (§3.4/§3.5) (8.260875ms)
+✔ MessageRow hides reaction UI when handlers are absent (3.486875ms)
+✔ MessageRow renders the not-replied badge with agent name in the tooltip (§09) (3.748125ms)
+✔ MessageRow renders a count badge when multiple agents abandoned the message (3.551125ms)
+✔ MessageRow does not render the not-replied badge without abandonedMarks (3.508958ms)
+✔ Composer renders the paperclip attach control (§3.5) (1.301083ms)
+✔ ChannelView header exposes the pinned toggle for joined members (§3.5) (6.046083ms)
+✔ DM 头部不渲染成员管理/归档/静音入口，保留提醒与 pinned（§03） (3.996792ms)
+✔ TaskViews renders the task board layout without mounting the channel data loop (05 票排版回归) (3.475333ms)
+✔ 05 票瘦身：视图直接解构 hook 原名（无过渡别名解构） (1.469334ms)
+✔ 05 票瘦身：视图无过渡残留注释（01 过渡已收敛进 hook 语义） (0.656083ms)
+✔ 05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelTask/PinnedItem 直引 hook） (0.670125ms)
+✔ 05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelMessagesPage 直引 hook） (0.587709ms)
+✔ ChannelView 任务板数据循环由 useChannelData 持有（04 票） (1.107084ms)
+✔ ChannelView 三处可见性同一数据源：新成员进 channelMemberIds 后 channelAgents/mentionable/composer 候选全含（#12 回归） (0.270041ms)
+✔ ChannelView 透传 membersVersion 给 useChannelData（失效链不断，#12 回归） (0.635416ms)
+✔ AppShell 创建 agent 后递增 membersVersion（失效链源头，#12 回归） (0.3425ms)
+✔ TaskViews 服务端与客户端首帧渲染一致（localStorage 偏好为 board 也不 mismatch） (5.905042ms)
+✔ DM bugfix：handleSend 发送成功后上抛 onChannelChanged（侧栏 messageCount 信号即时更新，不依赖 15s 轮询/agent 回复） (0.638583ms)
+✔ notice toast 渲染在滚动流之外：<main>…</main> 里不再有 heldNotice/taskNotice 呈现位 (0.678292ms)
+✔ notice toast 锚在消息区底部、composer 上方居中，且 z-index 高于 composer (0.592875ms)
+✔ NoticeToast 渲染出无障碍语义与 i18n 文案（role=status / aria-live / data-notice） (0.5215ms)
+✔ pickNoticeToast 单槽仲裁：新 notice 顶掉旧的，被顶掉的旧 notice 不回弹 (0.139084ms)
+✔ notice toast 自动消退：setTimeout 到点清空，且 useEffect 清理 timer (0.693375ms)
+✔ 任务创建事件以静态 note 呈现，预览 URL 是普通文本而非交互元素 (0.3675ms)
+✔ Task 锚点显示编号和状态，并为零未读提供精确讨论名称 (3.107209ms)
+✔ 任务创建事件播报跳过初始历史、只播报新事件一次 (0.22375ms)
+✔ 任务快照未到达时，动态创建事件仍会被识别并播报 (0.079292ms)
+✔ 切换频道后，已知频道中新到达的任务事件仍会播报 (0.04625ms)
+✔ 旅程条按四种频道状态标注当前步骤与已完成步骤 (4.98475ms)
+✔ 无消息引导卡：描述 CTA 聚焦输入，秘书入口可打开现有创建流程 (0.398292ms)
+✔ 无消息引导卡在未接线秘书入口时不渲染该按钮 (0.2635ms)
+✔ 有消息无任务引导卡：给出把消息转为任务的入口 (0.277292ms)
+✔ 只有待办任务时引导卡改为提示交接或认领，并切到任务板 (0.46325ms)
+✔ 进行中与待审核引导卡分别提示看状态点和去复核 (0.703458ms)
+✔ Central Tabs 保留 Messages/Tasks 切换，并为未完成任务显示数量 badge (0.681917ms)
+✔ Central Tabs 没有未完成任务时不显示 badge，未读讨论入口保留 (0.278708ms)
+✖ 引导卡四种形态都渲染 aria-hidden 的确定性粒子层 (0.576542ms)
+✖ 引导卡过渡阶段映射到稳定类名，默认进入态 (0.321084ms)
+✖ 引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入 (0.075041ms)
+✔ ··· 二级菜单展开后包含 reaction、pin、提醒与转为任务，门控与旧动作栏一致 (3.193291ms)
+✔ ··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠内联样式兜底 (2.672708ms)
+✔ 消息行默认只露高频动作，二级动作收进 ··· 触发器 (3.655334ms)
+✔ ChannelView 接线：旅程条/引导卡/任务角标/秘书入口都进中央视图 (2.850416ms)
+✔ AppShell 复用 CreateAgentModal 打开秘书入口，不新增路由 (0.321375ms)
+ℹ tests 84
+ℹ suites 0
+ℹ pass 80
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1449.651958
+
+✖ failing tests:
+
+test at app/globals.test.mjs:227:1
+✖ T-C: 旅程引导卡过渡 keyframes 存在，reduce 收敛到粒子时长 (0.824542ms)
+  AssertionError [ERR_ASSERTION]: 缺少 @keyframes journey-guide-card-in
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/journey-card-transition/app/globals.test.mjs:236:12)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '\n\n@import "../worksplice-design-system/colors_and_type.css";\n@import "../worksplice-design-system/tokens.css";\n\n\n*, *::before, *::after { box-sizing: border-box; }\n\nhtml, body {\n  width: 100%;\n  height: 100vh;\n  height: 100dvh;\n  height: var(--app-viewport-height, 100dvh);\n  margin: 0;\n  padding: 0;\n  overflow: hidden;\n  overscroll-behavior: none;\n}\n\nbody {\n  display: flex;\n  flex-direction: column;\n  background: var(--bg);\n  color: var(--fg);\n  font-family: var(--font);\n  font-size: var(--fs-body);\n  line-height: var(--lh-body);\n  -webkit-font-smoothing: antialiased;\n  text-rendering: optimizeLegibility;\n}\n\nbutton { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }\ninput, textarea, select { font: inherit; color: inherit; }\nh1, h2, h3 { margin: 0; font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); }\ncode, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }\n:focus-visible { outline: 2px solid var(--accent-graphic); outline-offset: 2px; border-radius: 2px; }\n[hidden] { display: none !important; }\n\n\n.input:focus,\n.textarea:focus,\n.select:focus,\n.composer-box:focus-within,\n.search-field:focus-within,\ninput:focus-visible,\ntextarea:focus-visible,\nselect:focus-visible {\n  outline: none;\n  border-color: var(--accent-graphic);\n  box-shadow: 0 0 0 3px var(--accent-soft);\n}\n\n::-webkit-scrollbar { width: 9px; height: 9px; }\n::-webkit-scrollbar-thumb {\n  background: color-mix(in oklch, var(--faint) 60%, transparent);\n  border-radius: var(--r-pill);\n  border: 2px solid transparent;\n  background-clip: padding-box;\n}\n::-webkit-scrollbar-thumb:hover { background: var(--faint); background-clip: padding-box; }\n::-webkit-scrollbar-track { background: transparent; }\n\n\n:root {\n  --font-mono: var(--mono);\n}\n\n\n:root {\n  \n  --selected:         oklch(84.9% 0.081 299.9);\n  --selected-soft:    color-mix(in oklch, var(--selected) 21%, transparent);\n  --selected-deep:    oklch(52.4% 0.081 299.8);\n  --selected-graphic: oklch(62.4% 0.081 300.5);\n\n  \n  --unread:         oklch(91% 0.100 94.8);\n  --unread-soft:    color-mix(in oklch, var(--unread) 36%, transparent);\n  --unread-deep:    oklch(51.8% 0.100 94.5);\n  --unread-graphic: oklch(61.6% 0.099 94.7);\n\n  \n  \n  --warn:         oklch(86.3% 0.084 52.2);\n  --warn-soft:    color-mix(in oklch, var(--warn) 24%, transparent);\n  --warn-deep:    oklch(52.6% 0.084 51.9);\n  --warn-graphic: oklch(62.1% 0.083 51.6);\n}\n\npre, code {\n  font-family: var(--font-mono);\n}\n\n\n@keyframes ws-status-pulse {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.35; }\n}\n\n\n:root {\n  --online-text: oklch(50.6% 0.107 159.9);\n  --working-text: oklch(52.3% 0.110 75.2);\n}\n\n\n@media (prefers-reduced-motion: reduce) {\n  *,\n  *::before,\n  *::after {\n    animation-duration: 0.001ms !important;\n    animation-iteration-count: 1 !important;\n    transition-duration: 0.001ms !important;\n  }\n\n  \n  .mermaid-zoom-canvas,\n  .markdown-code-action,\n  .file-viewer-mode-button,\n  .file-viewer-icon-button {\n    transition: none;\n  }\n}\n\n\n.markdown-body {\n  min-width: 0;\n  max-width: 100%;\n  overflow-x: hidden;\n  font-size: var(--fs-body);\n  line-height: 1.7;\n  color: var(--fg);\n  word-break: break-word;\n}\n.markdown-body p { margin: 0 0 8px; }\n.markdown-body p:last-child { margin-bottom: 0; }\n.markdown-body h1, .markdown-body h2, .markdown-body h3,\n.markdown-body h4, .markdown-body h5, .markdown-body h6 {\n  font-weight: 600;\n  margin: 10px 0 5px;\n  color: var(--fg);\n  line-height: 1.35;\n  letter-spacing: 0;\n}\n.markdown-body h1 { font-size: 1.16em; }\n.markdown-body h2 { font-size: 1.08em; }\n.markdown-body h3 { font-size: 0.98em; color: color-mix(in srgb, var(--fg) 88%, var(--muted)); }\n.markdown-body ul, .markdown-body ol {\n  padding-left: 22px;\n  margin: 5px 0 8px;\n  list-style-position: outside;\n}\n.markdown-body li { margin: 3px 0; padding-left: 2px; }\n.markdown-body ul > li { list-style-type: disc; }\n.markdown-body ol > li { list-style-type: decimal; }\n.markdown-body li > p { margin: 0; }\n.markdown-body li::marker {\n  color: color-mix(in srgb, var(--accent-deep) 72%, var(--muted));\n  font-weight: 600;\n}\n.markdown-body strong {\n  color: color-mix(in srgb, var(--fg) 88%, var(--accent-deep));\n  font-weight: 700;\n}\n.markdown-body em { color: var(--muted); }\n.markdown-body a {\n  color: var(--accent-deep);\n  text-decoration: underline;\n  text-decoration-thickness: 1px;\n  text-underline-offset: 3px;\n  text-decoration-color: color-mix(in srgb, var(--accent-deep) 45%, transparent);\n}\n.markdown-body a:hover { text-decoration-color: var(--accent-deep); }\n.markdown-body img {\n  display: block;\n  max-width: 100%;\n  height: auto;\n  margin: 8px 0;\n  border-radius: var(--r-sm);\n}\n.markdown-body .markdown-inline-code {\n  background: var(--fg-soft);\n  border-radius: var(--r-sm);\n  padding: 1px 5px;\n  color: var(--fg);\n  font-family: var(--font-mono);\n  font-size: 0.92em;\n  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);\n}\n.markdown-body .contains-task-list {\n  padding-left: 0;\n  list-style: none;\n}\n.markdown-body .task-list-item {\n  display: block;\n  position: relative;\n  padding-left: 25px;\n}\n.markdown-body .task-list-item::marker { content: ""; }\n.markdown-body .task-list-item > input[type="checkbox"],\n.markdown-body .task-list-item > p:first-child > input[type="checkbox"]:first-child {\n  appearance: none;\n  position: absolute;\n  left: 0;\n  top: 0.35em;\n  width: 14px;\n  height: 14px;\n  margin: 0;\n  border: 1px solid var(--border);\n  border-radius: var(--r-sm);\n  background: var(--bg);\n  display: inline-grid;\n  place-content: center;\n}\n.markdown-body .task-list-item > input[type="checkbox"]:checked,\n.markdown-body .task-list-item > p:first-child > input[type="checkbox"]:first-child:checked {\n  border-color: var(--accent-graphic);\n  background: var(--accent-soft);\n}\n.markdown-body .task-list-item > input[type="checkbox"]:checked::before,\n.markdown-body .task-list-item > p:first-child > input[type="checkbox"]:first-child:checked::before {\n  content: "";\n  width: 4px;\n  height: 8px;\n  border: solid var(--accent-graphic);\n  border-width: 0 1.5px 1.5px 0;\n  transform: rotate(45deg) translateY(-1px);\n}\n.markdown-body blockquote {\n  border-left: 3px solid color-mix(in srgb, var(--border) 75%, var(--muted));\n  border-radius: 0 var(--r-sm) var(--r-sm) 0;\n  margin: 6px 0;\n  padding: 6px 11px;\n  background: var(--fg-soft);\n  color: var(--muted);\n}\n.markdown-table-wrap {\n  width: 100%;\n  margin: 8px 0;\n  overflow-x: auto;\n  overflow-y: hidden;\n  border: 1px solid var(--border);\n  border-radius: var(--r-md);\n}\n.markdown-body table {\n  border-collapse: separate;\n  border-spacing: 0;\n  min-width: 100%;\n  font-size: var(--fs-body);\n}\n.markdown-body th, .markdown-body td {\n  border: 0;\n  border-bottom: 1px solid var(--border);\n  padding: 6px 10px;\n  text-align: left;\n  vertical-align: top;\n}\n.markdown-body tr:last-child td { border-bottom: 0; }\n.markdown-body th {\n  background: var(--panel);\n  color: color-mix(in srgb, var(--fg) 88%, var(--muted));\n  font-weight: 650;\n}\n.markdown-body tbody tr:nth-child(even) td { background: var(--fg-soft); }\n.markdown-body hr {\n  border: none;\n  height: 1px;\n  margin: 12px 0;\n  background: linear-gradient(90deg, transparent, var(--border), transparent);\n}\n.markdown-body .katex-display {\n  margin: 0.6em 0;\n  overflow-x: auto;\n  overflow-y: hidden;\n  padding: 2px 0;\n}\n.markdown-body .katex {\n  font-size: 1.05em;\n}\n.markdown-user-message p {\n  white-space: pre-wrap;\n}\n\n.markdown-custom-message {\n  line-height: 1.32;\n}\n.markdown-custom-message p { margin: 0; }\n.markdown-custom-message h1,\n.markdown-custom-message h2,\n.markdown-custom-message h3,\n.markdown-custom-message h4,\n.markdown-custom-message h5,\n.markdown-custom-message h6 {\n  margin: 4px 0 2px;\n  line-height: 1.18;\n}\n.markdown-custom-message ul,\n.markdown-custom-message ol {\n  margin: 2px 0 3px;\n}\n.markdown-custom-message li { margin: 0; }\n.markdown-custom-message blockquote {\n  margin: 3px 0;\n  padding: 4px 8px;\n}\n.markdown-custom-message .markdown-table-wrap,\n.markdown-custom-message .markdown-code-block {\n  margin: 4px 0;\n}\n\n.markdown-compaction-message {\n  line-height: 1.5;\n}\n.markdown-compaction-message p { margin: 0 0 7px; }\n.markdown-compaction-message h1,\n.markdown-compaction-message h2,\n.markdown-compaction-message h3,\n.markdown-compaction-message h4,\n.markdown-compaction-message h5,\n.markdown-compaction-message h6 {\n  margin: 8px 0 3px;\n  line-height: 1.25;\n}\n.markdown-compaction-message ul,\n.markdown-compaction-message ol {\n  margin: 4px 0 8px;\n}\n.markdown-compaction-message li { margin: 2px 0; }\n.markdown-compaction-message .markdown-table-wrap,\n.markdown-compaction-message .markdown-code-block {\n  margin: 6px 0;\n}\n\n.compaction-file-details {\n  margin-top: 10px;\n  padding-top: 8px;\n  border-top: 1px solid var(--border);\n  color: var(--muted);\n  font-size: var(--fs-sm);\n}\n.compaction-file-details summary {\n  cursor: pointer;\n  font-weight: 600;\n  line-height: 1.4;\n}\n.compaction-file-section {\n  margin-top: 8px;\n}\n.compaction-file-title {\n  margin-bottom: 4px;\n  color: var(--fg);\n  font-size: var(--fs-caption);\n  font-weight: 650;\n}\n.compaction-file-list {\n  max-height: 180px;\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border: 1px solid var(--border);\n  border-radius: var(--r-sm);\n  background: var(--panel);\n  font-family: var(--font-mono);\n  font-size: var(--fs-caption);\n  line-height: 1.45;\n  list-style: none;\n}\n.compaction-file-list li {\n  overflow-wrap: anywhere;\n}\n.compaction-file-list li + li {\n  margin-top: 3px;\n}\n\n\n.markdown-code-block {\n  position: relative;\n  width: 100%;\n  min-width: 0;\n  max-width: 100%;\n  margin: 6px 0;\n  border: 1px solid var(--border);\n  border-radius: var(--r-md);\n  overflow: hidden;\n  background: var(--panel-2);\n}\n.markdown-code-header {\n  padding: 5px 10px;\n  background: var(--panel);\n  border-bottom: 1px solid var(--border);\n  color: var(--faint);\n  font-size: var(--fs-caption);\n  display: flex;\n  justify-content: space-between;\n  align-items: cente'... 44754 more characters,
+    expected: /@keyframes\s+journey-guide-card-in\b/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/ChannelView.test.mjs:1457:1
+✖ 引导卡四种形态都渲染 aria-hidden 的确定性粒子层 (0.576542ms)
+  AssertionError [ERR_ASSERTION]: describe: 缺少粒子层
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/journey-card-transition/components/ChannelView.test.mjs:1465:16)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at components/ChannelView.test.mjs:1482:1
+✖ 引导卡过渡阶段映射到稳定类名，默认进入态 (0.321084ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /class="journey-guide-card is-entering"/. Input:
+  
+  '<section aria-label="Let it run" style="width:100%;max-width:520px;margin:var(--sp-6) auto;padding:var(--sp-5);display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-card)"><div style="font-weight:700;font-size:15px">Let it run</div><div style="color:var(--muted);font-size:13px;line-height:1.6;max-width:400px">Watch the agent status dots or open the task board to follow progress.</div></section>'
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/journey-card-transition/components/ChannelView.test.mjs:1486:12)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '<section aria-label="Let it run" style="width:100%;max-width:520px;margin:var(--sp-6) auto;padding:var(--sp-5);display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-card)"><div style="font-weight:700;font-size:15px">Let it run</div><div style="color:var(--muted);font-size:13px;line-height:1.6;max-width:400px">Watch the agent status dots or open the task board to follow progress.</div></section>',
+    expected: /class="journey-guide-card is-entering"/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/ChannelView.test.mjs:1511:1
+✖ 引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入 (0.075041ms)
+  TypeError: nextJourneyGuideView is not a function
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/journey-card-transition/components/ChannelView.test.mjs:1512:19)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)

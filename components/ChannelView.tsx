@@ -36,6 +36,20 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { TranslationParams } from "@/lib/i18n/types";
+import {
+  JOURNEY_GUIDE_CONTENT_FADE_MS,
+  JOURNEY_GUIDE_DISSOLVE_MS,
+  JOURNEY_GUIDE_ENTER_TOTAL_MS,
+  JOURNEY_GUIDE_EXIT_MS,
+  JOURNEY_GUIDE_REFORM_MS,
+  JOURNEY_GUIDE_REVEAL_MS,
+  JOURNEY_GUIDE_SWAP_MS,
+  JOURNEY_GUIDE_SWITCH_TOTAL_MS,
+  groupJourneyGuideTextLines,
+  sampleJourneyGuideParticles,
+  type JourneyGuideGlyphRect,
+  type JourneyGuideParticlePoint,
+} from "@/lib/journey-guide-particles";
 import { MentionText } from "./MentionText";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
@@ -547,39 +561,232 @@ export function JourneyBar({ step }: { step: JourneyStep }) {
 }
 
 /**
- * 引导卡（票 16）：只在当前状态需要下一步动作时出现；无消息时占据消息区，
- * 有消息时作为消息流末尾的一张静态卡，不遮挡正常消息流。
+ * 引导卡形态过渡（本票）：四种形态切换时播放一次「粒子消散 → 重聚」。
+ *
+ * 状态机只由「上一视图 + 新 guideKind」推导，不读时钟、不随机，SSR 与客户端同输入
+ * 同输出。`guideKind` 变为 null 时用局部状态保留最后一张卡面的 kind，等退场播完再
+ * 卸载——这段保留状态只服务动画，不参与 journey 推导。
+ *
+ * 动效参数（用户选定）：2.6px 网格、1.35 倍速——消散 563ms、换态等待 237ms、
+ * 重聚 415ms；重聚到约 90%（374ms）时实体内容淡入。卡壳全程不播动画，只有内容层
+ * 与粒子层参与。退场保留窗口必须覆盖内容燃尽（563ms + 错峰），见
+ * JOURNEY_GUIDE_EXIT_MS。
  */
-export function JourneyGuideCard({
-  kind,
-  hasTasks = false,
-  onDescribe,
-  onOpenSecretary,
-  onConvertLatest,
-  onOpenTasks,
-}: {
+export { JOURNEY_GUIDE_EXIT_MS };
+
+export type JourneyGuidePhase = "enter" | "switch" | "exit";
+
+export interface JourneyGuideView {
+  /** 当前要渲染的形态；退场期间保留最后一张卡面的 kind。 */
   kind: JourneyGuideKind;
-  hasTasks?: boolean;
-  onDescribe?: () => void;
-  onOpenSecretary?: () => void;
-  onConvertLatest?: (trigger: HTMLButtonElement) => void;
-  onOpenTasks?: () => void;
-}) {
-  const { t } = useI18n();
+  /** 本次渲染要播放的动画语义。 */
+  phase: JourneyGuidePhase;
+  /** 每次形态变化递增；作为 prop 驱动一次内容过渡（同一实例内重播，不换 key）。 */
+  generation: number;
+}
+
+/**
+ * 引导卡过渡状态机（纯函数）：
+ * - null → 形态：重聚进入（enter）；
+ * - 形态 → 另一形态：切换（switch），旧内容由粒子密度掩盖；
+ * - 形态 → null：退场（exit）并保留旧 kind；
+ * - 退场中改回某形态：旧卡面还在屏幕上，仍按切换处理。
+ * 形态未变时返回同一引用，组件不重渲染、动画不重播。
+ */
+export function nextJourneyGuideView(
+  previous: JourneyGuideView | null,
+  kind: JourneyGuideKind | null,
+): JourneyGuideView | null {
+  if (kind === null) {
+    if (!previous || previous.phase === "exit") return previous;
+    return {
+      kind: previous.kind,
+      phase: "exit",
+      generation: previous.generation + 1,
+    };
+  }
+  if (!previous) {
+    return { kind, phase: "enter", generation: 1 };
+  }
+  if (previous.kind === kind && previous.phase !== "exit") {
+    return previous;
+  }
+  return {
+    kind,
+    phase: "switch",
+    generation: previous.generation + 1,
+  };
+}
+
+/** 退场计时器到点：只有仍处于 exit 的视图才会被清掉（不误杀新状态）。 */
+export function completeJourneyGuideExit(
+  previous: JourneyGuideView | null,
+): JourneyGuideView | null {
+  return previous?.phase === "exit" ? null : previous;
+}
+
+/**
+ * 引导卡过渡状态 + 频道作用域。
+ *
+ * `snapshot` 是调用方当前数据快照的标识（传 messages 数组引用即可）：频道切换后的
+ * 首帧里，`messages`/`tasks` 仍是上一频道的数据（useChannelData 的切换 effect 在提交
+ * 后才清空或命中缓存）。若这时直接拿旧 kind 起算，会先 enter 旧形态、再 exit、再把
+ * 新频道的首张卡算成 switch。因此切频道后先进入 `awaitingSnapshot`，等快照换新
+ * （数据归属新频道）才按首张卡 enter 起算——这是数据归属判断，不是延时。
+ */
+export interface JourneyGuideState {
+  scope: string | null;
+  view: JourneyGuideView | null;
+  /** 切到新频道后，等该频道的数据快照换新前为 true；期间不消费 kind。 */
+  awaitingSnapshot: boolean;
+  /** 切换瞬间看到的数据快照标识。 */
+  snapshot: unknown;
+}
+
+export function initialJourneyGuideState(
+  scope: string | null,
+  kind: JourneyGuideKind | null,
+  snapshot: unknown,
+): JourneyGuideState {
+  return {
+    scope,
+    view: nextJourneyGuideView(null, kind),
+    awaitingSnapshot: false,
+    snapshot,
+  };
+}
+
+/**
+ * 每次渲染同步作用域与数据快照：
+ * - scope 变化 → 丢弃旧频道 view，等待新频道快照；
+ * - 等待中快照换新（或新频道已无消息）→ 用该频道数据起算，首张卡走 enter。
+ * 无变化时返回同一引用，不触发额外渲染。
+ */
+export function syncJourneyGuideState(
+  state: JourneyGuideState,
+  scope: string | null,
+  kind: JourneyGuideKind | null,
+  snapshot: unknown,
+): JourneyGuideState {
+  if (state.scope !== scope) {
+    return { scope, view: null, awaitingSnapshot: true, snapshot };
+  }
+  if (state.awaitingSnapshot && (kind === null || state.snapshot !== snapshot)) {
+    return initialJourneyGuideState(scope, kind, snapshot);
+  }
+  return state;
+}
+
+/** kind 变化时推进状态机；等待新频道快照期间不消费 kind。 */
+export function advanceJourneyGuideState(
+  state: JourneyGuideState,
+  kind: JourneyGuideKind | null,
+): JourneyGuideState {
+  if (state.awaitingSnapshot) return state;
+  const view = nextJourneyGuideView(state.view, kind);
+  return view === state.view ? state : { ...state, view };
+}
+
+/** 退场计时器到点：清空仍在退场的 view，保留作用域与快照状态。 */
+export function completeJourneyGuideExitState(
+  state: JourneyGuideState,
+): JourneyGuideState {
+  const view = completeJourneyGuideExit(state.view);
+  return view === state.view ? state : { ...state, view };
+}
+
+/**
+ * ChannelView 的局部过渡状态：kind 变化时驱动状态机，退场动画结束后卸载卡面。
+ *
+ * `scope`（频道 id）变化时按 `syncJourneyGuideState` 重置：先丢弃旧频道的 view 与
+ * 旧数据推导的 kind，等 `snapshot` 换新后新频道的首张卡才按 enter 起算；同频道内
+ * 后续 kind 变化才走 switch。kind 变化由 layout effect 在绘制前驱动。
+ */
+export function useJourneyGuideView(
+  scope: string | null,
+  kind: JourneyGuideKind | null,
+  snapshot: unknown,
+): JourneyGuideView | null {
+  const [state, setState] = useState<JourneyGuideState>(() =>
+    initialJourneyGuideState(scope, kind, snapshot),
+  );
+
+  // React 的「props 变化时调整 state」模式：渲染期同步作用域/快照，新频道首帧
+  // 不会显示旧卡，也不会用旧频道数据起算过渡。
+  const synced = syncJourneyGuideState(state, scope, kind, snapshot);
+  if (synced !== state) setState(synced);
+
+  useLayoutEffect(() => {
+    setState((previous) => advanceJourneyGuideState(previous, kind));
+  }, [kind]);
+
+  const view = state.view;
+  const exiting = view?.phase === "exit";
+  const generation = view?.generation;
+  useEffect(() => {
+    if (!exiting) return;
+    const timer = setTimeout(
+      () => setState(completeJourneyGuideExitState),
+      JOURNEY_GUIDE_EXIT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [exiting, generation]);
+
+  return view;
+}
+
+/** 卡面内容层的一份快照：旧内容消散时按它重绘，不依赖 React 已替换的 DOM。 */
+interface JourneyGuideActionSpec {
+  label: string;
+  className: string;
+  onClick: (trigger: HTMLButtonElement) => void;
+}
+
+interface JourneyGuideContentSpec {
+  title: string;
+  hint: string;
+  actions: JourneyGuideActionSpec[];
+}
+
+type JourneyGuideFxMode = "enter" | "switch" | "exit";
+
+interface JourneyGuideFxState {
+  token: number;
+  mode: JourneyGuideFxMode;
+  /** 切换时的旧内容快照；进入/退场为 null。 */
+  outgoing: JourneyGuideContentSpec | null;
+}
+
+function resolveJourneyGuideContent(
+  kind: JourneyGuideKind,
+  hasTasks: boolean,
+  t: (key: string) => string,
+  handlers: {
+    onDescribe?: () => void;
+    onOpenSecretary?: () => void;
+    onConvertLatest?: (trigger: HTMLButtonElement) => void;
+    onOpenTasks?: () => void;
+  },
+): JourneyGuideContentSpec {
+  const actions: JourneyGuideActionSpec[] = [];
   let title: string;
   let hint: string;
-  let primary: {
-    label: string;
-    onClick: (trigger: HTMLButtonElement) => void;
-  } | null = null;
   if (kind === "describe") {
     title = t("journey.describe.title");
     hint = t("journey.describe.hint");
-    if (onDescribe) {
-      primary = {
+    if (handlers.onDescribe) {
+      actions.push({
         label: t("journey.describe.cta"),
-        onClick: () => onDescribe(),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onDescribe?.(),
+      });
+    }
+    if (handlers.onOpenSecretary) {
+      actions.push({
+        label: t("journey.describe.secretary"),
+        className: "btn btn-sm",
+        onClick: () => handlers.onOpenSecretary?.(),
+      });
     }
   } else if (kind === "handoff") {
     title = hasTasks
@@ -588,58 +795,76 @@ export function JourneyGuideCard({
     hint = hasTasks
       ? t("journey.handoff.waitingHint")
       : t("journey.handoff.hint");
-    if (hasTasks && onOpenTasks) {
-      primary = {
+    if (hasTasks && handlers.onOpenTasks) {
+      actions.push({
         label: t("journey.handoff.ctaTasks"),
-        onClick: () => onOpenTasks(),
-      };
-    } else if (onConvertLatest) {
-      primary = {
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onOpenTasks?.(),
+      });
+    } else if (handlers.onConvertLatest) {
+      actions.push({
         label: t("journey.handoff.cta"),
-        onClick: (trigger) => onConvertLatest(trigger),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: (trigger) => handlers.onConvertLatest?.(trigger),
+      });
     }
   } else if (kind === "running") {
     title = t("journey.running.title");
     hint = t("journey.running.hint");
-    if (onOpenTasks) {
-      primary = {
+    if (handlers.onOpenTasks) {
+      actions.push({
         label: t("journey.running.cta"),
-        onClick: () => onOpenTasks(),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onOpenTasks?.(),
+      });
     }
   } else {
     title = t("journey.review.title");
     hint = t("journey.review.hint");
-    if (onOpenTasks) {
-      primary = {
+    if (handlers.onOpenTasks) {
+      actions.push({
         label: t("journey.review.cta"),
-        onClick: () => onOpenTasks(),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onOpenTasks?.(),
+      });
     }
   }
+  return { title, hint, actions };
+}
 
+/** 内容层：标题/hint/按钮；旧内容的副本同构渲染，保证采样与卡面一致。 */
+function JourneyGuideContentLayer({
+  content,
+  accessible,
+  clickable,
+  layerRef,
+  burning = false,
+  outgoing = false,
+  style,
+}: {
+  content: JourneyGuideContentSpec;
+  accessible: boolean;
+  clickable: boolean;
+  layerRef?: React.Ref<HTMLDivElement>;
+  burning?: boolean;
+  outgoing?: boolean;
+  style?: React.CSSProperties;
+}) {
   return (
-    <section
-      aria-label={title}
-      style={{
-        width: "100%",
-        maxWidth: 520,
-        margin: "var(--sp-6) auto",
-        padding: "var(--sp-5)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 8,
-        textAlign: "center",
-        background: "var(--surface)",
-        border: `1px solid var(--border)`,
-        borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-card)",
-      }}
+    <div
+      ref={layerRef}
+      className={`journey-guide-content${
+        burning ? " is-burning" : ""
+      }${outgoing ? " journey-guide-content-outgoing" : ""}`}
+      aria-hidden={accessible ? undefined : true}
+      inert={accessible ? undefined : true}
+      style={style}
     >
-      <div style={{ fontWeight: 700, fontSize: 15 }}>{title}</div>
+      <div data-guide-sample="text" style={{ fontWeight: 700, fontSize: 15 }}>
+        {content.title}
+      </div>
       <div
+        data-guide-sample="text"
         style={{
           color: "var(--muted)",
           fontSize: 13,
@@ -647,9 +872,9 @@ export function JourneyGuideCard({
           maxWidth: 400,
         }}
       >
-        {hint}
+        {content.hint}
       </div>
-      {(primary || (kind === "describe" && onOpenSecretary)) && (
+      {content.actions.length > 0 && (
         <div
           style={{
             display: "flex",
@@ -659,26 +884,415 @@ export function JourneyGuideCard({
             marginTop: 4,
           }}
         >
-          {primary && (
+          {content.actions.map((action, index) => (
             <button
+              key={index}
               type="button"
-              className="btn btn-primary btn-sm"
-              onClick={(event) => primary.onClick(event.currentTarget)}
+              data-guide-sample="button"
+              className={action.className}
+              tabIndex={clickable ? undefined : -1}
+              onClick={
+                clickable
+                  ? (event) => action.onClick(event.currentTarget)
+                  : undefined
+              }
             >
-              {primary.label}
+              {action.label}
             </button>
-          )}
-          {kind === "describe" && onOpenSecretary && (
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={onOpenSecretary}
-            >
-              {t("journey.describe.secretary")}
-            </button>
-          )}
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 浏览器是否要求减少动效；只在客户端 effect 里调用。 */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function roundJourneyGuideRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  const r = Math.min(radius, height / 2, width / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+/** 逐字符 Range 量真实行盒；折行/居中全部交给浏览器排版。 */
+function measureJourneyGuideTextNode(
+  node: Text,
+): JourneyGuideGlyphRect[] {
+  const text = node.textContent ?? "";
+  const rects: JourneyGuideGlyphRect[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + 1);
+    const rect = range.getBoundingClientRect();
+    if (!rect.width && !rect.height) continue;
+    rects.push({
+      char: text[index],
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    });
+  }
+  return rects;
+}
+
+/**
+ * 把内容画进 canvas：文字位置取 DOM 行盒，baseline 用 canvas 同字体度量换算；
+ * 按钮先按元素 rect + computed border-radius 画底板，再走同样的行盒文字。
+ */
+function drawJourneyGuideSample(
+  ctx: CanvasRenderingContext2D,
+  root: HTMLElement,
+  origin: DOMRect,
+): void {
+  const blocks = root.querySelectorAll<HTMLElement>("[data-guide-sample]");
+  for (const block of blocks) {
+    const style = getComputedStyle(block);
+    if (block.dataset.guideSample === "button") {
+      const rect = block.getBoundingClientRect();
+      ctx.save();
+      ctx.fillStyle = style.backgroundColor;
+      roundJourneyGuideRect(
+        ctx,
+        rect.left - origin.left,
+        rect.top - origin.top,
+        rect.width,
+        rect.height,
+        Number.parseFloat(style.borderRadius) || 0,
+      );
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.fillStyle = style.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${style.fontWeight} ${Number.parseFloat(style.fontSize)}px ${style.fontFamily}`;
+    const measured = ctx.measureText("国").fontBoundingBoxAscent;
+    const ascent = Number.isFinite(measured)
+      ? measured
+      : Number.parseFloat(style.fontSize) * 0.8;
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      if (node instanceof Text && node.textContent?.trim()) {
+        for (const line of groupJourneyGuideTextLines(
+          measureJourneyGuideTextNode(node),
+        )) {
+          ctx.fillText(
+            line.text,
+            line.left - origin.left,
+            line.top - origin.top + ascent,
+          );
+        }
+      }
+      node = walker.nextNode();
+    }
+    ctx.restore();
+  }
+}
+
+function sampleJourneyGuideContent(
+  root: HTMLElement | null,
+  layer: HTMLElement | null,
+): JourneyGuideParticlePoint[] {
+  if (!root || !layer) return [];
+  const origin = layer.getBoundingClientRect();
+  const width = Math.ceil(origin.width);
+  const height = Math.ceil(origin.height);
+  if (width <= 0 || height <= 0) return [];
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(width * dpr);
+  canvas.height = Math.ceil(height * dpr);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return [];
+  ctx.scale(dpr, dpr);
+  drawJourneyGuideSample(ctx, root, origin);
+  return sampleJourneyGuideParticles(
+    ctx.getImageData(0, 0, canvas.width, canvas.height).data,
+    canvas.width,
+    canvas.height,
+    dpr,
+  );
+}
+
+/**
+ * 生成粒子 DOM。目标点来自内容采样；飞散/聚拢方向与延迟只在客户端 effect 内
+ * 用 Math.random，SSR 不产出粒子，避免 hydration 不一致。
+ */
+function spawnJourneyGuideParticles(
+  layer: HTMLElement,
+  points: readonly JourneyGuideParticlePoint[],
+  mode: "out" | "in",
+): void {
+  if (points.length === 0) return;
+  const fragment = document.createDocumentFragment();
+  for (const point of points) {
+    const particle = document.createElement("span");
+    particle.className = `journey-guide-particle is-${mode}`;
+    particle.dataset.guideParticle = mode;
+    particle.setAttribute("aria-hidden", "true");
+    particle.style.left = `${point.x.toFixed(2)}px`;
+    particle.style.top = `${point.y.toFixed(2)}px`;
+    particle.style.width = `${point.size.toFixed(2)}px`;
+    particle.style.height = `${point.size.toFixed(2)}px`;
+    particle.style.background = point.color;
+    if (mode === "out") {
+      const dx = (Math.random() * 2 - 1) * 70;
+      const dy = -20 - Math.random() * 110;
+      particle.style.setProperty("--p-dx", `${dx.toFixed(1)}px`);
+      particle.style.setProperty("--p-dy", `${dy.toFixed(1)}px`);
+      particle.style.setProperty(
+        "--p-spin",
+        `${((Math.random() * 2 - 1) * 40).toFixed(1)}deg`,
+      );
+      particle.style.animationDuration = `${Math.round(
+        JOURNEY_GUIDE_DISSOLVE_MS * (0.9 + Math.random() * 0.1),
+      )}ms`;
+      particle.style.animationDelay = `${Math.round(Math.random() * 60)}ms`;
+    } else {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 45 + Math.random() * 75;
+      particle.style.setProperty(
+        "--p-from-x",
+        `${(Math.cos(angle) * distance).toFixed(1)}px`,
+      );
+      particle.style.setProperty(
+        "--p-from-y",
+        `${(
+          Math.sin(angle) * distance * 0.6 +
+          (Math.random() * 40 - 20)
+        ).toFixed(1)}px`,
+      );
+      particle.style.animationDuration = `${Math.round(
+        JOURNEY_GUIDE_REFORM_MS * (0.9 + Math.random() * 0.15),
+      )}ms`;
+      particle.style.animationDelay = `${Math.round(Math.random() * 30)}ms`;
+    }
+    fragment.appendChild(particle);
+  }
+  layer.appendChild(fragment);
+}
+
+/**
+ * 引导卡（票 16）：只在当前状态需要下一步动作时出现；无消息时占据消息区，
+ * 有消息时作为消息流末尾的一张静态卡，不遮挡正常消息流。
+ * 本票（最终设计）：卡壳全程静止，只让内容层粒子燃尽/重聚；旧内容先消散、
+ * 新内容由粒子聚拢成形后实体淡入。`generation` 变化触发一次内容过渡。
+ */
+export function JourneyGuideCard({
+  kind,
+  phase = "enter",
+  generation,
+  hasTasks = false,
+  onDescribe,
+  onOpenSecretary,
+  onConvertLatest,
+  onOpenTasks,
+}: {
+  kind: JourneyGuideKind;
+  phase?: JourneyGuidePhase;
+  /** 每次形态变化递增；没有该值（空态静态卡）时不做过渡。 */
+  generation?: number;
+  hasTasks?: boolean;
+  onDescribe?: () => void;
+  onOpenSecretary?: () => void;
+  onConvertLatest?: (trigger: HTMLButtonElement) => void;
+  onOpenTasks?: () => void;
+}) {
+  const { t } = useI18n();
+  const content = resolveJourneyGuideContent(kind, hasTasks, t, {
+    onDescribe,
+    onOpenSecretary,
+    onConvertLatest,
+    onOpenTasks,
+  });
+  const [fx, setFx] = useState<JourneyGuideFxState | null>(null);
+  /** 实体内容是否已淡入；过渡开始时先隐藏，重聚到 90% 再淡入。 */
+  const [contentVisible, setContentVisible] = useState(true);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const incomingRef = useRef<HTMLDivElement | null>(null);
+  const outgoingRef = useRef<HTMLDivElement | null>(null);
+  const fxLayerRef = useRef<HTMLSpanElement | null>(null);
+  /** 上一次已提交的内容快照：下一次切换用它做消散源（React 已换 DOM 后仍可重绘）。 */
+  const lastContentRef = useRef(content);
+  const timersRef = useRef<number[]>([]);
+  const tokenRef = useRef(0);
+
+  const resetFx = useCallback(() => {
+    for (const timer of timersRef.current) window.clearTimeout(timer);
+    timersRef.current = [];
+    fxLayerRef.current?.replaceChildren();
+    rootRef.current?.style.removeProperty("min-height");
+  }, []);
+
+  // 1) 新的形态过渡：取消上一轮粒子，捕获旧内容，决定本轮时间线。
+  useLayoutEffect(() => {
+    if (generation === undefined) return;
+    tokenRef.current += 1;
+    const token = tokenRef.current;
+    resetFx();
+    if (prefersReducedMotion()) {
+      setContentVisible(true);
+      setFx(null);
+      return;
+    }
+    if (phase === "exit") {
+      // 退场：内容可见并燃尽（is-burning 淡出），卡壳等状态机计时器卸载。
+      setContentVisible(true);
+      setFx({ token, mode: "exit", outgoing: null });
+      return;
+    }
+    setContentVisible(false);
+    setFx({
+      token,
+      mode: phase === "switch" ? "switch" : "enter",
+      outgoing: phase === "switch" ? lastContentRef.current : null,
+    });
+    // 同一个 generation 只启动一次；content/phase 来自这次渲染。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generation, resetFx]);
+
+  // 维护旧内容快照（排在启动 effect 之后，保证读到的仍是上一份内容）。
+  useLayoutEffect(() => {
+    lastContentRef.current = content;
+  });
+
+  // 2) 旧/新内容都已就位：采样 DOM 并跑时间线（全部在绘制前启动）。
+  useLayoutEffect(() => {
+    if (!fx) return;
+    const token = fx.token;
+    const root = rootRef.current;
+    const incoming = incomingRef.current;
+    const layer = fxLayerRef.current;
+    if (!root || !incoming || !layer) return;
+    const outgoing = fx.outgoing ? outgoingRef.current : null;
+    const timers: number[] = [];
+    const schedule = (delay: number, run: () => void) => {
+      const timer = window.setTimeout(() => {
+        if (tokenRef.current === token) run();
+      }, delay);
+      timers.push(timer);
+    };
+    timersRef.current = timers;
+
+    if (fx.mode === "switch" && outgoing) {
+      root.style.minHeight = `${Math.ceil(
+        Math.max(
+          incoming.getBoundingClientRect().height,
+          outgoing.getBoundingClientRect().height,
+        ),
+      )}px`;
+      const oldPoints = sampleJourneyGuideContent(outgoing, layer);
+      const newPoints = sampleJourneyGuideContent(incoming, layer);
+      spawnJourneyGuideParticles(layer, oldPoints, "out");
+      schedule(JOURNEY_GUIDE_SWAP_MS, () => {
+        spawnJourneyGuideParticles(layer, newPoints, "in");
+      });
+      // 重聚到约 90%：实体内容淡入接管。
+      schedule(JOURNEY_GUIDE_SWAP_MS + JOURNEY_GUIDE_REVEAL_MS, () => {
+        setContentVisible(true);
+      });
+      schedule(JOURNEY_GUIDE_SWITCH_TOTAL_MS, () => {
+        layer.replaceChildren();
+        root.style.removeProperty("min-height");
+        setFx(null);
+      });
+    } else if (fx.mode === "enter") {
+      const points = sampleJourneyGuideContent(incoming, layer);
+      spawnJourneyGuideParticles(layer, points, "in");
+      schedule(JOURNEY_GUIDE_REVEAL_MS, () => setContentVisible(true));
+      schedule(JOURNEY_GUIDE_ENTER_TOTAL_MS, () => {
+        layer.replaceChildren();
+        setFx(null);
+      });
+    } else if (fx.mode === "exit") {
+      const points = sampleJourneyGuideContent(incoming, layer);
+      spawnJourneyGuideParticles(layer, points, "out");
+      schedule(JOURNEY_GUIDE_DISSOLVE_MS, () => layer.replaceChildren());
+    }
+
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer);
+      if (timersRef.current === timers) timersRef.current = [];
+    };
+  }, [fx]);
+
+  // 卸载：清掉计时器与粒子（连续切换/重播不累积）。
+  useEffect(() => () => resetFx(), [resetFx]);
+
+  return (
+    <section
+      aria-label={content.title}
+      className="journey-guide-card"
+      data-guide-kind={kind}
+      data-guide-phase={phase}
+      // 退场中的卡面不再接受点击/键盘焦点；内容燃尽后由状态机卸载卡壳。
+      inert={phase === "exit" ? true : undefined}
+      style={{
+        width: "100%",
+        maxWidth: 520,
+        margin: "var(--sp-6) auto",
+        padding: "var(--sp-5)",
+        background: "var(--surface)",
+        border: `1px solid var(--border)`,
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-card)",
+      }}
+    >
+      <div ref={rootRef} className="journey-guide-root">
+        {fx?.outgoing && (
+          <JourneyGuideContentLayer
+            content={fx.outgoing}
+            accessible={false}
+            clickable={false}
+            layerRef={outgoingRef}
+            outgoing
+            // 旧内容在 140ms 内燃尽淡出，与粒子 10% 处的淡入交叉，避免瞬时空白帧。
+            burning
+          />
+        )}
+        <JourneyGuideContentLayer
+          content={content}
+          accessible={phase !== "exit"}
+          clickable={contentVisible && phase !== "exit"}
+          layerRef={incomingRef}
+          burning={fx?.mode === "exit"}
+          style={{
+            opacity: contentVisible ? 1 : 0,
+            transition: contentVisible
+              ? `opacity ${JOURNEY_GUIDE_CONTENT_FADE_MS}ms ease`
+              : "none",
+          }}
+        />
+        <span
+          ref={fxLayerRef}
+          className="journey-guide-particles"
+          data-guide-particles={kind}
+          aria-hidden="true"
+        />
+      </div>
     </section>
   );
 }
@@ -3029,6 +3643,17 @@ export function ChannelView({
     () => deriveJourneyState({ messageCount: messages.length, tasks }),
     [messages.length, tasks],
   );
+  // 本票：消息流末尾卡面的过渡状态（含 guideKind → null 时的短暂保留）。
+  // scope 用频道 id：切频道时重置，不把上一个频道的卡面带过来。
+  // 无消息时消息流不渲染引导卡（空态有自己的静态 describe 卡），这里传 null，
+  // 让首个非空卡面走 enter（重聚进入）而不是从空态的 kind 切过来。
+  // snapshot 传 messages 数组引用：频道切换后它换新，代表新频道数据已落位，
+  // 此时才消费 kind（否则首帧的 kind 还来自上一频道的残留数据）。
+  const guideView = useJourneyGuideView(
+    channel?.id ?? null,
+    messages.length === 0 ? null : journey.guideKind,
+    messages,
+  );
   const [composerFocusTick, setComposerFocusTick] = useState(0);
   /** 「描述任务」CTA：递增本地信号聚焦 composer（与外部 DM 导航信号叠加）。 */
   const requestComposerFocus = () => setComposerFocusTick((tick) => tick + 1);
@@ -4427,9 +5052,11 @@ export function ChannelView({
                   </div>
                 );
               })}
-              {journey.guideKind && (
+              {guideView && (
                 <JourneyGuideCard
-                  kind={journey.guideKind}
+                  kind={guideView.kind}
+                  phase={guideView.phase}
+                  generation={guideView.generation}
                   hasTasks={journey.hasTasks}
                   onOpenTasks={() => selectTab("tasks")}
                   onConvertLatest={(trigger) => {

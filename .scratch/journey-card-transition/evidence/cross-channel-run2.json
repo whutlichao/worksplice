@@ -1,0 +1,88 @@
+{
+  "verdict": "GREEN",
+  "failures": [],
+  "switchSample": {
+    "headerSwitchedAt": 17,
+    "observeMs": 6000,
+    "sampleCount": 336,
+    "leakWindowSamples": 49,
+    "leakWindowCards": 38,
+    "leakLabels": [
+      "把一条消息转为任务",
+      "等待交接或认领"
+    ],
+    "messageRowSeenAt": 149,
+    "lastCardAt": 836,
+    "transientCard": {
+      "t": 149,
+      "label": "把一条消息转为任务",
+      "kind": "handoff",
+      "phase": "enter",
+      "className": "journey-guide-card"
+    },
+    "firstSamples": [
+      {
+        "t": 0,
+        "header": false,
+        "hasCard": true
+      },
+      {
+        "t": 17,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 35,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 53,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 71,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 88,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 105,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 123,
+        "header": true,
+        "hasCard": false
+      }
+    ]
+  },
+  "bFinal": {
+    "streamCardCount": 0,
+    "anyCardCount": 0,
+    "labels": []
+  },
+  "backSample": {
+    "elapsedMs": 44,
+    "firstPhase": "enter",
+    "firstLabel": "去复核",
+    "header": "#cross-a-1792754565097私有离开归档1journey cro"
+  },
+  "cSample": {
+    "headerSwitchedAt": 20,
+    "firstCard": {
+      "t": 66,
+      "label": "把一条消息转为任务",
+      "kind": "handoff",
+      "phase": "enter",
+      "className": "journey-guide-card"
+    },
+    "elapsedMs": 66
+  }
+}

@@ -1,0 +1,8 @@
+[2026-10-23T09:55:07.750Z] channel A c03f4c35-6df6-46c9-9e8b-249c8b658dd9
+[2026-10-23T09:55:07.913Z] A task → in_review
+[2026-10-23T09:55:09.164Z] channel B 4d8a5c34-cacd-4e44-8625-3fee41e5d46e
+[2026-10-23T09:55:09.396Z] B task → in_review → done (guideKind null)
+[2026-10-23T09:55:11.149Z] A shows 去复核 card
+[2026-10-23T09:55:12.066Z] switch A→B: headerSwitchedAt=18ms samples=52 cardsAfterSwitch=25 labelsSeen=["把一条消息转为任务","等待交接或认领"]
+[2026-10-23T09:55:12.807Z] switch B→A: firstPhase="enter" firstLabel="去复核" elapsed=32ms
+[2026-10-23T09:55:12.955Z] VERDICT GREEN (0 failure(s))

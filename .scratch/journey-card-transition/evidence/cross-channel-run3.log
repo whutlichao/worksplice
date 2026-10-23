@@ -1,0 +1,11 @@
+[2026-10-23T11:22:56.518Z] channel A 9fa2a53d-9593-42d2-b0ad-c3961b04d989
+[2026-10-23T11:22:56.558Z] A task → in_review
+[2026-10-23T11:22:56.586Z] channel B 9fbec43d-ef29-497e-bd29-cab9a984dff4
+[2026-10-23T11:22:56.608Z] B task → in_review → done (guideKind null)
+[2026-10-23T11:22:56.621Z] channel C 35d46ee1-d0bb-4e21-a4dc-031fb232d4b9 (message only, no task → handoff card)
+[2026-10-23T11:22:57.888Z] A shows 去复核 card
+[2026-10-23T11:23:03.904Z] switch A→B: headerSwitchedAt=19ms samples=337 leakWindowSamples=49 leakWindowCards=37 leakLabels=["把一条消息转为任务","等待交接或认领"] messageRowSeenAt=77ms lastCardAt=746ms transientCard={"t":77,"label":"把一条消息转为任务","kind":"handoff","phase":"enter","className":"journey-guide-card"}
+[2026-10-23T11:23:04.909Z] B final: streamCards=0 anyCards=0 labels=[]; 瞬时卡出现过（t=77ms, phase=enter）
+[2026-10-23T11:23:05.157Z] switch B→A: firstPhase="enter" firstLabel="去复核" elapsed=49ms
+[2026-10-23T11:23:05.531Z] switch A→C (deterministic handoff): headerSwitchedAt=18ms firstCard={"t":131,"label":"把一条消息转为任务","kind":"handoff","phase":"enter","className":"journey-guide-card"} elapsed=131ms
+[2026-10-23T11:23:06.568Z] VERDICT GREEN (0 failure(s))

@@ -1,0 +1,33 @@
+{
+  "id": "ec3c5092-4ef8-4db5-b306-1bc1f189ccd1",
+  "ok": true,
+  "result": {
+    "message": {
+      "id": "msg_ec42321e4c9b",
+      "run_id": "run_ddce623f5442",
+      "delivery_contract": "current_delivery",
+      "from_handle": "term_4a08436e-7787-4c7f-87ef-5db2c225c586",
+      "to_handle": "run:run_ddce623f5442",
+      "subject": "旅程引导卡最终设计（内容层粒子燃尽/重聚）完成复验，PR #208 已更新",
+      "body": "按最终设计完成：卡壳全程静止，只有内容层（标题/hint/CTA）参与过渡；切换时旧内容燃尽成粒子（140ms 燃尽淡出与粒子交叉）、新内容由粒子聚拢成形后实体淡入，粒子结束从 DOM 移除；guideKind→null 时内容燃尽后由状态机卸载卡壳，无整卡动画。固定参数 2.6px 网格 / 1.35×（消散 563ms、等待 237ms、重聚 415ms、90% 处 140ms 淡入）。采样以 DOM 排版为准（逐字符 Range 行盒 + 离屏 canvas + 四象限 alpha 加权重心），几何收敛为 lib/journey-guide-particles.ts 纯函数；SSR 无坐标，reduce 无粒子/位移，连续切换清理干净；跨频道首张卡 enter 的快照归属门控保留。门禁：窄档 88/88、typecheck 0 error、lint 0 error（仅既存 useI18n warning）；主探针 1× GREEN，跨频道 3/3 GREEN（本轮修正探针 900ms 首卡窗口假设，泄漏窗仍 900ms、首卡最多等 6s）。双轴 review 的 findings 与处置已写入 Answer.md（修了过时注释、空白天帧与 spec 文档不一致；探针窗口误红已纠正）。分支已推送，PR #208 原地更新；工作区干净，无遗留项。",
+      "type": "worker_done",
+      "priority": "normal",
+      "thread_id": null,
+      "payload": "{\"taskId\":\"task_cd937062586e\",\"dispatchId\":\"ctx_2a48cb8a4a32\",\"outcome\":\"succeeded\",\"filesModified\":[\"components/ChannelView.tsx\",\"app/globals.css\",\"components/ChannelView.test.mjs\",\"app/globals.test.mjs\",\"lib/journey-guide-particles.ts\",\".scratch/journey-card-transition/\"],\"reportPath\":\".scratch/journey-card-transition/Answer.md\"}",
+      "created_at": "2026-10-23T11:12:16Z",
+      "delivered_at": null
+    },
+    "lifecycle": {
+      "action": "completed",
+      "taskId": "task_cd937062586e",
+      "dispatchId": "ctx_2a48cb8a4a32"
+    },
+    "mutation": {
+      "requestId": "a10126e0-eb0e-45d8-b9bf-585bf0ecc771",
+      "replayed": false
+    }
+  },
+  "_meta": {
+    "runtimeId": "2fde304c-8cb6-49c3-82d7-ea5b2b9722d0"
+  }
+}
