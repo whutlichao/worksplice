@@ -125,4 +125,4 @@ claim（todo→in_progress）→ update-status `in_review` → `done`，每步�
 
 - 分支：`task-card-poll-sync`
 - PR body：`.scratch/task-card-poll-sync/pr-body.md`
-- PR 号：见下方「PR 链接」（创建后回填）
+- PR 号：**#207** — https://github.com/whutlichao/worksplice/pull/207
