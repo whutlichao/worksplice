@@ -85,7 +85,9 @@ hover 一条消息、点 `···`，逐条断言票面 5 条要求，`verdict` �
 - 改动文件：`app/globals.css`、`components/ChannelView.tsx`、`components/message-stream.test.mjs`、
   `components/ChannelView.test.mjs`
 - 本票证据与探针：`.scratch/msg-more-menu-layout/`（Answer / pr-body / probe-*.ego.mjs / evidence/*）
-- PR：见下方「PR」节（body 落在 `.scratch/msg-more-menu-layout/pr-body.md`）
+- PR：**#205** https://github.com/whutlichao/worksplice/pull/205（body 落在 `.scratch/msg-more-menu-layout/pr-body.md`）
+- 提交：`d75c07a`（修复 + 回归测试）、`144b04a`（Answer / 探针 / 证据）、本条（回填 PR 号）
+- `git status --porcelain` 为空；分支已推 `origin/msg-more-menu-layout`
 
 ## review
 
