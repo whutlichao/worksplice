@@ -269,6 +269,63 @@ test("消息动作栏：绝对定位、hover/focus 才出、--shadow-pop、opaci
     assert.doesNotMatch(tools, /2px solid/);
 });
 
+/** 选择器特异度三元组（id, class/属性/伪类, 元素），用于比较两条规则谁赢。 */
+function specificity(selector) {
+    const ids = (selector.match(/#[\w-]+/g) ?? []).length;
+    const classes = (
+        selector.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+(?:\([^)]*\))?/g) ?? []
+    ).length;
+    const stripped = selector
+        .replace(/#[\w-]+|\.[\w-]+|\[[^\]]+\]|::?[\w-]+(?:\([^)]*\))?/g, " ")
+        .trim();
+    const elements = stripped ? stripped.split(/\s+/).length : 0;
+    return [ids, classes, elements];
+}
+
+function compareSpecificity(a, b) {
+    for (let i = 0; i < 3; i += 1) {
+        if (a[i] !== b[i]) return a[i] - b[i];
+    }
+    return 0;
+}
+
+test("`···` 二级菜单项不受动作栏图标键几何泄漏：专属 class 以更高特异度收回 display/height/width", () => {
+    // 泄漏源本身保持逐字不改（port 块声明体是上游事实，本仓只叠扩展层）。
+    assert.equal(
+        normalize(blockBody(globalsCss, ".msg-tools button")),
+        normalize(blockBody(upstreamCss, ".msg-tools button")),
+        "`.msg-tools button` 必须与上游 app.css 逐字一致",
+    );
+    const iconKey = blockBody(globalsCss, ".msg-tools button");
+    // 这就是泄漏：图标键的 grid 居中 + 写死 24px：后代选择器会连带命中菜单项。
+    assert.match(iconKey, /display:\s*grid/);
+    assert.match(iconKey, /place-items:\s*center/);
+    assert.match(iconKey, /height:\s*24px/);
+
+    // 本仓局部规则把泄漏的几何收回来：一行一个 flex 项，宽高随内容。
+    const item = blockBody(globalsCss, ".msg-tools .msg-more-menu-item");
+    assert.match(item, /display:\s*flex/);
+    assert.match(item, /align-items:\s*center/);
+    assert.match(item, /justify-content:\s*flex-start/);
+    assert.match(item, /height:\s*auto/);
+    assert.match(item, /width:\s*100%/);
+    assert.match(item, /padding:/);
+    assert.match(item, /gap:/);
+    assert.match(item, /white-space:\s*nowrap/);
+    assert.match(item, /text-align:\s*left/);
+    assert.doesNotMatch(item, /place-items/);
+    assert.doesNotMatch(item, /height:\s*\d+px/);
+
+    // 单类 (0,1,0) 打不过 `.msg-tools button` 的 (0,1,1)，必须落到 `.msg-tools <class>` 这一级。
+    assert.ok(
+        compareSpecificity(
+            specificity(".msg-tools .msg-more-menu-item"),
+            specificity(".msg-tools button"),
+        ) > 0,
+        "菜单项规则的合法特异度必须高于 `.msg-tools button`：否则 height/display 仍被图标键几何钉死",
+    );
+});
+
 
 // ─── ② 渲染面 ────────────────────────────────────────────────────────────────
 

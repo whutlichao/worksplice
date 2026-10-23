@@ -1412,6 +1412,18 @@ span.linenumber {
 .msg-tools { position: absolute; top: -12px; right: var(--sp-4); display: flex; gap: 2px; opacity: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); padding: 2px; transition: opacity var(--dur) var(--ease); }
 .msg-tools button { width: 26px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }
 .msg-tools button:hover { background: var(--fg-soft); color: var(--fg); }
+/* `···` 二级菜单项（票 16 把菜单嵌进 `.msg-tools > span > div[role="menu"]`）。
+   上面两条 port 规则是**后代**选择器，图标键几何（`display: grid` + 写死 `height: 24px`）会连带
+   钉死菜单项，四条后果：图标单独一行（grid 居中）、相邻项互相压、面板高度按 N×24px 算装不下
+   最后一项、标签贴边走。port 块声明体是上游事实（逐字比对在 components/message-stream.test.mjs），
+   本仓只在扩展层收口：`.msg-tools <class>` 是 (0,2,0)，打得过 `.msg-tools button` 的 (0,1,1)，
+   把 display/height/width 改回「一行一个 flex 项、宽高随内容」。 */
+.msg-tools .msg-more-menu-item {
+  display: flex; align-items: center; justify-content: flex-start;
+  width: 100%; height: auto; padding: 5px 8px; gap: 8px;
+  border: none; border-radius: 4px; background: transparent; color: var(--fg);
+  white-space: nowrap; text-align: left;
+}
 .task-chip { display: inline-flex; align-items: center; gap: 7px; margin: var(--sp-3) 0 0; padding: var(--sp-3) 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent-graphic); border-radius: var(--r-sm); background: var(--surface); font-size: 12px; }
 .task-chip:hover { border-color: var(--border-strong); border-left-color: var(--accent-graphic); }
 .task-chip b { font-family: var(--mono); font-weight: var(--fw-black); color: var(--accent-deep); }

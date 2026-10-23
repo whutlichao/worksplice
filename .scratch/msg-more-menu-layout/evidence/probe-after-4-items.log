@@ -1,0 +1,125 @@
+{
+  "shot": "/Users/apple/orca/workspaces/worksplice/msg-more-menu-layout/.scratch/msg-more-menu-layout/evidence/after-4-items.png",
+  "chosen": "IIris#412:02Conclusion: add the index first, leave",
+  "itemCount": 4,
+  "probe": {
+    "heights": [
+      {
+        "label": "添加回应",
+        "height": 28
+      },
+      {
+        "label": "取消置顶",
+        "height": 28
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "height": 28
+      },
+      {
+        "label": "转为任务",
+        "height": 28
+      }
+    ],
+    "overlaps": [],
+    "inline": [
+      {
+        "label": "添加回应",
+        "topDelta": -2.5,
+        "iconLeftOfText": true
+      },
+      {
+        "label": "取消置顶",
+        "topDelta": -2.5,
+        "iconLeftOfText": true
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "topDelta": -2.5,
+        "iconLeftOfText": true
+      },
+      {
+        "label": "转为任务",
+        "topDelta": -2.5,
+        "iconLeftOfText": true
+      }
+    ],
+    "menu": {
+      "rect": {
+        "top": 197.03125,
+        "bottom": 325.03125,
+        "left": 1359.5,
+        "right": 1549.5,
+        "width": 190,
+        "height": 128
+      },
+      "clientHeight": 126,
+      "scrollHeight": 126,
+      "padding": {
+        "top": 4,
+        "right": 4,
+        "bottom": 4,
+        "left": 4
+      }
+    },
+    "lastItem": {
+      "bottom": 320.03125,
+      "label": "转为任务"
+    },
+    "nowrap": [
+      {
+        "label": "添加回应",
+        "wraps": false,
+        "itemOverflows": false
+      },
+      {
+        "label": "取消置顶",
+        "wraps": false,
+        "itemOverflows": false
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "wraps": false,
+        "itemOverflows": false
+      },
+      {
+        "label": "转为任务",
+        "wraps": false,
+        "itemOverflows": false
+      }
+    ],
+    "viewport": {
+      "width": 1982,
+      "height": 1011
+    },
+    "styles": [
+      {
+        "label": "添加回应",
+        "display": "flex",
+        "height": "28px",
+        "paddingLeft": "8px"
+      },
+      {
+        "label": "取消置顶",
+        "display": "flex",
+        "height": "28px",
+        "paddingLeft": "8px"
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "display": "flex",
+        "height": "28px",
+        "paddingLeft": "8px"
+      },
+      {
+        "label": "转为任务",
+        "display": "flex",
+        "height": "28px",
+        "paddingLeft": "8px"
+      }
+    ]
+  },
+  "failures": [],
+  "verdict": "GREEN"
+}
+
