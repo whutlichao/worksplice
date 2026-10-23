@@ -373,6 +373,19 @@ function describePromptTarget(input: {
 }
 
 /**
+ * P2：内容分工 rubric（固定骨架，永不裁）。回答「这段内容该写在哪」，不回答「投递到哪」——
+ * 投递目标仍由系统按 §3.7 裁决（详见 docs/spec.md §5.4 与 AGENTS.md）。
+ * 只加固定骨架行：projectMessages / elasticBudget / INJECTION_* 一律不动。
+ */
+export const CONTENT_PLACEMENT_RUBRIC: readonly string[] = [
+  "- Content placement (the app decides delivery — these rules shape what you write, not where it is posted):",
+  "- Facts, evidence, data or corrections about a specific deliverable belong in that deliverable's task thread.",
+  "- Methodology that stands on its own without the material belongs in the channel.",
+  "- Reusable facts or shared definitions may stay in the channel, but must carry their source and date.",
+  "- Mentioning a task in the channel is only a pointer — never add new conclusions there.",
+];
+
+/**
  * decide 的 prompt（§5.4 AX 原则）：新消息（带 seq/作者）+ 相关任务状态 + 明确的 next action 选项。
  *
  * 票 08（spec B5）：整轮注入形状受 `ROUND_INJECTION_BUDGET_CHARS` 约束——
@@ -489,6 +502,7 @@ export function buildReplyPrompt(input: {
   lines.push(
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
   );
+  lines.push(...CONTENT_PLACEMENT_RUBRIC);
   lines.push(
     '- Task protocol: a non-empty ordinary reply auto-claims only when this round\'s only new channel activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
     '  In both cases, claim first and post in the task thread; if claim fails (freshness hold, another owner, reopened block), yield without posting anywhere.',

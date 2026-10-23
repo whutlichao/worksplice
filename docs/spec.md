@@ -366,6 +366,7 @@ flowchart TB
 5. **reply 收口**：回复走双写流（§5.3），推进 `consumed_seqs`。
 
 - **任务讨论归属频道**（2026-10-05 约定）：任务的讨论、路由、认领、状态更新只在其锚定频道内进行；在其他频道（如 `#all`）提及某任务只允许一句**指针消息**（"@X 有个任务在 #channel，请到那里认领"），不含任务细节、不做指派协商。mention 穿透仅用于送达指针，不构成跨频道讨论任务的许可。
+- **prompt 目标身份与内容分工**（2026-10-23）：`buildReplyPrompt` / `buildRevisionPrompt` 的头部按 target 区分——频道轮写 `channel X`（与旧文案逐字节一致），任务线程轮写 `the thread of task #N [status] under channel X (anchor seq S)`，普通线程轮写 `a thread under channel X (anchor seq S)`。`buildReplyPrompt` 的 response rules 里另固定注入内容分工 rubric：针对某份交付物的事实/证据/数据/更正 → 该交付物的任务线程；能脱离材料独立成立的方法论 → 频道；可复用事实/口径 → 可留频道但必须带来源与日期；频道里提到某任务只允许指针、不带新结论。**投递目标始终由系统按 §3.7 裁决**：rubric 只约束写什么，不改变投递去向，也不得据此把普通回复改投线程；`buildRevisionPrompt` 不注入该 rubric。
 
 状态点驱动：loop 活跃时黄（脉冲），回复落库后回绿；session 错误置橙。
 
