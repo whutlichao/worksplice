@@ -53,8 +53,9 @@ export async function PATCH(req: Request) {
     const content = readFileSync(filePath, "utf8");
     const key = "disable-model-invocation";
 
-    // Use parseFrontmatter to check current value, then do a surgical line edit
-    // to preserve the original YAML formatting of all other fields.
+    // sunset: 待 SDK 提供 updateSkill() 后移除（ADR-0007）。在此之前，开关
+    // disable-model-invocation 只能这样手术：用 parseFrontmatter 读取当前值，
+    // 再只改这一行，保证用户 SKILL.md 其余字段的 YAML 格式逐字不变。
     const { frontmatter } = parseFrontmatter<Record<string, unknown>>(content);
     const alreadySet = Boolean(frontmatter[key]);
 
