@@ -199,4 +199,4 @@ enter`，且 B 从未出现 A 的「去复核」）；截图 `cross-01-channel-b
 
 - 分支：`journey-card-transition`
 - PR body：`.scratch/journey-card-transition/pr-body.md`
-- PR 号：（创建后回填）
+- PR 号：**#208** — https://github.com/whutlichao/worksplice/pull/208
