@@ -1,0 +1,174 @@
+{
+  "verdict": "GREEN",
+  "failures": [],
+  "labelSequence": [
+    "等待交接或认领",
+    "让它跑",
+    "去复核",
+    null
+  ],
+  "facts": {
+    "channelId": "1af44221-c093-49a7-ad05-62577f36ea19",
+    "taskId": "63320d58-b60a-4ee5-99cb-3a0b225cb3d0",
+    "steps": [],
+    "initial": {
+      "matched": true,
+      "state": {
+        "label": "等待交接或认领",
+        "kind": "handoff",
+        "phase": "switch",
+        "className": "journey-guide-card is-switching",
+        "cardAnimationName": "journey-guide-card-switch",
+        "cardOpacity": "0.520291",
+        "cardTransform": "matrix(0.98893, 0, 0, 0.98893, 0, 0)",
+        "layerAnimationName": "none",
+        "layerAriaHidden": "true",
+        "particleAnimationName": "journey-guide-particle-out, journey-guide-particle-in",
+        "particleAnimationDuration": "0.26s, 0.3s",
+        "particleAnimationDelay": "0s, 0.26s",
+        "particleOpacity": "0.462414",
+        "particleCount": 12,
+        "text": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板"
+      },
+      "elapsedMs": 0,
+      "timedOut": false
+    },
+    "hydrationWarnings": [],
+    "switching": {
+      "matched": true,
+      "state": {
+        "label": "让它跑",
+        "kind": "running",
+        "phase": "switch",
+        "className": "journey-guide-card is-switching",
+        "cardAnimationName": "journey-guide-card-switch",
+        "cardOpacity": "0.35",
+        "cardTransform": "matrix(0.985, 0, 0, 0.985, 0, 0)",
+        "layerAnimationName": "none",
+        "layerAriaHidden": "true",
+        "particleAnimationName": "journey-guide-particle-out, journey-guide-particle-in",
+        "particleAnimationDuration": "0.26s, 0.3s",
+        "particleAnimationDelay": "0s, 0.26s",
+        "particleOpacity": "0",
+        "particleCount": 12,
+        "text": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板"
+      },
+      "elapsedMs": 2666,
+      "timedOut": false
+    },
+    "switchMid": {
+      "label": "让它跑",
+      "kind": "running",
+      "phase": "switch",
+      "className": "journey-guide-card is-switching",
+      "cardAnimationName": "journey-guide-card-switch",
+      "cardOpacity": "0.881992",
+      "cardTransform": "matrix(0.997277, 0, 0, 0.997277, 0, 0)",
+      "layerAnimationName": "none",
+      "layerAriaHidden": "true",
+      "particleAnimationName": "journey-guide-particle-out, journey-guide-particle-in",
+      "particleAnimationDuration": "0.26s, 0.3s",
+      "particleAnimationDelay": "0s, 0.26s",
+      "particleOpacity": "0.442489",
+      "particleCount": 12,
+      "text": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板"
+    },
+    "runningFinal": {
+      "matched": true,
+      "state": {
+        "label": "让它跑",
+        "kind": "running",
+        "phase": "switch",
+        "className": "journey-guide-card is-switching",
+        "cardAnimationName": "journey-guide-card-switch",
+        "cardOpacity": "1",
+        "cardTransform": "matrix(1, 0, 0, 1, 0, 0)",
+        "layerAnimationName": "none",
+        "layerAriaHidden": "true",
+        "particleAnimationName": "journey-guide-particle-out, journey-guide-particle-in",
+        "particleAnimationDuration": "0.26s, 0.3s",
+        "particleAnimationDelay": "0s, 0.26s",
+        "particleOpacity": "0",
+        "particleCount": 12,
+        "text": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板"
+      },
+      "elapsedMs": 435,
+      "timedOut": false
+    },
+    "reducedMotion": {
+      "matched": {
+        "matched": true,
+        "state": {
+          "label": "去复核",
+          "kind": "review",
+          "phase": "switch",
+          "className": "journey-guide-card is-switching",
+          "cardAnimationName": "none",
+          "cardOpacity": "1",
+          "cardTransform": "none",
+          "layerAnimationName": "none",
+          "layerAriaHidden": "true",
+          "particleAnimationName": "journey-guide-particle-out, journey-guide-particle-in",
+          "particleAnimationDuration": "0.001s",
+          "particleAnimationDelay": "0s",
+          "particleOpacity": "0",
+          "particleCount": 12,
+          "text": "去复核有任务在等你复核，去任务板看看。打开任务板"
+        },
+        "elapsedMs": 2277,
+        "timedOut": false
+      },
+      "sample": {
+        "label": "去复核",
+        "kind": "review",
+        "phase": "switch",
+        "className": "journey-guide-card is-switching",
+        "cardAnimationName": "none",
+        "cardOpacity": "1",
+        "cardTransform": "none",
+        "layerAnimationName": "none",
+        "layerAriaHidden": "true",
+        "particleAnimationName": "journey-guide-particle-out, journey-guide-particle-in",
+        "particleAnimationDuration": "0.001s",
+        "particleAnimationDelay": "0s",
+        "particleOpacity": "0",
+        "particleCount": 12,
+        "text": "去复核有任务在等你复核，去任务板看看。打开任务板"
+      }
+    },
+    "exiting": {
+      "matched": true,
+      "state": {
+        "label": "去复核",
+        "kind": "review",
+        "phase": "exit",
+        "className": "journey-guide-card is-exiting",
+        "cardAnimationName": "journey-guide-card-out",
+        "cardOpacity": "1",
+        "cardTransform": "matrix(1, 0, 0, 1, 0, 0)",
+        "layerAnimationName": "none",
+        "layerAriaHidden": "true",
+        "particleAnimationName": "journey-guide-particle-out",
+        "particleAnimationDuration": "0.26s",
+        "particleAnimationDelay": "0s",
+        "particleOpacity": "0",
+        "particleCount": 12,
+        "text": "去复核有任务在等你复核，去任务板看看。打开任务板"
+      },
+      "elapsedMs": 2502,
+      "timedOut": false
+    },
+    "gone": {
+      "matched": true,
+      "state": null,
+      "elapsedMs": 232,
+      "timedOut": false
+    },
+    "labelSequence": [
+      "等待交接或认领",
+      "让它跑",
+      "去复核",
+      null
+    ]
+  }
+}
