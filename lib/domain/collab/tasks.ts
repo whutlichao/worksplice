@@ -40,6 +40,8 @@ export interface TaskView extends TaskRow {
   reachable: TaskStatus[];
   /** Task thread 中高于 Owner 已读游标的非 Owner 回复数。 */
   unreadReplyCount: number;
+  /** Task thread 内全部回复数（所有作者，含 Owner；不含锚点；不受已读游标影响）。 */
+  totalReplyCount: number;
   /** 最新一条未读回复的创建时间；没有未读回复时为 null。 */
   latestUnreadReplyAt: string | null;
   /**
@@ -192,6 +194,7 @@ function toTaskView(
   task: TaskRow,
   anchor: MessageRow,
   actorId: string = CURRENT_MEMBER_ID,
+  totalReplyCount?: number,
 ): TaskView {
   return {
     ...task,
@@ -199,6 +202,8 @@ function toTaskView(
     anchor: messageWithAuthor(anchor),
     owner: task.owner_id ? (getMember(task.owner_id) ?? null) : null,
     reachable: reachableStatuses(task, actorId),
+    totalReplyCount:
+      totalReplyCount ?? getDb().threadReplyCount(task.message_id),
     unreadReplyCount: getDb().countUnreadTaskThreadReplies(
       task.id,
       CURRENT_MEMBER_ID,
@@ -420,6 +425,9 @@ export function listChannelTasks(channelId: string): TaskView[] {
   const channel = getChannel(channelId);
   if (!channel) throw new Error("Channel not found");
   const tasks = getDb().listChannelTasks(channelId);
+  const replyCounts = getDb().threadReplyCounts(
+    tasks.map((task) => task.message_id),
+  );
   const anchors = new Map<string, MessageRow>();
   for (const task of tasks) {
     const anchor = getDb().getMessage(task.message_id);
@@ -428,7 +436,13 @@ export function listChannelTasks(channelId: string): TaskView[] {
   return tasks
     .map((task) => {
       const anchor = anchors.get(task.message_id);
-      return anchor ? toTaskView(task, anchor) : null;
+      if (!anchor) return null;
+      return toTaskView(
+        task,
+        anchor,
+        CURRENT_MEMBER_ID,
+        replyCounts.get(task.message_id) ?? 0,
+      );
     })
     .filter((view): view is TaskView => view !== null);
 }
