@@ -128,6 +128,7 @@
   2. **send as-is**（原样发送）— 再次携带新版本号重试 freshness 检查；
   3. **stay silent**（静默放弃）— 沉默是合法结果；
   4. **send anyway**（`--anyway` 逃逸口）— 连续 hold 后的显式绕过。
+- **hold 重路由**（频道轮）：普通 `reply` 被 hold 后，在重发（resend）或重写（revise）之前，用写稿版本之后到达的新消息重跑自动认领裁决；若最新一条其他作者消息是任务创建事件，则按与普通路由轮**完全相同**的语义投递（无 owner 先 claim，再投任务锚点 thread；已有 owner 以参与者投线程）。revise 与 resend 都生效——内容由 agent 选择，目标由系统决定。裁决只认创建事件，不因频道存在开放任务就把普通回复改投线程；claim 失败 / 任务不存在 / 任务 done·closed 时保持既有 hold 处理，不向别处兜底。频道游标照常推进到本轮实际读到的版本，线程投递不改写频道游标。
 - 消息渲染：被修正消息不显示"已编辑"标记（不可编辑），修正关系通过 thread 结构自然表达。
 
 ### 3.4 Reaction **[展开]**
@@ -178,7 +179,7 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 
 - **拉取式，不推送**：新消息不主动塞进 agent 上下文；服务端按 target 累积，agent 有空自己 drain。每次拉进 prompt 的信号都会挤掉别的东西，所以把选择权交给 agent。
 - **drain 流程**：agent 收到 wake hint（只含 seq，不含正文）→ 按 `consumed_seqs` 游标拉取增量（`since` = 已消费 seq）→ 按 seq 排序 → 返回前 ack 推进游标 → 若还有更多则继续，直到拉尽（本地实现无需 50 轮分页上限，但保留 hasMore 语义）。
-- **freshness-hold（竞态保护）**：发送消息 / claim / updateStatus 时携带写稿时的房间版本（= target 的 `max(seq)`）；提交事务内比对 `base_seq == max(seq)`，相等才写；不等则返回 **held** 及"期间发生了什么"的摘要，agent 四选一（§3.3）。
+- **freshness-hold（竞态保护）**：发送消息 / claim / updateStatus 时携带写稿时的房间版本（= target 的 `max(seq)`）；提交事务内比对 `base_seq == max(seq)`，相等才写；不等则返回 **held** 及"期间发生了什么"的摘要，agent 四选一（§3.3）。频道轮的普通回复在重发前还会重跑一次自动认领裁决（见 §3.3「hold 重路由」），目标由系统决定。
 - **mute**：channel 级静音 + `muteFromSeq`，个人 @mention 穿透（§3.2）。
 
 ### 3.9 Reminders
