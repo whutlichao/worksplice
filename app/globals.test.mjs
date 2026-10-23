@@ -3,7 +3,8 @@
  *
  * T-A 上游契约镜像：设计系统 token 真的进了产品，且没有被本仓偷偷改值。
  * T-B 旧名灭绝：旧方向的 token 名全仓 0 次，防「新代码新名、旧代码旧名」的双轨漂移。
- * T-C 骨架规则：0 圆角压制 / 2px ink 结构线 / 断点 900+1080 / reduce 收敛。
+ * T-C 骨架规则与文档一致性：0 圆角压制 / 2px ink 结构线 / 断点 900+1080 / reduce 收敛 /
+ *     docs/spec.md §4 与 AGENTS.md 的契约段不漂移。
  * T-D 渲染面：组件真的在消费新契约（markup 里出现新 token 名），不只是断言 CSS 源文本。
  */
 import assert from "node:assert/strict";
@@ -131,6 +132,13 @@ const RETIRED_TOKEN_NAMES = [
   "--accent-line",
 ];
 
+/** token 名边界：两侧都不许接 `[\w-]`，避免 `--panel` 命中 `--panel-2`、`--text` 命中 `--online-text`。 */
+function tokenPattern(name) {
+  return new RegExp(
+    `(?<![\\w-])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`,
+  );
+}
+
 test("T-B: 旧 token 名在 app/components/hooks/lib 的 .tsx/.ts/.css 里出现 0 次", async () => {
   const roots = ["app/", "components/", "hooks/", "lib/"].map(
     (dir) => new URL(dir, repoUrl),
@@ -150,10 +158,9 @@ test("T-B: 旧 token 名在 app/components/hooks/lib 的 .tsx/.ts/.css 里出现
     if (fileURLToPath(file) === selfPath) continue;
     const source = await readFile(file, "utf8");
     for (const name of RETIRED_TOKEN_NAMES) {
-      const pattern = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`);
       assert.doesNotMatch(
         source,
-        pattern,
+        tokenPattern(name),
         `${fileURLToPath(file)} 仍引用旧 token ${name}`,
       );
     }
@@ -243,6 +250,110 @@ test("T-C: 有色 2px 结构线在 app/components/hooks 的源码里也为 0（�
       `${fileURLToPath(file)} 仍有有色 2px 结构线`,
     );
   }
+});
+
+// ─── T-C 文档一致性：docs/spec.md §4 与 AGENTS.md 的契约段 ────────────────────
+
+const specUrl = new URL("../docs/spec.md", import.meta.url);
+const agentsUrl = new URL("../AGENTS.md", import.meta.url);
+
+/** 取 `heading` 起、到下一个 `## ` 标题前的正文（markdown 章节）。 */
+function extractSection(markdown, heading) {
+  const start = markdown.indexOf(heading);
+  assert.notEqual(start, -1, `缺少章节 ${heading}`);
+  const rest = markdown.slice(start + heading.length);
+  const next = rest.search(/\n##\s/);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+test("T-C: docs/spec.md §4 不再出现退役色值与旧契约标记", async () => {
+  // 文档与代码同一方向：§4 只留终局值（ADR-0014 形态 + ADR-0015 色板）。
+  const spec = await readFile(specUrl, "utf8");
+  const section = extractSection(spec, "## 4. 视觉设计 token");
+  const retiredMarkers = [
+    "#ffd440",
+    "#fe7da8",
+    "#fffaef",
+    "0 圆角",
+    "2px ink",
+    "[锁定] 02",
+    "Space Grotesk",
+    "tailwind 配置",
+    "沿用 pi-web 的主题基建",
+    "像素头像",
+    "硬偏移阴影",
+  ];
+  for (const marker of retiredMarkers) {
+    assert.ok(
+      !section.includes(marker),
+      `docs/spec.md §4 仍含旧契约标记 ${marker}`,
+    );
+  }
+  // 退役 token 名（`--accent-line` / `--text*` / `--bg-panel` …）在 §4 同样 0 次。
+  for (const name of RETIRED_TOKEN_NAMES) {
+    assert.doesNotMatch(
+      section,
+      tokenPattern(name),
+      `docs/spec.md §4 仍引用已退役 token ${name}`,
+    );
+  }
+  assert.match(section, /Tailwind 已删除/);
+});
+
+test("T-C: AGENTS.md 的 CSS 变量段列的是当前契约名", async () => {
+  const agents = await readFile(agentsUrl, "utf8");
+  const section = extractSection(agents, "## CSS Variables");
+  const requiredTokens = [
+    "--bg",
+    "--surface",
+    "--panel",
+    "--panel-2",
+    "--fg",
+    "--muted",
+    "--faint",
+    "--border",
+    "--border-strong",
+    "--accent",
+    "--accent-hover",
+    "--accent-soft",
+    "--accent-graphic",
+    "--online",
+    "--working",
+    "--error",
+    "--offline",
+    "--av-0",
+    "--av-4",
+    "--font",
+    "--mono",
+    "--font-mono",
+    "--sp-*",
+    "--r-*",
+    "--shadow-card",
+    "--shadow-pop",
+    "--shadow-composer",
+  ];
+  for (const token of requiredTokens) {
+    assert.match(
+      section,
+      tokenPattern(token),
+      `AGENTS.md CSS 变量段缺 ${token}`,
+    );
+  }
+  // 已退役的 token 只允许出现在「退役」说明行；把它们重新列为现行契约名即红。
+  for (const line of section.split("\n")) {
+    for (const name of RETIRED_TOKEN_NAMES) {
+      if (!tokenPattern(name).test(line)) continue;
+      assert.match(line, /退役/, `AGENTS.md CSS 变量段把退役 token ${name} 当作现行名：${line}`);
+    }
+  }
+});
+
+test("T-C: AGENTS.md File Map 不再指向已删除的旧头像组件", async () => {
+  const agents = await readFile(agentsUrl, "utf8");
+  const section = extractSection(agents, "## File Map");
+  assert.doesNotMatch(section, /PixelAvatar/);
+  assert.match(section, /^\s*Avatar\.tsx\s/m);
+  assert.doesNotMatch(section, /马卡龙 × brutalist/);
 });
 
 // ─── T-D 渲染面：组件真的在消费新契约 ────────────────────────────────────────

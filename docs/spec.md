@@ -8,7 +8,7 @@
 | 决策 | 出处 ticket | 一句话 |
 |---|---|---|
 | pi 能力边界与多实例模型 | 01 | 持久 agent = 绑定 cwd 的 AgentSession / `pi --mode rpc` 子进程；隔离单位 cwd |
-| 参考形态的视觉参考与马卡龙配色 | 02 | `--color-brutal-*` 色板 + 2px 粗边框 + 0 圆角 + 硬偏移阴影（**已被 ADR-0014 / ADR-0015 先后改判，终局值见 §4**） |
+| 参考形态的视觉参考与马卡龙配色 | 02 | `--color-brutal-*` 色板 + 粗墨线边框 + 直角 + 硬偏移阴影（**已被 ADR-0014 / ADR-0015 先后改判，终局值见 §4**） |
 | 参考产品与架构细节研究 | 03 | 拉取式 inbox、freshness-hold、任务板状态机、记忆 = workspace 磁盘目录 |
 | pi-web 功能去留与能力映射 | 04 | 骨架按参考形态重写；pi-web 降级为组件库；保留/重写/删除清单 |
 | 数据层选型与数据建模 | 05 | better-sqlite3 独立存储层；`UNIQUE(target_id, seq)`；双写流；FTS5 |
@@ -214,7 +214,7 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 
 **马卡龙暖奶霜 + pastel 角色族**（`docs/adr/0015-macaron-palette-warm-cream-pastel.md` 裁决），**形态段沿用 `docs/adr/0014-visual-direction-modern-minimal.md`**——小圆角、发丝边框、柔和阴影、首字头像、三栏骨架、断点（1080 / 900 / 640）与系统字体栈全部继续有效。仅亮色一档，无深色模式，不响应 `prefers-color-scheme`。
 
-> 沿革（本节曾三次记录方向）：最初是「马卡龙 × brutalist」的 12 色板 + 0 圆角 + 2px ink；ADR-0014 整节改判为 modern-minimal；ADR-0015 只再改判其**色板段**为马卡龙。本节只保留终局值，历史论证在两份 ADR 里。
+> 沿革（本节曾三次记录方向）：最初是马卡龙色板配墨线粗边框与直角形态；ADR-0014 整节改判为 modern-minimal；ADR-0015 只再改判其**色板段**为马卡龙。本节只保留终局值，历史论证在两份 ADR 里。
 
 事实来源是入库的 `worksplice-design-system/`：`colors_and_type.css`（色 + 字型）、`tokens.css`（间距 / 圆角 / 高度 / 阴影 / 动效 / z-index），两者经 `app/globals.css` 顶层 `@import` 成为**运行时真源**；`app/globals.css` 只叠产品扩展层，不复制上游同名 token。
 
@@ -262,8 +262,8 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 形态段沿用 ADR-0014（不因 ADR-0015 复活 brutalist）：
 
 - 小圆角 6 / 8 / 12 / 16（`--r-sm/md/lg/xl`）；`--r-pill` 99px 只用于计数 / 标签 / 状态 / 反应 chip，卡片不做胶囊。
-- 发丝边框 1px：`--border` 分隔、`--border-strong` 输入与可交互边界。**无 2px ink 粗边框**。
-- 柔和阴影三档（`--shadow-composer` 常驻输入 / `--shadow-card` 卡片 hover / `--shadow-pop` 浮层 · 弹窗 · 抽屉），只用于分层表面，静止内容不加；**无硬偏移阴影阶梯**。
+- 发丝边框 1px：`--border` 分隔、`--border-strong` 输入与可交互边界。**无粗墨线边框**。
+- 柔和阴影三档（`--shadow-composer` 常驻输入 / `--shadow-card` 卡片 hover / `--shadow-pop` 浮层 · 弹窗 · 抽屉），只用于分层表面，静止内容不加；**无硬阴影阶梯**。
 
 ### 4.3 字体
 
@@ -272,7 +272,7 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 | 正文 / 标题 | 系统 sans 栈（`--font`，含 `PingFang SC`） | 正文默认、标题、按钮 |
 | 等宽 | 系统 mono 栈（`--mono`） | 代码、时间戳、seq 号、计数（`tabular-nums`） |
 
-无 webfont、无第三字体（Space Grotesk / Hanken Grotesk / Space Mono 作废）；13px 正文密度。
+无 webfont、无第三字体（旧方向的三款 Google 字体随 ADR-0014 一并作废）；13px 正文密度。
 
 ### 4.4 组件风格
 
