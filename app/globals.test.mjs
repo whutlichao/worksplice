@@ -235,10 +235,24 @@ test("T-C: 旅程引导卡过渡 keyframes 存在，reduce 收敛到粒子时长
   ]) {
     assert.match(css, new RegExp(`@keyframes\\s+${name}\\b`), `缺少 @keyframes ${name}`);
   }
-  // 既有全局 reduce reset（animation-duration）仍在；本票粒子动画显式收敛到 0.001s，
-  // 保证 reduce 下粒子不出现可见位移/缩放（浏览器证据断言同一值）。
+  // 既有全局 reduce reset（animation-duration）仍在。
   assert.match(
     css,
+    /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?animation-duration:\s*0\.001ms\s*!important/,
+  );
+  // 本票粒子动画显式收敛到 0.001s，且断言落在**覆盖粒子的那个 reduce 块内**
+  // （不是任意位置），保证 reduce 下粒子不出现可见位移/缩放（浏览器证据断言同一值）。
+  const reduceBlocks = css
+    .split(/@media\s*\(prefers-reduced-motion:\s*reduce\)/)
+    .slice(1);
+  const particleReduce = reduceBlocks.find((block) =>
+    /\.journey-guide-particle\s*\{[^}]*animation-duration:\s*0\.001s\s*!important/.test(
+      block,
+    ),
+  );
+  assert.ok(particleReduce, "缺少覆盖粒子动画的 reduce 块");
+  assert.match(
+    particleReduce,
     /\.journey-guide-particle\s*\{[^}]*animation-duration:\s*0\.001s\s*!important/,
   );
 });

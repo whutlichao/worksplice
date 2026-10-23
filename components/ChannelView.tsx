@@ -551,12 +551,14 @@ export function JourneyBar({ step }: { step: JourneyStep }) {
  * 引导卡形态过渡（本票）：四种形态切换时播放一次「粒子消散 → 重聚」。
  *
  * 状态机只由「上一视图 + 新 guideKind」推导，不读时钟、不随机，SSR 与客户端同输入
- * 同输出。`guideKind` 变为 null 时用局部状态保留最后一张卡面的 kind，等消散动画播完
- * （JOURNEY_GUIDE_EXIT_MS）再卸载——这段保留状态只服务动画，不参与 journey 推导。
- * 时长与 app/globals.css 的 keyframes/duration 对齐，总时长 ≤900ms。
+ * 同输出。`guideKind` 变为 null 时用局部状态保留最后一张卡面的 kind，等退场播完再
+ * 卸载——这段保留状态只服务动画，不参与 journey 推导。
+ *
+ * 各段时长在 app/globals.css：卡面 enter/switch/exit = 420/520/320ms，switch 的
+ * 粒子序列（消散 → 重聚 + 0–45ms 错峰）最长约 605ms，总时长 ≤900ms。
+ * JOURNEY_GUIDE_EXIT_MS 是退场保留窗口，比卡面退场 320ms 略长，
+ * 保证最后一颗错峰粒子播完再卸载。
  */
-export const JOURNEY_GUIDE_ENTER_MS = 420;
-export const JOURNEY_GUIDE_SWITCH_MS = 520;
 export const JOURNEY_GUIDE_EXIT_MS = 340;
 
 export type JourneyGuidePhase = "enter" | "switch" | "exit";
@@ -610,15 +612,30 @@ export function completeJourneyGuideExit(
   return previous?.phase === "exit" ? null : previous;
 }
 
-/** ChannelView 的局部过渡状态：kind 变化时驱动状态机，退场动画结束后卸载卡面。 */
+/**
+ * ChannelView 的局部过渡状态：kind 变化时驱动状态机，退场动画结束后卸载卡面。
+ *
+ * `scope`（频道 id）变化时整块状态重置：ChannelView 在 AppShell 里不按频道重新挂载，
+ * 若沿用上一个频道的 view，会把旧卡面带到新频道。渲染期直接按新频道重新起算，
+ * 保证切换频道的首帧就不显示旧卡；kind 变化由 layout effect 在绘制前驱动。
+ */
 export function useJourneyGuideView(
+  scope: string | null,
   kind: JourneyGuideKind | null,
 ): JourneyGuideView | null {
   const [view, setView] = useState<JourneyGuideView | null>(() =>
-    kind === null ? null : { kind, phase: "enter", generation: 1 },
+    nextJourneyGuideView(null, kind),
   );
+  const [viewScope, setViewScope] = useState(scope);
 
-  useEffect(() => {
+  // 频道切换：渲染期直接丢弃旧频道的状态，新频道从当前 kind 重新起算，
+  // 旧卡面不会在新频道里多留一帧（这是 React 的「props 变化时调整 state」模式）。
+  if (viewScope !== scope) {
+    setViewScope(scope);
+    setView(nextJourneyGuideView(null, kind));
+  }
+
+  useLayoutEffect(() => {
     setView((previous) => nextJourneyGuideView(previous, kind));
   }, [kind]);
 
@@ -772,6 +789,8 @@ export function JourneyGuideCard({
       className={`journey-guide-card ${phaseClass}`}
       data-guide-kind={kind}
       data-guide-phase={phase}
+      // 退场中的卡面不再接受点击/键盘焦点（340ms 后即卸载）。
+      inert={phase === "exit" ? true : undefined}
       style={{
         width: "100%",
         maxWidth: 520,
@@ -3180,8 +3199,14 @@ export function ChannelView({
     () => deriveJourneyState({ messageCount: messages.length, tasks }),
     [messages.length, tasks],
   );
-  // 本票：卡面形态切换的过渡状态（含 guideKind → null 时的短暂保留）。
-  const guideView = useJourneyGuideView(journey.guideKind);
+  // 本票：消息流末尾卡面的过渡状态（含 guideKind → null 时的短暂保留）。
+  // scope 用频道 id：切频道时重置，不把上一个频道的卡面带过来。
+  // 无消息时消息流不渲染引导卡（空态有自己的静态 describe 卡），这里传 null，
+  // 让首个非空卡面走 enter（重聚进入）而不是从空态的 kind 切过来。
+  const guideView = useJourneyGuideView(
+    channel?.id ?? null,
+    messages.length === 0 ? null : journey.guideKind,
+  );
   const [composerFocusTick, setComposerFocusTick] = useState(0);
   /** 「描述任务」CTA：递增本地信号聚焦 composer（与外部 DM 导航信号叠加）。 */
   const requestComposerFocus = () => setComposerFocusTick((tick) => tick + 1);
