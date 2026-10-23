@@ -1,0 +1,143 @@
+✔ T-A: globals.css 从设计系统 token 文件顶层 @import（上游即运行时真源） (34.628084ms)
+✔ T-A: 设计系统每个 token 都在产品里取到，且同名值逐字相同 (96.437125ms)
+✔ T-B: 旧 token 名在 app/components/hooks/lib 的 .tsx/.ts/.css 里出现 0 次 (1470.401375ms)
+✔ T-B: Tailwind 的 @theme 别名命名空间（--color-*）已退场 (202.424583ms)
+✔ T-C: 全局 0 圆角压制已解开 (0.715916ms)
+✔ T-C: 旧方向的 2px ink 结构线与 ink 阴影全部退场 (1.510083ms)
+✔ T-C: 焦点环与字段/composer 的 accent-soft 环按设计系统 reset 落位 (0.191875ms)
+✔ T-C: reduce 收敛存在，@keyframes 组数只增不减（≥12） (0.158958ms)
+✔ T-C: 断点对齐上游（900 / 1080），旧的 960 退场 (0.22225ms)
+✔ T-C: 有色 2px 结构线在 app/components/hooks 的源码里也为 0（组件侧回归网） (140.172542ms)
+✔ T-C: docs/spec.md §4 不再出现退役色值与旧契约标记 (2.414625ms)
+✔ T-C: AGENTS.md 的 CSS 变量段列的是当前契约名 (2.888625ms)
+✔ T-C: AGENTS.md File Map 不再指向已删除的旧头像组件 (1.1ms)
+✔ T-D: StatusDot 四态渲染出在线/干活/出错/离线四个新语义 token (4.909625ms)
+✔ MessageRow renders author, seq, content and the three §3.2 actions (51.503208ms)
+✔ MessageRow renders pinned navigation feedback on the target message (5.595042ms)
+✔ pinned navigation pages backward until an older target is loaded (0.25075ms)
+✔ pinned navigation refreshes when the target is newer than the loaded page (0.105542ms)
+✔ pinned navigation detects a failed request without treating the initial state as failure (0.084125ms)
+✔ MessageRow preserves readable long-form Markdown and visible message metadata (14.403708ms)
+✔ Task anchor discussion entry shows total replies and an independent exact unread count (4.645375ms)
+✔ MessageRow omits the reply action when onReply is absent (1.751458ms)
+✔ MessageMoreMenu omits the pin item when onTogglePin is absent, even when pinned (0.322209ms)
+✔ MessageMoreMenu pins and unpins through the same item label switch (3.918167ms)
+✔ MessageMoreMenu renders the convert-to-task item on the channel surface (3.163917ms)
+✔ MessageMoreMenu omits the convert item when onConvertToTask is absent (13.94525ms)
+✔ ChannelView wires convertInActionBar and onConvertToTask into the channel message list (11.269667ms)
+✔ MessageMoreMenu renders the ⏰ reminder item when onReminder is provided (§5.6) (1.881958ms)
+✔ MessageRow action handlers fire with the message (5.675459ms)
+✔ Composer shows the quoting chip with the quoted message preview (3.884666ms)
+✔ Composer renders without a quote chip when nothing is quoted (0.708916ms)
+✔ Composer surfaces the disabled hint when the channel is archived or not joined (0.647292ms)
+✔ ChannelView renders the select-a-channel empty state without a channel (2.13825ms)
+✔ ChannelView shows the channel header with the members entry and archive badge (5.639792ms)
+✔ mergeIncomingMessages dedupes by id and keeps messages sorted by seq (agent-loop 轮询合并) (0.143917ms)
+✔ ChannelView 发送通道：发送与 held 由 useChannelData 持有（02 票） (3.595375ms)
+✔ ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（01 票） (2.227208ms)
+✔ ChannelView pinned 与附属区：pinned/mute/members 数据循环由 useChannelData 持有（03 票） (9.059125ms)
+✔ MessageRow renders reaction chips and attachments; secondary actions live in ··· (§3.4/§3.5) (3.90425ms)
+✔ MessageRow hides reaction UI when handlers are absent (3.738709ms)
+✔ MessageRow renders the not-replied badge with agent name in the tooltip (§09) (8.837375ms)
+✔ MessageRow renders a count badge when multiple agents abandoned the message (4.018875ms)
+✔ MessageRow does not render the not-replied badge without abandonedMarks (2.648291ms)
+✔ Composer renders the paperclip attach control (§3.5) (1.022083ms)
+✔ ChannelView header exposes the pinned toggle for joined members (§3.5) (3.44825ms)
+✔ DM 头部不渲染成员管理/归档/静音入口，保留提醒与 pinned（§03） (2.098792ms)
+✔ TaskViews renders the task board layout without mounting the channel data loop (05 票排版回归) (2.635875ms)
+✔ 05 票瘦身：视图直接解构 hook 原名（无过渡别名解构） (2.856ms)
+✔ 05 票瘦身：视图无过渡残留注释（01 过渡已收敛进 hook 语义） (1.516792ms)
+✔ 05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelTask/PinnedItem 直引 hook） (1.359625ms)
+✔ 05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelMessagesPage 直引 hook） (1.00075ms)
+✔ ChannelView 任务板数据循环由 useChannelData 持有（04 票） (2.5025ms)
+✔ ChannelView 三处可见性同一数据源：新成员进 channelMemberIds 后 channelAgents/mentionable/composer 候选全含（#12 回归） (0.378042ms)
+✔ ChannelView 透传 membersVersion 给 useChannelData（失效链不断，#12 回归） (0.715208ms)
+✔ AppShell 创建 agent 后递增 membersVersion（失效链源头，#12 回归） (0.7595ms)
+✔ TaskViews 服务端与客户端首帧渲染一致（localStorage 偏好为 board 也不 mismatch） (3.706083ms)
+✔ DM bugfix：handleSend 发送成功后上抛 onChannelChanged（侧栏 messageCount 信号即时更新，不依赖 15s 轮询/agent 回复） (2.184959ms)
+✔ notice toast 渲染在滚动流之外：<main>…</main> 里不再有 heldNotice/taskNotice 呈现位 (2.062ms)
+✔ notice toast 锚在消息区底部、composer 上方居中，且 z-index 高于 composer (1.083ms)
+✔ NoticeToast 渲染出无障碍语义与 i18n 文案（role=status / aria-live / data-notice） (0.850959ms)
+✔ pickNoticeToast 单槽仲裁：新 notice 顶掉旧的，被顶掉的旧 notice 不回弹 (0.449375ms)
+✔ notice toast 自动消退：setTimeout 到点清空，且 useEffect 清理 timer (1.166042ms)
+✔ 任务创建事件以静态 note 呈现，预览 URL 是普通文本而非交互元素 (0.592042ms)
+✔ Task 锚点显示编号和状态，并为零未读提供精确讨论名称 (2.716916ms)
+✔ 任务创建事件播报跳过初始历史、只播报新事件一次 (0.378333ms)
+✔ 任务快照未到达时，动态创建事件仍会被识别并播报 (0.114208ms)
+✔ 切换频道后，已知频道中新到达的任务事件仍会播报 (0.051458ms)
+✔ 旅程条按四种频道状态标注当前步骤与已完成步骤 (3.746417ms)
+✔ 无消息引导卡：描述 CTA 聚焦输入，秘书入口可打开现有创建流程 (0.534041ms)
+✔ 无消息引导卡在未接线秘书入口时不渲染该按钮 (0.232ms)
+✔ 有消息无任务引导卡：给出把消息转为任务的入口 (0.225125ms)
+✔ 只有待办任务时引导卡改为提示交接或认领，并切到任务板 (0.207ms)
+✔ 进行中与待审核引导卡分别提示看状态点和去复核 (0.533792ms)
+✔ Central Tabs 保留 Messages/Tasks 切换，并为未完成任务显示数量 badge (0.898416ms)
+✔ Central Tabs 没有未完成任务时不显示 badge，未读讨论入口保留 (0.51775ms)
+✔ ··· 二级菜单展开后包含 reaction、pin、提醒与转为任务，门控与旧动作栏一致 (1.931291ms)
+✖ ··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠内联样式兜底 (1.548875ms)
+✔ 消息行默认只露高频动作，二级动作收进 ··· 触发器 (2.746167ms)
+✔ ChannelView 接线：旅程条/引导卡/任务角标/秘书入口都进中央视图 (4.414416ms)
+✔ AppShell 复用 CreateAgentModal 打开秘书入口，不新增路由 (0.711625ms)
+✔ 频道面 class 块逐字搬自上游 app.css（形态来源唯一） (7.820125ms)
+✔ message prose uses the approved channel and thread reading scales (2.786792ms)
+✔ 消息行 hover 走 --fg-soft；锚点行不再是黄色实心且带左侧 accent 条 (0.660833ms)
+✔ 消息时间戳与 #seq 走 var(--mono) + tabular-nums (0.202709ms)
+✔ 消息动作栏：绝对定位、hover/focus 才出、--shadow-pop、opacity 过渡 (0.438208ms)
+✖ `···` 二级菜单项不受动作栏图标键几何泄漏：专属 class 以更高特异度收回 display/height/width (0.85375ms)
+✔ MessageRow 渲染出 .msg 形态：行 / 头 / 作者 / 正文 / 动作栏 (33.37325ms)
+✔ MessageRow 的锚点行带骨架钩子，不再是黄色实心 (2.525792ms)
+✔ MessageRow 的 agent 作者带 .msg-author.is-agent（accent） (1.988375ms)
+✔ 同一 agent ID 在消息、侧栏与成员挑选项的渲染头像使用同一色调 (11.8275ms)
+✔ MessageRow 的时间戳与 #seq 都带 mono 角色类 (9.816416ms)
+✔ reaction 聚合条走 .reactions / .reaction（我点过 → .mine） (15.471291ms)
+✔ Composer 走 .composer/.composer-box/.composer-bar/.composer-send（accent 焦点环） (4.551375ms)
+✔ 频道头走 .chan-head/.chan-top/.chan-title（# 号 accent mono）/.chan-desc/.chan-tools/.chan-divider (7.555625ms)
+✔ 频道头切换条走 .tabs/.tab（旧方向的硬偏移阴影退场） (10.958416ms)
+✔ 频道面源码无 rgba 硬阴影 / 无硬偏移阴影 / 无 2px 结构线（三段切片） (0.490042ms)
+ℹ tests 96
+ℹ suites 0
+ℹ pass 94
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3624.739166
+
+✖ failing tests:
+
+test at components/ChannelView.test.mjs:1489:1
+✖ ··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠内联样式兜底 (1.548875ms)
+  AssertionError [ERR_ASSERTION]: 菜单项需要专属 class 才能拿到 .msg-tools .msg-more-menu-item 的更高特异度：<button type="button" role="menuitem" class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:8px;border:none;background:transparent;color:var(--fg)">
+      at TestContext.<anonymous> (file:///private/tmp/ws-baseline-more-menu/components/ChannelView.test.mjs:1506:16)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '<button type="button" role="menuitem" class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:8px;border:none;background:transparent;color:var(--fg)">',
+    expected: /class="[^"]*\bmsg-more-menu-item\b/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/message-stream.test.mjs:292:1
+✖ `···` 二级菜单项不受动作栏图标键几何泄漏：专属 class 以更高特异度收回 display/height/width (0.85375ms)
+  AssertionError [ERR_ASSERTION]: 缺少规则 `.msg-tools .msg-more-menu-item`
+      at blockBody (file:///private/tmp/ws-baseline-more-menu/components/message-stream.test.mjs:60:12)
+      at TestContext.<anonymous> (file:///private/tmp/ws-baseline-more-menu/components/message-stream.test.mjs:306:18)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

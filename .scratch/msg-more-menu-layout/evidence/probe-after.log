@@ -1,0 +1,105 @@
+{
+  "shot": "/Users/apple/orca/workspaces/worksplice/msg-more-menu-layout/.scratch/msg-more-menu-layout/evidence/after.png",
+  "chosen": "MMarlow#2112:02Task: make the reconciliation inter",
+  "itemCount": 3,
+  "probe": {
+    "heights": [
+      {
+        "label": "添加回应",
+        "height": 28
+      },
+      {
+        "label": "置顶到频道",
+        "height": 28
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "height": 28
+      }
+    ],
+    "overlaps": [],
+    "inline": [
+      {
+        "label": "添加回应",
+        "topDelta": -2.5,
+        "iconLeftOfText": true
+      },
+      {
+        "label": "置顶到频道",
+        "topDelta": -2.5,
+        "iconLeftOfText": true
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "topDelta": -2.5,
+        "iconLeftOfText": true
+      }
+    ],
+    "menu": {
+      "rect": {
+        "top": 205.1796875,
+        "bottom": 303.1796875,
+        "left": 1359.5,
+        "right": 1549.5,
+        "width": 190,
+        "height": 98
+      },
+      "clientHeight": 96,
+      "scrollHeight": 96,
+      "padding": {
+        "top": 4,
+        "right": 4,
+        "bottom": 4,
+        "left": 4
+      }
+    },
+    "lastItem": {
+      "bottom": 298.1796875,
+      "label": "给这条消息设置提醒"
+    },
+    "nowrap": [
+      {
+        "label": "添加回应",
+        "wraps": false,
+        "itemOverflows": false
+      },
+      {
+        "label": "置顶到频道",
+        "wraps": false,
+        "itemOverflows": false
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "wraps": false,
+        "itemOverflows": false
+      }
+    ],
+    "viewport": {
+      "width": 1982,
+      "height": 1011
+    },
+    "styles": [
+      {
+        "label": "添加回应",
+        "display": "flex",
+        "height": "28px",
+        "paddingLeft": "8px"
+      },
+      {
+        "label": "置顶到频道",
+        "display": "flex",
+        "height": "28px",
+        "paddingLeft": "8px"
+      },
+      {
+        "label": "给这条消息设置提醒",
+        "display": "flex",
+        "height": "28px",
+        "paddingLeft": "8px"
+      }
+    ]
+  },
+  "failures": [],
+  "verdict": "GREEN"
+}
+
