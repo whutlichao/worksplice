@@ -69,4 +69,4 @@ $ npm test            -> tests 1569 / pass 1568 / fail 1
 
 **Door:** two-way（UI 可见行为变化；无数据/API/持久化变更）。
 
-**PR:** 待回填（body: `.scratch/pi-sdk-rebuild/pr-16-body.md`）。
+**PR:** #203（body: `.scratch/pi-sdk-rebuild/pr-16-body.md`）
