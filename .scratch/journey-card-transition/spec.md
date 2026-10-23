@@ -1,6 +1,6 @@
 # 旅程引导卡形态切换过渡（粒子消散→重聚）
 
-- **Status**: In Progress
+- **Status**: Done
 - **票型**: 实施票
 - **门禁**: G-impl
 - **分支 / worktree**: `journey-card-transition`

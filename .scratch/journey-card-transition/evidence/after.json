@@ -8,29 +8,29 @@
     null
   ],
   "facts": {
-    "channelId": "1af44221-c093-49a7-ad05-62577f36ea19",
-    "taskId": "63320d58-b60a-4ee5-99cb-3a0b225cb3d0",
+    "channelId": "5277a1eb-0c1c-4347-b39d-4de252be6864",
+    "taskId": "3694525a-a93d-4f5f-b7b1-9d004f0e0c6a",
     "steps": [],
     "initial": {
       "matched": true,
       "state": {
         "label": "等待交接或认领",
         "kind": "handoff",
-        "phase": "switch",
-        "className": "journey-guide-card is-switching",
-        "cardAnimationName": "journey-guide-card-switch",
-        "cardOpacity": "0.520291",
-        "cardTransform": "matrix(0.98893, 0, 0, 0.98893, 0, 0)",
+        "phase": "enter",
+        "className": "journey-guide-card is-entering",
+        "cardAnimationName": "journey-guide-card-in",
+        "cardOpacity": "0",
+        "cardTransform": "matrix(0.97, 0, 0, 0.97, 0, 4)",
         "layerAnimationName": "none",
         "layerAriaHidden": "true",
-        "particleAnimationName": "journey-guide-particle-out, journey-guide-particle-in",
-        "particleAnimationDuration": "0.26s, 0.3s",
-        "particleAnimationDelay": "0s, 0.26s",
-        "particleOpacity": "0.462414",
+        "particleAnimationName": "journey-guide-particle-in",
+        "particleAnimationDuration": "0.32s",
+        "particleAnimationDelay": "0s",
+        "particleOpacity": "0",
         "particleCount": 12,
         "text": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板"
       },
-      "elapsedMs": 0,
+      "elapsedMs": 74,
       "timedOut": false
     },
     "hydrationWarnings": [],
@@ -53,7 +53,7 @@
         "particleCount": 12,
         "text": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板"
       },
-      "elapsedMs": 2666,
+      "elapsedMs": 1905,
       "timedOut": false
     },
     "switchMid": {
@@ -92,7 +92,7 @@
         "particleCount": 12,
         "text": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板"
       },
-      "elapsedMs": 435,
+      "elapsedMs": 432,
       "timedOut": false
     },
     "reducedMotion": {
@@ -115,7 +115,7 @@
           "particleCount": 12,
           "text": "去复核有任务在等你复核，去任务板看看。打开任务板"
         },
-        "elapsedMs": 2277,
+        "elapsedMs": 1947,
         "timedOut": false
       },
       "sample": {
@@ -155,13 +155,13 @@
         "particleCount": 12,
         "text": "去复核有任务在等你复核，去任务板看看。打开任务板"
       },
-      "elapsedMs": 2502,
+      "elapsedMs": 1882,
       "timedOut": false
     },
     "gone": {
       "matched": true,
       "state": null,
-      "elapsedMs": 232,
+      "elapsedMs": 0,
       "timedOut": false
     },
     "labelSequence": [
