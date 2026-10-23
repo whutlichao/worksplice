@@ -180,12 +180,14 @@ policy up front, and `deliverWithFreshness` executes it:
 
 | `onConflict` | What happens | Bounded by |
 | --- | --- | --- |
-| `revise` | Re-prompt with the messages that arrived during the write, parse the new answer, try again | `MAX_REVISE_RETRIES` (2) |
-| `resend` | Retry the same bytes against the new `roomSeq` | `MAX_RESEND_RETRIES` (3) |
+| `revise` | Re-prompt with the messages that arrived during the write, parse the new answer, try again | `MAX_REVISE_RETRIES` (1) |
+| `resend` | Retry the same bytes against the new `roomSeq` | `MAX_RESEND_RETRIES` (1) |
 | `silent` | Drop the reply, advance the cursor, end the round | once |
 | `anyway` | Resend explicitly bypassing the freshness check | once |
 
-`revise` is the default and the interesting one: `buildRevisionPrompt` (same
+`resend` is the default: it retries the same bytes once against the fresh room
+version, then goes silent — the cheapest convergence path. `revise` remains
+available when a rewrite is worth another prompt: `buildRevisionPrompt` (same
 file) puts `whatHappened`, the new room version, and the full text of the
 messages that arrived into the next prompt, then re-enters the loop. An agent
 that was about to say "the parser already handles this" can now see the message

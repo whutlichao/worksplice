@@ -100,3 +100,4 @@ $ env -u DEEPSEEK_API_KEY node --test lib/agent-loop/*.test.mjs
 - 改动：`lib/agent-loop/loop.ts`、`lib/agent-loop/loop.test.mjs`、`lib/agent-loop/loop-tasks.test.mjs`、`lib/agent-loop/member-ops.test.mjs`、本票据
 - PR：**#198**（https://github.com/whutlichao/worksplice/pull/198）
 - PR body：`/Users/apple/orca/workspaces/worksplice/loop-retry-convergence-pr-body.md`（未合并 PR，交 coordinator 处置）
+- 文档同步：`AGENTS.md`、`docs/engineering-standards.md`、`docs/design-notes/orchestrating-coding-agents.md` 已更新为默认 resend / revise 1 / resend 1 / task status 2；核验命令 `grep -rn "默认 revise\|revise 2 次\|resend 3 次\|MAX_REVISE_RETRIES (2)\|MAX_RESEND_RETRIES (3)" AGENTS.md docs/engineering-standards.md docs/design-notes/orchestrating-coding-agents.md` 无命中（exit 1）。
