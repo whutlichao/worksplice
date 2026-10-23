@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from "react";
 import {
   AlarmClock,
@@ -547,11 +548,149 @@ export function JourneyBar({ step }: { step: JourneyStep }) {
 }
 
 /**
+ * 引导卡形态过渡（本票）：四种形态切换时播放一次「粒子消散 → 重聚」。
+ *
+ * 状态机只由「上一视图 + 新 guideKind」推导，不读时钟、不随机，SSR 与客户端同输入
+ * 同输出。`guideKind` 变为 null 时用局部状态保留最后一张卡面的 kind，等消散动画播完
+ * （JOURNEY_GUIDE_EXIT_MS）再卸载——这段保留状态只服务动画，不参与 journey 推导。
+ * 时长与 app/globals.css 的 keyframes/duration 对齐，总时长 ≤900ms。
+ */
+export const JOURNEY_GUIDE_ENTER_MS = 420;
+export const JOURNEY_GUIDE_SWITCH_MS = 520;
+export const JOURNEY_GUIDE_EXIT_MS = 340;
+
+export type JourneyGuidePhase = "enter" | "switch" | "exit";
+
+export interface JourneyGuideView {
+  /** 当前要渲染的形态；退场期间保留最后一张卡面的 kind。 */
+  kind: JourneyGuideKind;
+  /** 本次渲染要播放的动画语义。 */
+  phase: JourneyGuidePhase;
+  /** 每次形态变化递增；作为 key 强制重播 CSS 动画。 */
+  generation: number;
+}
+
+/**
+ * 引导卡过渡状态机（纯函数）：
+ * - null → 形态：重聚进入（enter）；
+ * - 形态 → 另一形态：切换（switch），旧内容由粒子密度掩盖；
+ * - 形态 → null：退场（exit）并保留旧 kind；
+ * - 退场中改回某形态：旧卡面还在屏幕上，仍按切换处理。
+ * 形态未变时返回同一引用，组件不重渲染、动画不重播。
+ */
+export function nextJourneyGuideView(
+  previous: JourneyGuideView | null,
+  kind: JourneyGuideKind | null,
+): JourneyGuideView | null {
+  if (kind === null) {
+    if (!previous || previous.phase === "exit") return previous;
+    return {
+      kind: previous.kind,
+      phase: "exit",
+      generation: previous.generation + 1,
+    };
+  }
+  if (!previous) {
+    return { kind, phase: "enter", generation: 1 };
+  }
+  if (previous.kind === kind && previous.phase !== "exit") {
+    return previous;
+  }
+  return {
+    kind,
+    phase: "switch",
+    generation: previous.generation + 1,
+  };
+}
+
+/** 退场计时器到点：只有仍处于 exit 的视图才会被清掉（不误杀新状态）。 */
+export function completeJourneyGuideExit(
+  previous: JourneyGuideView | null,
+): JourneyGuideView | null {
+  return previous?.phase === "exit" ? null : previous;
+}
+
+/** ChannelView 的局部过渡状态：kind 变化时驱动状态机，退场动画结束后卸载卡面。 */
+export function useJourneyGuideView(
+  kind: JourneyGuideKind | null,
+): JourneyGuideView | null {
+  const [view, setView] = useState<JourneyGuideView | null>(() =>
+    kind === null ? null : { kind, phase: "enter", generation: 1 },
+  );
+
+  useEffect(() => {
+    setView((previous) => nextJourneyGuideView(previous, kind));
+  }, [kind]);
+
+  const exiting = view?.phase === "exit";
+  const generation = view?.generation;
+  useEffect(() => {
+    if (!exiting) return;
+    const timer = setTimeout(
+      () => setView(completeJourneyGuideExit),
+      JOURNEY_GUIDE_EXIT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [exiting, generation]);
+
+  return view;
+}
+
+/**
+ * 粒子表：12 个方向/距离/错峰延迟全部由索引确定性地给出。
+ * 渲染期不调用 Math.random，也不用三角函数（避免 SSR 与浏览器引擎间的末位差异）。
+ */
+const JOURNEY_GUIDE_PARTICLES = [
+  { dx: 84, dy: 0, delayMs: 0, sizePx: 5 },
+  { dx: 72, dy: 42, delayMs: 9, sizePx: 4 },
+  { dx: 42, dy: 72, delayMs: 18, sizePx: 6 },
+  { dx: 0, dy: 88, delayMs: 27, sizePx: 4 },
+  { dx: -42, dy: 72, delayMs: 36, sizePx: 5 },
+  { dx: -72, dy: 42, delayMs: 45, sizePx: 4 },
+  { dx: -84, dy: 0, delayMs: 0, sizePx: 6 },
+  { dx: -72, dy: -42, delayMs: 9, sizePx: 4 },
+  { dx: -42, dy: -72, delayMs: 18, sizePx: 5 },
+  { dx: 0, dy: -88, delayMs: 27, sizePx: 4 },
+  { dx: 42, dy: -72, delayMs: 36, sizePx: 6 },
+  { dx: 72, dy: -42, delayMs: 45, sizePx: 4 },
+] as const;
+
+/** 粒子层：纯装饰，aria-hidden，不参与可访问性树。 */
+function JourneyGuideParticles({ kind }: { kind: JourneyGuideKind }) {
+  return (
+    <span
+      className="journey-guide-particles"
+      data-guide-particles={kind}
+      aria-hidden="true"
+    >
+      {JOURNEY_GUIDE_PARTICLES.map((particle, index) => (
+        <span
+          key={index}
+          className="journey-guide-particle"
+          data-guide-particle-index={index}
+          style={
+            {
+              "--guide-dx": `${particle.dx}px`,
+              "--guide-dy": `${particle.dy}px`,
+              "--guide-delay": `${particle.delayMs}ms`,
+              width: particle.sizePx,
+              height: particle.sizePx,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
+/**
  * 引导卡（票 16）：只在当前状态需要下一步动作时出现；无消息时占据消息区，
  * 有消息时作为消息流末尾的一张静态卡，不遮挡正常消息流。
+ * 本票：按 phase 播放进入 / 切换 / 退场动画（动效见 app/globals.css）。
  */
 export function JourneyGuideCard({
   kind,
+  phase = "enter",
   hasTasks = false,
   onDescribe,
   onOpenSecretary,
@@ -559,6 +698,7 @@ export function JourneyGuideCard({
   onOpenTasks,
 }: {
   kind: JourneyGuideKind;
+  phase?: JourneyGuidePhase;
   hasTasks?: boolean;
   onDescribe?: () => void;
   onOpenSecretary?: () => void;
@@ -619,9 +759,19 @@ export function JourneyGuideCard({
     }
   }
 
+  const phaseClass =
+    phase === "enter"
+      ? "is-entering"
+      : phase === "switch"
+        ? "is-switching"
+        : "is-exiting";
+
   return (
     <section
       aria-label={title}
+      className={`journey-guide-card ${phaseClass}`}
+      data-guide-kind={kind}
+      data-guide-phase={phase}
       style={{
         width: "100%",
         maxWidth: 520,
@@ -638,6 +788,7 @@ export function JourneyGuideCard({
         boxShadow: "var(--shadow-card)",
       }}
     >
+      <JourneyGuideParticles kind={kind} />
       <div style={{ fontWeight: 700, fontSize: 15 }}>{title}</div>
       <div
         style={{
@@ -3029,6 +3180,8 @@ export function ChannelView({
     () => deriveJourneyState({ messageCount: messages.length, tasks }),
     [messages.length, tasks],
   );
+  // 本票：卡面形态切换的过渡状态（含 guideKind → null 时的短暂保留）。
+  const guideView = useJourneyGuideView(journey.guideKind);
   const [composerFocusTick, setComposerFocusTick] = useState(0);
   /** 「描述任务」CTA：递增本地信号聚焦 composer（与外部 DM 导航信号叠加）。 */
   const requestComposerFocus = () => setComposerFocusTick((tick) => tick + 1);
@@ -4427,9 +4580,11 @@ export function ChannelView({
                   </div>
                 );
               })}
-              {journey.guideKind && (
+              {guideView && (
                 <JourneyGuideCard
-                  kind={journey.guideKind}
+                  key={guideView.generation}
+                  kind={guideView.kind}
+                  phase={guideView.phase}
                   hasTasks={journey.hasTasks}
                   onOpenTasks={() => selectTab("tasks")}
                   onConvertLatest={(trigger) => {

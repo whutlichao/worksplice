@@ -19,6 +19,8 @@ const {
     hasPinnedNavigationError,
     JourneyBar,
     JourneyGuideCard,
+    nextJourneyGuideView,
+    completeJourneyGuideExit,
     CenterTabs,
     MessageMoreMenu,
 } = await jiti.import("./ChannelView.tsx");
@@ -1446,6 +1448,108 @@ test("Central Tabs 没有未完成任务时不显示 badge，未读讨论入口�
 
     assert.doesNotMatch(html, /aria-label="Tasks, 0 open"/);
     assert.match(html, /Unread Task discussions \(2\)/);
+});
+
+// —— 引导卡形态过渡：粒子消散 → 重聚（本票） ——
+
+const GUIDE_KINDS = ["describe", "handoff", "running", "review"];
+
+test("引导卡四种形态都渲染 aria-hidden 的确定性粒子层", () => {
+    for (const kind of GUIDE_KINDS) {
+        const html = renderI18n(
+            React.createElement(JourneyGuideCard, { kind }),
+        );
+        const layerTag = html.match(
+            /<span class="journey-guide-particles"[^>]*>/,
+        )?.[0];
+        assert.ok(layerTag, `${kind}: 缺少粒子层`);
+        assert.match(layerTag, /aria-hidden="true"/);
+        assert.match(layerTag, new RegExp(`data-guide-particles="${kind}"`));
+        const count = (html.match(/class="journey-guide-particle"/g) ?? [])
+            .length;
+        assert.ok(
+            count >= 8 && count <= 16,
+            `${kind}: 粒子数 ${count} 不在 8–16`,
+        );
+        // 同一输入两次 SSR 渲染必须逐字一致（无 Math.random / 无时钟）。
+        const again = renderI18n(
+            React.createElement(JourneyGuideCard, { kind }),
+        );
+        assert.equal(html, again);
+    }
+});
+
+test("引导卡过渡阶段映射到稳定类名，默认进入态", () => {
+    const entering = renderI18n(
+        React.createElement(JourneyGuideCard, { kind: "running" }),
+    );
+    assert.match(entering, /class="journey-guide-card is-entering"/);
+    assert.match(entering, /data-guide-phase="enter"/);
+
+    const switching = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "review",
+            phase: "switch",
+        }),
+    );
+    assert.match(switching, /class="journey-guide-card is-switching"/);
+
+    const exiting = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "handoff",
+            phase: "exit",
+            hasTasks: true,
+        }),
+    );
+    assert.match(exiting, /class="journey-guide-card is-exiting"/);
+    // 既有契约不变：aria-label 仍是当前形态标题。
+    assert.match(
+        exiting,
+        /<section[^>]*aria-label="Waiting for hand off or claim"/,
+    );
+});
+
+test("引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入", () => {
+    const enter = nextJourneyGuideView(null, "describe");
+    assert.deepEqual(enter, {
+        kind: "describe",
+        phase: "enter",
+        generation: 1,
+    });
+
+    // 形态没变：同一引用返回，不触发重渲染与重播。
+    assert.equal(nextJourneyGuideView(enter, "describe"), enter);
+
+    const switched = nextJourneyGuideView(enter, "handoff");
+    assert.deepEqual(switched, {
+        kind: "handoff",
+        phase: "switch",
+        generation: 2,
+    });
+
+    const exiting = nextJourneyGuideView(switched, null);
+    assert.deepEqual(exiting, {
+        kind: "handoff",
+        phase: "exit",
+        generation: 3,
+    });
+
+    // 退场中重复 null：保持原引用，不重启退场动画。
+    assert.equal(nextJourneyGuideView(exiting, null), exiting);
+    // 只有仍在退场的视图才允许被计时器清掉。
+    assert.equal(completeJourneyGuideExit(exiting), null);
+    assert.equal(completeJourneyGuideExit(switched), switched);
+
+    // 退场中重新拿到形态：旧卡面还在屏幕上，按切换处理。
+    const reentered = nextJourneyGuideView(exiting, "running");
+    assert.deepEqual(reentered, {
+        kind: "running",
+        phase: "switch",
+        generation: 4,
+    });
+
+    // 从无到无：不凭空造卡。
+    assert.equal(nextJourneyGuideView(null, null), null);
 });
 
 test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务，门控与旧动作栏一致", () => {

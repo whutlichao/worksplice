@@ -224,6 +224,25 @@ test("T-C: reduce 收敛存在，@keyframes 组数只增不减（≥12）", () =
   assert.ok(keyframes.length >= 12, `@keyframes 只剩 ${keyframes.length} 组`);
 });
 
+test("T-C: 旅程引导卡过渡 keyframes 存在，reduce 收敛到粒子时长", () => {
+  const css = stripComments(globalsCss);
+  for (const name of [
+    "journey-guide-card-in",
+    "journey-guide-card-switch",
+    "journey-guide-card-out",
+    "journey-guide-particle-out",
+    "journey-guide-particle-in",
+  ]) {
+    assert.match(css, new RegExp(`@keyframes\\s+${name}\\b`), `缺少 @keyframes ${name}`);
+  }
+  // 既有全局 reduce reset（animation-duration）仍在；本票粒子动画显式收敛到 0.001s，
+  // 保证 reduce 下粒子不出现可见位移/缩放（浏览器证据断言同一值）。
+  assert.match(
+    css,
+    /\.journey-guide-particle\s*\{[^}]*animation-duration:\s*0\.001s\s*!important/,
+  );
+});
+
 test("T-C: 断点对齐上游（900 / 1080），旧的 960 退场", () => {
   assert.match(globalsCss, /@media\s*\(max-width:\s*900px\)/);
   assert.match(globalsCss, /@media\s*\(max-width:\s*1080px\)/);
