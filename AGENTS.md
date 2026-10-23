@@ -220,6 +220,8 @@ lib/
                        process.exit(1)）。只被 instrumentation 的 `await import()` 引用——
                        这就是它不在 edge 静态图里的原因；回归测试 lib/access-gate-startup.test.mjs。
   agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
+  journey-state.ts    票 16 旅程状态推导（纯函数）：消息数 + 任务快照 → 1..4 步（描述/交接/让它跑/复核）
+                      + 引导卡种类 + Tasks badge 未完成计数；无后端接口、SSR 可测
   agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import lib/rpc/SDK）+ deriveLiveAgentStatus
                       + startSession 应用 per-agent 模型覆盖（§3.10）
   agent-lifecycle.ts  Restart / Session reset / Full reset（仅家目录）/ 换 workspace / 删除身份（只 rm 家目录，fs + 运行时 + DB 编排）
@@ -269,7 +271,10 @@ components/
   WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）；只高亮频道行，agent 行点击 = 打开右栏面板
   ChannelView.tsx        channel 消息流：seq 分页 / 引用 / 复制链接 / join-leave-archive
                           / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskViews（§3.7 List|Board 切换，ADR-0002）
-                          / 提醒入口（header ⏰ + 消息动作栏 ⏰，§5.6）
+                          / 票 16：旅程条（描述→交接→让它跑→复核，lib/journey-state.ts 推导）+ 四态引导卡
+                          / Messages|Tasks 保留 + Tasks 未完成 badge；高频动作（回复/引用/复制链接）常驻，
+                          / reaction / pin / 提醒 / 转为任务收进消息 `···` 二级菜单
+                          / 提醒入口（header ⏰ + 消息 `···` ⏰，§5.6）
                           / reaction（快捷栏 + 选择器 + 聚合条，§3.4）/ pinned 区（header `Pin` 展开，sort 三选一 + 重排，§3.5）
                           / 附件（Composer `Paperclip` + 消息内预览/下载，§3.5）
                           / 线程经 onOpenPanel 在右栏打开（ticket 13 起不再内嵌侧栏）

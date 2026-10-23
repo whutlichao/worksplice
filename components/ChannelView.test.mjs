@@ -17,6 +17,10 @@ const {
     ChannelView,
     getPinnedNavigationStep,
     hasPinnedNavigationError,
+    JourneyBar,
+    JourneyGuideCard,
+    CenterTabs,
+    MessageMoreMenu,
 } = await jiti.import("./ChannelView.tsx");
 const { mergeIncomingMessages } = await jiti.import(
     "../hooks/useChannelData.ts",
@@ -233,87 +237,73 @@ test("MessageRow omits the reply action when onReply is absent", () => {
 
 // spec D3：Pin 是频道面专属动作，pinned 布尔本身不渲染任何东西——
 // 断言落在无障碍名上（Pin to channel / Unpin），不落在 Pin 图标的 class 上。
-test("MessageRow omits the pin action when onTogglePin is absent, even when pinned", () => {
+test("MessageMoreMenu omits the pin item when onTogglePin is absent, even when pinned", () => {
     const html = renderI18n(
-        React.createElement(MessageRow, {
+        React.createElement(MessageMoreMenu, {
             message: MESSAGE,
-            onReply: () => undefined,
-            onQuote: () => undefined,
-            onCopyLink: () => undefined,
+            open: true,
             pinned: true,
+            onClose: () => undefined,
         }),
     );
 
-    assert.doesNotMatch(html, /title="Unpin"/);
-    assert.doesNotMatch(html, /title="Pin to channel"/);
+    assert.doesNotMatch(html, /Unpin/);
+    assert.doesNotMatch(html, /Pin to channel/);
 });
 
-// 动作栏「转为任务」键（§3.7 创建途径）：与右键项同权，仅频道调用点传 convertInActionBar 才渲染。
-// 断言落在无障碍名上（title = t("tasks.convert")，与右键菜单项逐字同名），并数次数防重复入口。
-test("MessageRow renders the convert-to-task action bar key on the channel surface", () => {
-    const html = renderI18n(
-        React.createElement(MessageRow, {
+test("MessageMoreMenu pins and unpins through the same item label switch", () => {
+    const pinned = renderI18n(
+        React.createElement(MessageMoreMenu, {
             message: MESSAGE,
-            onQuote: () => undefined,
-            onCopyLink: () => undefined,
-            canConvertToTask: true,
-            onConvertToTask: () => undefined,
-            convertInActionBar: true,
+            open: true,
+            pinned: true,
+            onClose: () => undefined,
+            onTogglePin: () => undefined,
         }),
     );
+    assert.match(pinned, /Unpin/);
+    assert.doesNotMatch(pinned, /Pin to channel/);
 
-    assert.equal(html.split('title="Convert to task"').length - 1, 1);
-});
-
-// 已是任务 ⇒ 键不渲染（与右键项同一门槛 canConvertToTask）。
-test("MessageRow omits the convert-to-task action bar key when the message is already a task", () => {
-    const html = renderI18n(
-        React.createElement(MessageRow, {
+    const unpinned = renderI18n(
+        React.createElement(MessageMoreMenu, {
             message: MESSAGE,
-            onQuote: () => undefined,
-            onCopyLink: () => undefined,
-            canConvertToTask: false,
-            onConvertToTask: () => undefined,
-            convertInActionBar: true,
+            open: true,
+            onClose: () => undefined,
+            onTogglePin: () => undefined,
         }),
     );
-
-    assert.equal(html.split('title="Convert to task"').length - 1, 0);
+    assert.match(unpinned, /Pin to channel/);
 });
 
-// 无 handler ⇒ 键不渲染（动作栏既有形制：传了 handler prop 才渲染）。
-test("MessageRow omits the convert-to-task action bar key when onConvertToTask is absent", () => {
-    const html = renderI18n(
-        React.createElement(MessageRow, {
+// 动作栏「转为任务」键（§3.7 创建途径）：票 16 起收进 `···` 二级菜单；
+// 项只在 handler 存在时渲染，频道/线程面的门控由 MessageRow 的单一表达式决定（见接线守卫）。
+const renderMoreMenu = (extra = {}) =>
+    renderI18n(
+        React.createElement(MessageMoreMenu, {
             message: MESSAGE,
-            onQuote: () => undefined,
-            onCopyLink: () => undefined,
-            canConvertToTask: true,
-            convertInActionBar: true,
+            open: true,
+            onClose: () => undefined,
+            onToggleReaction: () => undefined,
+            onToggleReactOpen: () => undefined,
+            ...extra,
         }),
     );
 
-    assert.equal(html.split('title="Convert to task"').length - 1, 0);
+test("MessageMoreMenu renders the convert-to-task item on the channel surface", () => {
+    const html = renderMoreMenu({ onConvertToTask: () => undefined });
+
+    assert.equal(html.split("Convert to task").length - 1, 1);
 });
 
-// 线程锚点形制：canConvertToTask + onConvertToTask 都在（右键项仍可弹），但不传 convertInActionBar
-// ⇒ 键根本不存在（#88 门控形制：不传 prop，而不是传空函数）。
-test("MessageRow keeps the convert-to-task key out of the action bar without convertInActionBar", () => {
-    const html = renderI18n(
-        React.createElement(MessageRow, {
-            message: MESSAGE,
-            onQuote: () => undefined,
-            onCopyLink: () => undefined,
-            canConvertToTask: true,
-            onConvertToTask: () => undefined,
-        }),
-    );
+// 无 handler ⇒ 项不渲染（动作栏既有形制：传了 handler prop 才渲染；线程面根本不传）。
+test("MessageMoreMenu omits the convert item when onConvertToTask is absent", () => {
+    const html = renderMoreMenu();
 
-    assert.equal(html.split('title="Convert to task"').length - 1, 0);
+    assert.doesNotMatch(html, /Convert to task/);
 });
 
-// 接线守卫（code-review Standards 轴发现 2）：上面四条正例都落在 MessageRow seam，
-// 频道调用点少传 convertInActionBar / onConvertToTask 字面量时它们会全绿而产品面静默失效。
+// 接线守卫（code-review Standards 轴发现 2）：频道调用点少传 convertInActionBar / onConvertToTask
+// 字面量时菜单测试会全绿而产品面静默失效；同时锁住「已是任务/线程面」共用的单一门控表达式。
 // 本仓既有源码扫描惯用形（见「票瘦身」用例）锁住频道列表这一处接线。
 test("ChannelView wires convertInActionBar and onConvertToTask into the channel message list", async () => {
     const source = await readFile(
@@ -333,17 +323,21 @@ test("ChannelView wires convertInActionBar and onConvertToTask into the channel 
         channelCall,
         /canConvertToTask=\{!taskIndexes\.byMessageId\.has\(m\.id\)\}/,
     );
+    assert.match(
+        source,
+        /convertInActionBar && canConvertToTask && onConvertToTask/,
+        "菜单只收到门控后的 onConvertToTask（已是任务/线程面不传）",
+    );
 });
 
-test("MessageRow renders the ⏰ reminder action when onSetReminder is provided (§5.6)", () => {
+test("MessageMoreMenu renders the ⏰ reminder item when onReminder is provided (§5.6)", () => {
     const calls = { reminder: null };
     const html = renderI18n(
-        React.createElement(MessageRow, {
+        React.createElement(MessageMoreMenu, {
             message: MESSAGE,
-            onReply: () => undefined,
-            onQuote: () => undefined,
-            onCopyLink: () => undefined,
-            onSetReminder: (m) => {
+            open: true,
+            onClose: () => undefined,
+            onReminder: (m) => {
                 calls.reminder = m;
             },
         }),
@@ -567,36 +561,37 @@ test("ChannelView pinned 与附属区：pinned/mute/members 数据循环由 useC
     assert.match(hookSource, /channelMemberIds/);
 });
 
-test("MessageRow renders quick reactions, picker, pin and attachments (§3.4/§3.5)", () => {
+test("MessageRow renders reaction chips and attachments; secondary actions live in ··· (§3.4/§3.5)", () => {
+    const message = {
+        ...MESSAGE,
+        reactions: [
+            { emoji: "👍", count: 2, memberIds: ["owner", "agent-1"] },
+            { emoji: "❤️", count: 1, memberIds: ["agent-1"] },
+        ],
+        attachments: [
+            {
+                id: "att-1",
+                message_id: "msg-1",
+                file_name: "note.txt",
+                mime: "text/plain",
+                size_bytes: 2048,
+                disk_path: "/tmp/attachments/att-1",
+                created_at: "2026-08-03T08:00:00.000Z",
+            },
+            {
+                id: "att-2",
+                message_id: "msg-1",
+                file_name: "bundle.zip",
+                mime: "application/zip",
+                size_bytes: 4096,
+                disk_path: "/tmp/attachments/att-2",
+                created_at: "2026-08-03T08:00:00.000Z",
+            },
+        ],
+    };
     const html = renderI18n(
         React.createElement(MessageRow, {
-            message: {
-                ...MESSAGE,
-                reactions: [
-                    { emoji: "👍", count: 2, memberIds: ["owner", "agent-1"] },
-                    { emoji: "❤️", count: 1, memberIds: ["agent-1"] },
-                ],
-                attachments: [
-                    {
-                        id: "att-1",
-                        message_id: "msg-1",
-                        file_name: "note.txt",
-                        mime: "text/plain",
-                        size_bytes: 2048,
-                        disk_path: "/tmp/attachments/att-1",
-                        created_at: "2026-08-03T08:00:00.000Z",
-                    },
-                    {
-                        id: "att-2",
-                        message_id: "msg-1",
-                        file_name: "bundle.zip",
-                        mime: "application/zip",
-                        size_bytes: 4096,
-                        disk_path: "/tmp/attachments/att-2",
-                        created_at: "2026-08-03T08:00:00.000Z",
-                    },
-                ],
-            },
+            message,
             currentMemberId: "owner",
             onReply: () => undefined,
             onQuote: () => undefined,
@@ -610,16 +605,31 @@ test("MessageRow renders quick reactions, picker, pin and attachments (§3.4/§3
     assert.match(html, /👍/);
     assert.match(html, /❤️/);
     assert.match(html, /2/);
-    // 动作栏默认折叠：只出 SmilePlus 入口；emoji 快捷条与 ＋ 选择器需展开才有
-    assert.match(html, /title="Add a reaction"/);
+    // 动作栏默认只露高频动作：reaction / pin 收在 ··· 内，展开才见
+    assert.match(html, /title="More message actions"/);
+    assert.doesNotMatch(html, /Add a reaction/);
+    assert.doesNotMatch(html, /Unpin/);
     assert.doesNotMatch(html, /＋/);
-    assert.match(html, /title="Unpin"/);
     // text-like 附件 = 展开预览按钮；其余 = 下载链接
     assert.match(html, /note\.txt/);
     assert.match(html, /2\.0 KB/);
     assert.match(html, /lucide-file-text/);
     assert.match(html, /bundle\.zip/);
     assert.match(html, /\/api\/attachments\/att-2/);
+
+    const menu = renderI18n(
+        React.createElement(MessageMoreMenu, {
+            message,
+            open: true,
+            pinned: true,
+            onClose: () => undefined,
+            onToggleReaction: () => undefined,
+            onToggleReactOpen: () => undefined,
+            onTogglePin: () => undefined,
+        }),
+    );
+    assert.match(menu, /Add a reaction/);
+    assert.match(menu, /Unpin/);
 });
 
 test("MessageRow hides reaction UI when handlers are absent", () => {
@@ -633,6 +643,8 @@ test("MessageRow hides reaction UI when handlers are absent", () => {
     );
     assert.doesNotMatch(html, /＋/);
     assert.doesNotMatch(html, /📌/);
+    // 没有二级动作 handler 时连 ··· 触发器都不渲染（门控靠不传 prop）。
+    assert.doesNotMatch(html, /More message actions/);
 });
 
 test("MessageRow renders the not-replied badge with agent name in the tooltip (§09)", () => {
@@ -1261,3 +1273,268 @@ test("切换频道后，已知频道中新到达的任务事件仍会播报", ()
         [{ messageId: "event-2", number: 2, preview: "Second task" }],
     );
 });
+
+// —— 票 16：B·Guided Journey（旅程条 / 四态引导卡 / Tasks badge / ··· 二级菜单） ——
+
+test("旅程条按四种频道状态标注当前步骤与已完成步骤", () => {
+    const render = (step) =>
+        renderI18n(React.createElement(JourneyBar, { step }));
+
+    const step1 = render(1);
+    assert.match(step1, /aria-label="Guided journey"/);
+    assert.match(step1, /aria-label="Describe — Current step"/);
+    assert.match(step1, /aria-current="step"/);
+    assert.doesNotMatch(step1, /Describe — Done/);
+
+    const step2 = render(2);
+    assert.match(step2, /aria-label="Describe — Done"/);
+    assert.match(step2, /aria-label="Hand off — Current step"/);
+
+    const step3 = render(3);
+    assert.match(step3, /aria-label="Describe — Done"/);
+    assert.match(step3, /aria-label="Hand off — Done"/);
+    assert.match(step3, /aria-label="Let it run — Current step"/);
+
+    const step4 = render(4);
+    assert.match(step4, /aria-label="Describe — Done"/);
+    assert.match(step4, /aria-label="Hand off — Done"/);
+    assert.match(step4, /aria-label="Let it run — Done"/);
+    assert.match(step4, /aria-label="Review — Current step"/);
+});
+
+test("无消息引导卡：描述 CTA 聚焦输入，秘书入口可打开现有创建流程", () => {
+    const html = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "describe",
+            onDescribe: () => undefined,
+            onOpenSecretary: () => undefined,
+        }),
+    );
+
+    assert.match(html, /Hand the idea to a member and let it run/);
+    assert.match(html, /Describe the task in the composer/);
+    assert.match(html, /Describe the task/);
+    assert.match(html, /Let the secretary set up the first room/);
+    // 首屏只给两个入口，不铺开任务/提醒等概念。
+    assert.equal(html.split("<button").length - 1, 2);
+});
+
+test("无消息引导卡在未接线秘书入口时不渲染该按钮", () => {
+    const html = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "describe",
+            onDescribe: () => undefined,
+        }),
+    );
+
+    assert.match(html, /Describe the task/);
+    assert.doesNotMatch(html, /Let the secretary set up the first room/);
+});
+
+test("有消息无任务引导卡：给出把消息转为任务的入口", () => {
+    const html = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "handoff",
+            hasTasks: false,
+            onConvertLatest: () => undefined,
+            onOpenTasks: () => undefined,
+        }),
+    );
+
+    assert.match(html, /Turn a message into a task/);
+    assert.match(html, /Convert a message into a task and @mention an agent/);
+    assert.match(html, /Convert the latest message/);
+    assert.doesNotMatch(html, /Open the task board/);
+});
+
+test("只有待办任务时引导卡改为提示交接或认领，并切到任务板", () => {
+    const html = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "handoff",
+            hasTasks: true,
+            onConvertLatest: () => undefined,
+            onOpenTasks: () => undefined,
+        }),
+    );
+
+    assert.match(html, /Waiting for hand off or claim/);
+    assert.match(html, /Open the task board/);
+    assert.doesNotMatch(html, /Convert the latest message/);
+});
+
+test("进行中与待审核引导卡分别提示看状态点和去复核", () => {
+    const running = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "running",
+            onOpenTasks: () => undefined,
+        }),
+    );
+    assert.match(running, /Let it run/);
+    assert.match(running, /Watch the agent status dots/);
+    assert.match(running, /Open the task board/);
+
+    const review = renderI18n(
+        React.createElement(JourneyGuideCard, {
+            kind: "review",
+            onOpenTasks: () => undefined,
+        }),
+    );
+    assert.match(review, /Go review/);
+    assert.match(review, /waiting for your review/);
+    assert.match(review, /Open the task board/);
+});
+
+test("Central Tabs 保留 Messages/Tasks 切换，并为未完成任务显示数量 badge", () => {
+    const html = renderI18n(
+        React.createElement(CenterTabs, {
+            tab: "messages",
+            onTabChange: () => undefined,
+            openTaskCount: 3,
+            unreadTaskCount: 0,
+            onShowUnreadTasks: () => undefined,
+        }),
+    );
+
+    assert.match(html, /role="tablist"/);
+    assert.equal(html.split('role="tab"').length - 1, 2);
+    assert.match(html, /aria-label="Tasks, 3 open"/);
+    const tasksStart = html.indexOf('aria-label="Tasks, 3 open"');
+    const tasksButton = html.slice(
+        html.lastIndexOf("<button", tasksStart),
+        html.indexOf("</button>", tasksStart),
+    );
+    assert.match(tasksButton, /aria-selected="false"/);
+    assert.match(tasksButton, />Tasks/);
+    assert.match(tasksButton, /class="badge"[^>]*>3<\/span>/);
+
+    const tasksActive = renderI18n(
+        React.createElement(CenterTabs, {
+            tab: "tasks",
+            onTabChange: () => undefined,
+            openTaskCount: 3,
+            unreadTaskCount: 0,
+            onShowUnreadTasks: () => undefined,
+        }),
+    );
+    const activeStart = tasksActive.indexOf('aria-label="Tasks, 3 open"');
+    const activeButton = tasksActive.slice(
+        tasksActive.lastIndexOf("<button", activeStart),
+        tasksActive.indexOf("</button>", activeStart),
+    );
+    assert.match(activeButton, /aria-selected="true"/);
+});
+
+test("Central Tabs 没有未完成任务时不显示 badge，未读讨论入口保留", () => {
+    const html = renderI18n(
+        React.createElement(CenterTabs, {
+            tab: "messages",
+            onTabChange: () => undefined,
+            openTaskCount: 0,
+            unreadTaskCount: 2,
+            onShowUnreadTasks: () => undefined,
+        }),
+    );
+
+    assert.doesNotMatch(html, /aria-label="Tasks, 0 open"/);
+    assert.match(html, /Unread Task discussions \(2\)/);
+});
+
+test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务，门控与旧动作栏一致", () => {
+    const renderMenu = (extra = {}) =>
+        renderI18n(
+            React.createElement(MessageMoreMenu, {
+                message: MESSAGE,
+                open: true,
+                onClose: () => undefined,
+                ...extra,
+            }),
+        );
+
+    const full = renderMenu({
+        onToggleReaction: () => undefined,
+        onToggleReactOpen: () => undefined,
+        onTogglePin: () => undefined,
+        onReminder: () => undefined,
+        onConvertToTask: () => undefined,
+    });
+    assert.match(full, /role="menu"/);
+    assert.match(full, /aria-label="More message actions"/);
+    assert.equal(full.split('role="menuitem"').length - 1, 4);
+    assert.match(full, /Add a reaction/);
+    assert.match(full, /Pin to channel/);
+    assert.match(full, /Set a reminder on this message/);
+    assert.match(full, /Convert to task/);
+
+    const pinned = renderMenu({
+        pinned: true,
+        onTogglePin: () => undefined,
+    });
+    assert.match(pinned, /Unpin/);
+    assert.doesNotMatch(pinned, /Pin to channel/);
+
+    const bare = renderMenu();
+    assert.doesNotMatch(bare, /role="menuitem"/);
+    assert.doesNotMatch(bare, /Add a reaction|Pin to channel|Set a reminder|Convert to task/);
+});
+
+test("消息行默认只露高频动作，二级动作收进 ··· 触发器", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onReply: () => undefined,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+            onToggleReaction: () => undefined,
+            onTogglePin: () => undefined,
+            onSetReminder: () => undefined,
+            canConvertToTask: true,
+            convertInActionBar: true,
+            onConvertToTask: () => undefined,
+        }),
+    );
+
+    assert.match(html, /title="Reply in thread"/);
+    assert.match(html, /title="Quote"/);
+    assert.match(html, /title="Copy link"/);
+    assert.match(html, /title="More message actions"/);
+    assert.match(html, /aria-haspopup="menu"/);
+    assert.doesNotMatch(html, /Pin to channel/);
+    assert.doesNotMatch(html, /Set a reminder on this message/);
+    assert.doesNotMatch(html, /Convert to task/);
+});
+
+test("ChannelView 接线：旅程条/引导卡/任务角标/秘书入口都进中央视图", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.match(
+        source,
+        /deriveJourneyState\(\{ messageCount: messages\.length, tasks \}\)/,
+    );
+    assert.match(source, /<JourneyBar step=\{journey\.step\}/);
+    assert.match(source, /<CenterTabs/);
+    assert.match(source, /openTaskCount=\{journey\.openTaskCount\}/);
+    assert.match(source, /onTabChange=\{selectTab\}/);
+    assert.match(
+        source,
+        /<JourneyGuideCard[\s\S]*?onOpenTasks=\{\(\) => selectTab\("tasks"\)\}/,
+    );
+    assert.match(
+        source,
+        /<JourneyGuideCard[\s\S]*?onOpenSecretary=\{onOpenSecretary\}/,
+    );
+});
+
+test("AppShell 复用 CreateAgentModal 打开秘书入口，不新增路由", async () => {
+    const source = await readFile(
+        new URL("../components/AppShell.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.match(
+        source,
+        /onOpenSecretary=\{\(\) => setCreateAgentOpen\(true\)\}/,
+    );
+    assert.match(source, /<CreateAgentModal/);
+});
+
