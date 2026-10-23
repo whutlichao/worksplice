@@ -3,19 +3,20 @@
   "failures": [],
   "switchSample": {
     "headerSwitchedAt": 17,
-    "sampleCount": 49,
-    "cardsAfterSwitch": 25,
-    "firstStream": {
-      "t": 441,
-      "label": "把一条消息转为任务",
-      "kind": "handoff",
-      "phase": "enter",
-      "className": "journey-guide-card is-entering"
-    },
-    "labelsSeen": [
+    "sampleCount": 53,
+    "leakWindowSamples": 51,
+    "leakWindowCards": 39,
+    "leakLabels": [
       "把一条消息转为任务",
       "等待交接或认领"
     ],
+    "firstStream": {
+      "t": 100,
+      "label": "把一条消息转为任务",
+      "kind": "handoff",
+      "phase": "enter",
+      "className": "journey-guide-card"
+    },
     "firstSamples": [
       {
         "t": 0,
@@ -28,41 +29,41 @@
         "hasCard": false
       },
       {
-        "t": 35,
+        "t": 34,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 52,
+        "t": 56,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 69,
+        "t": 73,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 85,
+        "t": 100,
         "header": true,
-        "hasCard": false
+        "hasCard": true
       },
       {
-        "t": 102,
+        "t": 135,
         "header": true,
-        "hasCard": false
+        "hasCard": true
       },
       {
-        "t": 119,
+        "t": 158,
         "header": true,
-        "hasCard": false
+        "hasCard": true
       }
     ]
   },
   "backSample": {
-    "elapsedMs": 16,
+    "elapsedMs": 50,
     "firstPhase": "enter",
     "firstLabel": "去复核",
-    "header": "#cross-a-1792749320715私有离开归档…journey cro"
+    "header": "#cross-a-1792753726327私有离开归档1journey cro"
   }
 }

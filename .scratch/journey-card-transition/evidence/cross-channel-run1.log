@@ -1,0 +1,8 @@
+[2026-10-23T11:08:36.228Z] channel A 2de75920-7d6d-418b-a7f1-ac2dced73b94
+[2026-10-23T11:08:36.268Z] A task → in_review
+[2026-10-23T11:08:36.295Z] channel B 2b74dea3-0003-4706-af34-77fee2ec2cca
+[2026-10-23T11:08:36.318Z] B task → in_review → done (guideKind null)
+[2026-10-23T11:08:38.007Z] A shows 去复核 card
+[2026-10-23T11:08:38.933Z] switch A→B: headerSwitchedAt=18ms samples=49 leakWindowSamples=47 leakWindowCards=39 leakLabels=["把一条消息转为任务","等待交接或认领"] firstStream={"t":165,"label":"把一条消息转为任务","kind":"handoff","phase":"enter","className":"journey-guide-card"}
+[2026-10-23T11:08:39.783Z] switch B→A: firstPhase="enter" firstLabel="去复核" elapsed=48ms
+[2026-10-23T11:08:40.936Z] VERDICT GREEN (0 failure(s))

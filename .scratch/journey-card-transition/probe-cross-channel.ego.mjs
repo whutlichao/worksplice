@@ -3,8 +3,9 @@
  *
  * ChannelView 在 AppShell 里不按频道重新挂载，本票的过渡状态按频道 id 作用域重置。
  * 本探针断言：从「去复核」卡所在的频道 A 切到「任务全部完成、无卡」的频道 B 时，
- * 切换后的 900ms 内 B 页面从不出现 `section.journey-guide-card`（旧实现会保留 A 的卡
- * 340ms 播退场）；再从 B 切回 A，卡面按 enter（首次出现）重建。
+ * header 切换后的 900ms 泄漏窗内不得出现 A 的「去复核」卡（旧实现会让 A 的卡跟到 B
+ * 并播退场）；B 自己的首张消息流卡最多等 6s，且必须按 enter 重建；再从 B 切回 A，
+ * 卡面同样按 enter 重建。
  *
  * 用法：ego-browser nodejs < .scratch/journey-card-transition/probe-cross-channel.ego.mjs
  */
@@ -91,7 +92,15 @@ await api(`/api/tasks/${encodeURIComponent(b.task.id)}/update-status`, {
 record("B task → in_review → done (guideKind null)");
 
 const space = await taskSpace("worksplice-journey-cross-channel");
-const page = space.page("p1");
+// 每次取证前关掉上一轮遗留页，再用全新页面，避免复用的旧页被渲染器判定无响应。
+for (const stale of await space.pages()) {
+    try {
+        await stale.close();
+    } catch {
+        // 已失联的页关不掉就跳过。
+    }
+}
+const page = await space.newPage();
 await page
     .goto(`${BASE}/?r=prep-${Date.now()}`, { waitUntil: "domcontentloaded", timeout: 120000 })
     .catch(() => undefined);
@@ -128,14 +137,16 @@ await page.evaluate(async () => {
 });
 record("A shows 去复核 card");
 
-// 切到 B，采样 900ms：header 切到 B 之后不得再出现任何卡面
+// 切到 B：header 切换后 900ms 内不得出现上一频道的卡（泄漏窗）；B 自己的首张
+// 消息流卡面最多等 6s（首次取数受浏览器负载影响，900ms 不是产品 SLA）。
 const switchSample = await page.evaluate(
-    async ({ channelId, expectedHeader, timeout }) => {
+    async ({ channelId, expectedHeader, timeout, leakWindowMs }) => {
         const samples = [];
         let headerSwitchedAt = null;
-        let cardsAfterSwitch = 0;
+        let leakWindowSamples = 0;
+        let leakWindowCards = 0;
         let firstStream = null;
-        const labelsSeen = new Set();
+        const leakLabels = new Set();
         const start = performance.now();
         window.location.hash = `#c/${channelId}`;
         while (performance.now() - start < timeout) {
@@ -159,33 +170,54 @@ const switchSample = await page.evaluate(
                     className: streamCard.className,
                 };
             }
-            if (headerSwitchedAt !== null && card) {
-                cardsAfterSwitch += 1;
-                labelsSeen.add(card.getAttribute("aria-label"));
+            const inLeakWindow =
+                headerSwitchedAt !== null && elapsed < headerSwitchedAt + leakWindowMs;
+            if (inLeakWindow) {
+                leakWindowSamples += 1;
+                if (card) {
+                    leakWindowCards += 1;
+                    leakLabels.add(card.getAttribute("aria-label"));
+                }
             }
             samples.push({
                 t: Math.round(elapsed),
                 header: headerSwitchedAt !== null,
                 hasCard: Boolean(card),
             });
+            // 首张卡已出现且泄漏窗已走完，可以提前结束采样。
+            if (
+                firstStream !== null &&
+                headerSwitchedAt !== null &&
+                elapsed >= headerSwitchedAt + leakWindowMs
+            ) {
+                break;
+            }
             await new Promise((resolve) => setTimeout(resolve, 16));
         }
         return {
             headerSwitchedAt,
             sampleCount: samples.length,
-            cardsAfterSwitch,
+            leakWindowSamples,
+            leakWindowCards,
+            leakLabels: [...leakLabels],
             firstStream,
-            labelsSeen: [...labelsSeen],
             // 只保留聚合，避免证据 JSON 过大。
             firstSamples: samples.slice(0, 8),
         };
     },
-    { channelId: b.channel.id, expectedHeader: b.channel.name, timeout: 900 },
+    {
+        channelId: b.channel.id,
+        expectedHeader: b.channel.name,
+        timeout: 6000,
+        leakWindowMs: 900,
+    },
 );
 record(
     `switch A→B: headerSwitchedAt=${switchSample.headerSwitchedAt}ms ` +
-        `samples=${switchSample.sampleCount} cardsAfterSwitch=${switchSample.cardsAfterSwitch} ` +
-        `labelsSeen=${JSON.stringify(switchSample.labelsSeen)}`,
+        `samples=${switchSample.sampleCount} leakWindowSamples=${switchSample.leakWindowSamples} ` +
+        `leakWindowCards=${switchSample.leakWindowCards} ` +
+        `leakLabels=${JSON.stringify(switchSample.leakLabels)} ` +
+        `firstStream=${JSON.stringify(switchSample.firstStream)}`,
 );
 await page.screenshot({ path: PATH.join(EVIDENCE, "cross-01-channel-b-no-card.png") });
 
@@ -222,20 +254,26 @@ record(
 await page.screenshot({ path: PATH.join(EVIDENCE, "cross-02-channel-a-card.png") });
 
 const failures = [];
-if (switchSample.headerSwitchedAt === null) {
-    failures.push("切换后 header 未在 900ms 内变成频道 B");
+if (
+    switchSample.headerSwitchedAt === null ||
+    switchSample.headerSwitchedAt > 900
+) {
+    failures.push(
+        `切换后 header 未在 900ms 内变成频道 B（实际 ${switchSample.headerSwitchedAt}ms）`,
+    );
 }
 // B 自己的加载序列（消息先到、任务快照后到）会短暂出现 handoff 卡，这是既有行为；
 // 本探针只守「A 的卡面不许跟到 B」这条跨频道泄漏。
-const leakedLabels = switchSample.labelsSeen.filter((label) => label === "去复核");
+const leakedLabels = switchSample.leakLabels.filter((label) => label === "去复核");
 if (leakedLabels.length > 0) {
     failures.push(
-        `切到频道 B 后仍出现频道 A 的「去复核」卡（跨频道残留）：${JSON.stringify(switchSample.labelsSeen)}`,
+        `切到频道 B 后 900ms 泄漏窗内仍出现频道 A 的「去复核」卡（跨频道残留）：` +
+            `${JSON.stringify(switchSample.leakLabels)}`,
     );
 }
 // B 的第一张消息流卡面必须是本频道首现（enter），而不是沿用 A 的切换态。
 if (!switchSample.firstStream) {
-    failures.push("切到频道 B 后 900ms 内未出现消息流卡面");
+    failures.push("切到频道 B 后 6s 内未出现消息流卡面");
 } else {
     if (switchSample.firstStream.phase !== "enter") {
         failures.push(
@@ -267,4 +305,5 @@ writeFileSync(
     PATH.join(EVIDENCE, "cross-channel.json"),
     JSON.stringify(summary, null, 2) + "\n",
 );
+await page.close();
 if (failures.length > 0) throw new Error(`cross-channel probe RED: ${failures.join("; ")}`);

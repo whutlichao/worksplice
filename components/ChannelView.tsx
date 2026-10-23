@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import {
   AlarmClock,
@@ -37,6 +36,20 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import type { TranslationParams } from "@/lib/i18n/types";
+import {
+  JOURNEY_GUIDE_CONTENT_FADE_MS,
+  JOURNEY_GUIDE_DISSOLVE_MS,
+  JOURNEY_GUIDE_ENTER_TOTAL_MS,
+  JOURNEY_GUIDE_EXIT_MS,
+  JOURNEY_GUIDE_REFORM_MS,
+  JOURNEY_GUIDE_REVEAL_MS,
+  JOURNEY_GUIDE_SWAP_MS,
+  JOURNEY_GUIDE_SWITCH_TOTAL_MS,
+  groupJourneyGuideTextLines,
+  sampleJourneyGuideParticles,
+  type JourneyGuideGlyphRect,
+  type JourneyGuideParticlePoint,
+} from "@/lib/journey-guide-particles";
 import { MentionText } from "./MentionText";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
@@ -554,12 +567,12 @@ export function JourneyBar({ step }: { step: JourneyStep }) {
  * 同输出。`guideKind` 变为 null 时用局部状态保留最后一张卡面的 kind，等退场播完再
  * 卸载——这段保留状态只服务动画，不参与 journey 推导。
  *
- * 各段时长在 app/globals.css：卡面 enter/switch/exit = 420/520/320ms，switch 的
- * 粒子序列（消散 → 重聚 + 0–45ms 错峰）最长约 605ms，总时长 ≤900ms。
- * JOURNEY_GUIDE_EXIT_MS 是退场保留窗口，比卡面退场 320ms 略长，
- * 保证最后一颗错峰粒子播完再卸载。
+ * 动效参数（用户选定）：2.6px 网格、1.35 倍速——消散 563ms、换态等待 237ms、
+ * 重聚 415ms；重聚到约 90%（374ms）时实体内容淡入。卡壳全程不播动画，只有内容层
+ * 与粒子层参与。退场保留窗口必须覆盖内容燃尽（563ms + 错峰），见
+ * JOURNEY_GUIDE_EXIT_MS。
  */
-export const JOURNEY_GUIDE_EXIT_MS = 340;
+export { JOURNEY_GUIDE_EXIT_MS };
 
 export type JourneyGuidePhase = "enter" | "switch" | "exit";
 
@@ -568,7 +581,7 @@ export interface JourneyGuideView {
   kind: JourneyGuideKind;
   /** 本次渲染要播放的动画语义。 */
   phase: JourneyGuidePhase;
-  /** 每次形态变化递增；作为 key 强制重播 CSS 动画。 */
+  /** 每次形态变化递增；作为 prop 驱动一次内容过渡（同一实例内重播，不换 key）。 */
   generation: number;
 }
 
@@ -722,90 +735,58 @@ export function useJourneyGuideView(
   return view;
 }
 
-/**
- * 粒子表：12 个方向/距离/错峰延迟全部由索引确定性地给出。
- * 渲染期不调用 Math.random，也不用三角函数（避免 SSR 与浏览器引擎间的末位差异）。
- */
-const JOURNEY_GUIDE_PARTICLES = [
-  { dx: 84, dy: 0, delayMs: 0, sizePx: 5 },
-  { dx: 72, dy: 42, delayMs: 9, sizePx: 4 },
-  { dx: 42, dy: 72, delayMs: 18, sizePx: 6 },
-  { dx: 0, dy: 88, delayMs: 27, sizePx: 4 },
-  { dx: -42, dy: 72, delayMs: 36, sizePx: 5 },
-  { dx: -72, dy: 42, delayMs: 45, sizePx: 4 },
-  { dx: -84, dy: 0, delayMs: 0, sizePx: 6 },
-  { dx: -72, dy: -42, delayMs: 9, sizePx: 4 },
-  { dx: -42, dy: -72, delayMs: 18, sizePx: 5 },
-  { dx: 0, dy: -88, delayMs: 27, sizePx: 4 },
-  { dx: 42, dy: -72, delayMs: 36, sizePx: 6 },
-  { dx: 72, dy: -42, delayMs: 45, sizePx: 4 },
-] as const;
-
-/** 粒子层：纯装饰，aria-hidden，不参与可访问性树。 */
-function JourneyGuideParticles({ kind }: { kind: JourneyGuideKind }) {
-  return (
-    <span
-      className="journey-guide-particles"
-      data-guide-particles={kind}
-      aria-hidden="true"
-    >
-      {JOURNEY_GUIDE_PARTICLES.map((particle, index) => (
-        <span
-          key={index}
-          className="journey-guide-particle"
-          data-guide-particle-index={index}
-          style={
-            {
-              "--guide-dx": `${particle.dx}px`,
-              "--guide-dy": `${particle.dy}px`,
-              "--guide-delay": `${particle.delayMs}ms`,
-              width: particle.sizePx,
-              height: particle.sizePx,
-            } as CSSProperties
-          }
-        />
-      ))}
-    </span>
-  );
+/** 卡面内容层的一份快照：旧内容消散时按它重绘，不依赖 React 已替换的 DOM。 */
+interface JourneyGuideActionSpec {
+  label: string;
+  className: string;
+  onClick: (trigger: HTMLButtonElement) => void;
 }
 
-/**
- * 引导卡（票 16）：只在当前状态需要下一步动作时出现；无消息时占据消息区，
- * 有消息时作为消息流末尾的一张静态卡，不遮挡正常消息流。
- * 本票：按 phase 播放进入 / 切换 / 退场动画（动效见 app/globals.css）。
- */
-export function JourneyGuideCard({
-  kind,
-  phase = "enter",
-  hasTasks = false,
-  onDescribe,
-  onOpenSecretary,
-  onConvertLatest,
-  onOpenTasks,
-}: {
-  kind: JourneyGuideKind;
-  phase?: JourneyGuidePhase;
-  hasTasks?: boolean;
-  onDescribe?: () => void;
-  onOpenSecretary?: () => void;
-  onConvertLatest?: (trigger: HTMLButtonElement) => void;
-  onOpenTasks?: () => void;
-}) {
-  const { t } = useI18n();
+interface JourneyGuideContentSpec {
+  title: string;
+  hint: string;
+  actions: JourneyGuideActionSpec[];
+}
+
+type JourneyGuideFxMode = "enter" | "switch" | "exit";
+
+interface JourneyGuideFxState {
+  token: number;
+  mode: JourneyGuideFxMode;
+  /** 切换时的旧内容快照；进入/退场为 null。 */
+  outgoing: JourneyGuideContentSpec | null;
+}
+
+function resolveJourneyGuideContent(
+  kind: JourneyGuideKind,
+  hasTasks: boolean,
+  t: (key: string) => string,
+  handlers: {
+    onDescribe?: () => void;
+    onOpenSecretary?: () => void;
+    onConvertLatest?: (trigger: HTMLButtonElement) => void;
+    onOpenTasks?: () => void;
+  },
+): JourneyGuideContentSpec {
+  const actions: JourneyGuideActionSpec[] = [];
   let title: string;
   let hint: string;
-  let primary: {
-    label: string;
-    onClick: (trigger: HTMLButtonElement) => void;
-  } | null = null;
   if (kind === "describe") {
     title = t("journey.describe.title");
     hint = t("journey.describe.hint");
-    if (onDescribe) {
-      primary = {
+    if (handlers.onDescribe) {
+      actions.push({
         label: t("journey.describe.cta"),
-        onClick: () => onDescribe(),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onDescribe?.(),
+      });
+    }
+    if (handlers.onOpenSecretary) {
+      actions.push({
+        label: t("journey.describe.secretary"),
+        className: "btn btn-sm",
+        onClick: () => handlers.onOpenSecretary?.(),
+      });
     }
   } else if (kind === "handoff") {
     title = hasTasks
@@ -814,71 +795,76 @@ export function JourneyGuideCard({
     hint = hasTasks
       ? t("journey.handoff.waitingHint")
       : t("journey.handoff.hint");
-    if (hasTasks && onOpenTasks) {
-      primary = {
+    if (hasTasks && handlers.onOpenTasks) {
+      actions.push({
         label: t("journey.handoff.ctaTasks"),
-        onClick: () => onOpenTasks(),
-      };
-    } else if (onConvertLatest) {
-      primary = {
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onOpenTasks?.(),
+      });
+    } else if (handlers.onConvertLatest) {
+      actions.push({
         label: t("journey.handoff.cta"),
-        onClick: (trigger) => onConvertLatest(trigger),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: (trigger) => handlers.onConvertLatest?.(trigger),
+      });
     }
   } else if (kind === "running") {
     title = t("journey.running.title");
     hint = t("journey.running.hint");
-    if (onOpenTasks) {
-      primary = {
+    if (handlers.onOpenTasks) {
+      actions.push({
         label: t("journey.running.cta"),
-        onClick: () => onOpenTasks(),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onOpenTasks?.(),
+      });
     }
   } else {
     title = t("journey.review.title");
     hint = t("journey.review.hint");
-    if (onOpenTasks) {
-      primary = {
+    if (handlers.onOpenTasks) {
+      actions.push({
         label: t("journey.review.cta"),
-        onClick: () => onOpenTasks(),
-      };
+        className: "btn btn-primary btn-sm",
+        onClick: () => handlers.onOpenTasks?.(),
+      });
     }
   }
+  return { title, hint, actions };
+}
 
-  const phaseClass =
-    phase === "enter"
-      ? "is-entering"
-      : phase === "switch"
-        ? "is-switching"
-        : "is-exiting";
-
+/** 内容层：标题/hint/按钮；旧内容的副本同构渲染，保证采样与卡面一致。 */
+function JourneyGuideContentLayer({
+  content,
+  accessible,
+  clickable,
+  layerRef,
+  burning = false,
+  outgoing = false,
+  style,
+}: {
+  content: JourneyGuideContentSpec;
+  accessible: boolean;
+  clickable: boolean;
+  layerRef?: React.Ref<HTMLDivElement>;
+  burning?: boolean;
+  outgoing?: boolean;
+  style?: React.CSSProperties;
+}) {
   return (
-    <section
-      aria-label={title}
-      className={`journey-guide-card ${phaseClass}`}
-      data-guide-kind={kind}
-      data-guide-phase={phase}
-      // 退场中的卡面不再接受点击/键盘焦点（340ms 后即卸载）。
-      inert={phase === "exit" ? true : undefined}
-      style={{
-        width: "100%",
-        maxWidth: 520,
-        margin: "var(--sp-6) auto",
-        padding: "var(--sp-5)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 8,
-        textAlign: "center",
-        background: "var(--surface)",
-        border: `1px solid var(--border)`,
-        borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-card)",
-      }}
+    <div
+      ref={layerRef}
+      className={`journey-guide-content${
+        burning ? " is-burning" : ""
+      }${outgoing ? " journey-guide-content-outgoing" : ""}`}
+      aria-hidden={accessible ? undefined : true}
+      inert={accessible ? undefined : true}
+      style={style}
     >
-      <JourneyGuideParticles kind={kind} />
-      <div style={{ fontWeight: 700, fontSize: 15 }}>{title}</div>
+      <div data-guide-sample="text" style={{ fontWeight: 700, fontSize: 15 }}>
+        {content.title}
+      </div>
       <div
+        data-guide-sample="text"
         style={{
           color: "var(--muted)",
           fontSize: 13,
@@ -886,9 +872,9 @@ export function JourneyGuideCard({
           maxWidth: 400,
         }}
       >
-        {hint}
+        {content.hint}
       </div>
-      {(primary || (kind === "describe" && onOpenSecretary)) && (
+      {content.actions.length > 0 && (
         <div
           style={{
             display: "flex",
@@ -898,26 +884,415 @@ export function JourneyGuideCard({
             marginTop: 4,
           }}
         >
-          {primary && (
+          {content.actions.map((action, index) => (
             <button
+              key={index}
               type="button"
-              className="btn btn-primary btn-sm"
-              onClick={(event) => primary.onClick(event.currentTarget)}
+              data-guide-sample="button"
+              className={action.className}
+              tabIndex={clickable ? undefined : -1}
+              onClick={
+                clickable
+                  ? (event) => action.onClick(event.currentTarget)
+                  : undefined
+              }
             >
-              {primary.label}
+              {action.label}
             </button>
-          )}
-          {kind === "describe" && onOpenSecretary && (
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={onOpenSecretary}
-            >
-              {t("journey.describe.secretary")}
-            </button>
-          )}
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 浏览器是否要求减少动效；只在客户端 effect 里调用。 */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function roundJourneyGuideRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  const r = Math.min(radius, height / 2, width / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+/** 逐字符 Range 量真实行盒；折行/居中全部交给浏览器排版。 */
+function measureJourneyGuideTextNode(
+  node: Text,
+): JourneyGuideGlyphRect[] {
+  const text = node.textContent ?? "";
+  const rects: JourneyGuideGlyphRect[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + 1);
+    const rect = range.getBoundingClientRect();
+    if (!rect.width && !rect.height) continue;
+    rects.push({
+      char: text[index],
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    });
+  }
+  return rects;
+}
+
+/**
+ * 把内容画进 canvas：文字位置取 DOM 行盒，baseline 用 canvas 同字体度量换算；
+ * 按钮先按元素 rect + computed border-radius 画底板，再走同样的行盒文字。
+ */
+function drawJourneyGuideSample(
+  ctx: CanvasRenderingContext2D,
+  root: HTMLElement,
+  origin: DOMRect,
+): void {
+  const blocks = root.querySelectorAll<HTMLElement>("[data-guide-sample]");
+  for (const block of blocks) {
+    const style = getComputedStyle(block);
+    if (block.dataset.guideSample === "button") {
+      const rect = block.getBoundingClientRect();
+      ctx.save();
+      ctx.fillStyle = style.backgroundColor;
+      roundJourneyGuideRect(
+        ctx,
+        rect.left - origin.left,
+        rect.top - origin.top,
+        rect.width,
+        rect.height,
+        Number.parseFloat(style.borderRadius) || 0,
+      );
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.fillStyle = style.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${style.fontWeight} ${Number.parseFloat(style.fontSize)}px ${style.fontFamily}`;
+    const measured = ctx.measureText("国").fontBoundingBoxAscent;
+    const ascent = Number.isFinite(measured)
+      ? measured
+      : Number.parseFloat(style.fontSize) * 0.8;
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      if (node instanceof Text && node.textContent?.trim()) {
+        for (const line of groupJourneyGuideTextLines(
+          measureJourneyGuideTextNode(node),
+        )) {
+          ctx.fillText(
+            line.text,
+            line.left - origin.left,
+            line.top - origin.top + ascent,
+          );
+        }
+      }
+      node = walker.nextNode();
+    }
+    ctx.restore();
+  }
+}
+
+function sampleJourneyGuideContent(
+  root: HTMLElement | null,
+  layer: HTMLElement | null,
+): JourneyGuideParticlePoint[] {
+  if (!root || !layer) return [];
+  const origin = layer.getBoundingClientRect();
+  const width = Math.ceil(origin.width);
+  const height = Math.ceil(origin.height);
+  if (width <= 0 || height <= 0) return [];
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(width * dpr);
+  canvas.height = Math.ceil(height * dpr);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return [];
+  ctx.scale(dpr, dpr);
+  drawJourneyGuideSample(ctx, root, origin);
+  return sampleJourneyGuideParticles(
+    ctx.getImageData(0, 0, canvas.width, canvas.height).data,
+    canvas.width,
+    canvas.height,
+    dpr,
+  );
+}
+
+/**
+ * 生成粒子 DOM。目标点来自内容采样；飞散/聚拢方向与延迟只在客户端 effect 内
+ * 用 Math.random，SSR 不产出粒子，避免 hydration 不一致。
+ */
+function spawnJourneyGuideParticles(
+  layer: HTMLElement,
+  points: readonly JourneyGuideParticlePoint[],
+  mode: "out" | "in",
+): void {
+  if (points.length === 0) return;
+  const fragment = document.createDocumentFragment();
+  for (const point of points) {
+    const particle = document.createElement("span");
+    particle.className = `journey-guide-particle is-${mode}`;
+    particle.dataset.guideParticle = mode;
+    particle.setAttribute("aria-hidden", "true");
+    particle.style.left = `${point.x.toFixed(2)}px`;
+    particle.style.top = `${point.y.toFixed(2)}px`;
+    particle.style.width = `${point.size.toFixed(2)}px`;
+    particle.style.height = `${point.size.toFixed(2)}px`;
+    particle.style.background = point.color;
+    if (mode === "out") {
+      const dx = (Math.random() * 2 - 1) * 70;
+      const dy = -20 - Math.random() * 110;
+      particle.style.setProperty("--p-dx", `${dx.toFixed(1)}px`);
+      particle.style.setProperty("--p-dy", `${dy.toFixed(1)}px`);
+      particle.style.setProperty(
+        "--p-spin",
+        `${((Math.random() * 2 - 1) * 40).toFixed(1)}deg`,
+      );
+      particle.style.animationDuration = `${Math.round(
+        JOURNEY_GUIDE_DISSOLVE_MS * (0.9 + Math.random() * 0.1),
+      )}ms`;
+      particle.style.animationDelay = `${Math.round(Math.random() * 60)}ms`;
+    } else {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 45 + Math.random() * 75;
+      particle.style.setProperty(
+        "--p-from-x",
+        `${(Math.cos(angle) * distance).toFixed(1)}px`,
+      );
+      particle.style.setProperty(
+        "--p-from-y",
+        `${(
+          Math.sin(angle) * distance * 0.6 +
+          (Math.random() * 40 - 20)
+        ).toFixed(1)}px`,
+      );
+      particle.style.animationDuration = `${Math.round(
+        JOURNEY_GUIDE_REFORM_MS * (0.9 + Math.random() * 0.15),
+      )}ms`;
+      particle.style.animationDelay = `${Math.round(Math.random() * 30)}ms`;
+    }
+    fragment.appendChild(particle);
+  }
+  layer.appendChild(fragment);
+}
+
+/**
+ * 引导卡（票 16）：只在当前状态需要下一步动作时出现；无消息时占据消息区，
+ * 有消息时作为消息流末尾的一张静态卡，不遮挡正常消息流。
+ * 本票（最终设计）：卡壳全程静止，只让内容层粒子燃尽/重聚；旧内容先消散、
+ * 新内容由粒子聚拢成形后实体淡入。`generation` 变化触发一次内容过渡。
+ */
+export function JourneyGuideCard({
+  kind,
+  phase = "enter",
+  generation,
+  hasTasks = false,
+  onDescribe,
+  onOpenSecretary,
+  onConvertLatest,
+  onOpenTasks,
+}: {
+  kind: JourneyGuideKind;
+  phase?: JourneyGuidePhase;
+  /** 每次形态变化递增；没有该值（空态静态卡）时不做过渡。 */
+  generation?: number;
+  hasTasks?: boolean;
+  onDescribe?: () => void;
+  onOpenSecretary?: () => void;
+  onConvertLatest?: (trigger: HTMLButtonElement) => void;
+  onOpenTasks?: () => void;
+}) {
+  const { t } = useI18n();
+  const content = resolveJourneyGuideContent(kind, hasTasks, t, {
+    onDescribe,
+    onOpenSecretary,
+    onConvertLatest,
+    onOpenTasks,
+  });
+  const [fx, setFx] = useState<JourneyGuideFxState | null>(null);
+  /** 实体内容是否已淡入；过渡开始时先隐藏，重聚到 90% 再淡入。 */
+  const [contentVisible, setContentVisible] = useState(true);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const incomingRef = useRef<HTMLDivElement | null>(null);
+  const outgoingRef = useRef<HTMLDivElement | null>(null);
+  const fxLayerRef = useRef<HTMLSpanElement | null>(null);
+  /** 上一次已提交的内容快照：下一次切换用它做消散源（React 已换 DOM 后仍可重绘）。 */
+  const lastContentRef = useRef(content);
+  const timersRef = useRef<number[]>([]);
+  const tokenRef = useRef(0);
+
+  const resetFx = useCallback(() => {
+    for (const timer of timersRef.current) window.clearTimeout(timer);
+    timersRef.current = [];
+    fxLayerRef.current?.replaceChildren();
+    rootRef.current?.style.removeProperty("min-height");
+  }, []);
+
+  // 1) 新的形态过渡：取消上一轮粒子，捕获旧内容，决定本轮时间线。
+  useLayoutEffect(() => {
+    if (generation === undefined) return;
+    tokenRef.current += 1;
+    const token = tokenRef.current;
+    resetFx();
+    if (prefersReducedMotion()) {
+      setContentVisible(true);
+      setFx(null);
+      return;
+    }
+    if (phase === "exit") {
+      // 退场：内容可见并燃尽（is-burning 淡出），卡壳等状态机计时器卸载。
+      setContentVisible(true);
+      setFx({ token, mode: "exit", outgoing: null });
+      return;
+    }
+    setContentVisible(false);
+    setFx({
+      token,
+      mode: phase === "switch" ? "switch" : "enter",
+      outgoing: phase === "switch" ? lastContentRef.current : null,
+    });
+    // 同一个 generation 只启动一次；content/phase 来自这次渲染。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generation, resetFx]);
+
+  // 维护旧内容快照（排在启动 effect 之后，保证读到的仍是上一份内容）。
+  useLayoutEffect(() => {
+    lastContentRef.current = content;
+  });
+
+  // 2) 旧/新内容都已就位：采样 DOM 并跑时间线（全部在绘制前启动）。
+  useLayoutEffect(() => {
+    if (!fx) return;
+    const token = fx.token;
+    const root = rootRef.current;
+    const incoming = incomingRef.current;
+    const layer = fxLayerRef.current;
+    if (!root || !incoming || !layer) return;
+    const outgoing = fx.outgoing ? outgoingRef.current : null;
+    const timers: number[] = [];
+    const schedule = (delay: number, run: () => void) => {
+      const timer = window.setTimeout(() => {
+        if (tokenRef.current === token) run();
+      }, delay);
+      timers.push(timer);
+    };
+    timersRef.current = timers;
+
+    if (fx.mode === "switch" && outgoing) {
+      root.style.minHeight = `${Math.ceil(
+        Math.max(
+          incoming.getBoundingClientRect().height,
+          outgoing.getBoundingClientRect().height,
+        ),
+      )}px`;
+      const oldPoints = sampleJourneyGuideContent(outgoing, layer);
+      const newPoints = sampleJourneyGuideContent(incoming, layer);
+      spawnJourneyGuideParticles(layer, oldPoints, "out");
+      schedule(JOURNEY_GUIDE_SWAP_MS, () => {
+        spawnJourneyGuideParticles(layer, newPoints, "in");
+      });
+      // 重聚到约 90%：实体内容淡入接管。
+      schedule(JOURNEY_GUIDE_SWAP_MS + JOURNEY_GUIDE_REVEAL_MS, () => {
+        setContentVisible(true);
+      });
+      schedule(JOURNEY_GUIDE_SWITCH_TOTAL_MS, () => {
+        layer.replaceChildren();
+        root.style.removeProperty("min-height");
+        setFx(null);
+      });
+    } else if (fx.mode === "enter") {
+      const points = sampleJourneyGuideContent(incoming, layer);
+      spawnJourneyGuideParticles(layer, points, "in");
+      schedule(JOURNEY_GUIDE_REVEAL_MS, () => setContentVisible(true));
+      schedule(JOURNEY_GUIDE_ENTER_TOTAL_MS, () => {
+        layer.replaceChildren();
+        setFx(null);
+      });
+    } else if (fx.mode === "exit") {
+      const points = sampleJourneyGuideContent(incoming, layer);
+      spawnJourneyGuideParticles(layer, points, "out");
+      schedule(JOURNEY_GUIDE_DISSOLVE_MS, () => layer.replaceChildren());
+    }
+
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer);
+      if (timersRef.current === timers) timersRef.current = [];
+    };
+  }, [fx]);
+
+  // 卸载：清掉计时器与粒子（连续切换/重播不累积）。
+  useEffect(() => () => resetFx(), [resetFx]);
+
+  return (
+    <section
+      aria-label={content.title}
+      className="journey-guide-card"
+      data-guide-kind={kind}
+      data-guide-phase={phase}
+      // 退场中的卡面不再接受点击/键盘焦点；内容燃尽后由状态机卸载卡壳。
+      inert={phase === "exit" ? true : undefined}
+      style={{
+        width: "100%",
+        maxWidth: 520,
+        margin: "var(--sp-6) auto",
+        padding: "var(--sp-5)",
+        background: "var(--surface)",
+        border: `1px solid var(--border)`,
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-card)",
+      }}
+    >
+      <div ref={rootRef} className="journey-guide-root">
+        {fx?.outgoing && (
+          <JourneyGuideContentLayer
+            content={fx.outgoing}
+            accessible={false}
+            clickable={false}
+            layerRef={outgoingRef}
+            outgoing
+            // 旧内容在 140ms 内燃尽淡出，与粒子 10% 处的淡入交叉，避免瞬时空白帧。
+            burning
+          />
+        )}
+        <JourneyGuideContentLayer
+          content={content}
+          accessible={phase !== "exit"}
+          clickable={contentVisible && phase !== "exit"}
+          layerRef={incomingRef}
+          burning={fx?.mode === "exit"}
+          style={{
+            opacity: contentVisible ? 1 : 0,
+            transition: contentVisible
+              ? `opacity ${JOURNEY_GUIDE_CONTENT_FADE_MS}ms ease`
+              : "none",
+          }}
+        />
+        <span
+          ref={fxLayerRef}
+          className="journey-guide-particles"
+          data-guide-particles={kind}
+          aria-hidden="true"
+        />
+      </div>
     </section>
   );
 }
@@ -4679,9 +5054,9 @@ export function ChannelView({
               })}
               {guideView && (
                 <JourneyGuideCard
-                  key={guideView.generation}
                   kind={guideView.kind}
                   phase={guideView.phase}
+                  generation={guideView.generation}
                   hasTasks={journey.hasTasks}
                   onOpenTasks={() => selectTab("tasks")}
                   onConvertLatest={(trigger) => {

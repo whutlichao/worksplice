@@ -1,6 +1,6 @@
-# 旅程引导卡形态切换过渡（粒子消散→重聚）
+# 旅程引导卡形态切换过渡（内容燃尽 → 重聚）
 
-- **Status**: Done（2026-10-23 打回修复后复验通过）
+- **Status**: Done（2026-10-23 最终设计复验通过）
 - **票型**: 实施票
 - **门禁**: G-impl
 - **分支 / worktree**: `journey-card-transition`
@@ -13,49 +13,85 @@
 一次状态推进。用户看不到「上一形态结束、下一形态开始」的连续性，也没有任何动效提示卡面
 已经更新；卡面因全部任务完成而消失时同样是瞬间卸载。
 
-## Solution
+## Solution（最终设计：只动内容层）
 
-为引导卡增加一次性的形态切换过渡，视觉语义是「粒子消散再重聚」：
+卡壳（边框、背景、圆角、阴影、宽高、位置）全程静止，不挂任何整卡动画；**只有内容层**
+（标题 / hint / CTA）参与过渡：
 
-- 任一次 `kind` 变化（handoff→running、running→review 等）播放一次消散→重聚序列，
-  同时新卡面淡入/轻微缩放；切换瞬间由粒子密度掩盖内容替换，不出现两张完整卡片叠加。
-- `guideKind` 变为 `null` 时先播消散退场再卸载（ChannelView 用局部状态短暂保留最后一张
-  卡面的 kind，时长与退场动画一致；该状态只服务动画，不改 journey 推导）。
-- 首次出现（null→某形态）播放重聚进入。
-- 动画总时长 ≤900ms，只动 `transform` / `opacity`（可少量 `filter: blur`），不引起消息流
-  布局抖动；结束后卡面处于最终稳定态（opacity 1、无位移、粒子不可见）。
+- **切换**（同频道 kind 变化）：旧内容先燃尽成粒子（原位短暂停留 → 向上/向外飘散并熄灭），
+  旧内容层本身在 140ms 内燃尽淡出，与粒子淡入交叉（不留空白帧/叠字）；新内容由粒子从
+  四周聚拢成文字/按钮形状，实体内容在重聚约 90% 时开始淡入接管；粒子在结束后从 DOM
+  移除。切换期间同时只保留一层可交互内容（新内容重聚前不可见/不可点）。
+- **首次出现**（含切频道后的首张卡）：内容按「重聚进入」播放。
+- **退场**（guideKind→null）：内容燃尽后由状态机卸载卡壳；卡壳本身不做整卡退场动画。
 
-粒子用 DOM 元素实现（8–16 个，不使用 canvas、不引入动画库/新依赖）。位置、角度、延迟
-全部由索引确定性推导，渲染期禁止 `Math.random()`；粒子层 `aria-hidden="true"`。
+固定参数（写死在 `lib/journey-guide-particles.ts`，不提供 UI 调节）：
 
-`prefers-reduced-motion: reduce` 下不出现可见粒子位移/缩放，卡面内容立即处于最终态；
-需确认 `app/globals.css` 既有全局 reduce reset 覆盖新增动画。
+| 参数 | 值 |
+| --- | --- |
+| 采样密度 | 2.6px 网格（细） |
+| 速度 | 1.35×（基准 760 / 320 / 560ms） |
+| 消散 | 563ms（760 / 1.35） |
+| 消散 → 新内容快照的等待 | 237ms（320 / 1.35） |
+| 重聚 | 415ms（560 / 1.35） |
+| 实体内容开始淡入 | 重聚约 90%（374ms），淡入 140ms |
+
+采样与几何全部以 DOM 排版为准：
+
+- 逐字符 `document.createRange().getBoundingClientRect()`，按 `top` 归并为真实行盒
+  （折行/居中交给浏览器，不自算宽度）。
+- 离屏 canvas 以 `textAlign=left`、`textBaseline=alphabetic` 绘制：x = 行盒 left，
+  baseline = 行盒 top + `ctx.measureText(...).fontBoundingBoxAscent`；按钮底板按元素
+  rect + computed `border-radius` 绘制。
+- 2.6px 网格取四象限 alpha（0.25/0.75），落点为 alpha 加权重心（不是格子中心），
+  颜色/透明度取加权 alpha；新内容在 opacity 0 且仍参与排版时采样。
+
+确定性与可访问性：
+
+- 粒子坐标来自 DOM 文本 + 固定网格；随机只用于飞散方向/错峰，且只在客户端 effect 内，
+  SSR 不产出任何粒子坐标；几何收敛为 `lib/journey-guide-particles.ts` 纯函数。
+- 粒子层 `aria-hidden="true"`、`pointer-events: none`；可访问名称/焦点顺序/文案/i18n key/
+  视觉 token 不变。
+- `prefers-reduced-motion: reduce`：不产生可见粒子/位移，内容立即终态。
+- 连续切换必须取消上一轮计时器并清理粒子（结束时 `fx.children.length === 0`）。
+
+跨频道（打回修复保留）：切频道后首张卡必须按 `enter` 重建，不得沿用上一频道的卡面或
+`switch` 相位；用 messages 数组引用做数据归属门控，不加 sleep/延时。
 
 ## Observable Acceptance
 
 1. `node --test components/ChannelView.test.mjs app/globals.test.mjs` 全绿；新增断言：
-   - 四种 kind 均渲染粒子层（稳定 data 属性/类名）且 `aria-hidden`；
-   - 粒子数量与 markup 确定性（同一输入两次渲染完全一致）；
-   - 过渡纯状态机（`nextJourneyGuideView`）的进入/切换/退场/重入路径；
-   - 新增 keyframes 存在，reduce 块覆盖粒子动画时长。
+   - 卡壳静止：阶段只进 `data-guide-phase`，`section` 不挂动画类/不写 animation/transform/opacity；
+   - SSR 只渲染空粒子层（`aria-hidden`），不产出粒子坐标，两次渲染一致；
+   - 纯几何：行盒归并（跨字符/容差）与网格采样（合成位图两带、加权重心、确定性）；
+   - 引导卡过渡状态机（enter / switch / exit / 快照归属 / 连续切换）；
+   - 新 keyframes 存在，reduce 块隐藏粒子并让内容立即终态。
 2. `npm run typecheck` 与 `npm run lint` 通过。
 3. 浏览器证据（隔离实例 30199 + `WORKSPLICE_DATA_DIR=/tmp/ws-journey-card-transition`）：
    自建私有频道「消息→任务」，经 HTTP 依次驱动 todo → in_progress → in_review → done；
-   切换后粒子层 computed `animation-name` 命中本票 keyframes（非 none）；切换瞬间与终态截图；
-   CDP 强制 `prefers-reduced-motion: reduce` 后粒子层 computed `animation-duration` 为
-   `0.001s` 且卡面内容可见；终态 aria-label 依次为「让它跑」→「去复核」→ 卡消失。
+   断言：
+   - 切换期间卡壳 computed `animation-name=none`、`opacity=1`、`transform=none`；
+   - 内容层粒子命中 `journey-guide-content-dissolve` / `journey-guide-content-reform`，
+     旧内容层 140ms 燃尽淡出（与粒子交叉后 opacity 0），新内容重聚前 opacity 0；
+   - 消散中段与重聚中段截图；结束态 `fx.children.length === 0`、内容 opacity 1、卡壳仍静止；
+   - 粒子墨迹与 DOM 行盒/按钮矩形的对齐 ≤1.5px；窄容器下 hint 折行后逐行对齐；
+   - 连续两次切换无粒子/旧内容残留；
+   - reduce 下无可见粒子、内容立即终态；
+   - aria-label 依次「等待交接或认领」→「让它跑」→「去复核」→ 卸载；console.error /
+     hydration 警告 0。
    证据存 `.scratch/journey-card-transition/evidence/`。
-4. 对本票 diff 跑一次双轴 `code-review`（Standards + Spec），findings 处置写进 Answer.md。
-5. Answer.md 记录：行为变化、实现方案、基线无改动行为、证据路径、review 结论、未完成项。
+4. 跨频道探针连续 3 次 GREEN（B 的首张流内卡为 `handoff / enter`），主探针 1 次 GREEN。
+5. 对本票 diff 跑一次双轴 `code-review`（Standards + Spec），findings 处置写进 Answer.md。
+6. Answer.md 记录：行为变化、实现方案、基线无改动行为、证据路径、review 结论、未完成项。
 
 ## Constraints
 
 - 不改 `lib/journey-state.ts` 推导、`hooks/useChannelData.ts` 轮询、服务端/API/数据库。
-- 不引入依赖，不用 canvas/WebGL/动画库，不新增路由。
+- 不引入依赖、不新增路由；粒子显示仍为确定性 DOM。canvas 只用于离屏采样，不用于渲染。
 - `@keyframes` 只增不改；既有动画与 reduce 规则不得被削弱。
 - 既有可观察契约不变：`section[aria-label]` 仍是当前形态标题；标题/hint/按钮文案与
-  i18n key 不变；卡片宽度、字号、间距等视觉 token 不变。
-- 粒子位置确定性，禁止渲染期 `Math.random()`；不得造成 SSR/hydration 警告。
+  i18n key 不变；卡片宽度、字号、间距等视觉 token 不变；焦点顺序不变。
+- 渲染期禁止 `Math.random()`；不得造成 SSR/hydration 警告。
 - 注释语言与周边一致（中文），不写与实现相反的注释。
 
 ## Out of Scope
@@ -69,15 +105,15 @@
 - 测试档：窄（受影响测试 + 指定文件）。选择器：
   `node --test components/ChannelView.test.mjs app/globals.test.mjs`，加 `npm run typecheck`、
   `npm run lint`。
-- 组件测试走既有 `renderToStaticMarkup` + `I18nProvider`；纯状态机单独做纯函数单测。
+- 组件测试走既有 `renderToStaticMarkup` + `I18nProvider`；纯几何/状态机单独做纯函数单测。
 - 浏览器证据用 ego-browser（仓库浏览器纪律），步骤与 `task-card-poll-sync` 探针同源。
 
 ## Ownership
 
-- 可编辑：`components/ChannelView.tsx`、`app/globals.css`、
+- 可编辑：`components/ChannelView.tsx`、`lib/journey-guide-particles.ts`、`app/globals.css`、
   `components/ChannelView.test.mjs`、`app/globals.test.mjs`，以及本目录下的票据、证据与 PR body。
 
-## 打回修复（2026-10-23）
+## 打回修复（2026-10-23，跨频道首张卡 enter）
 
 - **问题**：协调者在隔离环境连续 3 次复跑 `probe-cross-channel.ego.mjs` 均 RED——频道 B
   的第一张流内卡片是 `handoff` 且 `data-guide-phase="switch"`，与「切频道后首张卡必须
@@ -89,9 +125,8 @@
   引用）。切频道先进入 `awaitingSnapshot` 并丢弃旧 view，快照换新后才用
   `nextJourneyGuideView(null, kind)` 起算首张卡（enter）；后续同频道变化才 switch。
   不使用 sleep/延时，不改 journey 推导与轮询频率。
-- **复验**：跨频道探针 3/3 GREEN（`evidence/rework-green-run{1,2,3}.log/json`，B 首张卡
-  `handoff / enter`，900ms 内无 A 的「去复核」）；主探针 1× GREEN；窄门 86 pass / 0 fail；
-  typecheck 0 error；lint 0 error（仅既存 `useI18n.tsx:61` warning）。
+- **复验（最终实现）**：跨频道探针 3/3 GREEN（`evidence/cross-channel-run{1,2,3}.log/json`，
+  B 首张卡 `handoff / enter`，900ms 内无 A 的「去复核」）；主探针 1× GREEN；
+  窄门 88 pass / 0 fail；typecheck 0 error；lint 0 error（仅既存 `useI18n.tsx:61` warning）。
 - **红证据**：旧实现 3/3 RED（`evidence/rework-red-run{1,2,3}.log/json`）；新增状态机测试
-  在旧实现上失败（`evidence/rework-red-unit-tests.log`：`initialJourneyGuideState is not
-  a function`）。
+  在旧实现上失败（`evidence/rework-red-unit-tests.log`）。

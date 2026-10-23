@@ -31,6 +31,11 @@ const {
 const { mergeIncomingMessages } = await jiti.import(
     "../hooks/useChannelData.ts",
 );
+const {
+    groupJourneyGuideTextLines,
+    sampleJourneyGuideParticles,
+    JOURNEY_GUIDE_PARTICLE_STEP_PX,
+} = await jiti.import("../lib/journey-guide-particles.ts");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 function renderI18n(children) {
@@ -1454,11 +1459,11 @@ test("Central Tabs 没有未完成任务时不显示 badge，未读讨论入口�
     assert.match(html, /Unread Task discussions \(2\)/);
 });
 
-// —— 引导卡形态过渡：粒子消散 → 重聚（本票） ——
+// —— 引导卡内容过渡：粒子燃尽 → 重聚（最终设计） ——
 
 const GUIDE_KINDS = ["describe", "handoff", "running", "review"];
 
-test("引导卡四种形态都渲染 aria-hidden 的确定性粒子层", () => {
+test("引导卡 SSR 只渲染空粒子层，粒子坐标只在客户端生成", () => {
     for (const kind of GUIDE_KINDS) {
         const html = renderI18n(
             React.createElement(JourneyGuideCard, { kind }),
@@ -1469,13 +1474,12 @@ test("引导卡四种形态都渲染 aria-hidden 的确定性粒子层", () => {
         assert.ok(layerTag, `${kind}: 缺少粒子层`);
         assert.match(layerTag, /aria-hidden="true"/);
         assert.match(layerTag, new RegExp(`data-guide-particles="${kind}"`));
-        const count = (html.match(/class="journey-guide-particle"/g) ?? [])
-            .length;
-        assert.ok(
-            count >= 8 && count <= 16,
-            `${kind}: 粒子数 ${count} 不在 8–16`,
-        );
-        // 同一输入两次 SSR 渲染必须逐字一致（无 Math.random / 无时钟）。
+        // 粒子依赖 getBoundingClientRect，SSR 不得输出具体粒子/坐标。
+        assert.doesNotMatch(html, /class="journey-guide-particle\s/);
+        assert.doesNotMatch(html, /left:\s*-?\d+(\.\d+)?px/);
+        // 旧内容副本只在客户端切换时生成。
+        assert.doesNotMatch(html, /journey-guide-content-outgoing/);
+        // 同一输入两次 SSR 渲染必须逐字一致。
         const again = renderI18n(
             React.createElement(JourneyGuideCard, { kind }),
         );
@@ -1483,12 +1487,21 @@ test("引导卡四种形态都渲染 aria-hidden 的确定性粒子层", () => {
     }
 });
 
-test("引导卡过渡阶段映射到稳定类名，默认进入态", () => {
+test("卡壳静止：阶段只进 data 属性，不挂整卡动画类", () => {
     const entering = renderI18n(
         React.createElement(JourneyGuideCard, { kind: "running" }),
     );
-    assert.match(entering, /class="journey-guide-card is-entering"/);
-    assert.match(entering, /data-guide-phase="enter"/);
+    const enteringTag = entering.match(/<section[^>]*>/)?.[0] ?? "";
+    assert.match(enteringTag, /class="journey-guide-card"/);
+    assert.doesNotMatch(enteringTag, /is-(entering|switching|exiting)/);
+    assert.match(enteringTag, /data-guide-phase="enter"/);
+    // 卡壳上不得出现 animation / transform / opacity。
+    assert.doesNotMatch(enteringTag, /animation/i);
+    assert.doesNotMatch(enteringTag, /transform/i);
+    assert.doesNotMatch(enteringTag, /opacity/i);
+    // 内容层仍在（排版与文案保持）。
+    assert.match(entering, /class="journey-guide-content"/);
+    assert.match(entering, /data-guide-sample="text"/);
 
     const switching = renderI18n(
         React.createElement(JourneyGuideCard, {
@@ -1496,7 +1509,10 @@ test("引导卡过渡阶段映射到稳定类名，默认进入态", () => {
             phase: "switch",
         }),
     );
-    assert.match(switching, /class="journey-guide-card is-switching"/);
+    assert.match(
+        switching.match(/<section[^>]*>/)?.[0] ?? "",
+        /data-guide-phase="switch"/,
+    );
 
     const exiting = renderI18n(
         React.createElement(JourneyGuideCard, {
@@ -1505,11 +1521,97 @@ test("引导卡过渡阶段映射到稳定类名，默认进入态", () => {
             hasTasks: true,
         }),
     );
-    assert.match(exiting, /class="journey-guide-card is-exiting"/);
+    const exitingTag = exiting.match(/<section[^>]*>/)?.[0] ?? "";
+    assert.match(exitingTag, /data-guide-phase="exit"/);
+    assert.match(exitingTag, /inert/);
     // 既有契约不变：aria-label 仍是当前形态标题。
     assert.match(
         exiting,
         /<section[^>]*aria-label="Waiting for hand off or claim"/,
+    );
+});
+
+test("引导卡粒子几何：逐字符行盒归并（折行/居中交给浏览器）", () => {
+    const rects = [
+        { char: "a", left: 12, top: 10, width: 6, height: 14 },
+        { char: "b", left: 18, top: 10.3, width: 6, height: 14 },
+        { char: "c", left: 12, top: 30, width: 6, height: 14 },
+        // 零尺寸字符（如被折叠的空白）不产生行。
+        { char: " ", left: 0, top: 0, width: 0, height: 0 },
+    ];
+    assert.deepEqual(groupJourneyGuideTextLines(rects), [
+        { text: "ab", left: 12, top: 10, height: 14 },
+        { text: "c", left: 12, top: 30, height: 14 },
+    ]);
+});
+
+test("引导卡粒子采样：2.6px 网格落在行盒墨迹内，行间不串行", () => {
+    const width = 100;
+    const height = 60;
+    const data = new Uint8ClampedArray(width * height * 4);
+    const fill = (x0, y0, x1, y1, [r, g, b]) => {
+        for (let y = y0; y < y1; y += 1) {
+            for (let x = x0; x < x1; x += 1) {
+                const index = (y * width + x) * 4;
+                data[index] = r;
+                data[index + 1] = g;
+                data[index + 2] = b;
+                data[index + 3] = 255;
+            }
+        }
+    };
+    // 两行文字墨迹：标题行 y 5–20，按钮行 y 38–55。
+    fill(10, 5, 90, 20, [200, 10, 10]);
+    fill(20, 38, 80, 55, [10, 10, 200]);
+
+    const points = sampleJourneyGuideParticles(data, width, height, 1);
+    assert.ok(points.length > 0, "应采到粒子");
+    // 四象限采样取整到设备像素，边缘格子的重心可能越出墨迹 <1px（与 1.5px 对齐
+    // 容差同口径）。
+    const tolerance = 1.5;
+    for (const point of points) {
+        const inTitle =
+            point.y >= 5 - tolerance && point.y <= 20 + tolerance;
+        const inButton =
+            point.y >= 38 - tolerance && point.y <= 55 + tolerance;
+        assert.ok(
+            inTitle || inButton,
+            `粒子 y=${point.y.toFixed(2)} 落在行盒之外`,
+        );
+        assert.ok(
+            point.x >= 10 - tolerance && point.x <= 90 + tolerance,
+            "粒子 x 超出墨迹范围",
+        );
+        assert.ok(
+            Math.abs(point.size - JOURNEY_GUIDE_PARTICLE_STEP_PX * 0.98) <
+                1e-6,
+        );
+        if (inTitle) assert.match(point.color, /^rgba\(200,10,10,/);
+        if (inButton) assert.match(point.color, /^rgba\(10,10,200,/);
+    }
+    // 行间空白不得有粒子（扣除边缘格子的取整容差）。
+    assert.equal(
+        points.filter(
+            (point) =>
+                point.y > 20 + tolerance && point.y < 38 - tolerance,
+        ).length,
+        0,
+    );
+    // 加权重心不是格子右下角：标题行粒子的横向均值接近行盒中心。
+    const titleXs = points
+        .filter(
+            (point) => point.y >= 5 - tolerance && point.y <= 20 + tolerance,
+        )
+        .map((point) => point.x);
+    const meanX = titleXs.reduce((sum, x) => sum + x, 0) / titleXs.length;
+    assert.ok(
+        Math.abs(meanX - 50) < 2.5,
+        `粒子云横向重心偏离行盒中心：${meanX}`,
+    );
+    // 纯函数：同一输入两次结果一致。
+    assert.deepEqual(
+        sampleJourneyGuideParticles(data, width, height, 1),
+        points,
     );
 });
 
