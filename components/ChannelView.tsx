@@ -613,38 +613,107 @@ export function completeJourneyGuideExit(
 }
 
 /**
+ * 引导卡过渡状态 + 频道作用域。
+ *
+ * `snapshot` 是调用方当前数据快照的标识（传 messages 数组引用即可）：频道切换后的
+ * 首帧里，`messages`/`tasks` 仍是上一频道的数据（useChannelData 的切换 effect 在提交
+ * 后才清空或命中缓存）。若这时直接拿旧 kind 起算，会先 enter 旧形态、再 exit、再把
+ * 新频道的首张卡算成 switch。因此切频道后先进入 `awaitingSnapshot`，等快照换新
+ * （数据归属新频道）才按首张卡 enter 起算——这是数据归属判断，不是延时。
+ */
+export interface JourneyGuideState {
+  scope: string | null;
+  view: JourneyGuideView | null;
+  /** 切到新频道后，等该频道的数据快照换新前为 true；期间不消费 kind。 */
+  awaitingSnapshot: boolean;
+  /** 切换瞬间看到的数据快照标识。 */
+  snapshot: unknown;
+}
+
+export function initialJourneyGuideState(
+  scope: string | null,
+  kind: JourneyGuideKind | null,
+  snapshot: unknown,
+): JourneyGuideState {
+  return {
+    scope,
+    view: nextJourneyGuideView(null, kind),
+    awaitingSnapshot: false,
+    snapshot,
+  };
+}
+
+/**
+ * 每次渲染同步作用域与数据快照：
+ * - scope 变化 → 丢弃旧频道 view，等待新频道快照；
+ * - 等待中快照换新（或新频道已无消息）→ 用该频道数据起算，首张卡走 enter。
+ * 无变化时返回同一引用，不触发额外渲染。
+ */
+export function syncJourneyGuideState(
+  state: JourneyGuideState,
+  scope: string | null,
+  kind: JourneyGuideKind | null,
+  snapshot: unknown,
+): JourneyGuideState {
+  if (state.scope !== scope) {
+    return { scope, view: null, awaitingSnapshot: true, snapshot };
+  }
+  if (state.awaitingSnapshot && (kind === null || state.snapshot !== snapshot)) {
+    return initialJourneyGuideState(scope, kind, snapshot);
+  }
+  return state;
+}
+
+/** kind 变化时推进状态机；等待新频道快照期间不消费 kind。 */
+export function advanceJourneyGuideState(
+  state: JourneyGuideState,
+  kind: JourneyGuideKind | null,
+): JourneyGuideState {
+  if (state.awaitingSnapshot) return state;
+  const view = nextJourneyGuideView(state.view, kind);
+  return view === state.view ? state : { ...state, view };
+}
+
+/** 退场计时器到点：清空仍在退场的 view，保留作用域与快照状态。 */
+export function completeJourneyGuideExitState(
+  state: JourneyGuideState,
+): JourneyGuideState {
+  const view = completeJourneyGuideExit(state.view);
+  return view === state.view ? state : { ...state, view };
+}
+
+/**
  * ChannelView 的局部过渡状态：kind 变化时驱动状态机，退场动画结束后卸载卡面。
  *
- * `scope`（频道 id）变化时整块状态重置：ChannelView 在 AppShell 里不按频道重新挂载，
- * 若沿用上一个频道的 view，会把旧卡面带到新频道。渲染期直接按新频道重新起算，
- * 保证切换频道的首帧就不显示旧卡；kind 变化由 layout effect 在绘制前驱动。
+ * `scope`（频道 id）变化时按 `syncJourneyGuideState` 重置：先丢弃旧频道的 view 与
+ * 旧数据推导的 kind，等 `snapshot` 换新后新频道的首张卡才按 enter 起算；同频道内
+ * 后续 kind 变化才走 switch。kind 变化由 layout effect 在绘制前驱动。
  */
 export function useJourneyGuideView(
   scope: string | null,
   kind: JourneyGuideKind | null,
+  snapshot: unknown,
 ): JourneyGuideView | null {
-  const [view, setView] = useState<JourneyGuideView | null>(() =>
-    nextJourneyGuideView(null, kind),
+  const [state, setState] = useState<JourneyGuideState>(() =>
+    initialJourneyGuideState(scope, kind, snapshot),
   );
-  const [viewScope, setViewScope] = useState(scope);
 
-  // 频道切换：渲染期直接丢弃旧频道的状态，新频道从当前 kind 重新起算，
-  // 旧卡面不会在新频道里多留一帧（这是 React 的「props 变化时调整 state」模式）。
-  if (viewScope !== scope) {
-    setViewScope(scope);
-    setView(nextJourneyGuideView(null, kind));
-  }
+  // React 的「props 变化时调整 state」模式：渲染期同步作用域/快照，新频道首帧
+  // 不会显示旧卡，也不会用旧频道数据起算过渡。
+  const synced = syncJourneyGuideState(state, scope, kind, snapshot);
+  if (synced !== state) setState(synced);
 
   useLayoutEffect(() => {
-    setView((previous) => nextJourneyGuideView(previous, kind));
+    setState((previous) => advanceJourneyGuideState(previous, kind));
   }, [kind]);
 
+  const view = state.view;
   const exiting = view?.phase === "exit";
   const generation = view?.generation;
   useEffect(() => {
     if (!exiting) return;
     const timer = setTimeout(
-      () => setView(completeJourneyGuideExit),
+      () => setState(completeJourneyGuideExitState),
       JOURNEY_GUIDE_EXIT_MS,
     );
     return () => clearTimeout(timer);
@@ -3203,9 +3272,12 @@ export function ChannelView({
   // scope 用频道 id：切频道时重置，不把上一个频道的卡面带过来。
   // 无消息时消息流不渲染引导卡（空态有自己的静态 describe 卡），这里传 null，
   // 让首个非空卡面走 enter（重聚进入）而不是从空态的 kind 切过来。
+  // snapshot 传 messages 数组引用：频道切换后它换新，代表新频道数据已落位，
+  // 此时才消费 kind（否则首帧的 kind 还来自上一频道的残留数据）。
   const guideView = useJourneyGuideView(
     channel?.id ?? null,
     messages.length === 0 ? null : journey.guideKind,
+    messages,
   );
   const [composerFocusTick, setComposerFocusTick] = useState(0);
   /** 「描述任务」CTA：递增本地信号聚焦 composer（与外部 DM 导航信号叠加）。 */

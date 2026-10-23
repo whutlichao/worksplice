@@ -8,8 +8,8 @@
     null
   ],
   "facts": {
-    "channelId": "5277a1eb-0c1c-4347-b39d-4de252be6864",
-    "taskId": "3694525a-a93d-4f5f-b7b1-9d004f0e0c6a",
+    "channelId": "7539f924-0984-4438-9293-232b27435716",
+    "taskId": "f243ca4c-c856-4699-8f91-a8f9a8acb965",
     "steps": [],
     "initial": {
       "matched": true,
@@ -30,7 +30,7 @@
         "particleCount": 12,
         "text": "等待交接或认领有任务还在待办：@agent 交接，或到任务板认领。打开任务板"
       },
-      "elapsedMs": 74,
+      "elapsedMs": 94,
       "timedOut": false
     },
     "hydrationWarnings": [],
@@ -53,7 +53,7 @@
         "particleCount": 12,
         "text": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板"
       },
-      "elapsedMs": 1905,
+      "elapsedMs": 2096,
       "timedOut": false
     },
     "switchMid": {
@@ -92,7 +92,7 @@
         "particleCount": 12,
         "text": "让它跑看成员状态点，或打开任务板跟进进展。打开任务板"
       },
-      "elapsedMs": 432,
+      "elapsedMs": 437,
       "timedOut": false
     },
     "reducedMotion": {
@@ -115,7 +115,7 @@
           "particleCount": 12,
           "text": "去复核有任务在等你复核，去任务板看看。打开任务板"
         },
-        "elapsedMs": 1947,
+        "elapsedMs": 2080,
         "timedOut": false
       },
       "sample": {
@@ -155,7 +155,7 @@
         "particleCount": 12,
         "text": "去复核有任务在等你复核，去任务板看看。打开任务板"
       },
-      "elapsedMs": 1882,
+      "elapsedMs": 1864,
       "timedOut": false
     },
     "gone": {

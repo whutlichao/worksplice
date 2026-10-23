@@ -1,19 +1,19 @@
-[2026-10-23T09:26:19.796Z] created channel 5277a1eb-0c1c-4347-b39d-4de252be6864 (journey-transition-1792747579745)
-[2026-10-23T09:26:19.838Z] created message 6414c06e-b7c7-4692-993d-6b31812797ec seq=1
-[2026-10-23T09:26:19.848Z] created task #1 (3694525a-a93d-4f5f-b7b1-9d004f0e0c6a) status=todo
-[2026-10-23T09:26:20.532Z] set locale zh-CN and cleared service worker + static caches
-[2026-10-23T09:26:21.901Z] channel page ready
-[2026-10-23T09:26:21.978Z] console.error messages=0 hydrationWarnings=0
-[2026-10-23T09:26:21.978Z] initial: label="等待交接或认领" kind=handoff phase=enter particles=12 layerAriaHidden=true timedOut=false
-[2026-10-23T09:26:22.762Z] claim posted (todo → in_progress)
-[2026-10-23T09:26:24.669Z] switch detected: label="让它跑" phase=switch elapsed=1905ms cardAnimation="journey-guide-card-switch" particleAnimation="journey-guide-particle-out, journey-guide-particle-in" timedOut=false
-[2026-10-23T09:26:24.673Z] switch mid (frozen 150ms): cardOpacity=0.881992 particleOpacity=0.442489 particleAnimation="journey-guide-particle-out, journey-guide-particle-in"
-[2026-10-23T09:26:25.599Z] running final: opacity=1 transform=matrix(1, 0, 0, 1, 0, 0) particleOpacity=0 elapsed=432ms timedOut=false
-[2026-10-23T09:26:25.719Z] Emulation.setEmulatedMedia prefers-reduced-motion: reduce
-[2026-10-23T09:26:25.731Z] update-status posted (in_progress → in_review)
-[2026-10-23T09:26:27.773Z] reduce switch: label="去复核" particleAnimationDuration="0.001s" particleOpacity="0" cardOpacity="1" cardTextVisible=true elapsed=1947ms timedOut=false
-[2026-10-23T09:26:28.800Z] Emulation.setEmulatedMedia restored
-[2026-10-23T09:26:28.815Z] update-status posted (in_review → done)
-[2026-10-23T09:26:30.698Z] exit detected: label="去复核" className="journey-guide-card is-exiting" cardAnimation="journey-guide-card-out" particleAnimation="journey-guide-particle-out" elapsed=1882ms timedOut=false
-[2026-10-23T09:26:31.449Z] exit complete: cardGone=true elapsed=0ms timedOut=false
-[2026-10-23T09:26:31.553Z] VERDICT GREEN (0 failure(s))
+[2026-10-23T09:55:28.344Z] created channel 7539f924-0984-4438-9293-232b27435716 (journey-transition-1792749328294)
+[2026-10-23T09:55:28.379Z] created message 2f5fa3cc-281f-4aa8-9aac-132720387995 seq=1
+[2026-10-23T09:55:28.395Z] created task #1 (f243ca4c-c856-4699-8f91-a8f9a8acb965) status=todo
+[2026-10-23T09:55:29.045Z] set locale zh-CN and cleared service worker + static caches
+[2026-10-23T09:55:30.470Z] channel page ready
+[2026-10-23T09:55:30.604Z] console.error messages=0 hydrationWarnings=0
+[2026-10-23T09:55:30.604Z] initial: label="等待交接或认领" kind=handoff phase=enter particles=12 layerAriaHidden=true timedOut=false
+[2026-10-23T09:55:31.109Z] claim posted (todo → in_progress)
+[2026-10-23T09:55:33.208Z] switch detected: label="让它跑" phase=switch elapsed=2096ms cardAnimation="journey-guide-card-switch" particleAnimation="journey-guide-particle-out, journey-guide-particle-in" timedOut=false
+[2026-10-23T09:55:33.211Z] switch mid (frozen 150ms): cardOpacity=0.881992 particleOpacity=0.442489 particleAnimation="journey-guide-particle-out, journey-guide-particle-in"
+[2026-10-23T09:55:33.949Z] running final: opacity=1 transform=matrix(1, 0, 0, 1, 0, 0) particleOpacity=0 elapsed=437ms timedOut=false
+[2026-10-23T09:55:34.066Z] Emulation.setEmulatedMedia prefers-reduced-motion: reduce
+[2026-10-23T09:55:34.095Z] update-status posted (in_progress → in_review)
+[2026-10-23T09:55:36.259Z] reduce switch: label="去复核" particleAnimationDuration="0.001s" particleOpacity="0" cardOpacity="1" cardTextVisible=true elapsed=2080ms timedOut=false
+[2026-10-23T09:55:37.284Z] Emulation.setEmulatedMedia restored
+[2026-10-23T09:55:37.301Z] update-status posted (in_review → done)
+[2026-10-23T09:55:39.167Z] exit detected: label="去复核" className="journey-guide-card is-exiting" cardAnimation="journey-guide-card-out" particleAnimation="journey-guide-particle-out" elapsed=1864ms timedOut=false
+[2026-10-23T09:55:39.915Z] exit complete: cardGone=true elapsed=0ms timedOut=false
+[2026-10-23T09:55:40.018Z] VERDICT GREEN (0 failure(s))

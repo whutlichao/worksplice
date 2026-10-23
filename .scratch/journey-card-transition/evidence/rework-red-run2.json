@@ -1,0 +1,70 @@
+{
+  "verdict": "RED",
+  "failures": [
+    "B 的首张消息流卡应按 enter 重建，实际 {\"t\":107,\"label\":\"把一条消息转为任务\",\"kind\":\"handoff\",\"phase\":\"switch\",\"className\":\"journey-guide-card is-switching\"}"
+  ],
+  "switchSample": {
+    "headerSwitchedAt": 17,
+    "sampleCount": 52,
+    "cardsAfterSwitch": 24,
+    "firstStream": {
+      "t": 107,
+      "label": "把一条消息转为任务",
+      "kind": "handoff",
+      "phase": "switch",
+      "className": "journey-guide-card is-switching"
+    },
+    "labelsSeen": [
+      "把一条消息转为任务",
+      "等待交接或认领"
+    ],
+    "firstSamples": [
+      {
+        "t": 0,
+        "header": false,
+        "hasCard": true
+      },
+      {
+        "t": 17,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 35,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 51,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 68,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 85,
+        "header": true,
+        "hasCard": false
+      },
+      {
+        "t": 107,
+        "header": true,
+        "hasCard": true
+      },
+      {
+        "t": 124,
+        "header": true,
+        "hasCard": true
+      }
+    ]
+  },
+  "backSample": {
+    "elapsedMs": 30,
+    "firstPhase": "enter",
+    "firstLabel": "去复核",
+    "header": "#cross-a-1792748452702私有离开归档…journey cro"
+  }
+}

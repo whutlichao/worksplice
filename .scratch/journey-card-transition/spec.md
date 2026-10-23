@@ -1,6 +1,6 @@
 # 旅程引导卡形态切换过渡（粒子消散→重聚）
 
-- **Status**: Done
+- **Status**: Done（2026-10-23 打回修复后复验通过）
 - **票型**: 实施票
 - **门禁**: G-impl
 - **分支 / worktree**: `journey-card-transition`
@@ -76,3 +76,22 @@
 
 - 可编辑：`components/ChannelView.tsx`、`app/globals.css`、
   `components/ChannelView.test.mjs`、`app/globals.test.mjs`，以及本目录下的票据、证据与 PR body。
+
+## 打回修复（2026-10-23）
+
+- **问题**：协调者在隔离环境连续 3 次复跑 `probe-cross-channel.ego.mjs` 均 RED——频道 B
+  的第一张流内卡片是 `handoff` 且 `data-guide-phase="switch"`，与「切频道后首张卡必须
+  `enter`」矛盾。
+- **根因**：ChannelView 不按频道重挂载；切换首帧 `useChannelData` 仍持有上一频道的
+  messages/tasks（其切换 effect 在提交后才清空或命中缓存），旧实现用这帧的 kind 起算，
+  形成 `enter(旧 review) → exit → switch(handoff)`。数据到达顺序不同导致时好时坏。
+- **修复**：过渡状态机增加数据快照归属判断（`JourneyGuideState.snapshot` = messages 数组
+  引用）。切频道先进入 `awaitingSnapshot` 并丢弃旧 view，快照换新后才用
+  `nextJourneyGuideView(null, kind)` 起算首张卡（enter）；后续同频道变化才 switch。
+  不使用 sleep/延时，不改 journey 推导与轮询频率。
+- **复验**：跨频道探针 3/3 GREEN（`evidence/rework-green-run{1,2,3}.log/json`，B 首张卡
+  `handoff / enter`，900ms 内无 A 的「去复核」）；主探针 1× GREEN；窄门 86 pass / 0 fail；
+  typecheck 0 error；lint 0 error（仅既存 `useI18n.tsx:61` warning）。
+- **红证据**：旧实现 3/3 RED（`evidence/rework-red-run{1,2,3}.log/json`）；新增状态机测试
+  在旧实现上失败（`evidence/rework-red-unit-tests.log`：`initialJourneyGuideState is not
+  a function`）。

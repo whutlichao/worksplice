@@ -4,9 +4,9 @@
   "switchSample": {
     "headerSwitchedAt": 17,
     "sampleCount": 49,
-    "cardsAfterSwitch": 29,
+    "cardsAfterSwitch": 25,
     "firstStream": {
-      "t": 398,
+      "t": 441,
       "label": "把一条消息转为任务",
       "kind": "handoff",
       "phase": "enter",
@@ -33,36 +33,36 @@
         "hasCard": false
       },
       {
-        "t": 81,
+        "t": 52,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 109,
+        "t": 69,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 125,
+        "t": 85,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 147,
+        "t": 102,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 166,
+        "t": 119,
         "header": true,
         "hasCard": false
       }
     ]
   },
   "backSample": {
-    "elapsedMs": 27,
+    "elapsedMs": 16,
     "firstPhase": "enter",
     "firstLabel": "去复核",
-    "header": "#cross-a-1792747591733私有离开归档…journey cro"
+    "header": "#cross-a-1792749320715私有离开归档…journey cro"
   }
 }

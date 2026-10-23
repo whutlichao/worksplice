@@ -21,6 +21,10 @@ const {
     JourneyGuideCard,
     nextJourneyGuideView,
     completeJourneyGuideExit,
+    initialJourneyGuideState,
+    syncJourneyGuideState,
+    advanceJourneyGuideState,
+    completeJourneyGuideExitState,
     CenterTabs,
     MessageMoreMenu,
 } = await jiti.import("./ChannelView.tsx");
@@ -1550,6 +1554,78 @@ test("引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入", () =>
 
     // 从无到无：不凭空造卡。
     assert.equal(nextJourneyGuideView(null, null), null);
+});
+
+test("引导卡过渡状态机：切频道后等新频道数据快照，首张卡按 enter 起算", () => {
+    // snapshot 是数据快照标识（调用方传 messages 数组引用），只做同一性比较。
+    const snapshotA = ["a"];
+    const snapshotBEmpty = [];
+
+    // 频道 A 已经显示 review 卡。
+    let state = initialJourneyGuideState("A", "review", snapshotA);
+    assert.deepEqual(state.view, {
+        kind: "review",
+        phase: "enter",
+        generation: 1,
+    });
+
+    // 切到频道 B 的首帧：messages/tasks 还是 A 的数据（useChannelData 的切换 effect
+    // 在提交后才清空/命中缓存），kind 仍是 review。此时不得用它起算，否则会先
+    // enter(review) → exit(review) → switch(handoff)，B 的首张卡 phase 就错了。
+    state = syncJourneyGuideState(state, "B", "review", snapshotA);
+    assert.equal(state.view, null);
+    assert.equal(state.awaitingSnapshot, true);
+    // 等快照期间 kind 变化不消费。
+    assert.equal(advanceJourneyGuideState(state, "handoff"), state);
+
+    // useChannelData 的切换 effect 清空了旧频道数据 → 快照换新，结束等待。
+    state = syncJourneyGuideState(state, "B", null, snapshotBEmpty);
+    assert.equal(state.awaitingSnapshot, false);
+    assert.equal(state.view, null);
+
+    // 频道 B 的第一张卡：进入，而不是从 A 的形态切过来。
+    state = advanceJourneyGuideState(state, "handoff");
+    assert.deepEqual(state.view, {
+        kind: "handoff",
+        phase: "enter",
+        generation: 1,
+    });
+
+    // 同频道后续形态变化才走 switch；同形态返回同一引用。
+    state = advanceJourneyGuideState(state, "running");
+    assert.deepEqual(state.view, {
+        kind: "running",
+        phase: "switch",
+        generation: 2,
+    });
+    assert.equal(advanceJourneyGuideState(state, "running"), state);
+
+    // 退场与计时器清理沿用原状态机。
+    state = advanceJourneyGuideState(state, null);
+    assert.equal(state.view.phase, "exit");
+    assert.equal(completeJourneyGuideExitState(state).view, null);
+});
+
+test("引导卡过渡状态机：缓存频道的快照直接带形态时也按首张 enter 起算", () => {
+    const snapshotA = ["a"];
+    const snapshotB = ["b"];
+    let state = initialJourneyGuideState("A", "review", snapshotA);
+    // 切换首帧仍是 A 的数据；缓存命中的 B 快照在 effect 里换新后才消费 kind。
+    state = syncJourneyGuideState(state, "B", "review", snapshotA);
+    assert.equal(state.view, null);
+    state = syncJourneyGuideState(state, "B", "handoff", snapshotB);
+    assert.deepEqual(state.view, {
+        kind: "handoff",
+        phase: "enter",
+        generation: 1,
+    });
+    // 切到 B 的同一帧如果快照已清空（kind null），也可以直接结束等待。
+    let empty = initialJourneyGuideState("A", "review", snapshotA);
+    empty = syncJourneyGuideState(empty, "B", null, snapshotA);
+    assert.equal(empty.awaitingSnapshot, true);
+    empty = syncJourneyGuideState(empty, "B", null, snapshotA);
+    assert.equal(empty.awaitingSnapshot, false);
+    assert.equal(empty.view, null);
 });
 
 test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务，门控与旧动作栏一致", () => {

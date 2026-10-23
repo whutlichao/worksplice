@@ -8,7 +8,8 @@
 - **形态切换**（handoff→running、running→review 等）：卡面播放一次「粒子消散 → 重聚」，
   新卡面同时淡入/轻微缩放；切换瞬间只有一张卡（React 原地替换内容，粒子层掩盖替换）。
 - **首次出现**（null→某形态）：播放重聚进入；切到另一个频道时也按新频道首现处理
-  （过渡状态按频道 id 作用域重置，不会沿用上一个频道的卡面）。
+  （过渡状态按频道 id 作用域重置，并等新频道数据快照落位后才起算，不会沿用上一个
+  频道的卡面或形态）。
 - **卡面消失**（guideKind→null）：先用局部状态保留最后一张卡面的 kind 340ms，播完消散
   再卸载；保留状态只服务动画，不改 journey 推导。
 - 动画总时长 ≤900ms（切换 520ms 卡面 + 粒子错峰至 605ms；退场 320ms 卡面 / 340ms 保留），
@@ -39,13 +40,17 @@ nextJourneyGuideView(previous, kind)
 ```
 
 `completeJourneyGuideExit` 只在视图仍为 `exit` 时清空，避免计时器误杀新状态。
-`useJourneyGuideView(scope, kind)` 用 `useLayoutEffect` 在绘制前驱动状态机，并在
+`useJourneyGuideView(scope, kind, snapshot)` 用 `useLayoutEffect` 在绘制前驱动状态机，并在
 `phase === "exit"` 时挂 `JOURNEY_GUIDE_EXIT_MS`（340ms）计时器；`generation` 作为卡片
 `key`，保证同类动画（如 handoff→running→review 都是 switch）每次都能重播 CSS 动画。
 
 - **scope = 频道 id**：ChannelView 在 AppShell 里不按频道重新挂载，局部过渡状态必须按
-  频道作用域重置。渲染期比较 `viewScope` 并直接丢弃旧频道的 view（React 的「props 变化
-  时调整 state」模式），切换频道首帧就不会显示旧卡。
+  频道作用域重置。渲染期用 `syncJourneyGuideState` 丢弃旧频道的 view（React 的「props
+  变化时调整 state」模式），切换频道首帧就不会显示旧卡。
+- **snapshot = messages 数组引用**（打回修复）：切频道首帧的数据仍属于上一频道，不能
+  用它起算。`syncJourneyGuideState` 先置 `awaitingSnapshot`，等快照换新（useChannelData
+  的切换 effect 已执行）后才用 `nextJourneyGuideView(null, kind)` 起算新频道首张卡；
+  等待期间不消费 kind。这是数据归属判断，不是延时。
 - **无消息时传 `kind = null`**：空态有自己的静态 describe 卡，消息流末尾不渲染引导卡。
   这样频道数据到达后的第一张流内卡面是 `null → handoff`，走 enter（重聚进入），而不是
   从加载期推导出的 describe 切过来。
@@ -115,6 +120,71 @@ review 追加的跨频道红→绿（`probe-cross-channel.ego.mjs`）：
 - **绿**（本票修复）：`evidence/cross-channel.log` → GREEN。B 的首张消息流卡面为
   `handoff / enter`（`is-entering`），900ms 采样内从未出现 A 的「去复核」；切回 A 时
   卡面按 enter 重建。
+- **打回后复验**：该次 GREEN 存在竞态（见下节），单次通过不代表稳定。返工后以
+  `evidence/rework-green-run{1,2,3}.log/json` 连续 3 次 GREEN 为准。
+
+## 打回修复（2026-10-23）
+
+### 复现
+
+协调者在隔离环境连续 3 次复跑 `probe-cross-channel.ego.mjs` 均 RED。本 worktree 用同一
+隔离实例复跑，3/3 RED 一致（`evidence/rework-red-run{1,2,3}.log/json`）：
+
+```text
+VERDICT RED
+B 的首张消息流卡应按 enter 重建，实际
+{"t":105,"label":"把一条消息转为任务","kind":"handoff","phase":"switch",
+ "className":"journey-guide-card is-switching"}
+```
+
+复现命令（隔离数据目录与独立端口，未触碰 `~/.worksplice` 与 30142）：
+
+```bash
+WORKSPLICE_DATA_DIR=/tmp/ws-journey-card-transition PORT=30199 \
+  ./node_modules/.bin/next dev -H 127.0.0.1 -p 30199
+ego-browser nodejs < .scratch/journey-card-transition/probe-cross-channel.ego.mjs
+```
+
+### 根因
+
+ChannelView 在 AppShell 里不按频道重挂载；切频道首帧 `useChannelData` 仍持有上一频道的
+messages/tasks（它的切换 effect 在**提交后**才清空旧数据或命中缓存）。旧实现（ce3016e）
+在这帧就按 `kind` 起算，于是：
+
+```text
+切到 B 首帧（数据仍是 A 的 review）→ enter(review) → 首帧后 kind 变 null → exit(review)
+→ B 消息到达、任务尚未到 → handoff 被算成 switch
+```
+
+B 是否缓存、消息/任务两组数据谁先到，都会改变中间停留的帧数，所以同一份代码时好时坏
+（本票此前单次 GREEN 正是撞上了 exit 计时器已清空的时序）。
+
+### 修复
+
+只改过渡状态机与作用域重置，不动 journey 推导、数据钩子、轮询与卡面：
+
+- 新增 `JourneyGuideState`（scope / view / awaitingSnapshot / snapshot）与四个纯函数：
+  `initialJourneyGuideState`、`syncJourneyGuideState`、`advanceJourneyGuideState`、
+  `completeJourneyGuideExitState`。
+- `snapshot` 传 `messages` 数组引用，作为「数据已归属当前频道」的标识。切频道时
+  `syncJourneyGuideState` 先丢弃旧 view、置 `awaitingSnapshot`；快照换新（useChannelData
+  的切换 effect 已执行）后才用 `nextJourneyGuideView(null, kind)` 起算首张卡 → enter。
+  等待期间 kind 变化不消费；后续同频道变化才走 switch。
+- 这是数据归属判断，不是 sleep/延时；不改变数据到达顺序与轮询频率。
+
+### 测试与验证
+
+- 新增 2 条纯状态机测试（切频道等待快照、缓存频道快照直接带形态），并断言
+  「等待期间 kind 变化不消费」「首张 enter、后续 switch」「退场沿用原状态机」。
+- **红**（旧实现）：`evidence/rework-red-unit-tests.log` →
+  `TypeError: initialJourneyGuideState is not a function`（2 条测试失败）。
+- **绿**：`evidence/rework-narrow-gate.log` → `tests 86 / pass 86 / fail 0`；
+  `evidence/rework-typecheck.log` 0 error；`evidence/rework-lint.log` 0 error（仅既存
+  `useI18n.tsx:61` 一条 warning）。
+- **浏览器**：跨频道探针 **3/3 GREEN**（`evidence/rework-green-run{1,2,3}.log/json`），
+  B 首张流内卡面 `handoff / enter`（`is-entering`），900ms 采样内无 A 的「去复核」；
+  切回 A 首张卡 `enter`。主探针 1× GREEN（`evidence/after.log` →
+  `VERDICT GREEN (0 failure(s))`，粒子/终态/reduce/退场断言全过）。
 
 ## 浏览器真实证据（ego-browser）
 
@@ -155,11 +225,11 @@ enter`，且 B 从未出现 A 的「去复核」）；截图 `cross-01-channel-b
 
 | 命令 | 结果 |
 | --- | --- |
-| `node --test components/ChannelView.test.mjs app/globals.test.mjs` | 84 pass / 0 fail（`evidence/narrow-gate.log`） |
-| `npm run typecheck` | 0 error（`evidence/typecheck.log`） |
-| `npm run lint` | 0 error，仅既存 `hooks/useI18n.tsx:61` 一条 warning（`evidence/lint.log`） |
-| ego 浏览器探针（主） | VERDICT GREEN（`evidence/after.log` / `after.json`） |
-| ego 浏览器探针（跨频道） | 旧实现 RED（`evidence/cross-channel-red.log`）→ 本票 GREEN（`evidence/cross-channel.log`） |
+| `node --test components/ChannelView.test.mjs app/globals.test.mjs` | **86 pass / 0 fail**（`evidence/rework-narrow-gate.log`；首版 84 条见 `evidence/narrow-gate.log`） |
+| `npm run typecheck` | 0 error（`evidence/rework-typecheck.log`；首版 `evidence/typecheck.log`） |
+| `npm run lint` | 0 error，仅既存 `hooks/useI18n.tsx:61` 一条 warning（`evidence/rework-lint.log`） |
+| ego 浏览器探针（主） | VERDICT GREEN（`evidence/after.log` / `after.json`，打回后 1×） |
+| ego 浏览器探针（跨频道） | 旧实现 RED 3/3（`rework-red-run{1,2,3}`）→ 打回修复后 **GREEN 3/3**（`rework-green-run{1,2,3}`） |
 
 本票按窄档未跑全量 `npm test`（票据明确「本票不跑」）。
 
@@ -190,6 +260,33 @@ enter`，且 B 从未出现 A 的「去复核」）；截图 `cross-01-channel-b
 | P8 | 判断 | 粒子「由索引推导」实为硬编码 12 项表 | **保持**：表项按索引一一对应、确定性与 SSR 一致性由单测与 hydration 0 警告覆盖；spec 要求的是确定性，不是数学推导 |
 
 **结论**：两轴无未处置的硬 finding。P3 的跨频道问题由 review 发现并修复，附旧实现红证据。
+
+## Review（打回修复增量，双轴）
+
+范围：打回修复提交的增量（`components/ChannelView.tsx` 状态机与调用点、
+`components/ChannelView.test.mjs` 新增 2 条纯函数测试）。基线 `origin/main` = `dc50735`。
+
+### Standards 轴
+
+| # | 级别 | Finding | 处置 |
+| --- | --- | --- | --- |
+| S1 | 判断 | `syncJourneyGuideState` 的「结束等待」分支重复了 `initialJourneyGuideState` 的四字段构造 | **已改**：直接复用 `initialJourneyGuideState(scope, kind, snapshot)` |
+| S2 | 判断 | `JourneyGuideState.snapshot` 用 `unknown` 承载 messages 数组引用，状态里存了一个大对象引用 | **保持**：只做同一性比较、不复制；注释写明它是数据快照标识，不是业务状态 |
+| S3 | 判断 | `sync` / `advance` / `complete...State` 三个入口是否过细 | **保持**：分别对应「渲染期同步作用域/快照」「kind 变化推进」「计时器清退场」，职责单一且可纯函数单测 |
+| S4 | 判断 | 等待快照期间 `kind === null` 也允许结束等待，扩大了消费条件 | **保持**：null 形态不产生卡片；即使来自旧数据，结束后新频道的首个非空 kind 仍走 enter，无副作用 |
+| S5 | 判断 | hook 在渲染期调用 `setState` | **保持**：仓库既有的「props 变化时调整 state」模式（原实现同处已用），lint/typecheck 通过；仅状态真正变化时才 set |
+
+### Spec 轴
+
+| # | 级别 | Finding | 处置 |
+| --- | --- | --- | --- |
+| P1 | 硬（重要） | 切频道后首张卡必须 `enter`，不得用上一频道数据推出 `switch` | **已修**：数据快照归属门控；旧实现 3/3 RED → 修复后 3/3 GREEN |
+| P2 | 硬 | 首版 Answer/PR 把单次 GREEN 当作稳定结论 | **已改**：证据改为 3/3 复跑，PR 正文写明打回前的竞态与 RED 3/3 |
+| P3 | 判断 | 「后续同频道变化才 switch」需有回归覆盖 | **已覆盖**：状态机测试断言 enter → switch → exit → 清理的完整序列 |
+| P4 | 判断 | 「不得出现上一频道的卡面内容」 | **已满足**：等待快照期间 view 为 null，不渲染卡；消息列表自身的切换时序属 `useChannelData`，本票未改 |
+| P5 | 判断 | 新测试在旧实现上只因导出缺失而红，未直接断言旧行为 | **保持**：测试按真实时序断言（旧数据首帧 → 快照换新 → handoff 必须 enter），旧实现无法导出该状态机；红证据见 `rework-red-unit-tests.log` |
+
+**结论**：两轴无未处置的硬 finding；S1 已按 DRY 收敛，其余均为有依据的保留。
 
 ## 未完成项
 
