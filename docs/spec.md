@@ -128,7 +128,7 @@
   2. **send as-is**（原样发送）— 再次携带新版本号重试 freshness 检查；
   3. **stay silent**（静默放弃）— 沉默是合法结果；
   4. **send anyway**（`--anyway` 逃逸口）— 连续 hold 后的显式绕过。
-- **hold 重路由**（频道轮）：普通 `reply` 被 hold 后，在重发（resend）或重写（revise）之前，用写稿版本之后到达的新消息重跑自动认领裁决；若最新一条其他作者消息是任务创建事件，则按与普通路由轮**完全相同**的语义投递（无 owner 先 claim，再投任务锚点 thread；已有 owner 以参与者投线程）。revise 与 resend 都生效——内容由 agent 选择，目标由系统决定。裁决只认创建事件，不因频道存在开放任务就把普通回复改投线程；claim 失败 / 任务不存在 / 任务 done·closed 时保持既有 hold 处理，不向别处兜底。频道游标照常推进到本轮实际读到的版本，线程投递不改写频道游标。
+- **hold 重路由**（频道轮）：普通 `reply` 被 hold 后，在重发（resend）或重写（revise）之前，用写稿版本之后到达的新消息重跑自动认领裁决；若最新一条其他作者消息是任务创建事件，则按与普通路由轮**完全相同**的语义投递（无 owner 先 claim，再投任务锚点 thread；已有 owner 以参与者投线程）。revise 与 resend 都生效——内容由 agent 选择，目标由系统决定。裁决只认创建事件，不因频道存在开放任务就把普通回复改投线程；claim 失败 / 任务不存在 / 任务 done·closed 时保持既有 hold 处理，不向别处兜底。裁决输入与 drain 共用同一 mute 可见性口径（被静音的创建事件不触发路由）。频道游标照常推进到本轮实际读到的版本（至少包含命中的创建事件 seq，避免下一轮重复路由），线程投递不改写频道游标。
 - 消息渲染：被修正消息不显示"已编辑"标记（不可编辑），修正关系通过 thread 结构自然表达。
 
 ### 3.4 Reaction **[展开]**
@@ -352,6 +352,7 @@ flowchart TB
 
 - 消息表是**房间事实唯一来源**；pi session 只承载认知过程。**[锁定]** 05
 - **非跨存储事务**：两步各是独立事务；崩溃恢复靠 `consumed_seqs` 游标 + **启动时按 seq 补拉**（对每个 agent×target，若 SQLite 中 seq 落后于 session jsonl 中的已投递 seq，按序补写）。**[锁定]** 05
+- **补拉投递目标还原的已知残余**（thread-routing-four）：补拉按 session marker（及显式 `task` op）还原该轮真实投递目标。① 走 hold 重路由的轮 marker 仍停在写稿前版本，若进程在线程写入前崩溃，补拉无法还原到线程（P-3 残余；根治需让 marker / round_log 记录该轮真实投递 target）。② marker 启发式无法区分「崩溃缺失」与 live 明确让路（reopened 封锁 / claim 重试耗尽），也无法区分裁决时任务已 done·closed（live 会留频道）——这两类轮补拉仍按创建事件还原到线程；其中 done·closed 是 P3 票面「任务当前状态不影响历史还原」的明确取舍。
 - pi 升级改变 session 格式不影响协作域数据。**[锁定]** 05
 
 ### 5.4 agent-loop（自研组件）**[展开]**
