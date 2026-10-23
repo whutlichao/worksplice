@@ -350,6 +350,29 @@ export function replyPromptContext(agent: MemberRow): ReplyPromptContext {
 }
 
 /**
+ * prompt 头部里的投递目标身份（P1）：频道轮与线程轮必须可区分。
+ * - 频道轮：`channel <name>`（与既有文案逐字节一致）；
+ * - 任务线程轮：`the thread of task #N [status] under channel X (anchor seq S)`；
+ * - 普通线程轮：`a thread under channel X (anchor seq S)`。
+ * 锚点消息缺失时省略 seq，不编造；只读查询，不改变投递语义（投递目标仍由系统裁决）。
+ */
+function describePromptTarget(input: {
+  channel: ChannelRow;
+  targetId: string;
+}): string {
+  if (input.targetId === input.channel.id) {
+    return `channel ${input.channel.name}`;
+  }
+  const anchorSeq = getDb().getMessage(input.targetId)?.seq;
+  const seqNote = anchorSeq === undefined ? "" : ` (anchor seq ${anchorSeq})`;
+  const task = getDb().getTaskByMessageId(input.targetId);
+  if (task) {
+    return `the thread of task #${task.number} [${task.status}] under channel ${input.channel.name}${seqNote}`;
+  }
+  return `a thread under channel ${input.channel.name}${seqNote}`;
+}
+
+/**
  * decide 的 prompt（§5.4 AX 原则）：新消息（带 seq/作者）+ 相关任务状态 + 明确的 next action 选项。
  *
  * 票 08（spec B5）：整轮注入形状受 `ROUND_INJECTION_BUDGET_CHARS` 约束——
@@ -379,7 +402,10 @@ export function buildReplyPrompt(input: {
   // 头部（骨架，永不裁）
   const head: string[] = [];
   head.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
-  head.push(`New activity arrived in channel ${input.channel.name}:`);
+  // P1：线程轮与频道轮用不同身份措辞——模型得知道自己是在某个（任务）线程里说话
+  head.push(
+    `New activity arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })}:`,
+  );
   // 11-整改（自激循环）：续工轮的 drain 全是 agent 自己的历史回复（线程游标留口），
   // 模型看到 `@自己` 会误以为被 @mention 而继续回复——标注这些是自己的消息，
   // 不是他人新活动，@mention 也不构成"必须回应"信号。
@@ -514,8 +540,9 @@ export function buildRevisionPrompt(input: {
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
+  // P1：revise 轮同样要说明是在哪个（任务）线程里重写，不能一律写 channel
   head.push(
-    `Your reply to channel ${input.channel.name} was held because the room changed while you were writing.`,
+    `Your reply to ${describePromptTarget({ channel: input.channel, targetId: input.targetId })} was held because the room changed while you were writing.`,
   );
   head.push(`What happened: ${input.held.whatHappened}`);
   head.push(`The room is now at seq ${input.held.roomSeq}.`);
