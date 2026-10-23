@@ -889,77 +889,235 @@ test("postTaskThreadRead sends only the addressed Task and presented thread seq"
   assert.deepEqual(JSON.parse(calls[0].init.body), { throughSeq: 8 });
 });
 
-test("mergeTaskUnreadCounts refreshes unread count and timestamp without replacing stable rows", async () => {
-  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+test("mergeTaskPollRows replaces changed rows with the server view while stable rows keep identity", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
   const taskA = {
     id: "task-a",
+    number: 1,
     status: "todo",
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["in_progress"],
+    owner: null,
     unreadReplyCount: 1,
     latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+    taskThreadReadSeq: 5,
+    totalReplyCount: 1,
   };
   const taskB = {
+    ...taskA,
     id: "task-b",
-    status: "done",
-    unreadReplyCount: 1,
-    latestUnreadReplyAt: "2026-10-10T11:00:00.000Z",
+    number: 2,
+    status: "in_progress",
+    owner_id: "agent-1",
+    updated_at: "2026-10-10T11:00:00.000Z",
+    reachable: ["in_review", "todo", "closed"],
+    owner: { id: "agent-1", name: "agent-1" },
+    unreadReplyCount: 0,
+    latestUnreadReplyAt: null,
+    taskThreadReadSeq: 9,
   };
   const current = [taskA, taskB];
-  const refreshed = mergeTaskUnreadCounts(current, [
+  // 服务端：A 一字未动；B 已被另一页签/另一个 agent 推到 in_review（属主、可达落点、时间同源变化）。
+  const refreshed = mergeTaskPollRows(current, [
+    { ...taskA },
     {
-      id: "task-a",
-      status: "todo",
-      unreadReplyCount: 0,
-      latestUnreadReplyAt: null,
-    },
-    {
-      id: "task-b",
-      status: "closed",
-      unreadReplyCount: 1,
-      latestUnreadReplyAt: "2026-10-10T12:00:00.000Z",
+      ...taskB,
+      status: "in_review",
+      updated_at: "2026-10-10T12:00:00.000Z",
+      reachable: ["done", "in_progress", "closed"],
     },
   ]);
 
-  assert.deepEqual(refreshed.map((task) => task.unreadReplyCount), [0, 1]);
-  assert.deepEqual(
-    refreshed.map((task) => task.latestUnreadReplyAt),
-    [null, "2026-10-10T12:00:00.000Z"],
-  );
-  assert.equal(refreshed[0].status, "todo", "only unread state is refreshed");
-  assert.equal(refreshed[1].status, "done", "task status remains owned by the normal task reload");
-  assert.notEqual(refreshed[0], taskA);
+  assert.equal(refreshed[0], taskA, "未变化的行保持对象身份");
+  assert.equal(refreshed[1].status, "in_review", "状态随轮询进入任务视图");
+  assert.equal(refreshed[1].owner_id, "agent-1", "属主随轮询进入任务视图");
+  assert.equal(refreshed[1].updated_at, "2026-10-10T12:00:00.000Z");
+  assert.deepEqual(refreshed[1].reachable, ["done", "in_progress", "closed"]);
   assert.notEqual(refreshed[1], taskB);
-  assert.equal(mergeTaskUnreadCounts(current, current), current);
+  assert.notEqual(refreshed, current);
+  assert.equal(mergeTaskPollRows(current, current), current, "全部一致时返回同一数组引用");
+});
+
+test("mergeTaskPollRows adopts the reopened marker and the cleared owner from the poll", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
+  const task = {
+    id: "task-a",
+    number: 1,
+    status: "done",
+    owner_id: "agent-1",
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["todo"],
+    owner: { id: "agent-1", name: "agent-1" },
+    unreadReplyCount: 0,
+    latestUnreadReplyAt: null,
+    taskThreadReadSeq: 3,
+    totalReplyCount: 0,
+  };
+  // 另一个页签 reopen：回到 todo、属主回池、置重开标记（agent 不可再自动认领）。
+  const refreshed = mergeTaskPollRows([task], [
+    {
+      ...task,
+      status: "todo",
+      owner_id: null,
+      owner: null,
+      reopened: 1,
+      updated_at: "2026-10-10T11:00:00.000Z",
+      reachable: ["in_progress"],
+    },
+  ]);
+  assert.equal(refreshed[0].status, "todo");
+  assert.equal(refreshed[0].owner_id, null);
+  assert.equal(refreshed[0].reopened, 1, "重开标记随轮询进入，任务板徽标才不陈旧");
+  assert.deepEqual(refreshed[0].reachable, ["in_progress"]);
+});
+
+test("mergeTaskPollRows drives the journey guide card from the polled task status", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
+  const { deriveJourneyState } = await jiti.import("../lib/journey-state.ts");
+  const task = {
+    id: "task-a",
+    number: 1,
+    status: "todo",
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["in_progress"],
+    owner: null,
+    unreadReplyCount: 0,
+    latestUnreadReplyAt: null,
+    taskThreadReadSeq: 0,
+    totalReplyCount: 0,
+  };
+  // 用户报告的症状：消息页那张引导卡的形态只由 hook 的 tasks 推导（ChannelView:3028）。
+  // 轮询把 in_review 带进来，卡面就必须是「去复核」——这是本票的核心回归。
+  const cases = [
+    ["in_review", "review"],
+    ["in_progress", "running"],
+    ["todo", "handoff"],
+    ["done", null],
+    ["closed", null],
+  ];
+  for (const [status, guideKind] of cases) {
+    const current = [{ ...task }];
+    const merged = mergeTaskPollRows(current, [{ ...task, status }]);
+    assert.deepEqual(
+      merged.map((row) => row.status),
+      [status],
+      `轮询行必须把 status=${status} 带进任务视图`,
+    );
+    assert.equal(
+      deriveJourneyState({ messageCount: 1, tasks: merged }).guideKind,
+      guideKind,
+      `status=${status} 时引导卡应为 ${JSON.stringify(guideKind)}`,
+    );
+  }
+});
+
+test("mergeTaskPollRows takes the server order, adds new tasks and drops vanished ones", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
+  const row = (number, status) => ({
+    id: `task-${number}`,
+    number,
+    status,
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["in_progress"],
+    owner: null,
+    unreadReplyCount: 0,
+    latestUnreadReplyAt: null,
+    taskThreadReadSeq: 0,
+    totalReplyCount: 0,
+  });
+  const first = row(1, "todo");
+  const third = row(3, "todo");
+  const vanished = row(2, "todo");
+  const current = [first, vanished, third];
+  // 服务端事实：新建了 #2，且顺序按 number 升序。
+  const second = row(2, "in_progress");
+  const merged = mergeTaskPollRows(current, [first, second, third]);
+
+  assert.deepEqual(merged.map((task) => task.number), [1, 2, 3]);
+  assert.equal(merged[0], first);
+  assert.equal(merged[2], third);
+  assert.equal(merged[1], second, "新任务整行来自服务端（不在 current 时原样并入）");
+  assert.equal(current.includes(second), false);
+  assert.equal(mergeTaskPollRows(current, [first, third]).length, 2, "服务端已不存在的行被移除");
+});
+
+test("mergeTaskPollRows keeps the current total when the poll omits it", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
+  const task = {
+    id: "task-a",
+    number: 1,
+    status: "todo",
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["in_progress"],
+    owner: null,
+    unreadReplyCount: 1,
+    latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+    taskThreadReadSeq: 5,
+    totalReplyCount: 3,
+  };
+  // 服务端这一轮没有带 totalReplyCount（旧版本 / 裁剪响应），其余字段与当前行一致。
+  const refreshed = mergeTaskPollRows([task], [
+    {
+      ...task,
+      totalReplyCount: undefined,
+    },
+  ]);
+  assert.equal(refreshed[0].totalReplyCount, 3, "缺少字段时不能让总数变 undefined");
+  assert.equal(refreshed[0], task, "字段缺失不算变化，不产生无谓的新行");
 });
 
 /**
  * 已读游标也必须随同一份服务端刷新前进（`.scratch/thread-open-scroll/` 的票 B 扩展）。
  *
- * 回归对象：早先 mergeTaskUnreadCounts 只合并 unread 两字段，丢弃 taskThreadReadSeq——
- * 于是 tasks 缓存里的游标永远停在频道挂载那一刻，线程面板的初始落点只能对
- * 「每次挂载后首次打开」正确，其后每次重开都停在旧的最早未读（规则 2 永久违反）。
+ * 回归对象：早先只合并未读两字段，丢弃 taskThreadReadSeq——于是 tasks 缓存里的游标
+ * 永远停在频道挂载那一刻，线程面板的初始落点只能对「每次挂载后首次打开」正确，
+ * 其后每次重开都停在旧的最早未读（规则 2 永久违反）。
  * 逐秒实测见 .scratch/thread-open-scroll/issues/evidence/browser-reopen-window-probe.log。
  */
-test("mergeTaskUnreadCounts advances the Task thread read cursor from the same server refresh", async () => {
-  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+test("mergeTaskPollRows advances the Task thread read cursor from the same server refresh", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
   const taskA = {
     id: "task-a",
+    number: 1,
     status: "todo",
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["in_progress"],
+    owner: null,
     unreadReplyCount: 3,
     latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
     taskThreadReadSeq: 8,
+    totalReplyCount: 3,
   };
   const taskB = {
+    ...taskA,
     id: "task-b",
-    status: "done",
+    number: 2,
+    updated_at: "2026-10-10T11:00:00.000Z",
     unreadReplyCount: 0,
     latestUnreadReplyAt: null,
     taskThreadReadSeq: 12,
   };
   const current = [taskA, taskB];
   // 服务端：A 已被前台打开推进到 11（无未读），B 未动。
-  const refreshed = mergeTaskUnreadCounts(current, [
-    { id: "task-a", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 11 },
-    { id: "task-b", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 12 },
+  const refreshed = mergeTaskPollRows(current, [
+    {
+      ...taskA,
+      unreadReplyCount: 0,
+      latestUnreadReplyAt: null,
+      taskThreadReadSeq: 11,
+    },
+    { ...taskB },
   ]);
 
   assert.deepEqual(
@@ -967,17 +1125,8 @@ test("mergeTaskUnreadCounts advances the Task thread read cursor from the same s
     [11, 12],
     "服务端刷新必须带上 Task 已读游标，否则重开后落点永远用陈旧快照",
   );
-  assert.deepEqual(refreshed.map((task) => task.unreadReplyCount), [0, 0]);
-  // 游标变化本身就算「变了」——即使 unread 两字段一字未动。
+  assert.equal(refreshed[1], taskB, "未变化的行保持对象身份");
   assert.notEqual(refreshed, current);
-  assert.equal(
-    mergeTaskUnreadCounts(refreshed, [
-      { id: "task-a", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 11 },
-      { id: "task-b", unreadReplyCount: 0, latestUnreadReplyAt: null, taskThreadReadSeq: 12 },
-    ]),
-    refreshed,
-    "全部字段一致时仍返回同一引用（避免无谓的 setState）",
-  );
 });
 
 /**
@@ -985,19 +1134,31 @@ test("mergeTaskUnreadCounts advances the Task thread read cursor from the same s
  * 每次轮询照常拉任务板，合并层必须同时带出总数与未读数。普通消息 thread 的计数
  * 只受频道消息页影响，不经过这条合并路径。
  */
-test("mergeTaskUnreadCounts refreshes total and unread replies from the same Task poll", async () => {
-  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+test("mergeTaskPollRows refreshes total and unread replies from the same Task poll", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
   const taskA = {
     id: "task-a",
+    number: 1,
     status: "todo",
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["in_progress"],
+    owner: null,
     totalReplyCount: 1,
     unreadReplyCount: 1,
     latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
     taskThreadReadSeq: 5,
   };
   const taskB = {
+    ...taskA,
     id: "task-b",
+    number: 2,
     status: "in_progress",
+    owner_id: "agent-1",
+    owner: { id: "agent-1", name: "agent-1" },
+    reachable: ["in_review", "todo", "closed"],
+    updated_at: "2026-10-10T11:00:00.000Z",
     totalReplyCount: 0,
     unreadReplyCount: 0,
     latestUnreadReplyAt: null,
@@ -1005,23 +1166,14 @@ test("mergeTaskUnreadCounts refreshes total and unread replies from the same Tas
   };
   const current = [taskA, taskB];
   // 服务端：A 的 Task thread 新增两条回复（一条 Owner、一条 agent）；顶层消息 seq 未动。
-  const refreshed = mergeTaskUnreadCounts(current, [
+  const refreshed = mergeTaskPollRows(current, [
     {
-      id: "task-a",
-      status: "todo",
+      ...taskA,
       totalReplyCount: 3,
       unreadReplyCount: 2,
       latestUnreadReplyAt: "2026-10-10T10:05:00.000Z",
-      taskThreadReadSeq: 5,
     },
-    {
-      id: "task-b",
-      status: "in_progress",
-      totalReplyCount: 0,
-      unreadReplyCount: 0,
-      latestUnreadReplyAt: null,
-      taskThreadReadSeq: 9,
-    },
+    { ...taskB },
   ]);
 
   assert.deepEqual(
@@ -1032,16 +1184,23 @@ test("mergeTaskUnreadCounts refreshes total and unread replies from the same Tas
     ],
     "同一个任务板刷新同时更新总数与未读数",
   );
-  assert.equal(refreshed[0].status, "todo", "status stays owned by the normal task reload");
+  assert.equal(refreshed[0].status, "todo");
+  assert.notEqual(refreshed[0], taskA);
   assert.equal(refreshed[1], taskB, "unchanged rows keep their identity");
   assert.notEqual(refreshed, current);
 });
 
-test("mergeTaskUnreadCounts advances the total when only an Owner reply arrives", async () => {
-  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+test("mergeTaskPollRows advances the total when only an Owner reply arrives", async () => {
+  const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
   const task = {
     id: "task-a",
+    number: 1,
     status: "todo",
+    owner_id: null,
+    reopened: 0,
+    updated_at: "2026-10-10T10:00:00.000Z",
+    reachable: ["in_progress"],
+    owner: null,
     totalReplyCount: 1,
     unreadReplyCount: 1,
     latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
@@ -1049,35 +1208,11 @@ test("mergeTaskUnreadCounts advances the total when only an Owner reply arrives"
   };
   // Owner 回复计入总数但不计入未读：除 totalReplyCount 外其余字段一字未动。
   const current = [task];
-  const refreshed = mergeTaskUnreadCounts(current, [
-    {
-      id: "task-a",
-      status: "todo",
-      totalReplyCount: 2,
-      unreadReplyCount: 1,
-      latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
-      taskThreadReadSeq: 5,
-    },
+  const refreshed = mergeTaskPollRows(current, [
+    { ...task, totalReplyCount: 2 },
   ]);
   assert.equal(refreshed[0].totalReplyCount, 2);
   assert.equal(refreshed[0].unreadReplyCount, 1);
   assert.notEqual(refreshed, current, "总数变化必须触发新的任务行引用");
   assert.notEqual(refreshed[0], task);
-});
-
-test("mergeTaskUnreadCounts falls back to the current total when the field is missing", async () => {
-  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
-  const task = {
-    id: "task-a",
-    status: "todo",
-    totalReplyCount: 3,
-    unreadReplyCount: 1,
-    latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
-    taskThreadReadSeq: 5,
-  };
-  const refreshed = mergeTaskUnreadCounts([task], [
-    { id: "task-a", unreadReplyCount: 1, latestUnreadReplyAt: task.latestUnreadReplyAt, taskThreadReadSeq: 5 },
-  ]);
-  assert.equal(refreshed[0].totalReplyCount, 3, "缺少字段时不能让总数变 undefined");
-  assert.equal(refreshed[0], task);
 });
