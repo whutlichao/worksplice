@@ -1,0 +1,37 @@
+{
+  "phase": "after",
+  "channelId": "18b781b6-11f5-40cc-979b-630757a2850a",
+  "taskId": "fc33a5de-93d1-4008-a997-840aafbed7e1",
+  "verdict": "GREEN",
+  "failed": [],
+  "steps": [
+    {
+      "name": "initial",
+      "expected": "等待交接或认领",
+      "title": "等待交接或认领",
+      "elapsedMs": 0,
+      "timedOut": false
+    },
+    {
+      "name": "01-claim-running",
+      "expected": "让它跑",
+      "title": "让它跑",
+      "elapsedMs": 1215,
+      "timedOut": false
+    },
+    {
+      "name": "02-review",
+      "expected": "去复核",
+      "title": "去复核",
+      "elapsedMs": 2430,
+      "timedOut": false
+    },
+    {
+      "name": "03-done-disappears",
+      "expected": null,
+      "title": null,
+      "elapsedMs": 2937,
+      "timedOut": false
+    }
+  ]
+}
