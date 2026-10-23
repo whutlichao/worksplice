@@ -282,8 +282,8 @@ components/
   ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
   MyRemindersModal.tsx   全局提醒面板（全部提醒列表 + snooze/cancel + 定位跳转，15s 轮询）
   AgentDetailPanel.tsx   agent 详情面板：状态/workspace/runtime（§3.10 ModelPicker 覆盖全局默认）/可观测性（§6.5 统计+任务历史+时间线+导出）/重置
-  BrutalModal.tsx        马卡龙 × brutalist 模态框外壳
-  PixelAvatar.tsx        8×8 像素头像（seed 确定性）
+  BrutalModal.tsx        模态外壳（scrim + blur；`.modal` 两档宽度 440/560，模块名沿旧）
+  Avatar.tsx             首字 tile 头像（`--av-0…--av-4` 确定性取色，人类恒 `--av-4`）
   StatusDot.tsx          状态点四态（绿/黄脉冲/橙/灰）
   ChatInput.tsx          pi-web 遗留 chat 输入条（agent 会话用，保留复用）
   MessageView.tsx        pi-web 遗留会话消息渲染（agent 会话用，保留复用）
