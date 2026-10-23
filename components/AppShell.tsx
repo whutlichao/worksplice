@@ -508,6 +508,7 @@ export function AppShell() {
             agents={agents}
             owner={owner}
             onOpenPanel={handleOpenPanel}
+            onOpenSecretary={() => setCreateAgentOpen(true)}
             membersVersion={membersVersion}
           />
         )}

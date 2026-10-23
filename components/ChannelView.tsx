@@ -57,6 +57,11 @@ import {
 import { composerMentionCandidates } from "@/lib/mention";
 import { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";
 import { indexCurrentMembersById } from "@/lib/member-index";
+import {
+  deriveJourneyState,
+  type JourneyGuideKind,
+  type JourneyStep,
+} from "@/lib/journey-state";
 import { useChannelData } from "@/hooks/useChannelData";
 
 export type CenterTab = "messages" | "tasks";
@@ -441,6 +446,319 @@ function EmptyState({  glyph,
   );
 }
 
+/** 旅程条四步的顺序与文案 key（票 16）：描述 → 交接 → 让它跑 → 复核。 */
+const JOURNEY_STEPS = [
+  { step: 1, labelKey: "journey.describe" },
+  { step: 2, labelKey: "journey.handoff" },
+  { step: 3, labelKey: "journey.run" },
+  { step: 4, labelKey: "journey.review" },
+] as const;
+
+/**
+ * 旅程条（票 16）：消息区顶部常显，按状态把已有步骤标 done、当前步骤标 active。
+ * 状态推导在 lib/journey-state.ts（纯函数，SSR 可测）；这里只负责呈现。
+ */
+export function JourneyBar({ step }: { step: JourneyStep }) {
+  const { t } = useI18n();
+  return (
+    <nav aria-label={t("journey.label")} style={{ flexShrink: 0 }}>
+      <ol
+        style={{
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 4,
+          margin: 0,
+          padding: "var(--sp-3) var(--sp-9)",
+          listStyle: "none",
+          borderBottom: `1px solid var(--border)`,
+        }}
+      >
+        {JOURNEY_STEPS.map((item, index) => {
+          const done = item.step < step;
+          const active = item.step === step;
+          const label = t(item.labelKey);
+          const status = done
+            ? t("journey.done")
+            : active
+              ? t("journey.active")
+              : null;
+          return (
+            <li
+              key={item.step}
+              aria-label={
+                status
+                  ? t("journey.stepStatus", { step: label, status })
+                  : label
+              }
+              aria-current={active ? "step" : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 4 }}
+            >
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "2px 8px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: active ? "var(--fg)" : "var(--muted)",
+                  background: active ? "var(--accent-soft)" : "transparent",
+                  border: `1px solid ${active ? "var(--accent)" : "transparent"}`,
+                  borderRadius: "var(--r-pill)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    display: "grid",
+                    placeItems: "center",
+                    fontFamily: "var(--mono)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: active ? "var(--on-accent)" : "var(--muted)",
+                    background: active
+                      ? "var(--accent)"
+                      : done
+                        ? "var(--fg-soft)"
+                        : "var(--panel-2)",
+                    border: `1px solid var(--border)`,
+                    borderRadius: "var(--r-pill)",
+                  }}
+                >
+                  {done ? <Check size={10} /> : item.step}
+                </span>
+                <span>{label}</span>
+              </span>
+              {index < JOURNEY_STEPS.length - 1 && (
+                <span aria-hidden="true" style={{ color: "var(--muted)", fontSize: 11 }}>
+                  →
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+/**
+ * 引导卡（票 16）：只在当前状态需要下一步动作时出现；无消息时占据消息区，
+ * 有消息时作为消息流末尾的一张静态卡，不遮挡正常消息流。
+ */
+export function JourneyGuideCard({
+  kind,
+  hasTasks = false,
+  onDescribe,
+  onOpenSecretary,
+  onConvertLatest,
+  onOpenTasks,
+}: {
+  kind: JourneyGuideKind;
+  hasTasks?: boolean;
+  onDescribe?: () => void;
+  onOpenSecretary?: () => void;
+  onConvertLatest?: (trigger: HTMLButtonElement) => void;
+  onOpenTasks?: () => void;
+}) {
+  const { t } = useI18n();
+  let title: string;
+  let hint: string;
+  let primary: {
+    label: string;
+    onClick: (trigger: HTMLButtonElement) => void;
+  } | null = null;
+  if (kind === "describe") {
+    title = t("journey.describe.title");
+    hint = t("journey.describe.hint");
+    if (onDescribe) {
+      primary = {
+        label: t("journey.describe.cta"),
+        onClick: () => onDescribe(),
+      };
+    }
+  } else if (kind === "handoff") {
+    title = hasTasks
+      ? t("journey.handoff.waitingTitle")
+      : t("journey.handoff.title");
+    hint = hasTasks
+      ? t("journey.handoff.waitingHint")
+      : t("journey.handoff.hint");
+    if (hasTasks && onOpenTasks) {
+      primary = {
+        label: t("journey.handoff.ctaTasks"),
+        onClick: () => onOpenTasks(),
+      };
+    } else if (onConvertLatest) {
+      primary = {
+        label: t("journey.handoff.cta"),
+        onClick: (trigger) => onConvertLatest(trigger),
+      };
+    }
+  } else if (kind === "running") {
+    title = t("journey.running.title");
+    hint = t("journey.running.hint");
+    if (onOpenTasks) {
+      primary = {
+        label: t("journey.running.cta"),
+        onClick: () => onOpenTasks(),
+      };
+    }
+  } else {
+    title = t("journey.review.title");
+    hint = t("journey.review.hint");
+    if (onOpenTasks) {
+      primary = {
+        label: t("journey.review.cta"),
+        onClick: () => onOpenTasks(),
+      };
+    }
+  }
+
+  return (
+    <section
+      aria-label={title}
+      style={{
+        width: "100%",
+        maxWidth: 520,
+        margin: "var(--sp-6) auto",
+        padding: "var(--sp-5)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 8,
+        textAlign: "center",
+        background: "var(--surface)",
+        border: `1px solid var(--border)`,
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-card)",
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: 15 }}>{title}</div>
+      <div
+        style={{
+          color: "var(--muted)",
+          fontSize: 13,
+          lineHeight: 1.6,
+          maxWidth: 400,
+        }}
+      >
+        {hint}
+      </div>
+      {(primary || (kind === "describe" && onOpenSecretary)) && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: 8,
+            marginTop: 4,
+          }}
+        >
+          {primary && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={(event) => primary.onClick(event.currentTarget)}
+            >
+              {primary.label}
+            </button>
+          )}
+          {kind === "describe" && onOpenSecretary && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={onOpenSecretary}
+            >
+              {t("journey.describe.secretary")}
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 中央 Messages/Tasks 切换（票 16）：Tasks 上挂未完成数量 badge，
+ * 保留既有未读任务讨论入口。切换逻辑由 ChannelView 持有（含 unreadOnly 重置）。
+ */
+export function CenterTabs({
+  tab,
+  onTabChange,
+  openTaskCount,
+  unreadTaskCount,
+  onShowUnreadTasks,
+}: {
+  tab: CenterTab;
+  onTabChange: (tab: CenterTab) => void;
+  openTaskCount: number;
+  unreadTaskCount: number;
+  onShowUnreadTasks: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div
+      className="tabs"
+      style={{ marginTop: 0, paddingInline: "var(--sp-9)", flexShrink: 0 }}
+    >
+      <div role="tablist" style={{ display: "flex", gap: 2 }}>
+        {(["messages", "tasks"] as const).map((tabId) => {
+          const badge = tabId === "tasks" ? openTaskCount : 0;
+          return (
+            <button
+              key={tabId}
+              type="button"
+              role="tab"
+              aria-selected={tab === tabId}
+              aria-label={
+                badge > 0
+                  ? t("center.tasksBadge", { count: badge })
+                  : undefined
+              }
+              className={tab === tabId ? "tab is-active" : "tab"}
+              onClick={() => onTabChange(tabId)}
+            >
+              {tabId === "messages" ? t("center.messages") : t("center.tasks")}
+              {badge > 0 && (
+                <span
+                  className="badge"
+                  aria-hidden="true"
+                  style={{ marginLeft: 6 }}
+                >
+                  {badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {unreadTaskCount > 0 && (
+        <button
+          type="button"
+          className="btn btn-sm"
+          style={{ marginLeft: "auto", alignSelf: "center", flexShrink: 0 }}
+          aria-label={t("tasks.unreadDiscussionCount", {
+            count: String(unreadTaskCount),
+          })}
+          title={t("tasks.unreadDiscussionCount", {
+            count: String(unreadTaskCount),
+          })}
+          onClick={onShowUnreadTasks}
+        >
+          {t("tasks.unreadDiscussionCount", {
+            count: String(unreadTaskCount),
+          })}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** §3.4 表情选择器：点击外部 / Escape 关闭；选中即回调。 */
 function EmojiPicker({
   onPick,
@@ -734,7 +1052,133 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
   );
 }
 
-/** 消息动作栏（§3.2/§3.3）：hover 浮出；回复 / 引用 / 复制链接 / 设提醒（§5.6）/ Pin / 转为任务（§3.7，仅频道面）/ emoji+（点开展开二级快捷 bar，再点开完整选择器）。
+/**
+ * `···` 二级动作菜单（票 16）：reaction / pin / 提醒 / 转为任务从 hover 动作栏收进来，
+ * 默认不占首屏。触发器是普通按钮（键盘可达），菜单项是 `role="menuitem"` 按钮；
+ * 点击外部或 Escape 关闭。门控与旧动作栏一致：没传 handler 就不出现。
+ */
+export function MessageMoreMenu({
+  message,
+  open,
+  pinned,
+  onClose,
+  onToggleReaction,
+  onToggleReactOpen,
+  onTogglePin,
+  onReminder,
+  onConvertToTask,
+}: {
+  message: ChannelMessage;
+  open: boolean;
+  pinned?: boolean;
+  onClose: () => void;
+  onToggleReaction?: (message: ChannelMessage, emoji: string) => void;
+  onToggleReactOpen?: () => void;
+  onTogglePin?: (message: ChannelMessage) => void;
+  onReminder?: (message: ChannelMessage) => void;
+  onConvertToTask?: (message: ChannelMessage, trigger: HTMLElement) => void;
+}) {
+  const { t } = useI18n();
+  if (!open) return null;
+
+  const itemStyle: React.CSSProperties = {
+    width: "100%",
+    justifyContent: "flex-start",
+    gap: 8,
+    border: "none",
+    background: "transparent",
+    color: "var(--fg)",
+  };
+  const items: Array<{
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    onSelect: (trigger: HTMLButtonElement) => void;
+  }> = [];
+  if (onToggleReaction && onToggleReactOpen) {
+    items.push({
+      key: "reaction",
+      label: t("message.addReaction"),
+      icon: <SmilePlus size={13} />,
+      onSelect: () => {
+        onClose();
+        onToggleReactOpen();
+      },
+    });
+  }
+  if (onTogglePin) {
+    items.push({
+      key: "pin",
+      label: pinned ? t("message.unpin") : t("message.pin"),
+      icon: <Pin size={13} />,
+      onSelect: () => {
+        onClose();
+        onTogglePin(message);
+      },
+    });
+  }
+  if (onReminder) {
+    items.push({
+      key: "reminder",
+      label: t("reminders.messageAction"),
+      icon: <AlarmClock size={13} />,
+      onSelect: () => {
+        onClose();
+        onReminder(message);
+      },
+    });
+  }
+  if (onConvertToTask) {
+    items.push({
+      key: "convert",
+      label: t("tasks.convert"),
+      icon: <ListPlus size={13} />,
+      onSelect: (trigger) => {
+        onClose();
+        onConvertToTask(message, trigger);
+      },
+    });
+  }
+
+  return (
+    <div
+      role="menu"
+      aria-label={t("message.moreActions")}
+      style={{
+        position: "absolute",
+        top: "calc(100% + 4px)",
+        right: 0,
+        zIndex: 60,
+        minWidth: 190,
+        padding: 4,
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        background: "var(--surface)",
+        border: `1px solid var(--border)`,
+        borderRadius: "var(--r-md)",
+        boxShadow: "var(--shadow-pop)",
+      }}
+    >
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          role="menuitem"
+          className="btn btn-ghost btn-sm"
+          style={itemStyle}
+          onClick={(event) => item.onSelect(event.currentTarget)}
+        >
+          {item.icon}
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** 消息动作栏（§3.2/§3.3）：hover 浮出；高频动作（回复 / 引用 / 复制链接）留在栏上，
+ *  reaction / 设提醒（§5.6）/ Pin / 转为任务（§3.7，仅频道面）收进 `···` 二级菜单（票 16）。
  *  每个键都按 prop 门控：频道面全给，线程面只给 表情 / 引用 / 复制链接 / ⏰（仅锚点）——收窄靠「不传 prop」，不是「传空函数」。 */
 function MessageActions({
   message,
@@ -769,28 +1213,47 @@ function MessageActions({
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLSpanElement>(null);
   const completeAction = (action: () => void) => {
     onDismiss();
     setPickerOpen(false);
     action();
   };
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (event: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
+  useEffect(() => {
+    if (!moreOpen) return;
+    moreRef.current
+      ?.querySelector<HTMLElement>('[role="menuitem"]')
+      ?.focus();
+  }, [moreOpen]);
+
+  const hasMoreActions = Boolean(
+    (onToggleReaction && onToggleReactOpen) ||
+      onTogglePin ||
+      onReminder ||
+      onConvertToTask,
+  );
   return (
     <>
       {/* 动作栏形态（`globals.css` 的 `.msg-tools` 块）：绝对定位在行右上、hover/focus 才出。 */}
       <div className="msg-tools">
-        {onToggleReaction && onToggleReactOpen && (
-          <button
-            type="button"
-            title={t("message.addReaction")}
-            style={reactOpen ? { background: "var(--accent-soft)", color: "var(--accent-deep)" } : undefined}
-            onClick={() => {
-              if (reactOpen) setPickerOpen(false);
-              onToggleReactOpen?.();
-            }}
-          >
-            <SmilePlus size={13} />
-          </button>
-        )}
         {onReply && (
           <button
             type="button"
@@ -820,35 +1283,40 @@ function MessageActions({
         >
           {copied ? <Check size={13} /> : <Link size={13} />}
         </button>
-        {onReminder && (
-          <button
-            type="button"
-            title={t("reminders.messageAction")}
-            onClick={() => completeAction(() => onReminder(message))}
+        {hasMoreActions && (
+          <span
+            ref={moreRef}
+            style={{ position: "relative", display: "inline-flex" }}
           >
-            <AlarmClock size={13} />
-          </button>
-        )}
-        {onTogglePin && (
-          <button
-            type="button"
-            title={pinned ? t("message.unpin") : t("message.pin")}
-            style={pinned ? { background: "var(--accent-soft)", color: "var(--accent-deep)" } : undefined}
-            onClick={() => completeAction(() => onTogglePin(message))}
-          >
-            <Pin size={13} />
-          </button>
-        )}
-        {onConvertToTask && (
-          <button
-            type="button"
-            title={t("tasks.convert")}
-            onClick={(event) =>
-              completeAction(() => onConvertToTask(message, event.currentTarget))
-            }
-          >
-            <ListPlus size={13} />
-          </button>
+            <button
+              type="button"
+              title={t("message.moreActions")}
+              aria-label={t("message.moreActions")}
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((open) => !open)}
+            >
+              ···
+            </button>
+            <MessageMoreMenu
+              message={message}
+              open={moreOpen}
+              pinned={pinned}
+              onClose={() => setMoreOpen(false)}
+              onToggleReaction={onToggleReaction}
+              onToggleReactOpen={
+                onToggleReactOpen
+                  ? () => {
+                      if (reactOpen) setPickerOpen(false);
+                      onToggleReactOpen();
+                    }
+                  : undefined
+              }
+              onTogglePin={onTogglePin}
+              onReminder={onReminder}
+              onConvertToTask={onConvertToTask}
+            />
+          </span>
         )}
       </div>
       {/* 二级 reaction 条（本仓独有，无上游对应）：形态取 `.reactions` / `.reaction`，
@@ -2488,6 +2956,7 @@ export function ChannelView({
   agents = [],
   owner = null,
   onOpenPanel,
+  onOpenSecretary,
   membersVersion,
 }: {
   channel: ChannelWithMeta | null;
@@ -2502,6 +2971,8 @@ export function ChannelView({
   owner?: MemberRow | null;
   /** 打开右栏面板（ticket 13）：agent / human / thread 单槽替换；中央频道消息流不动。 */
   onOpenPanel?: (content: PanelContent) => void;
+  /** 首访空状态的秘书入口（票 16）：由 AppShell 打开现有 CreateAgentModal（不新增路由）。 */
+  onOpenSecretary?: () => void;
   /** 成员集合显式失效计数：新建 agent 自动加入 #all 后外部成员集已变——
    * hook 侧经 loadMembers 重拉收敛（不切频道也刷新人数/成员面板/@ 候选）。 */
   membersVersion?: number;
@@ -2556,6 +3027,15 @@ export function ChannelView({
     convertToTask,
     createTaskFromBoard: createTaskFromBoardInHook,
   } = useChannelData(channel?.id, t, membersVersion);
+
+  // 票 16：旅程条与引导卡只从已加载的消息数 + 任务快照推导（无新增后端接口）。
+  const journey = useMemo(
+    () => deriveJourneyState({ messageCount: messages.length, tasks }),
+    [messages.length, tasks],
+  );
+  const [composerFocusTick, setComposerFocusTick] = useState(0);
+  /** 「描述任务」CTA：递增本地信号聚焦 composer（与外部 DM 导航信号叠加）。 */
+  const requestComposerFocus = () => setComposerFocusTick((tick) => tick + 1);
 
   const [asTask, setAsTask] = useState(false);
   const [unreadOnlyTasks, setUnreadOnlyTasks] = useState(false);
@@ -2890,6 +3370,11 @@ export function ChannelView({
   const showUnreadTasks = () => {
     setUnreadOnlyTasks(true);
     handleTabChange("tasks");
+  };
+  /** Messages/Tasks 切换（票 16）：进任务 Tab 时清掉「只看未读」筛选，保留既有行为。 */
+  const selectTab = (next: CenterTab) => {
+    if (next === "tasks") setUnreadOnlyTasks(false);
+    handleTabChange(next);
   };
 
   useLayoutEffect(() => {
@@ -3824,46 +4309,18 @@ export function ChannelView({
       {/* Messages / Tasks 切换条（§3.1；上游 `.tabs` 块）。`marginTop: 0` 是调用点的偏离：
           上游把 `.tabs` 放在 `.chan-head` 内，本仓它是 header 的兄弟（票 03 起的分工）——
           逐字块带的 `margin-top: 11px` 会在发丝下留一条 `--bg` 缝。 */}
-      <div
-        className="tabs"
-        style={{ marginTop: 0, paddingInline: "var(--sp-9)", flexShrink: 0 }}
-      >
-        <div role="tablist" style={{ display: "flex", gap: 2 }}>
-          {(["messages", "tasks"] as const).map((tabId) => (
-            <button
-              key={tabId}
-              type="button"
-              role="tab"
-              aria-selected={tab === tabId}
-              className={tab === tabId ? "tab is-active" : "tab"}
-              onClick={() => {
-                if (tabId === "tasks") setUnreadOnlyTasks(false);
-                handleTabChange(tabId);
-              }}
-            >
-              {tabId === "messages" ? t("center.messages") : t("center.tasks")}
-            </button>
-          ))}
-        </div>
-        {channel && channel.unreadTaskCount > 0 && (
-          <button
-            type="button"
-            className="btn btn-sm"
-            style={{ marginLeft: "auto", alignSelf: "center", flexShrink: 0 }}
-            aria-label={t("tasks.unreadDiscussionCount", {
-              count: String(channel.unreadTaskCount),
-            })}
-            title={t("tasks.unreadDiscussionCount", {
-              count: String(channel.unreadTaskCount),
-            })}
-            onClick={showUnreadTasks}
-          >
-            {t("tasks.unreadDiscussionCount", {
-              count: String(channel.unreadTaskCount),
-            })}
-          </button>
-        )}
-      </div>
+      <CenterTabs
+        tab={tab}
+        onTabChange={selectTab}
+        openTaskCount={journey.openTaskCount}
+        unreadTaskCount={channel?.unreadTaskCount ?? 0}
+        onShowUnreadTasks={showUnreadTasks}
+      />
+
+      {/* 票 16：旅程条在消息区顶部常显（描述 → 交接 → 让它跑 → 复核）。 */}
+      {channel && tab === "messages" && !messagesLoading && !loadError && (
+        <JourneyBar step={journey.step} />
+      )}
 
       {/* 主体：消息 tab 走上游 `.stream` / `.stream-inner`（padding + `--stream-max` 居中）；
           Tasks tab 仍是满宽看板（`.board-wrap` 自带 padding，不吃 stream 的 max-width）。
@@ -3907,11 +4364,21 @@ export function ChannelView({
               hint={t("messages.loadingHint")}
             />
           ) : messages.length === 0 ? (
-            <EmptyState
-              glyph="#"
-              title={t(isDM ? "messages.emptyDM" : "messages.empty")}
-              hint={t("messages.emptyHint")}
-            />
+            isDM ? (
+              <EmptyState
+                glyph="#"
+                title={t("messages.emptyDM")}
+                hint={t("messages.emptyHint")}
+              />
+            ) : (
+              <div style={{ padding: "var(--sp-6) var(--sp-9)" }}>
+                <JourneyGuideCard
+                  kind="describe"
+                  onDescribe={requestComposerFocus}
+                  onOpenSecretary={onOpenSecretary}
+                />
+              </div>
+            )
           ) : (
             /* `--stream-max` 居中列（上游 `.stream-inner`）：空态 / 加载态不吃它（它们自己居中且 `height: 100%`）。 */
             <div className="stream-inner">
@@ -3964,6 +4431,17 @@ export function ChannelView({
                   </div>
                 );
               })}
+              {journey.guideKind && (
+                <JourneyGuideCard
+                  kind={journey.guideKind}
+                  hasTasks={journey.hasTasks}
+                  onOpenTasks={() => selectTab("tasks")}
+                  onConvertLatest={(trigger) => {
+                    const latest = messages[messages.length - 1];
+                    if (latest) handleConvertToTask(latest, trigger);
+                  }}
+                />
+              )}
             </div>
           )
         ) : (
@@ -4020,7 +4498,7 @@ export function ChannelView({
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
           members={composerMembers}
-          focusSignal={composerFocusSignal}
+          focusSignal={(composerFocusSignal ?? 0) + composerFocusTick}
         />
       )}
 
