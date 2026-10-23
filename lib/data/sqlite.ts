@@ -397,6 +397,12 @@ export class SQLiteAdapter implements Store {
       | undefined;
   }
 
+  getMessageBySeq(targetId: string, seq: number): MessageRow | undefined {
+    return this.db
+      .prepare("SELECT * FROM messages WHERE target_id = ? AND seq = ?")
+      .get(targetId, seq) as MessageRow | undefined;
+  }
+
   /** 显式 seq 写入（测试/迁移用）；同 (target_id, seq) 由 UNIQUE 约束拒绝 */
   insertMessageAt(input: InsertMessageInput): MessageRow {
     const row: MessageRow = {

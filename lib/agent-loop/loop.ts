@@ -1091,7 +1091,9 @@ function taskInChannel(
 }
 
 /** 解析 Owner 的任务创建事件；格式与频道中的创建事件一致。 */
-function taskCreationEventNumber(message: MessageWithAuthor): number | null {
+function taskCreationEventNumber(
+  message: Pick<MessageRow, "author_id" | "content">,
+): number | null {
   if (message.author_id !== OWNER_MEMBER_ID) return null;
   const match = /^Task #(\d+) created(?: — (.*))?$/.exec(message.content);
   if (!match) return null;
@@ -2929,17 +2931,35 @@ async function prepareAgentBackfill(
 /**
  * 单个 target 的补写。
  *
- * 判重分两层（后者是本票新增的跨 target 层）：
- * - **同 target 幂等**：该 target 里已有本 agent 的同内容 ⇒ 已投递，跳过但推进游标；
- * - **跨 target（仅频道顶层）**：marker 记的是频道版本，而 §3.7 起任务回复的真实投递目标是
- *   task thread 的锚点消息（PR #190 的路由）。所以补写频道顶层前，还要查同作者同内容是否
- *   已存在于**本频道任一 thread**——命中说明该轮已投递，只是 target 不是频道。否则崩溃恢复
+ * 判重分三层（第三层是本票新增的投递目标还原层）：
+ * - **投递目标还原（仅频道顶层 marker）**：marker 记的是**频道版本**，但 §3.7 起任务回复的
+ *   真实投递目标是 task thread 的锚点消息。若 `(targetId, markerSeq)` 那条消息正是 Owner 的
+ *   「Task #N created」创建事件且任务存在，则该轮的真实投递目标是任务锚点 thread——补写必须
+ *   写进线程，而不是频道顶层。任务当前状态不影响历史还原（done/closed 也照常还原）。
+ * - **同 target 幂等**：还原后的投递目标里已有本 agent 的同内容 ⇒ 已投递，跳过但推进游标；
+ * - **跨 target（仅频道顶层）**：还原后仍是频道目标时，还要查同作者同内容是否已存在于
+ *   **本频道任一 thread**——命中说明该轮已投递，只是 target 不是频道。否则崩溃恢复
  *   会把同一段内容在频道顶层与线程里各存一份。
  *
- * 作用域刻意收窄：只有「marker 指向频道」的顶层补写做跨 target 判重。marker 指向线程的补写
- * 仍只看该线程本身——线程回复不会反向漏到频道，多判一层只会增加误伤真实补拉的面。
+ * 作用域刻意收窄：只有「marker 指向频道」的补写做还原与跨 target 判重。marker 指向线程的
+ * 补写仍只看该线程本身——线程回复不会反向漏到频道，多判一层只会增加误伤真实补拉的面。
  * 跨 target 层只认同作者（ADR-0004 的轮级跨作者去重保持同 target 原口径）。
+ * 游标仍只写 marker target（频道）；线程游标不写。
  */
+function resolveBackfillDeliveryTarget(
+  targetId: string,
+  isChannelTarget: boolean,
+  markerSeq: number,
+): string {
+  if (!isChannelTarget) return targetId;
+  const marker = getDb().getMessageBySeq(targetId, markerSeq);
+  if (!marker) return targetId;
+  const taskNumber = taskCreationEventNumber(marker);
+  if (taskNumber === null) return targetId;
+  const task = getDb().getTaskByChannelNumber(targetId, taskNumber);
+  return task?.message_id ?? targetId;
+}
+
 function applyBackfillTarget(
   agent: MemberRow,
   targetId: string,
@@ -2955,7 +2975,14 @@ function applyBackfillTarget(
   let skippedAsThreadDelivered = 0;
   db.withTransaction(() => {
     for (const reply of replies) {
+      // 先还原该轮的真实投递目标（只读）：创建事件 marker → 任务锚点线程。
+      const deliveryTargetId = resolveBackfillDeliveryTarget(
+        reply.targetId,
+        isChannelTarget,
+        reply.markerSeq,
+      );
       // ADR-0004 轮级跨作者去重；命中轮跳过，不把他人回复冒充为本 agent 投递。
+      // 仍按 marker target 判定（轮级语义不随投递目标还原改变）。
       if (
         db.hasMessageByContentByOther(reply.targetId, agent.id, reply.content)
       ) {
@@ -2963,16 +2990,16 @@ function applyBackfillTarget(
         continue;
       }
       cursorSeq = Math.max(cursorSeq ?? 0, reply.markerSeq);
-      if (db.hasMessage(reply.targetId, agent.id, reply.content)) continue;
+      if (db.hasMessage(deliveryTargetId, agent.id, reply.content)) continue;
       // 跨 target：同一内容已在本频道的某个 task thread 里由本 agent 投递过 → 顶层不再补写。
       // 游标照常推进（与同 target 幂等同一口径：标记轮已投递，不该反复重读）。
       if (isChannelTarget && db.hasAuthorContentInChannel(targetId, agent.id, reply.content)) {
         skippedAsThreadDelivered += 1;
         continue;
       }
-      const seq = db.maxSeq(reply.targetId) + 1;
+      const seq = db.maxSeq(deliveryTargetId) + 1;
       db.insertMessageAt({
-        targetId: reply.targetId,
+        targetId: deliveryTargetId,
         authorId: agent.id,
         content: reply.content,
         seq,
