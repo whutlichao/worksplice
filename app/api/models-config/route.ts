@@ -21,6 +21,10 @@ function readModelsJson(): Record<string, unknown> {
   }
 }
 
+// 存储契约见 docs/adr/0007-sdk-delegation-boundary.md：models.json 由本仓
+// 原子写（writePrivateFileAtomicSync）落盘，PUT 成功后再显式
+// invalidateModelsCache；不使用 SettingsManager.withLock——它在本仓零调用点。
+// 除非 ADR 变更，否则保持这条边界。
 function writeModelsJson(data: Record<string, unknown>): void {
   const path = getModelsPath();
   const dir = dirname(path);
