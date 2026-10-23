@@ -59,22 +59,23 @@
 > 1. 退役 token 守护只跑 AGENTS → **已修**：spec §4 同样跑 `RETIRED_TOKEN_NAMES`（`--accent-line` 写回 §4.5 会红）。
 > 2. `像素头像` / `硬偏移阴影` 两个「不恢复」项未入断言 → **已修**：加入 §4 字面量表；§4.2 的否定句改写为「无硬阴影阶梯」（仍表达同一终局值）。
 > 3. Answer 为空 → **本段即回填**。
-> 4. `docs/spec.md:11`（索引表历史行）改动越出 §4 → **有意保留**：票面 Change 1 明确「历史沿革注记可保留事实，但不得再逐字出现这些旧契约标记」，该行是历史沿革注记且含 `0 圆角`；已改写为「粗墨线边框 + 直角」，并保留「已被 ADR-0014 / ADR-0015 先后改判」的指路。复查其是否为半清理后保留原句：`硬偏移阴影` 仍在该行作为历史事实出现，不在 §4 断言范围。
+> 4. `docs/spec.md:11`（索引表历史行）改动越出 §4 → **有意保留**：票面 Change 1 明确「历史沿革注记可保留事实，但不得再逐字出现这些旧契约标记」，该行是历史沿革注记且含 `0 圆角`；已改写为「粗墨线边框 + 直角」，并保留「已被 ADR-0014 / ADR-0015 先后改判」的指路。该行不在 §4 断言范围内，`硬偏移阴影` 仍作为历史事实保留。
 >
 > **核对通过**：§4 色值/配比、圆角 6/8/12/16、`--av-0…--av-4`、`.modal` 440/560、Avatar「human→`--av-4`」、§4.5 D4、CONTEXT.md 词条、ADR-0014 Status。
 
 ### 最终改动面
 
 ```
- AGENTS.md            |  4 ++--
- app/globals.test.mjs |  ~110 +++++
- docs/spec.md         |  8 +++---
- .scratch/design-system-refactor/issues/11-docs-sync.md | Status/Answer
+ docs/spec.md                                  §4 沿革 / 否定句 / §4.5
+ AGENTS.md                                     File Map 两行
+ app/globals.test.mjs                          T-C 三条文档一致性断言 + tokenPattern
+ .scratch/design-system-refactor/issues/11-docs-sync.md   Status / Answer
+ .scratch/design-system-refactor/pr-body.md    PR body
 ```
 
-零源码样式改动；`git status --porcelain` 仅上述文件；无整文件重排（`git diff --stat` 与逐 hunk 检查）。
+零源码样式改动；最终 `git status --porcelain` 为空；无整文件重排（逐 hunk 检查）。
 
 ### PR
 
-- PR: #（创建后回填）
-- PR body: （创建后回填）
+- PR: #197 — https://github.com/whutlichao/worksplice/pull/197
+- PR body: `.scratch/design-system-refactor/pr-body.md`（已随本票提交）
