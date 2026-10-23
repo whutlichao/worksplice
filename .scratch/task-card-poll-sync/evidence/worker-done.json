@@ -1,0 +1,33 @@
+{
+  "id": "23d691f3-43c2-4fcd-9f4c-1546b2ac7295",
+  "ok": true,
+  "result": {
+    "message": {
+      "id": "msg_9da316659a15",
+      "run_id": "run_df052c7b4bae",
+      "delivery_contract": "current_delivery",
+      "from_handle": "term_b77fc0b9-da9e-4465-816f-b3ff283592c6",
+      "to_handle": "run:run_df052c7b4bae",
+      "subject": "任务卡轮询整行合并已交付（PR #207）",
+      "body": "把消息页 3s 任务板轮询从「只合并未读计数」升级为整行视图合并（mergeTaskUnreadCounts → mergeTaskPollRows）：状态/属主/重开标记/可达落点/updated_at 与未读计数、已读游标同源刷新，新任务按服务端顺序并入、消失行移除、未变化行保持引用，并补齐红→绿回归（红 37 pass/4 fail → 绿 41 pass；窄门禁 107 pass，tsc 0 error，lint 0 error 仅既存 warning，最终全量 npm test 1650 pass）。真实浏览器探针在本票 base（df20193 的 hook）上 RED：claim/in_review/done 三步卡面全程停在「等待交接或认领」（各 ~5.06s 超时）；修复后 GREEN：让它跑 1215ms → 去复核 2430ms → 消失 2937ms，日志与截图在 .scratch/task-card-poll-sync/evidence/（探针需先清 Service Worker 缓存、并用私有频道避免秘书 agent 抢先 claim）。代码与票据已提交推送，PR #207（分支 task-card-poll-sync，head 508a548）置为待复核，GitHub 暂报 mergeable UNKNOWN；代码侧无遗留改动，剩余只有协调者的合并验收。",
+      "type": "worker_done",
+      "priority": "normal",
+      "thread_id": null,
+      "payload": "{\"taskId\":\"task_511b13a209a2\",\"dispatchId\":\"ctx_e8f2498c9f31\",\"outcome\":\"succeeded\",\"filesModified\":[\"hooks/useChannelData.ts\",\"hooks/useChannelData.test.mjs\"],\"reportPath\":\".scratch/task-card-poll-sync/Answer.md\"}",
+      "created_at": "2026-10-23T07:45:20Z",
+      "delivered_at": null
+    },
+    "lifecycle": {
+      "action": "completed",
+      "taskId": "task_511b13a209a2",
+      "dispatchId": "ctx_e8f2498c9f31"
+    },
+    "mutation": {
+      "requestId": "3cdf75ff-2585-4404-a3e0-9dcc0d84c61d",
+      "replayed": false
+    }
+  },
+  "_meta": {
+    "runtimeId": "2fde304c-8cb6-49c3-82d7-ea5b2b9722d0"
+  }
+}
