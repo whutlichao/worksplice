@@ -2573,6 +2573,12 @@ export interface SessionReply {
   targetId: string;
   markerSeq: number;
   content: string;
+  /**
+   * 本轮显式 task op 的任务号（`{"task":{"number":N,"op":...}}`）。
+   * 补拉还原投递目标时优先于 marker 启发式：marker 指向的那版创建事件可能是
+   * 另一个任务，显式 op 才是 agent 自己声明要操作的任务。
+   */
+  taskNumber?: number;
 }
 
 export interface BackfillFileOps {
@@ -2648,6 +2654,8 @@ function createSessionReplyScanner() {
           targetId: current.targetId,
           markerSeq: current.seq,
           content: parsed.content,
+          // 只有显式 task op 才携带；普通频道回复不写该字段（marker 启发式兜底）。
+          ...(parsed.task ? { taskNumber: parsed.task.number } : {}),
         });
       }
     }
@@ -2996,7 +3004,9 @@ async function prepareAgentBackfill(
  * 单个 target 的补写。
  *
  * 判重分三层（第三层是本票新增的投递目标还原层）：
- * - **投递目标还原（仅频道顶层 marker）**：marker 记的是**频道版本**，但 §3.7 起任务回复的
+ * - **投递目标还原（仅频道顶层 marker）**：① 本轮显式 task op（`task.number`）优先——
+ *   agent 自己声明操作哪个任务，投递目标就是该任务锚点线程（任务缺失则维持频道）；
+ *   ② 否则看 marker 启发式：marker 记的是**频道版本**，但 §3.7 起任务回复的
  *   真实投递目标是 task thread 的锚点消息。若 `(targetId, markerSeq)` 那条消息正是 Owner 的
  *   「Task #N created」创建事件且任务存在，则该轮的真实投递目标是任务锚点 thread——补写必须
  *   写进线程，而不是频道顶层。任务当前状态不影响历史还原（done/closed 也照常还原）。
@@ -3014,8 +3024,18 @@ function resolveBackfillDeliveryTarget(
   targetId: string,
   isChannelTarget: boolean,
   markerSeq: number,
+  explicitTaskNumber?: number,
 ): string {
   if (!isChannelTarget) return targetId;
+  // 显式 task op 优先：agent 自己声明了操作哪个任务，真实投递目标就是该任务锚点线程；
+  // marker 那版的创建事件可能属于另一个任务，只在没有显式 op 时作启发式兜底。
+  if (explicitTaskNumber !== undefined) {
+    const explicitTask = getDb().getTaskByChannelNumber(
+      targetId,
+      explicitTaskNumber,
+    );
+    return explicitTask?.message_id ?? targetId;
+  }
   const marker = getDb().getMessageBySeq(targetId, markerSeq);
   if (!marker) return targetId;
   const taskNumber = taskCreationEventNumber(marker);
@@ -3044,6 +3064,7 @@ function applyBackfillTarget(
         reply.targetId,
         isChannelTarget,
         reply.markerSeq,
+        reply.taskNumber,
       );
       // ADR-0004 轮级跨作者去重；命中轮跳过，不把他人回复冒充为本 agent 投递。
       // 仍按 marker target 判定（轮级语义不随投递目标还原改变）。
