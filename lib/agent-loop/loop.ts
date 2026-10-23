@@ -18,6 +18,7 @@ import {
   drain,
   extractMentionedMemberIds,
   fireDueReminders,
+  filterVisibleMessages,
   getAgent,
   getPendingTargets,
   getSince,
@@ -902,7 +903,9 @@ export type DeliverOutcome =
    * hold 重路由：被 hold 的频道轮在重发前重新裁决，命中任务创建事件。
    * 本函数不投递、不 claim、不写游标——把 action 与 route 交回调用方，
    * 由既有 runTaskOperation（baseSeq = ackSeq）按普通路由轮的同一套语义收口。
-   * ackSeq 始终是被 hold 那一次 send 的频道 roomSeq（绝不取线程 seq）。
+   * ackSeq = max(被 hold 后的 roomSeq, route.eventSeq)，即本轮实际读到、且已由系统
+   * 据此收口的频道版本（绝不取线程 seq）；revise 重写期间到达的创建事件不能被漏在
+   * 游标之外，否则下一轮会再路由同一事件。
    */
   | {
       status: "reroute";
@@ -957,8 +960,12 @@ export async function deliverWithFreshness(input: {
   ): TaskReplyRoute | null => {
     if (!input.resolveHeldRoute) return null;
     if (input.targetId !== input.channel.id) return null;
-    const newMessages = getSince(input.targetId, readBaseSeq).filter(
-      (message) => message.author_id !== input.agent.id,
+    const newMessages = filterVisibleMessages(
+      input.agent.id,
+      input.targetId,
+      getSince(input.targetId, readBaseSeq).filter(
+        (message) => message.author_id !== input.agent.id,
+      ),
     );
     return input.resolveHeldRoute({
       newMessages,
@@ -966,6 +973,21 @@ export async function deliverWithFreshness(input: {
       heldRoomSeq,
     });
   };
+  /**
+   * 命中重路由时的收口：ackSeq 至少要抬到裁决窗口里已读到的创建事件 seq——
+   * revise 重写期间到达的事件不在被 hold 的 roomSeq 里，若不推进，事件会留在频道
+   * 游标之外，轮后排队的事件 wake 会再起一轮、重复路由并多回一条线程消息。
+   * claim 让路分支仍会把游标压回 eventSeq - 1（事件保持 pending 供再收敛）。
+   */
+  const rerouteOutcome = (
+    rerouted: TaskReplyRoute,
+    candidate: AgentAction,
+  ): DeliverOutcome => ({
+    status: "reroute",
+    route: rerouted,
+    action: candidate,
+    ackSeq: Math.max(ackSeq, rerouted.eventSeq),
+  });
 
   for (;;) {
     const result = send({
@@ -1004,8 +1026,7 @@ export async function deliverWithFreshness(input: {
         // 裁决先于预算判断：第二次 hold 才到达的创建事件不能被
         // "resend retries exhausted" 吞掉。
         const rerouted = tryReroute(action, result.roomSeq);
-        if (rerouted)
-          return { status: "reroute", route: rerouted, action, ackSeq };
+        if (rerouted) return rerouteOutcome(rerouted, action);
         if (resendRetries >= MAX_RESEND_RETRIES) {
           return {
             status: "silent",
@@ -1022,8 +1043,7 @@ export async function deliverWithFreshness(input: {
         if (reviseRetries >= MAX_REVISE_RETRIES) {
           // 预算耗尽前先裁决：重写稿可能就是该投线程的内容。
           const rerouted = tryReroute(action, result.roomSeq);
-          if (rerouted)
-            return { status: "reroute", route: rerouted, action, ackSeq };
+          if (rerouted) return rerouteOutcome(rerouted, action);
           return {
             status: "silent",
             reason: "revise retries exhausted",
@@ -1039,7 +1059,11 @@ export async function deliverWithFreshness(input: {
               roomSeq: result.roomSeq,
               whatHappened: result.whatHappened,
             },
-            newMessages: getSince(input.targetId, baseSeq),
+            newMessages: filterVisibleMessages(
+              input.agent.id,
+              input.targetId,
+              getSince(input.targetId, baseSeq),
+            ),
             targetId: input.targetId,
           }),
         );
@@ -1064,8 +1088,7 @@ export async function deliverWithFreshness(input: {
         action = revised;
         // 重写后同样裁决：写稿期间到达的创建事件决定目标。
         const rerouted = tryReroute(action, result.roomSeq);
-        if (rerouted)
-          return { status: "reroute", route: rerouted, action, ackSeq };
+        if (rerouted) return rerouteOutcome(rerouted, action);
         baseSeq = result.roomSeq;
         continue;
       }
