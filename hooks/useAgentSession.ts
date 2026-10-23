@@ -1683,11 +1683,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, [isNew]);
 
   const handleToolPresetChange = useCallback(async (preset: "none" | "default" | "full") => {
-    const toolNames = getToolNamesForPreset(preset);
     setToolPresetState(preset);
     const sid = sessionIdRef.current ?? await ensuringNewSessionRef.current;
     if (!sid) return;
     try {
+      // 预设只是「请求」：会话登记表决定哪些名字真实存在，发送前先过滤。
+      // 探测失败（抛错）才回退到未过滤的预设；成功的空清单是真实结论，照常下发。
+      const availableTools = await sendAgentCommand<ToolEntry[]>(sid, { type: "get_tools" })
+        .catch(() => undefined);
+      const toolNames = getToolNamesForPreset(preset, availableTools);
       await sendAgentCommand(sid, { type: "set_tools", toolNames });
     } catch (e) {
       console.error("Failed to set tools:", e);

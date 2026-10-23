@@ -238,12 +238,12 @@ lib/
                        + memberPanel（mention → 面板映射）
   pi-types.ts          local structural types for pi SDK objects
   rpc/                RPC 会话管理四模块 + 出口：session.ts（AgentSessionWrapper）/ registry.ts（RpcRegistry
-                      注册表 + busy-cwd）/ caller.ts（RpcCaller.start = startRpcSession）/ subscriber.ts +
-                      broadcaster.ts（运行状态订阅/广播）/ index.ts（公共 API 面 = 原 rpc-manager.ts 11 导出 + 4 个模块类）
+                      注册表 + busy-cwd）/ caller.ts（RpcCaller.start = startRpcSession）/ events.ts（运行状态
+                      订阅集合 + 快照去重广播）/ index.ts（公共 API 面 = 原 rpc-manager.ts 11 导出 + 4 个模块类）
   session-reader.ts   SessionManager wrappers + path cache + buildSessionContext adapter
   session-stats.ts    §6.5 session jsonl 只读解析（token/cost/compaction，与 SDK getSessionStats 同口径，不落库）
                       + listAgentSessionFiles（pi_session_file 精确 + workspace cwd 下全部会话）+ aggregateAgentUsage
-  tool-presets.ts     PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
+  tool-presets.ts     PRESET_NONE/DEFAULT/FULL + getPresetFromTools() + getToolNamesForPreset(preset, availableTools?) 子集过滤
   tool-path-guard.ts  路径守卫的判定层（ADR-0011）：allowedRootsFor / pathGuardScopeFor / isWithinAllowedRoots
                       + find·grep 搜索根判定；realpath + path.relative + fail-closed，零 SDK 依赖
   tool-path-guard-extension.ts
@@ -339,7 +339,7 @@ Pi stores toolCall blocks as `{type:"toolCall", id, name, arguments}` but `ToolC
 
 ### New session tool preset
 
-Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[]`). For existing sessions, the active preset is inferred on mount via `get_tools` → `getPresetFromTools()`. When tools are fully disabled (`toolNames = []`), `lib/rpc/caller.ts` passes an empty tool allow-list and forces `agent.state.systemPrompt = ""` after startup/reload/resource discovery.
+Tool names are passed at session creation (`POST /api/agent/new` → `toolNames[]`). For existing sessions, the active preset is inferred on mount via `get_tools` → `getPresetFromTools()`, and a preset change re-reads `get_tools` to filter the requested names against what the session actually has (`getToolNamesForPreset(preset, availableTools)` in `lib/tool-presets.ts`; a failed probe falls back to the verbatim preset). When tools are fully disabled (`toolNames = []`), `lib/rpc/caller.ts` passes an empty tool allow-list and forces `agent.state.systemPrompt = ""` after startup/reload/resource discovery.
 
 ### Model defaults for new sessions
 

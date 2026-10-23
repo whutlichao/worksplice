@@ -5,8 +5,7 @@
 //   getRpcSession / hasBusyRpcSessionForCwd / findBusyRpcSessionForCwd
 //     / destroyRpcSessionsForCwd（registry.ts）
 //   startRpcSession（caller.ts）
-//   subscribeRunningSessions（subscriber.ts）
-//   notifyRunningChange / getRunningRpcSessionIds（broadcaster.ts）
+//   subscribeRunningSessions / notifyRunningChange / getRunningRpcSessionIds（events.ts）
 // 既有调用方只需把 import 路径从 "@/lib/rpc-manager" 改为 "@/lib/rpc"。
 
 export {
@@ -29,10 +28,8 @@ export {
 } from "./caller.ts";
 export {
   RpcSubscriber,
-  subscribeRunningSessions,
-} from "./subscriber.ts";
-export {
   RpcBroadcaster,
+  subscribeRunningSessions,
   notifyRunningChange,
   getRunningRpcSessionIds,
-} from "./broadcaster.ts";
+} from "./events.ts";

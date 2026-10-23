@@ -258,7 +258,7 @@ components/
 lib/
   directory-browser.ts # directory normalization and safe listing helpers
   http-dispatcher.ts  # HTTP(S) proxy setup for server-side fetch
-  rpc/                # AgentSessionWrapper lifecycle and global registry（session/registry/caller/subscriber/broadcaster + index）
+  rpc/                # AgentSessionWrapper lifecycle and global registry（session/registry/caller/events + index）
   session-reader.ts   # parses .jsonl session files and branch contexts
   normalize.ts        # normalizes toolCall field names
   file-access.ts      # file read safety boundary
