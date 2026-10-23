@@ -57,4 +57,5 @@ v15→v16：`round_logs` 增加三列可空用量（`prompt_tokens INTEGER` / `c
 
 ### PR
 
-- PR 号/body 路径：待回填（Door: one-way，不自行合并）。
+- PR #202（https://github.com/whutlichao/worksplice/pull/202），body：`.scratch/pi-sdk-rebuild/pr-body-15-round-logs-cost.md`。
+- **Door: one-way**（schema 迁移 / 持久化格式变更）；本票不合并，保留给人工合并。
