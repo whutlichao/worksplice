@@ -256,7 +256,7 @@ export function parseAgentAction(text: string): AgentAction {
       String(parsed.onConflict),
     )
       ? (parsed.onConflict as ConflictChoice)
-      : "revise";
+      : "resend";
     let task: AgentAction["task"];
     const rawTask = parsed.task;
     if (rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)) {
@@ -282,7 +282,7 @@ export function parseAgentAction(text: string): AgentAction {
   return {
     action: "reply",
     content: cleaned || text.trim(),
-    onConflict: "revise",
+    onConflict: "resend",
   };
 }
 
@@ -842,8 +842,8 @@ function sessionUsageDelta(
 // act：freshness-hold 四选一
 // ----------------------------------------------------------------------------
 
-export const MAX_REVISE_RETRIES = 2;
-export const MAX_RESEND_RETRIES = 3;
+export const MAX_REVISE_RETRIES = 1;
+export const MAX_RESEND_RETRIES = 1;
 
 export type ReplySender = (opts: {
   targetId: string;
@@ -1004,7 +1004,7 @@ export interface RoundOutcome {
 // ----------------------------------------------------------------------------
 
 /** 任务状态更新的 freshness 重试上限（回复已落线程，状态更新是机械收口）。 */
-export const MAX_TASK_STATUS_RETRIES = 3;
+export const MAX_TASK_STATUS_RETRIES = 2;
 
 /** 自动认领的 freshness 重试上限（同一轮内按 held 返回的 roomSeq 重试）。 */
 export const MAX_TASK_CLAIM_RETRIES = 3;
