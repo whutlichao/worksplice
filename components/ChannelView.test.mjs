@@ -1486,6 +1486,47 @@ test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务�
     assert.doesNotMatch(bare, /Add a reaction|Pin to channel|Set a reminder|Convert to task/);
 });
 
+test("··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠内联样式兜底", () => {
+    const html = renderI18n(
+        React.createElement(MessageMoreMenu, {
+            message: MESSAGE,
+            open: true,
+            onClose: () => undefined,
+            onToggleReaction: () => undefined,
+            onToggleReactOpen: () => undefined,
+            onTogglePin: () => undefined,
+            onReminder: () => undefined,
+            onConvertToTask: () => undefined,
+        }),
+    );
+
+    const items = html.match(/<button[^>]*role="menuitem"[^>]*>/g) ?? [];
+    assert.equal(items.length, 4, "四项菜单项都应渲染出来");
+    for (const tag of items) {
+        assert.match(
+            tag,
+            /class="[^"]*\bmsg-more-menu-item\b/,
+            `菜单项需要专属 class 才能拿到 .msg-tools .msg-more-menu-item 的更高特异度：${tag}`,
+        );
+        // 几何/颜色从 CSS 单点给：内联 width / justify-content 会与 `.msg-tools button` 的
+        // 泄漏几何互拖（前者按内联胜出、后者按特异度胜出），两者并存就是重叠的成因。
+        const style = /style="([^"]*)"/.exec(tag)?.[1] ?? "";
+        for (const prop of ["width", "justify-content", "gap"]) {
+            assert.doesNotMatch(
+                style,
+                new RegExp(`(?:^|;)\\s*${prop}\\s*:`),
+                `菜单项不应内联 ${prop}（几何单点在 CSS 里）：${tag}`,
+            );
+        }
+    }
+
+    // 面板宽度策略要与 nowrap 标签自洽：`max-content` 允它长过 minWidth，
+    // 否则绝对定位的收缩宽度会被触发器的 26px 容器块钉住（190 以外的长标签只能溢出）。
+    const panel = html.match(/<div[^>]*role="menu"[^>]*>/)?.[0] ?? "";
+    assert.match(panel, /width:\s*max-content/);
+    assert.match(panel, /min-width:\s*190px/);
+});
+
 test("消息行默认只露高频动作，二级动作收进 ··· 触发器", () => {
     const html = renderI18n(
         React.createElement(MessageRow, {

@@ -1081,14 +1081,6 @@ export function MessageMoreMenu({
   const { t } = useI18n();
   if (!open) return null;
 
-  const itemStyle: React.CSSProperties = {
-    width: "100%",
-    justifyContent: "flex-start",
-    gap: 8,
-    border: "none",
-    background: "transparent",
-    color: "var(--fg)",
-  };
   const items: Array<{
     key: string;
     label: string;
@@ -1149,6 +1141,9 @@ export function MessageMoreMenu({
         top: "calc(100% + 4px)",
         right: 0,
         zIndex: 60,
+        // `max-content` 让面板宽长过 minWidth 时跟着最长标签走：容器块只是 26px 宽的触发器，
+        // 纯 minWidth 会被绝对定位的收缩宽度钉死，nowrap 的长标签只能溢出面板。
+        width: "max-content",
         minWidth: 190,
         padding: 4,
         display: "flex",
@@ -1165,8 +1160,9 @@ export function MessageMoreMenu({
           key={item.key}
           type="button"
           role="menuitem"
-          className="btn btn-ghost btn-sm"
-          style={itemStyle}
+          // 几何/颜色单点给在 `.msg-tools .msg-more-menu-item`（globals.css）：内联 width /
+          // justify-content 与 port 的 `.msg-tools button` 图标键几何互相打架就是这个缺陷的成因。
+          className="btn btn-ghost btn-sm msg-more-menu-item"
           onClick={(event) => item.onSelect(event.currentTarget)}
         >
           {item.icon}
