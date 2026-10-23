@@ -4,10 +4,26 @@
 
 **Blocked by:** 04, 06
 
-**Status:** ready-for-agent
+**Status:** resolved（2026-10-23）
 
-- [ ] DSL 各形式解析与下一次 fire_at 计算正确（含时区安全）
-- [ ] 到点投递系统消息到锚定 target 并唤醒作者（agent 与 human 两条路径）
-- [ ] snooze / update / cancel 生效；cancel 后不再触发；recurrence 到期自动续算
-- [ ] log 记录完整生命周期事件（schedule/fire/snooze/update/cancel）
-- [ ] UI 入口可设置/查看/取消提醒
+- [x] DSL 各形式解析与下一次 fire_at 计算正确（含时区安全）
+- [x] 到点投递系统消息到锚定 target 并唤醒作者（agent 与 human 两条路径）
+- [x] snooze / update / cancel 生效；cancel 后不再触发；recurrence 到期自动续算
+- [x] log 记录完整生命周期事件（schedule/fire/snooze/update/cancel）
+- [x] UI 入口可设置/查看/取消提醒
+
+## Answer
+
+**结论**：完成（2026-10-23 复核；本票为只读审计，未改源码）。
+
+**证据**：
+- DSL：`lib/domain/collab/recurrence.ts:3-6` 支持 `every:N<unit>` / `daily@HH:MM` / `weekly:…@HH:MM`，`:86` `nextFireAt`（严格晚于 from，本地时区）；测试 `lib/domain/collab/recurrence.test.mjs:9`、`:79`、`:86`。
+- 到点投递与唤醒：`lib/domain/collab/reminders.ts:263` `fireReminder`、`:339` `fireDueReminders`；系统消息 `wake:false` 只定向唤醒作者（agent → wake reason=reminder，human 不 wake），测试 `reminders.test.mjs:334`、`:419`。
+- 管理操作：`reminders.ts:181` `snoozeReminder`、`:198` `updateReminder`、`:236` `cancelReminder`；recurrence 续算 `:263` 内 reschedule；测试 `reminders.test.mjs:225`、`:273`、`:312`、`:398`。
+- log：`reminders.ts:247` `getReminderLog`；生命周期事件断言见 `reminders.test.mjs:74`（schedule）、`:225`（snooze）、`:273`（update）、`:312`（cancel）。
+- cron：`lib/agent-loop/loop.ts:3195` `REMINDER_POLL_MS = 60_000`、`:3209` `startReminderCron`；测试 `lib/agent-loop/reminder-cron.test.mjs`。
+- UI：`components/ChannelView.tsx:823-827`（消息设提醒）、`:3351`（频道设提醒）、`components/ReminderModal.tsx:109-118`（snooze/cancel 列表操作）。
+
+**偏差**：无。
+
+**验证方式**：只读审计（未改源码），核对上述实现与测试文件。本票零源码改动，故未跑 npm test / tsc / lint。

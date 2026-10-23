@@ -1,6 +1,6 @@
 # Ticket 03: Separate Data Layer from Business Logic
 
-**Status:** Ready  
+**Status:** resolved（2026-10-23）  
 **Priority:** Medium  
 **Estimated effort:** Large
 
@@ -16,13 +16,13 @@ Define a `Store` interface and move SQLite implementation to an adapter. This cr
 
 ## Acceptance Criteria
 
-- [ ] `Store` interface defined with ~50 method signatures
-- [ ] `SQLiteAdapter` implements `Store`
+- [x] `Store` interface defined with ~50 method signatures
+- [x] `SQLiteAdapter` implements `Store`
 - [ ] `InMemoryAdapter` implements `Store` (for tests)
-- [ ] Business modules import `Store`, not `db.ts`
-- [ ] All existing data access works
+- [x] Business modules import `Store`, not `db.ts`
+- [x] All existing data access works
 - [ ] Tests pass with either adapter
-- [ ] `db.ts` no longer exposed directly
+- [x] `db.ts` no longer exposed directly
 
 ## Files Affected
 
@@ -51,3 +51,21 @@ This is a prerequisite for Ticket 04.
 - Start with the interface definition — get it right before implementing adapters
 - Use dependency injection rather than global imports for the store
 - This is the largest ticket; consider breaking into sub-tickets
+
+## Answer
+
+**结论**：按已批准偏差完成（2026-10-23 复核；本票为只读审计，未改源码）。
+
+**证据**：
+- `Store` 契约：`lib/data/store.ts:39` `export interface Store`（宽总线，57 方法、13 分组）。
+- SQLite 适配器：`lib/data/sqlite.ts:50` `export class SQLiteAdapter implements Store`；`lib/data/db-singleton.ts:17` `getDb(): Store` 单例。
+- 业务只依赖契约：`lib/domain/collab/*`、`lib/agent-loop/loop.ts` 等经 `getDb(): Store` / `lib/data/types.ts` 取数据，不再 import `data/db`；`lib/data/db.ts` 已不存在。
+- 现有数据访问：`lib/data/data-layer.test.mjs` 覆盖迁移/表结构/游标/成员视图等；迁移与验证记录见 `.scratch/architecture-improvements/PROGRESS.md:51-72`（tsc ✓、lint 0 error ✓、全量 629 测试 ✓）。
+
+**偏差**：
+1. “`InMemoryAdapter` implements `Store`”保持未勾选——未实现（`lib/data/store-memory.ts` 不存在）。
+2. “Tests pass with either adapter”保持未勾选——当前测试只跑 SQLiteAdapter。
+
+批准来源：`.scratch/architecture-improvements/SPEC.md:78`（“Tests pass with either adapter — DEFERRED … 经确认本期只做 Store 契约 + SQLiteAdapter”）与 `.scratch/architecture-improvements/PROGRESS.md:51-53`（范围收窄说明）、`:72`（遗留记录）；`docs/adr/0008-target-architecture-deep-modules.md:6` 冻结的架构形状是 `Store + SQLiteAdapter + schema + db-singleton`，未把 InMemoryAdapter 纳入目标；`docs/adr/0006-backward-compat-and-migration-strategy.md` 冻结 Store 宽总线暂不拆分。
+
+**验证方式**：只读审计（未改源码），核对上述文件与测试；未重跑全量测试（本票零源码改动）。
