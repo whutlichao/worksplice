@@ -1004,7 +1004,10 @@ export const MessageRow = memo(function MessageRow({
   message: ChannelMessage;
   /** 最新的共享 MemberRow；message.author 可能是取数时嵌入的旧行。 */
   currentAuthor?: MemberRow | null;
-  task?: Pick<ChannelTask, "id" | "number" | "status" | "unreadReplyCount">;
+  task?: Pick<
+    ChannelTask,
+    "id" | "number" | "status" | "totalReplyCount" | "unreadReplyCount"
+  >;
   isAnchor?: boolean;
   highlighted?: boolean;
   canConvertToTask?: boolean;
@@ -1076,6 +1079,15 @@ export const MessageRow = memo(function MessageRow({
         ]
       : []),
   ];
+  /** Task 锚点讨论入口：主数字 = 总回复数，未读数独立呈现；名称同时说明两种计数与动作。 */
+  const totalReplyCount = task?.totalReplyCount ?? 0;
+  const discussionLabel = task
+    ? t("tasks.openDiscussionLabel", {
+        number: String(task.number),
+        totalCount: String(totalReplyCount),
+        unreadCount: String(task.unreadReplyCount),
+      })
+    : "";
     const isAgent = message.author?.type === "agent";
     return (
       <div
@@ -1201,25 +1213,30 @@ export const MessageRow = memo(function MessageRow({
             <button
               type="button"
               className="btn btn-sm ws-task-discussion-button"
-              title={t("tasks.openDiscussionLabel", {
-                number: String(task.number),
-                unreadCount: String(task.unreadReplyCount),
-              })}
-              aria-label={t("tasks.openDiscussionLabel", {
-                number: String(task.number),
-                unreadCount: String(task.unreadReplyCount),
-              })}
+              title={discussionLabel}
+              aria-label={discussionLabel}
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenThread(message, task.id);
               }}
             >
-              {t("tasks.openDiscussion")}
+              {t("tasks.openDiscussion")}{" "}
               <span
-                className={task.unreadReplyCount > 0 ? "badge" : "badge soft"}
+                className={totalReplyCount > 0 ? "badge" : "badge soft"}
                 aria-hidden="true"
               >
-                {task.unreadReplyCount}
+                {totalReplyCount}
+              </span>{" "}
+              <span
+                aria-hidden="true"
+                style={{
+                  fontSize: "var(--fs-mono-xs)",
+                  color: "var(--muted)",
+                }}
+              >
+                {t("tasks.unreadBadge", {
+                  count: String(task.unreadReplyCount),
+                })}
               </span>
             </button>
           </div>

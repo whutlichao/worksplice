@@ -181,10 +181,11 @@ test('MessageRow preserves readable long-form Markdown and visible message metad
     assert.doesNotMatch(sequence, /var\(--muted\)/);
 });
 
-// spec D2：收窄靠「不传 prop ⇒ 键根本不存在」，不是「传空函数让按钮不做事」——
-// 线程面板不再传 onReply，动作栏里不该有这个键（真按钮只在频道面渲染）。
-test("Task anchor discussion button shows and announces the exact unread reply count", () => {
-    const renderTaskAnchor = (unreadReplyCount) =>
+// spec D1/D4：主数字 = 总回复数（含 Owner、不含锚点），未读数独立呈现为「未读 N」（含 0）；
+// 无障碍名同时说明 Task 编号、总数、未读数和打开动作。断言落在可见文字与 aria-label，
+// 不锁 CSS class。
+test("Task anchor discussion entry shows total replies and an independent exact unread count", () => {
+    const renderTaskAnchor = (totalReplyCount, unreadReplyCount) =>
         renderI18n(
             React.createElement(MessageRow, {
                 message: MESSAGE,
@@ -192,6 +193,7 @@ test("Task anchor discussion button shows and announces the exact unread reply c
                     id: "task-7",
                     number: 7,
                     status: "todo",
+                    totalReplyCount,
                     unreadReplyCount,
                 },
                 onQuote: () => undefined,
@@ -200,20 +202,26 @@ test("Task anchor discussion button shows and announces the exact unread reply c
             }),
         );
 
-    const withUnread = renderTaskAnchor(2);
-    assert.match(withUnread, /role="group" aria-label="Task #7"/);
+    const withReplies = renderTaskAnchor(3, 2);
+    assert.match(withReplies, /role="group" aria-label="Task #7"/);
     assert.match(
-        withUnread,
-        /aria-label="Open discussion for Task #7; unread replies: 2"/,
+        withReplies,
+        /aria-label="Open discussion for Task #7; total replies: 3; unread replies: 2"/,
     );
-    assert.match(withUnread, /aria-hidden="true">2<\/span>/);
+    assert.match(
+        withReplies,
+        /title="Open discussion for Task #7; total replies: 3; unread replies: 2"/,
+    );
+    const withRepliesText = withReplies.replace(/<[^>]*>/g, "");
+    assert.match(withRepliesText, /Open task discussion 3\s+Unread 2/);
 
-    const withoutUnread = renderTaskAnchor(0);
+    const zeroReplies = renderTaskAnchor(0, 0);
     assert.match(
-        withoutUnread,
-        /aria-label="Open discussion for Task #7; unread replies: 0"/,
+        zeroReplies,
+        /aria-label="Open discussion for Task #7; total replies: 0; unread replies: 0"/,
     );
-    assert.match(withoutUnread, /aria-hidden="true">0<\/span>/);
+    const zeroText = zeroReplies.replace(/<[^>]*>/g, "");
+    assert.match(zeroText, /Open task discussion 0\s+Unread 0/);
 });
 
 test("MessageRow omits the reply action when onReply is absent", () => {
@@ -1166,6 +1174,7 @@ test("Task 锚点显示编号和状态，并为零未读提供精确讨论名称
                 id: "task-7",
                 number: 7,
                 status: "in_progress",
+                totalReplyCount: 0,
                 unreadReplyCount: 0,
             },
             onQuote: () => undefined,
@@ -1178,7 +1187,7 @@ test("Task 锚点显示编号和状态，并为零未读提供精确讨论名称
     assert.match(html, /In progress/);
     assert.match(
         html,
-        /aria-label="Open discussion for Task #7; unread replies: 0"/,
+        /aria-label="Open discussion for Task #7; total replies: 0; unread replies: 0"/,
     );
     assert.match(html, /aria-hidden="true">0<\/span>/);
 });

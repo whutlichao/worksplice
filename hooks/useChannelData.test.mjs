@@ -979,3 +979,105 @@ test("mergeTaskUnreadCounts advances the Task thread read cursor from the same s
     "全部字段一致时仍返回同一引用（避免无谓的 setState）",
   );
 });
+
+/**
+ * 3s 轮询面（spec D3）：Task thread 有新回复时，频道顶层消息序列可以完全不变；
+ * 每次轮询照常拉任务板，合并层必须同时带出总数与未读数。普通消息 thread 的计数
+ * 只受频道消息页影响，不经过这条合并路径。
+ */
+test("mergeTaskUnreadCounts refreshes total and unread replies from the same Task poll", async () => {
+  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+  const taskA = {
+    id: "task-a",
+    status: "todo",
+    totalReplyCount: 1,
+    unreadReplyCount: 1,
+    latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+    taskThreadReadSeq: 5,
+  };
+  const taskB = {
+    id: "task-b",
+    status: "in_progress",
+    totalReplyCount: 0,
+    unreadReplyCount: 0,
+    latestUnreadReplyAt: null,
+    taskThreadReadSeq: 9,
+  };
+  const current = [taskA, taskB];
+  // 服务端：A 的 Task thread 新增两条回复（一条 Owner、一条 agent）；顶层消息 seq 未动。
+  const refreshed = mergeTaskUnreadCounts(current, [
+    {
+      id: "task-a",
+      status: "todo",
+      totalReplyCount: 3,
+      unreadReplyCount: 2,
+      latestUnreadReplyAt: "2026-10-10T10:05:00.000Z",
+      taskThreadReadSeq: 5,
+    },
+    {
+      id: "task-b",
+      status: "in_progress",
+      totalReplyCount: 0,
+      unreadReplyCount: 0,
+      latestUnreadReplyAt: null,
+      taskThreadReadSeq: 9,
+    },
+  ]);
+
+  assert.deepEqual(
+    refreshed.map((task) => [task.totalReplyCount, task.unreadReplyCount]),
+    [
+      [3, 2],
+      [0, 0],
+    ],
+    "同一个任务板刷新同时更新总数与未读数",
+  );
+  assert.equal(refreshed[0].status, "todo", "status stays owned by the normal task reload");
+  assert.equal(refreshed[1], taskB, "unchanged rows keep their identity");
+  assert.notEqual(refreshed, current);
+});
+
+test("mergeTaskUnreadCounts advances the total when only an Owner reply arrives", async () => {
+  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+  const task = {
+    id: "task-a",
+    status: "todo",
+    totalReplyCount: 1,
+    unreadReplyCount: 1,
+    latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+    taskThreadReadSeq: 5,
+  };
+  // Owner 回复计入总数但不计入未读：除 totalReplyCount 外其余字段一字未动。
+  const current = [task];
+  const refreshed = mergeTaskUnreadCounts(current, [
+    {
+      id: "task-a",
+      status: "todo",
+      totalReplyCount: 2,
+      unreadReplyCount: 1,
+      latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+      taskThreadReadSeq: 5,
+    },
+  ]);
+  assert.equal(refreshed[0].totalReplyCount, 2);
+  assert.equal(refreshed[0].unreadReplyCount, 1);
+  assert.notEqual(refreshed, current, "总数变化必须触发新的任务行引用");
+  assert.notEqual(refreshed[0], task);
+});
+
+test("mergeTaskUnreadCounts falls back to the current total when the field is missing", async () => {
+  const { mergeTaskUnreadCounts } = await jiti.import("./useChannelData.ts");
+  const task = {
+    id: "task-a",
+    status: "todo",
+    totalReplyCount: 3,
+    unreadReplyCount: 1,
+    latestUnreadReplyAt: "2026-10-10T10:00:00.000Z",
+    taskThreadReadSeq: 5,
+  };
+  const refreshed = mergeTaskUnreadCounts([task], [
+    { id: "task-a", unreadReplyCount: 1, latestUnreadReplyAt: task.latestUnreadReplyAt, taskThreadReadSeq: 5 },
+  ]);
+  assert.equal(refreshed[0].totalReplyCount, 3, "缺少字段时不能让总数变 undefined");
+  assert.equal(refreshed[0], task);
+});
