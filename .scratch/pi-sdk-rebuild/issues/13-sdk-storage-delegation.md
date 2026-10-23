@@ -51,5 +51,5 @@
 
 ### 5. 交付
 
-- PR：#__PR__（body：`.scratch/pi-sdk-rebuild/issues/13-pr-body.md`）
+- PR：#200（body：`.scratch/pi-sdk-rebuild/issues/13-pr-body.md`）
 - Door：two-way（无 schema/持久化格式/API 形状变更）
