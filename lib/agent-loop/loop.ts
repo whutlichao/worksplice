@@ -18,6 +18,7 @@ import {
   drain,
   extractMentionedMemberIds,
   fireDueReminders,
+  filterVisibleMessages,
   getAgent,
   getPendingTargets,
   getSince,
@@ -350,6 +351,42 @@ export function replyPromptContext(agent: MemberRow): ReplyPromptContext {
 }
 
 /**
+ * prompt 头部里的投递目标身份（P1）：频道轮与线程轮必须可区分。
+ * - 频道轮：`channel <name>`（与既有文案逐字节一致）；
+ * - 任务线程轮：`the thread of task #N [status] under channel X (anchor seq S)`；
+ * - 普通线程轮：`a thread under channel X (anchor seq S)`。
+ * 锚点消息缺失时省略 seq，不编造；只读查询，不改变投递语义（投递目标仍由系统裁决）。
+ */
+function describePromptTarget(input: {
+  channel: ChannelRow;
+  targetId: string;
+}): string {
+  if (input.targetId === input.channel.id) {
+    return `channel ${input.channel.name}`;
+  }
+  const anchorSeq = getDb().getMessage(input.targetId)?.seq;
+  const seqNote = anchorSeq === undefined ? "" : ` (anchor seq ${anchorSeq})`;
+  const task = getDb().getTaskByMessageId(input.targetId);
+  if (task) {
+    return `the thread of task #${task.number} [${task.status}] under channel ${input.channel.name}${seqNote}`;
+  }
+  return `a thread under channel ${input.channel.name}${seqNote}`;
+}
+
+/**
+ * P2：内容分工 rubric（固定骨架，永不裁）。回答「这段内容该写在哪」，不回答「投递到哪」——
+ * 投递目标仍由系统按 §3.7 裁决（详见 docs/spec.md §5.4 与 AGENTS.md）。
+ * 只加固定骨架行：projectMessages / elasticBudget / INJECTION_* 一律不动。
+ */
+export const CONTENT_PLACEMENT_RUBRIC: readonly string[] = [
+  "- Content placement (the app decides delivery — these rules shape what you write, not where it is posted):",
+  "- Facts, evidence, data or corrections about a specific deliverable belong in that deliverable's task thread.",
+  "- Methodology that stands on its own without the material belongs in the channel.",
+  "- Reusable facts or shared definitions may stay in the channel, but must carry their source and date.",
+  "- Mentioning a task in the channel is only a pointer — never add new conclusions there.",
+];
+
+/**
  * decide 的 prompt（§5.4 AX 原则）：新消息（带 seq/作者）+ 相关任务状态 + 明确的 next action 选项。
  *
  * 票 08（spec B5）：整轮注入形状受 `ROUND_INJECTION_BUDGET_CHARS` 约束——
@@ -379,7 +416,10 @@ export function buildReplyPrompt(input: {
   // 头部（骨架，永不裁）
   const head: string[] = [];
   head.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
-  head.push(`New activity arrived in channel ${input.channel.name}:`);
+  // P1：线程轮与频道轮用不同身份措辞——模型得知道自己是在某个（任务）线程里说话
+  head.push(
+    `New activity arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })}:`,
+  );
   // 11-整改（自激循环）：续工轮的 drain 全是 agent 自己的历史回复（线程游标留口），
   // 模型看到 `@自己` 会误以为被 @mention 而继续回复——标注这些是自己的消息，
   // 不是他人新活动，@mention 也不构成"必须回应"信号。
@@ -463,6 +503,7 @@ export function buildReplyPrompt(input: {
   lines.push(
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
   );
+  lines.push(...CONTENT_PLACEMENT_RUBRIC);
   lines.push(
     '- Task protocol: a non-empty ordinary reply auto-claims only when this round\'s only new channel activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
     '  In both cases, claim first and post in the task thread; if claim fails (freshness hold, another owner, reopened block), yield without posting anywhere.',
@@ -514,8 +555,9 @@ export function buildRevisionPrompt(input: {
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
+  // P1：revise 轮同样要说明是在哪个（任务）线程里重写，不能一律写 channel
   head.push(
-    `Your reply to channel ${input.channel.name} was held because the room changed while you were writing.`,
+    `Your reply to ${describePromptTarget({ channel: input.channel, targetId: input.targetId })} was held because the room changed while you were writing.`,
   );
   head.push(`What happened: ${input.held.whatHappened}`);
   head.push(`The room is now at seq ${input.held.roomSeq}.`);
@@ -856,7 +898,21 @@ export type DeliverOutcome =
   | { status: "replied"; message: MessageRow; ackSeq: number }
   | { status: "anyway"; message: MessageRow; ackSeq: number }
   | { status: "silent"; reason?: string; ackSeq: number }
-  | { status: "error"; reason?: string; ackSeq: number };
+  | { status: "error"; reason?: string; ackSeq: number }
+  /**
+   * hold 重路由：被 hold 的频道轮在重发前重新裁决，命中任务创建事件。
+   * 本函数不投递、不 claim、不写游标——把 action 与 route 交回调用方，
+   * 由既有 runTaskOperation（baseSeq = ackSeq）按普通路由轮的同一套语义收口。
+   * ackSeq = max(被 hold 后的 roomSeq, route.eventSeq)，即本轮实际读到、且已由系统
+   * 据此收口的频道版本（绝不取线程 seq）；revise 重写期间到达的创建事件不能被漏在
+   * 游标之外，否则下一轮会再路由同一事件。
+   */
+  | {
+      status: "reroute";
+      route: TaskReplyRoute;
+      action: AgentAction;
+      ackSeq: number;
+    };
 
 /**
  * 回复投递（§3.3/§6.3）：携带写稿时的 baseSeq 走 freshness 校验；
@@ -864,6 +920,11 @@ export type DeliverOutcome =
  * send 可注入（默认 协作域 sendMessage）；promptFn 用于 revise 重写。
  * ackSeq = agent 本轮实际读到/被告知的最新房间版本（held 后按 roomSeq 推进，
  * 避免游标停在旧 baseSeq 导致 target 永久 pending）。
+ *
+ * hold 重路由（thread-routing）：频道轮的草稿在飞期间若到达任务创建事件，
+ * `resolveHeldRoute` 用「写稿版本之后的新消息」重新裁决；命中时返回 reroute，
+ * 由调用方按路由轮语义投递（无 owner 先 claim，再投任务锚点线程）。
+ * revise 与 resend 都生效——内容由 agent 选择，目标由系统裁决。
  */
 export async function deliverWithFreshness(input: {
   targetId: string;
@@ -873,6 +934,12 @@ export async function deliverWithFreshness(input: {
   baseSeq: number;
   promptFn: (promptText: string) => Promise<string>;
   send?: ReplySender;
+  /** hold 重路由裁决；返回 null 或缺省 = 保持既有 hold 处理。 */
+  resolveHeldRoute?: (input: {
+    newMessages: MessageWithAuthor[];
+    action: AgentAction;
+    heldRoomSeq: number;
+  }) => TaskReplyRoute | null;
 }): Promise<DeliverOutcome> {
   const send: ReplySender = input.send ?? ((opts) => sendMessage(opts));
   let action = input.action;
@@ -880,6 +947,47 @@ export async function deliverWithFreshness(input: {
   let ackSeq = input.baseSeq;
   let reviseRetries = 0;
   let resendRetries = 0;
+  // 裁决窗口的起点固定为写稿版本：绝不随 roomSeq 前移
+  //（否则第一次 hold 前到达的创建事件会在重试时被跳过）。
+  const readBaseSeq = input.baseSeq;
+  /**
+   * 只在「初始目标是频道」时重路由：线程轮 hold 永不回跳/改投别的任务。
+   * 输入 = 写稿版本之后的新消息（去掉自己的），交给调用方的纯裁决回调。
+   */
+  const tryReroute = (
+    candidate: AgentAction,
+    heldRoomSeq: number,
+  ): TaskReplyRoute | null => {
+    if (!input.resolveHeldRoute) return null;
+    if (input.targetId !== input.channel.id) return null;
+    const newMessages = filterVisibleMessages(
+      input.agent.id,
+      input.targetId,
+      getSince(input.targetId, readBaseSeq).filter(
+        (message) => message.author_id !== input.agent.id,
+      ),
+    );
+    return input.resolveHeldRoute({
+      newMessages,
+      action: candidate,
+      heldRoomSeq,
+    });
+  };
+  /**
+   * 命中重路由时的收口：ackSeq 至少要抬到裁决窗口里已读到的创建事件 seq——
+   * revise 重写期间到达的事件不在被 hold 的 roomSeq 里，若不推进，事件会留在频道
+   * 游标之外，轮后排队的事件 wake 会再起一轮、重复路由并多回一条线程消息。
+   * claim 让路分支仍会把游标压回 eventSeq - 1（事件保持 pending 供再收敛）。
+   */
+  const rerouteOutcome = (
+    rerouted: TaskReplyRoute,
+    candidate: AgentAction,
+  ): DeliverOutcome => ({
+    status: "reroute",
+    route: rerouted,
+    action: candidate,
+    ackSeq: Math.max(ackSeq, rerouted.eventSeq),
+  });
 
   for (;;) {
     const result = send({
@@ -915,6 +1023,10 @@ export async function deliverWithFreshness(input: {
           ackSeq,
         };
       case "resend": {
+        // 裁决先于预算判断：第二次 hold 才到达的创建事件不能被
+        // "resend retries exhausted" 吞掉。
+        const rerouted = tryReroute(action, result.roomSeq);
+        if (rerouted) return rerouteOutcome(rerouted, action);
         if (resendRetries >= MAX_RESEND_RETRIES) {
           return {
             status: "silent",
@@ -929,6 +1041,9 @@ export async function deliverWithFreshness(input: {
       case "revise":
       default: {
         if (reviseRetries >= MAX_REVISE_RETRIES) {
+          // 预算耗尽前先裁决：重写稿可能就是该投线程的内容。
+          const rerouted = tryReroute(action, result.roomSeq);
+          if (rerouted) return rerouteOutcome(rerouted, action);
           return {
             status: "silent",
             reason: "revise retries exhausted",
@@ -944,7 +1059,11 @@ export async function deliverWithFreshness(input: {
               roomSeq: result.roomSeq,
               whatHappened: result.whatHappened,
             },
-            newMessages: getSince(input.targetId, baseSeq),
+            newMessages: filterVisibleMessages(
+              input.agent.id,
+              input.targetId,
+              getSince(input.targetId, baseSeq),
+            ),
             targetId: input.targetId,
           }),
         );
@@ -967,6 +1086,9 @@ export async function deliverWithFreshness(input: {
           };
         }
         action = revised;
+        // 重写后同样裁决：写稿期间到达的创建事件决定目标。
+        const rerouted = tryReroute(action, result.roomSeq);
+        if (rerouted) return rerouteOutcome(rerouted, action);
         baseSeq = result.roomSeq;
         continue;
       }
@@ -1017,7 +1139,7 @@ export const MAX_TASK_CLAIM_RETRIES = 3;
  * 同轮更早的其他作者未读消息（混合活动）不构成否决——判定只看向最新一条。
  * 最新一条不是创建事件 / 任务不存在或已 done·closed → 不路由，按普通频道回复。
  */
-interface TaskReplyRoute {
+export interface TaskReplyRoute {
   taskNumber: number;
   /** 触发本轮路由的创建事件 seq；held 让路时游标必须停在其之前。 */
   eventSeq: number;
@@ -1033,7 +1155,9 @@ function taskInChannel(
 }
 
 /** 解析 Owner 的任务创建事件；格式与频道中的创建事件一致。 */
-function taskCreationEventNumber(message: MessageWithAuthor): number | null {
+function taskCreationEventNumber(
+  message: Pick<MessageRow, "author_id" | "content">,
+): number | null {
   if (message.author_id !== OWNER_MEMBER_ID) return null;
   const match = /^Task #(\d+) created(?: — (.*))?$/.exec(message.content);
   if (!match) return null;
@@ -1053,6 +1177,12 @@ function resolveTaskReplyRoute(input: {
   channel: ChannelRow;
   targetId: string;
   incoming: MessageWithAuthor[];
+  /**
+   * hold 重路由必须传 false：只认创建事件，不得让 pendingTaskRoute 的
+   * 「收敛上次未完成的认领」兜底把普通回复改投线程（docs/spec.md §3.7 锁定规则：
+   * 不得因频道存在开放任务就把普通回复改投线程）。
+   */
+  allowPendingFallback?: boolean;
 }): TaskReplyRoute | null {
   const { agentId, action, channel, targetId, incoming } = input;
   if (
@@ -1082,6 +1212,7 @@ function resolveTaskReplyRoute(input: {
     };
   }
   // 最新一条不是任务信号：只对曾经 held 耗尽的任务优先收敛（F 的新轮不受影响）。
+  if (input.allowPendingFallback === false) return null;
   return pendingTaskRoute(agentId, channel);
 }
 
@@ -1490,6 +1621,16 @@ async function deliverToTaskThread(input: {
     promptFn: input.promptFn,
     send: input.send,
   });
+  if (outcome.status === "reroute") {
+    // 线程目标不传裁决回调：命中 reroute 即接线错误。按 error 收口，
+    // 绝不把 reroute 当成 RoundStatus 透传（那会让调用方误以为回复已落库）。
+    return {
+      status: "error",
+      reason: "unexpected reroute decision on a task thread target",
+      baseSeq: input.threadBaseSeq,
+      threadAckSeq: input.threadBaseSeq,
+    };
+  }
   const delivered = "message" in outcome ? outcome.message : undefined;
   const threadAckSeq = delivered
     ? delivered.seq
@@ -1840,6 +1981,19 @@ export async function runAgentRound(
     publishAgentStatus(agent.id, "online");
     return withOps({ status: "yielded", reason, baseSeq });
   };
+  /**
+   * 任务路径收口（普通 task op / 自动路由 / hold 重路由共用）：状态点、streak 与 op 摘要。
+   * error 轮不是成功轮——不重置 must-respond streak（与 reply 路径一致）。
+   */
+  const finishTaskRound = (outcome: RoundOutcome): RoundOutcome => {
+    if (outcome.status === "error") {
+      publishAgentStatus(agent.id, "error");
+    } else {
+      resetMustRespondFailures(agent.id, targetId);
+      publishAgentStatus(agent.id, "online");
+    }
+    return withOps(outcome);
+  };
   try {
     const first = await promptSession(session, prompt);
     if (!first.ok) {
@@ -1894,16 +2048,7 @@ export async function runAgentRound(
           return revised.ok ? revised.text : "";
         },
       });
-      if (outcome.status === "error") {
-        // 05-终检整改：任务 error 轮不是成功轮——不重置 must-respond streak
-        // （与 reply 路径一致：成功投递/任务收口/无信号 ignore 才重置）。
-        // 否则模型可交替「ignore → 任务 error」无限规避 cap-ack 逃逸口。
-        publishAgentStatus(agent.id, "error");
-      } else {
-        resetMustRespondFailures(agent.id, targetId);
-        publishAgentStatus(agent.id, "online");
-      }
-      return withOps(outcome);
+      return finishTaskRound(outcome);
     }
     if (effectiveAction.action === "reply" && peerClosedExchange) {
       // 本票不变量 (3)：peer 已明确收束 ⇒ 普通回复不落库——代码层收口，不依赖模型自觉。
@@ -1983,7 +2128,56 @@ export async function runAgentRound(
         const revised = await promptSession(session, revisionPrompt);
         return revised.ok ? revised.text : "";
       },
+      // hold 重路由：只对频道轮生效（线程轮内部另有守卫）。输入 = 本轮 drain 的
+      // 非本人消息 + 写稿版本之后到达的消息，按 seq 合并去重后重跑同一裁决；
+      // allowPendingFallback=false 保证只认创建事件（docs/spec.md §3.7 锁定规则）。
+      resolveHeldRoute: ({ newMessages, action: candidate }) => {
+        if (targetId !== channel.id) return null;
+        try {
+          const merged = new Map<string, MessageWithAuthor>();
+          for (const message of incoming) merged.set(message.id, message);
+          for (const message of newMessages) {
+            if (message.author_id !== agent.id) merged.set(message.id, message);
+          }
+          const messages = [...merged.values()].sort((a, b) => a.seq - b.seq);
+          return resolveTaskReplyRoute({
+            agentId: agent.id,
+            action: candidate,
+            channel,
+            targetId,
+            incoming: messages,
+            allowPendingFallback: false,
+          });
+        } catch (error) {
+          // 任务在裁决期间消失 / 成员校验抛错：保持既有 hold 处理，不向别处兜底。
+          console.warn(
+            `[agent-loop] hold reroute failed for ${agent.name}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return null;
+        }
+      },
     });
+    if (outcome.status === "reroute") {
+      // hold 重路由：内容由 agent 选择，目标由系统裁决。复用普通路由轮的
+      // runTaskOperation（claim 重试 / conflict 重读 / 线程投递 / 游标收口同一路径）：
+      // baseSeq 取被 hold 的频道版本（ackSeq），线程投递不写频道游标。
+      return finishTaskRound(
+        await runTaskOperation({
+          agent,
+          channel,
+          targetId,
+          action: outcome.action,
+          baseSeq: outcome.ackSeq,
+          route: outcome.route,
+          promptFn: async (revisionPrompt) => {
+            const revised = await promptSession(session, revisionPrompt);
+            return revised.ok ? revised.text : "";
+          },
+        }),
+      );
+    }
     if (outcome.status === "error") {
       // 11-整改：revised 空内容 = error 轮——不推进游标（触发消息保持 pending 供下次 wake
       // 重试）、error 状态点；与直接空 reply 路径（reply action without content）归类一致
@@ -2379,6 +2573,12 @@ export interface SessionReply {
   targetId: string;
   markerSeq: number;
   content: string;
+  /**
+   * 本轮显式 task op 的任务号（`{"task":{"number":N,"op":...}}`）。
+   * 补拉还原投递目标时优先于 marker 启发式：marker 指向的那版创建事件可能是
+   * 另一个任务，显式 op 才是 agent 自己声明要操作的任务。
+   */
+  taskNumber?: number;
 }
 
 export interface BackfillFileOps {
@@ -2454,6 +2654,8 @@ function createSessionReplyScanner() {
           targetId: current.targetId,
           markerSeq: current.seq,
           content: parsed.content,
+          // 只有显式 task op 才携带；普通频道回复不写该字段（marker 启发式兜底）。
+          ...(parsed.task ? { taskNumber: parsed.task.number } : {}),
         });
       }
     }
@@ -2801,17 +3003,47 @@ async function prepareAgentBackfill(
 /**
  * 单个 target 的补写。
  *
- * 判重分两层（后者是本票新增的跨 target 层）：
- * - **同 target 幂等**：该 target 里已有本 agent 的同内容 ⇒ 已投递，跳过但推进游标；
- * - **跨 target（仅频道顶层）**：marker 记的是频道版本，而 §3.7 起任务回复的真实投递目标是
- *   task thread 的锚点消息（PR #190 的路由）。所以补写频道顶层前，还要查同作者同内容是否
- *   已存在于**本频道任一 thread**——命中说明该轮已投递，只是 target 不是频道。否则崩溃恢复
+ * 判重分三层（第三层是本票新增的投递目标还原层）：
+ * - **投递目标还原（仅频道顶层 marker）**：① 本轮显式 task op（`task.number`）优先——
+ *   agent 自己声明操作哪个任务，投递目标就是该任务锚点线程（任务缺失则维持频道）；
+ *   ② 否则看 marker 启发式：marker 记的是**频道版本**，但 §3.7 起任务回复的
+ *   真实投递目标是 task thread 的锚点消息。若 `(targetId, markerSeq)` 那条消息正是 Owner 的
+ *   「Task #N created」创建事件且任务存在，则该轮的真实投递目标是任务锚点 thread——补写必须
+ *   写进线程，而不是频道顶层。任务当前状态不影响历史还原（done/closed 也照常还原）。
+ * - **同 target 幂等**：还原后的投递目标里已有本 agent 的同内容 ⇒ 已投递，跳过但推进游标；
+ * - **跨 target（仅频道顶层）**：还原后仍是频道目标时，还要查同作者同内容是否已存在于
+ *   **本频道任一 thread**——命中说明该轮已投递，只是 target 不是频道。否则崩溃恢复
  *   会把同一段内容在频道顶层与线程里各存一份。
  *
- * 作用域刻意收窄：只有「marker 指向频道」的顶层补写做跨 target 判重。marker 指向线程的补写
- * 仍只看该线程本身——线程回复不会反向漏到频道，多判一层只会增加误伤真实补拉的面。
+ * 作用域刻意收窄：只有「marker 指向频道」的补写做还原与跨 target 判重。marker 指向线程的
+ * 补写仍只看该线程本身——线程回复不会反向漏到频道，多判一层只会增加误伤真实补拉的面。
  * 跨 target 层只认同作者（ADR-0004 的轮级跨作者去重保持同 target 原口径）。
+ * 游标仍只写 marker target（频道）；线程游标不写。
  */
+function resolveBackfillDeliveryTarget(
+  targetId: string,
+  isChannelTarget: boolean,
+  markerSeq: number,
+  explicitTaskNumber?: number,
+): string {
+  if (!isChannelTarget) return targetId;
+  // 显式 task op 优先：agent 自己声明了操作哪个任务，真实投递目标就是该任务锚点线程；
+  // marker 那版的创建事件可能属于另一个任务，只在没有显式 op 时作启发式兜底。
+  if (explicitTaskNumber !== undefined) {
+    const explicitTask = getDb().getTaskByChannelNumber(
+      targetId,
+      explicitTaskNumber,
+    );
+    return explicitTask?.message_id ?? targetId;
+  }
+  const marker = getDb().getMessageBySeq(targetId, markerSeq);
+  if (!marker) return targetId;
+  const taskNumber = taskCreationEventNumber(marker);
+  if (taskNumber === null) return targetId;
+  const task = getDb().getTaskByChannelNumber(targetId, taskNumber);
+  return task?.message_id ?? targetId;
+}
+
 function applyBackfillTarget(
   agent: MemberRow,
   targetId: string,
@@ -2827,7 +3059,15 @@ function applyBackfillTarget(
   let skippedAsThreadDelivered = 0;
   db.withTransaction(() => {
     for (const reply of replies) {
+      // 先还原该轮的真实投递目标（只读）：创建事件 marker → 任务锚点线程。
+      const deliveryTargetId = resolveBackfillDeliveryTarget(
+        reply.targetId,
+        isChannelTarget,
+        reply.markerSeq,
+        reply.taskNumber,
+      );
       // ADR-0004 轮级跨作者去重；命中轮跳过，不把他人回复冒充为本 agent 投递。
+      // 仍按 marker target 判定（轮级语义不随投递目标还原改变）。
       if (
         db.hasMessageByContentByOther(reply.targetId, agent.id, reply.content)
       ) {
@@ -2835,16 +3075,16 @@ function applyBackfillTarget(
         continue;
       }
       cursorSeq = Math.max(cursorSeq ?? 0, reply.markerSeq);
-      if (db.hasMessage(reply.targetId, agent.id, reply.content)) continue;
+      if (db.hasMessage(deliveryTargetId, agent.id, reply.content)) continue;
       // 跨 target：同一内容已在本频道的某个 task thread 里由本 agent 投递过 → 顶层不再补写。
       // 游标照常推进（与同 target 幂等同一口径：标记轮已投递，不该反复重读）。
       if (isChannelTarget && db.hasAuthorContentInChannel(targetId, agent.id, reply.content)) {
         skippedAsThreadDelivered += 1;
         continue;
       }
-      const seq = db.maxSeq(reply.targetId) + 1;
+      const seq = db.maxSeq(deliveryTargetId) + 1;
       db.insertMessageAt({
-        targetId: reply.targetId,
+        targetId: deliveryTargetId,
         authorId: agent.id,
         content: reply.content,
         seq,

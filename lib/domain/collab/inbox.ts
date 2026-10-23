@@ -30,27 +30,37 @@ export function getSince(targetId: string, sinceSeq: number): MessageWithAuthor[
 }
 
 /**
- * §3.8 drain：按 consumed_seqs 游标拉取增量（本地无 50 轮分页上限，
- * 但保留 hasMore 语义）；不推进游标——重复 drain 不重不漏。
- * §3.2 mute 过滤：该成员静音了目标 channel 时，静音时刻之后的普通消息不进 inbox，
- * 个人 @mention 仍穿透（注意力信号）；静音前的消息照常投递。
+ * §3.2 可见性口径（drain / hold 重路由共用的唯一实现）：该成员静音了目标 channel 时，
+ * 静音时刻之后的普通消息不可见，个人 @mention 仍穿透；静音前的消息照常可见。
  * channel 消息按 seq 比（muteFromSeq 即 channel 版本）；thread 消息无 channel seq 可比
  * （thread 自己的 seq 空间），按静音时刻的全局插入序（muteRowid）判定"静音后"。
+ */
+export function filterVisibleMessages<T extends MessageRow>(
+  agentId: string,
+  targetId: string,
+  rows: T[],
+): T[] {
+  const channel = resolveChannelForTarget(targetId);
+  const mute = channel ? getChannelMute(channel.id, agentId) : undefined;
+  if (!mute) return rows;
+  // target 即 channel 时为 channel 目标（按 seq 比）；否则是 thread 锚点（按全局插入序比）
+  const isChannelTarget = channel ? channel.id === targetId : false;
+  return rows.filter((row) =>
+    isChannelTarget
+      ? row.seq <= mute.muteFromSeq || mentionsAgent(row, agentId)
+      : (row.rowid ?? 0) <= mute.muteRowid || mentionsAgent(row, agentId),
+  );
+}
+
+/**
+ * §3.8 drain：按 consumed_seqs 游标拉取增量（本地无 50 轮分页上限，
+ * 但保留 hasMore 语义）；不推进游标——重复 drain 不重不漏。
+ * §3.2 mute 过滤见 filterVisibleMessages（静音后的普通消息不进 inbox）。
  */
 export function drain(agentId: string, targetId: string): DrainResult {
   const consumedSeq = getDb().getConsumedSeq(agentId, targetId);
   const rows = getDb().listMessagesAfter(targetId, consumedSeq);
-  const channel = resolveChannelForTarget(targetId);
-  const mute = channel ? getChannelMute(channel.id, agentId) : undefined;
-  // target 即 channel 时为 channel 目标（按 seq 比）；否则是 thread 锚点（按全局插入序比）
-  const isChannelTarget = channel ? channel.id === targetId : false;
-  const visible = mute
-    ? rows.filter((row) =>
-        isChannelTarget
-          ? row.seq <= mute.muteFromSeq || mentionsAgent(row, agentId)
-          : (row.rowid ?? 0) <= mute.muteRowid || mentionsAgent(row, agentId),
-      )
-    : rows;
+  const visible = filterVisibleMessages(agentId, targetId, rows);
   return {
     targetId,
     messages: visible.map((m) => messageWithAuthor(m)),

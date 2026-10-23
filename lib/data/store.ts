@@ -78,6 +78,8 @@ export interface Store {
   listMessagesAfter(targetId: string, afterSeq: number): MessageRow[];
   listMessages(targetId: string): MessageRow[];
   getMessage(id: string): MessageRow | undefined;
+  /** 按 (target, seq) 点查（messages 表 UNIQUE(target_id, seq)）：回拉按 marker 还原投递目标用。 */
+  getMessageBySeq(targetId: string, seq: number): MessageRow | undefined;
   insertMessageAt(input: InsertMessageInput): MessageRow;
   appendMessage(input: AppendMessageInput): MessageRow;
   searchMessages(query: string, limit?: number): SearchResult[];
