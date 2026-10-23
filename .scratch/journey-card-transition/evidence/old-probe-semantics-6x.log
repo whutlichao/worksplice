@@ -1,0 +1,7 @@
+# 旧断言语义（HEAD 版本探针临时副本，仅替换输出目录）在隔离实例连续复跑 6 次
+run1: [2026-10-23T11:24:27.836Z] VERDICT GREEN (0 failure(s))
+run2: [2026-10-23T11:24:34.264Z] VERDICT GREEN (0 failure(s))
+run3: [2026-10-23T11:24:37.449Z] VERDICT GREEN (0 failure(s))
+run4: [2026-10-23T11:24:40.558Z] VERDICT GREEN (0 failure(s))
+run5: [2026-10-23T11:24:45.571Z] VERDICT GREEN (0 failure(s))
+run6: [2026-10-23T11:24:50.730Z] VERDICT GREEN (0 failure(s))

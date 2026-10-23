@@ -1,6 +1,6 @@
 # 旅程引导卡形态切换过渡（内容燃尽 → 重聚）
 
-- **Status**: Done（2026-10-23 最终设计复验通过）
+- **Status**: Done（2026-10-23 最终设计复验通过；同日跨频道探针语义打回补修后 3/3 GREEN）
 - **票型**: 实施票
 - **门禁**: G-impl
 - **分支 / worktree**: `journey-card-transition`
@@ -80,7 +80,9 @@
    - aria-label 依次「等待交接或认领」→「让它跑」→「去复核」→ 卸载；console.error /
      hydration 警告 0。
    证据存 `.scratch/journey-card-transition/evidence/`。
-4. 跨频道探针连续 3 次 GREEN（B 的首张流内卡为 `handoff / enter`），主探针 1 次 GREEN。
+4. 跨频道探针连续 3 次 GREEN（B 的 900ms 泄漏窗内无 A 卡；瞬时首卡若出现必为
+   `handoff / enter`，稳定态无卡；确定性 handoff 频道 C 首卡 `enter / handoff`），
+   主探针 1 次 GREEN。
 5. 对本票 diff 跑一次双轴 `code-review`（Standards + Spec），findings 处置写进 Answer.md。
 6. Answer.md 记录：行为变化、实现方案、基线无改动行为、证据路径、review 结论、未完成项。
 
@@ -126,7 +128,25 @@
   `nextJourneyGuideView(null, kind)` 起算首张卡（enter）；后续同频道变化才 switch。
   不使用 sleep/延时，不改 journey 推导与轮询频率。
 - **复验（最终实现）**：跨频道探针 3/3 GREEN（`evidence/cross-channel-run{1,2,3}.log/json`，
-  B 首张卡 `handoff / enter`，900ms 内无 A 的「去复核」）；主探针 1× GREEN；
-  窄门 88 pass / 0 fail；typecheck 0 error；lint 0 error（仅既存 `useI18n.tsx:61` warning）。
+  900ms 内无 A 的「去复核」；瞬时首卡若出现必为 `handoff / enter`，稳定态无卡）；主探针
+  1× GREEN；窄门 88 pass / 0 fail；typecheck 0 error；lint 0 error（仅既存
+  `useI18n.tsx:61` warning）。
 - **红证据**：旧实现 3/3 RED（`evidence/rework-red-run{1,2,3}.log/json`）；新增状态机测试
   在旧实现上失败（`evidence/rework-red-unit-tests.log`）。
+
+## 打回补修（2026-10-23，跨频道探针语义）
+
+- **复现**：coordinator 在最终 head `0766af78` 的隔离实例连续复跑旧探针 **1 RED / 2 GREEN**。
+  RED 失败项为「切到频道 B 后 6s 内未出现消息流卡面」，该次 `leakWindowCards=0`、
+  `leakLabels=[]`（无 A 卡泄漏，只是 B 全程无卡）。本地用旧断言语义的临时副本复跑
+  6/6 GREEN（`evidence/old-probe-semantics-6x.log`），说明这是数据到达顺序的竞态窗口，
+  不是稳定失败。
+- **根因**：频道 B 稳定态为「1 条消息 + 1 个 done 任务」，`deriveJourneyState` 返回
+  `guideKind: null`（`lib/journey-state.ts:62-64`），本来就不该有卡；瞬时 handoff 卡只存在于
+  「消息先到、任务快照后到」的中间态。旧探针把“必须有瞬时卡”当成规格，比本票 Acceptance
+  更严。
+- **探针语义**：B 只断言 900ms 泄漏窗无 A 卡 + 稳定终态无卡；瞬时卡若出现必须
+  `enter / handoff`，缺席合法。新增确定性频道 C（只有消息、没有任务），断言首卡必为
+  `enter / handoff`。未发现产品缺陷，产品代码与既有测试未改。
+- **复验**：新探针 3/3 GREEN（`evidence/cross-channel-run{1,2,3}`；三次瞬时卡 t=77–149ms，
+  `B final` 均 `anyCards=0`；C 首卡 t=66–131ms）；主探针 1× GREEN。

@@ -125,8 +125,8 @@ switch/exit 状态机、跨频道快照归属、连续切换、reduce 规则与�
 | 重聚 | 692 个 `is-in`，`journey-guide-content-reform`；新内容文案已是「去复核」 |
 | 结束态 | `fx.children.length = 0`、无旧内容层、内容 opacity 1 |
 | 连续两次切换 | 第二次开始前 fx=0 / outgoing=0；结束后同样清零 |
-| 对齐（宽） | 标题行四边偏差 ≤1.29px；hint 行 ≤0.81px；按钮底板 ≤0.93px |
-| 对齐（窄 300px，hint 折 2 行） | 3 行逐行 ≤1.29px；按钮同样通过 |
+| 对齐（宽） | 标题行四边偏差 ≤1.30px；hint 行 ≤0.81px；按钮底板 ≤0.93px（容差 1.5px） |
+| 对齐（窄 300px，hint 折 2 行） | 3 行逐行 ≤1.30px；按钮同样通过 |
 | 退场 | 内容 `journey-guide-content-burn` + `is-burning`，692 个消散粒子，播完卸载 |
 | reduce | 首现与切换均 `fx=0`、粒子元素 0、内容 opacity 1 |
 | aria-label 序列 | 「等待交接或认领」→「让它跑」→「去复核」→ 卸载 |
@@ -143,10 +143,43 @@ switch/exit 状态机、跨频道快照归属、连续切换、reduce 规则与�
 之后；CSS duration/关键帧/布局/采样参数一律未改，截图冻结帧仍是真实动画中间帧（探针只
 冻结粒子与 burn 动画，不碰内容 opacity transition）。该注入写在探针里，不进产品代码。
 
-跨频道证据：`evidence/cross-channel-run{1,2,3}.json/log`（3/3 GREEN，B 首张流内卡
-`handoff / enter`；header 切换后的 900ms 泄漏窗内无 A 的「去复核」，B 自己的首张卡
-最多等 6s——首次取数受浏览器负载影响，不作为产品 SLA）；截图
-`cross-01-channel-b-no-card.png`、`cross-02-channel-a-card.png`。
+跨频道证据：`evidence/cross-channel-run{1,2,3}.json/log`（3/3 GREEN）：header 切换后的
+900ms 泄漏窗内无 A 的「去复核」；B（消息 + done 任务）固定观测 6s 后稳定终态无卡
+（瞬时 handoff 卡若出现必须为 `enter`，缺席同样合法）；切回 A 首卡 `enter / 去复核`；
+确定性频道 C（只有消息、没有任务）首卡 `enter / handoff / 把一条消息转为任务`。
+截图 `cross-01-channel-b-no-card.png`、`cross-02-channel-a-card.png`、
+`cross-03-channel-c-handoff-card.png`。
+
+## 打回修复：跨频道探针语义（2026-10-23）
+
+- **复现与根因**：coordinator 在隔离实例、最终 head `0766af78` 上连续复跑旧探针，
+  **1 RED / 2 GREEN**。RED 的失败项是「切到频道 B 后 6s 内未出现消息流卡面」，该次
+  `leakWindowCards=0`、`leakLabels=[]`——没有 A 的「去复核」泄漏，只是 B 从头到尾没有卡。
+  根因是频道 B 的稳定态为「1 条消息 + 1 个 done 任务」，`deriveJourneyState` 在消息非空、
+  任务全部 done 时返回 `guideKind: null`（`lib/journey-state.ts:62-64`），**本来就不该有卡**；
+  B 的瞬时 handoff 卡只存在于「消息先到、任务快照后到」的中间态。旧探针把“必须有瞬时卡”
+  当成规格，比 spec 更严。
+- **本地复核**：用旧断言语义（HEAD 版本探针的临时副本，仅替换输出目录，输出在 `/tmp`，
+  结论归档 `evidence/old-probe-semantics-6x.log`）在同一隔离实例复跑 **6/6 GREEN**，说明
+  RED 是数据到达顺序的竞态窗口，不是稳定失败。
+- **探针改动**（`probe-cross-channel.ego.mjs`）：
+  1. 保留：header 900ms 内切到 B；B 的 900ms 泄漏窗内不得出现 A 的「去复核」；B→A 首卡
+     `enter / 去复核`。
+  2. B 固定观测 6s，记录消息行落位时间与瞬时卡（若有）；结束后再等 1s（覆盖 663ms 退场），
+     断言 B 稳定终态没有任何引导卡。瞬时卡出现则必须是 `enter / handoff`；未出现是合法路径，
+     不判失败。日志明确区分两种路径。
+  3. 新增确定性频道 C（只有消息、没有任务）：`deriveJourneyState` 必为 handoff；切到 C 后
+     断言首张流内卡存在且 `enter / handoff / 把一条消息转为任务`。这条断言不依赖竞态。
+  4. 证据字段保留并扩展：`leakWindowSamples/leakWindowCards/leakLabels/messageRowSeenAt/
+     lastCardAt/transientCard`，新增 `bFinal`、`cSample`；新增截图
+     `cross-03-channel-c-handoff-card.png`。
+- **结果**：`evidence/cross-channel-run{1,2,3}` → **3/3 GREEN**。三次都观察到 B 的瞬时卡
+  （t=77–149ms，`handoff / enter`），并在约 746–836ms 后完成退场；`B final` 均为
+  `anyCards=0`；C 首卡均 `enter / handoff`（t=66–131ms）。主探针 1× GREEN（对齐最大 1.30px，
+  reduce/清理/aria-label 均通过）。
+- **产品代码未改**：三次瞬时卡均为 `enter`，未出现 `switch`，也没有上一频道 kind 残留；
+  没有复现出产品缺陷，因此未改产品行为、未新增或削弱测试。产品侧既有红证据
+  `evidence/rework-red-run{1,2,3}`（旧实现首卡 `describe / switch`，3/3 RED）仍有效。
 
 ## 验证命令与结果
 
@@ -156,7 +189,7 @@ switch/exit 状态机、跨频道快照归属、连续切换、reduce 规则与�
 | `npm run typecheck` | 0 error（`evidence/final-typecheck.log`） |
 | `npm run lint` | 0 error，仅既存 `hooks/useI18n.tsx:61` warning（`evidence/final-lint.log`） |
 | ego 主探针 | 1× GREEN（`evidence/after.log` / `after.json`） |
-| ego 跨频道探针 | 3/3 GREEN（`evidence/cross-channel-run{1,2,3}.log/json`） |
+| ego 跨频道探针 | 3/3 GREEN（泄漏窗 + B 稳定态无卡 + C 确定性 `enter/handoff`；`evidence/cross-channel-run{1,2,3}.log/json`） |
 
 本票按窄档未跑全量 `npm test`（票据明确「本票不跑」）。
 
@@ -181,7 +214,7 @@ lib/journey-guide-particles.ts app/globals.css components/ChannelView.test.mjs a
 | --- | --- | --- | --- |
 | P1 | 实现与 spec 文本不一致 | 内联 review 发现：切换瞬间旧内容层直接 `opacity: 0`，粒子在 10% 前还有 60–140ms 延迟，出现空白帧。 | **已修**：旧内容层播 `is-burning` 140ms 燃尽淡出，与粒子淡入交叉（`app/globals.css`、`components/ChannelView.tsx`）。 |
 | P2 | 文档与实现不一致 | 本票 spec 验收仍写「旧内容层立即让位（opacity 0）」，与 P1 的最终实现相反。 | **已修**：spec 改为「140ms 燃尽淡出（与粒子交叉后 opacity 0）」。 |
-| P3 | 探针假设错误（非产品回归） | 跨频道探针把「B 首张卡在 900ms 内到达」当断言；浏览器负载高时数据晚到导致 run2 误红（`firstStream: null`，header 17ms 已切换、无 A 卡泄漏）。 | **已修**：900ms 只作泄漏窗（A 的「去复核」不得出现），B 首张卡最多等 6s 再断言 `handoff / enter`；重跑 3/3 GREEN。 |
+| P3 | 探针假设错误（非产品回归） | 旧探针把「done 频道 B 必须短暂出现首卡」当断言；B 稳定态 `guideKind=null`，消息与任务同帧落位时整场无卡，coordinator 复跑 1 RED / 2 GREEN。 | **已修（本轮）**：B 改为“瞬时卡出现则必须 `enter/handoff`、缺席合法”，6s 观测后断言稳定态无卡；新增确定性 handoff 频道 C 断言首卡 `enter/handoff`；3/3 GREEN。详见「打回修复：跨频道探针语义」。 |
 | P4 | 判断项 | reduce 下退场仍等状态机 663ms 才卸载（静止终态，无粒子/位移）。 | **接受**：spec 只要求「无可见粒子/位移，内容立即终态」，未要求立即卸载；不为此扩大状态机改动。 |
 | P5 | 判断项 | 切换瞬间 `aria-label` 已是新标题，而旧内容视觉上还在燃尽 140ms。 | **接受**：可访问名称始终等于「当前形态标题」，瞬时视觉交叠不改变语义契约。 |
 

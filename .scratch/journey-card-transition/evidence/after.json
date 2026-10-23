@@ -8,8 +8,8 @@
     null
   ],
   "facts": {
-    "channelA": "b0b68386-7836-4dd0-8361-964effddbf48",
-    "taskA": "b180f6bf-3424-43b1-8844-3a751e949d61",
+    "channelA": "e2af73a1-0141-470c-8986-8494d661f34f",
+    "taskA": "6bde6274-a6d3-4c89-92cb-e9c8d3eb2254",
     "steps": [],
     "initialSeen": {
       "matched": true,
@@ -45,7 +45,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 1,
+      "elapsedMs": 4,
       "timedOut": false
     },
     "enterMid": {
@@ -114,7 +114,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 3623,
+      "elapsedMs": 2701,
       "timedOut": false
     },
     "switching": {
@@ -151,7 +151,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 324,
+      "elapsedMs": 258,
       "timedOut": false
     },
     "dissolveMid": {
@@ -200,16 +200,16 @@
             "bottom": 20
           },
           "ink": {
-            "left": 195.03,
+            "left": 195.05,
             "right": 298.77,
             "top": 4.79,
-            "bottom": 18.82
+            "bottom": 18.81
           },
           "delta": {
-            "left": 1.28,
+            "left": 1.3,
             "right": -0.24,
             "top": -0.26,
-            "bottom": -0.33
+            "bottom": -0.34
           }
         },
         {
@@ -224,13 +224,13 @@
           },
           "ink": {
             "left": 98.18,
-            "right": 387.98,
+            "right": 388,
             "top": 34.48,
             "bottom": 48.71
           },
           "delta": {
             "left": 0.17,
-            "right": 0.6,
+            "right": 0.62,
             "top": -0.81,
             "bottom": 0.3
           }
@@ -292,7 +292,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 7648,
+      "elapsedMs": 7595,
       "timedOut": false
     },
     "residueBeforeSecond": {
@@ -361,7 +361,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 3031,
+      "elapsedMs": 3104,
       "timedOut": false
     },
     "reforming": {
@@ -398,7 +398,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 3031,
+      "elapsedMs": 3104,
       "timedOut": false
     },
     "reformMid": {
@@ -467,7 +467,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 2494,
+      "elapsedMs": 2524,
       "timedOut": false
     },
     "exiting": {
@@ -504,7 +504,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 2716,
+      "elapsedMs": 2715,
       "timedOut": false
     },
     "exitMid": {
@@ -574,7 +574,7 @@
     "gone": {
       "matched": true,
       "state": null,
-      "elapsedMs": 3309,
+      "elapsedMs": 3288,
       "timedOut": false
     },
     "reducedInitial": {
@@ -672,16 +672,16 @@
         "outgoingClassName": null,
         "outgoingAnimationName": null,
         "outgoingText": null,
-        "fxCount": 1288,
+        "fxCount": 0,
         "outCount": 0,
-        "inCount": 1288,
+        "inCount": 0,
         "outAnim": null,
-        "inAnim": "journey-guide-content-reform",
+        "inAnim": null,
         "layerAriaHidden": "true",
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 3128,
+      "elapsedMs": 4925,
       "timedOut": false
     },
     "narrowSwitch": {
@@ -718,7 +718,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 2771,
+      "elapsedMs": 963,
       "timedOut": false
     },
     "narrowAlign": {
@@ -735,16 +735,16 @@
             "bottom": 20
           },
           "ink": {
-            "left": 65.04,
+            "left": 65.05,
             "right": 168.76,
             "top": 4.79,
-            "bottom": 18.81
+            "bottom": 18.82
           },
           "delta": {
-            "left": 1.29,
+            "left": 1.3,
             "right": -0.24,
             "top": -0.26,
-            "bottom": -0.34
+            "bottom": -0.33
           }
         },
         {
@@ -759,13 +759,13 @@
           },
           "ink": {
             "left": 0.68,
-            "right": 233.31,
+            "right": 233.3,
             "top": 34.48,
             "bottom": 48.71
           },
           "delta": {
             "left": 0.17,
-            "right": 0.97,
+            "right": 0.96,
             "top": -0.81,
             "bottom": 0.3
           }
@@ -781,14 +781,14 @@
             "bottom": 68.8
           },
           "ink": {
-            "left": 83.89,
-            "right": 142.32,
+            "left": 83.9,
+            "right": 142.3,
             "top": 55.28,
             "bottom": 68.21
           },
           "delta": {
-            "left": -0.06,
-            "right": 0.88,
+            "left": -0.04,
+            "right": 0.86,
             "top": -0.86,
             "bottom": 0
           }
@@ -850,7 +850,7 @@
         "layerPointerEvents": "none",
         "layerCount": 1
       },
-      "elapsedMs": 5584,
+      "elapsedMs": 6599,
       "timedOut": false
     },
     "hydrationWarnings": [],

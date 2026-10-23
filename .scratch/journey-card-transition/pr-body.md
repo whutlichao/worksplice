@@ -62,13 +62,15 @@ nextJourneyGuideView(prev, kind)
   截图：`after-02-switch-dissolve-mid.png`、`after-05-switch2-reform-mid.png`、
   `after-06-exit-mid.png`、`after-10-narrow-wrapped-dissolve-mid.png` 等。
 - **对齐**：冻结在消散驻留段，粒子墨迹 bbox vs「DOM 行盒 + canvas 字体度量」/按钮矩形，
-  宽视口四边 ≤1.29px、按钮 ≤0.93px；300px 窄视口 hint 折 2 行后逐行 ≤1.29px。
+  宽视口四边 ≤1.30px、按钮 ≤0.93px（容差 1.5px）；300px 窄视口 hint 折 2 行后逐行
+  ≤1.30px。
 - **reduce**：CDP 强制 `prefers-reduced-motion: reduce` → 首现/切换均 `fx=0`、粒子元素
   0、内容 opacity 1（`after-08-reduce-initial.png` / `after-09-reduce-switch.png`）。
-- **跨频道**：`evidence/cross-channel-run{1,2,3}` → **3/3 GREEN**，B 首张流内卡面
-  `handoff / enter`，header 切换后 900ms 泄漏窗内无 A 的「去复核」（首张卡最多等 6s，
-  首次取数时间不作产品 SLA）；切回 A 也是 `enter`。旧实现红证据
-  `rework-red-run{1,2,3}`（3/3 RED）。
+- **跨频道**：`evidence/cross-channel-run{1,2,3}` → **3/3 GREEN**。header 切换后 900ms
+  泄漏窗内无 A 的「去复核」；B（消息 + done 任务）稳定态本就不该有卡——瞬时 handoff 卡
+  只存在于数据到达顺序的中间态，出现则必须 `enter`，缺席同样合法，6s 观测后断言稳定
+  终态无卡；新增确定性 handoff 频道 C（只有消息、没有任务），首卡必为 `enter / handoff`；
+  切回 A 也是 `enter`。旧实现红证据 `rework-red-run{1,2,3}`（3/3 RED）。
 - aria-label 序列「等待交接或认领」→「让它跑」→「去复核」→ 卸载；`console.error` 0、
   hydration 警告 0。
 

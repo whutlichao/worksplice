@@ -3,15 +3,18 @@
   "failures": [],
   "switchSample": {
     "headerSwitchedAt": 17,
-    "sampleCount": 53,
-    "leakWindowSamples": 51,
-    "leakWindowCards": 39,
+    "observeMs": 6000,
+    "sampleCount": 336,
+    "leakWindowSamples": 49,
+    "leakWindowCards": 38,
     "leakLabels": [
       "把一条消息转为任务",
       "等待交接或认领"
     ],
-    "firstStream": {
-      "t": 99,
+    "messageRowSeenAt": 149,
+    "lastCardAt": 836,
+    "transientCard": {
+      "t": 149,
       "label": "把一条消息转为任务",
       "kind": "handoff",
       "phase": "enter",
@@ -19,7 +22,7 @@
     },
     "firstSamples": [
       {
-        "t": 1,
+        "t": 0,
         "header": false,
         "hasCard": true
       },
@@ -29,41 +32,57 @@
         "hasCard": false
       },
       {
-        "t": 34,
+        "t": 35,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 61,
+        "t": 53,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 78,
+        "t": 71,
         "header": true,
         "hasCard": false
       },
       {
-        "t": 99,
+        "t": 88,
         "header": true,
-        "hasCard": true
+        "hasCard": false
       },
       {
-        "t": 118,
+        "t": 105,
         "header": true,
-        "hasCard": true
+        "hasCard": false
       },
       {
-        "t": 135,
+        "t": 123,
         "header": true,
-        "hasCard": true
+        "hasCard": false
       }
     ]
   },
+  "bFinal": {
+    "streamCardCount": 0,
+    "anyCardCount": 0,
+    "labels": []
+  },
   "backSample": {
-    "elapsedMs": 46,
+    "elapsedMs": 44,
     "firstPhase": "enter",
     "firstLabel": "去复核",
-    "header": "#cross-a-1792753721204私有离开归档1journey cro"
+    "header": "#cross-a-1792754565097私有离开归档1journey cro"
+  },
+  "cSample": {
+    "headerSwitchedAt": 20,
+    "firstCard": {
+      "t": 66,
+      "label": "把一条消息转为任务",
+      "kind": "handoff",
+      "phase": "enter",
+      "className": "journey-guide-card"
+    },
+    "elapsedMs": 66
   }
 }
