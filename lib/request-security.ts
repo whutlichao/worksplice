@@ -45,10 +45,46 @@ function canonicalOrigin(value: string): string | null {
   }
 }
 
+/** 取转发头的第一个逗号分隔值：最外层（浏览器看到的）来源，后续是代理链内跳。 */
+function firstForwardedValue(value: string | null): string | null {
+  const first = value?.split(",", 1)[0]?.trim();
+  return first ? first : null;
+}
+
+/** 转发 host 只有在能通过 `hostnameFromAuthority` 校验时才被采信，否则返回 null。 */
+function forwardedAuthority(request: Request): string | null {
+  const forwarded = firstForwardedValue(request.headers.get("x-forwarded-host"));
+  return forwarded && hostnameFromAuthority(forwarded) ? forwarded : null;
+}
+
+/** 只接受 http / https（大小写不敏感），其余返回 null 由调用方回退。 */
+function forwardedScheme(request: Request): string | null {
+  const forwarded = firstForwardedValue(request.headers.get("x-forwarded-proto"))?.toLowerCase();
+  return forwarded === "http" || forwarded === "https" ? forwarded : null;
+}
+
+/**
+ * 重建浏览器看到的请求 origin，用于和 `Origin` 做同源比较。可信反向代理
+ * （如 Orca 的 dev 代理）会把 `Host` 改写成上游 bind 地址，把外部 host 放进
+ * `X-Forwarded-Host`、外部协议放进 `X-Forwarded-Proto`，所以这里优先取转发
+ * 头的第一个值；转发 host 必须能通过 `hostnameFromAuthority` 校验，否则回退
+ * 到 `Host`。两者都缺失或非法时返回 null（拒绝）。
+ *
+ * 信任转发头不放宽跨站防护：浏览器无法在简单请求（表单 / no-cors fetch）上
+ * 设置 `X-Forwarded-Host`，带自定义头的 fetch 会先触发 CORS 预检，而本服务
+ * 不回应预检；跨站请求在 `isApiRequestOriginAllowed` 的
+ * `Sec-Fetch-Site: cross-site` 处已被拒绝。转发头只决定「重建 origin 用哪个
+ * host」，不影响 `isApiRequestHostAllowed`——Host 白名单仍只读 `Host`，因此
+ * DNS rebinding 防护面不变。能直连端口的非浏览器客户端本就不做来源校验
+ * （见 `.github/SECURITY.md`）。
+ */
 function getRequestOrigin(request: Request): string | null {
   const requestUrl = new URL(request.url);
-  const host = request.headers.get("host");
-  return host ? canonicalOrigin(`${requestUrl.protocol}//${host}`) : null;
+  const authority = forwardedAuthority(request) ?? request.headers.get("host");
+  if (!authority) return null;
+  // requestUrl.protocol 带尾冒号（"http:"），统一成不带冒号的 scheme 再拼接。
+  const scheme = forwardedScheme(request) ?? requestUrl.protocol.slice(0, -1);
+  return canonicalOrigin(`${scheme}://${authority}`);
 }
 
 function isUserInitiatedSessionExportNavigation(request: Request): boolean {
