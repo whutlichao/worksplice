@@ -85,13 +85,17 @@ Status: resolved
 | E3 | 新增 `.kv.stack`；工作区与会话文件行改 `className="kv stack"` | `app/globals.css` + `AgentDetailPanel.tsx` |
 | F | 建频道失败兜底走 `t("channel.createFailed")`；频道行补 `aria-current="page"` | `CreateChannelModal.tsx` / `WorkspaceSidebar.tsx` |
 
-### 与派发清单的偏离（3 处）
+### 与派发清单的偏离（5 处）
 
 1. **A2 用 CSS，不用 `inert`。** 派发清单允许二选一且**优先 CSS**。`inert` 的问题在于它没有视口条件：桌面宽度下两栏常驻可见，加 `inert` 会把桌面控件一并禁用。落地：≤900px 关闭态 `visibility: hidden`（`transition ... visibility 0s linear var(--dur-drawer)` 让它在滑出动画结束后才生效），`.ws-left-open` / `.ws-right-open` 立即 `visible`。焦点可达性已在 320px 实测（打开后 activeElement = `.ws-sidebar-close`，Escape 后 = `.ws-mobile-toggle`）。右栏关闭时整个元素从 DOM 卸载（`resolvablePanel` 为 null），因此关闭态不存在可 Tab 的离屏控件。
 
 2. **B6 协议选 `#mention:<id>`，不是 `mention://`。** 实测 `rehype-sanitize` 的默认 allowlist 会把未知 scheme 的 `href` 清成空串（渲染成 `<a href="">`），mention 按钮会退化成普通链接；`#` 片段标识符本就在 allowlist 内，且 `resolveLocalFileHref` 第一步就按 `#` 切掉 fragment，文件链接链路无需改动。`data:` 也能通过 allowlist，但它会与「本地文件 href」的语义混淆，故未选。
 
-3. **B6 的量化验收口径调整。** 派发清单写「字面 `**` 从 53 条降到 0、丢 `<li>` 从 13 条降到 0」。按真实库（`~/.worksplice/worksplice.db`，558 条消息、334 条含 mention）复测：旧实现 **80** 条、新实现 **30** 条、丢 `<li>` 1 → **0**。剩下的 30 条与「不含 mention 的普通消息」基线是同一批源文本问题（全角引号包裹的 `**`、行内代码里的 `**`、源里本就奇数个 `**`）——即由 mention 切割造成的额外破坏归零，但「降到绝对 0」需要改 Markdown 解析器，超出本票范围。
+3. **D2 的 `summarizeChanges` 保持英文，本地化改在界面层。** 派发清单要求「改为走 i18n 或直接返回中文摘要」。落地时发现该函数的返回值经 `whatHappened` 进 **agent 的 revise prompt**（`lib/agent-loop/loop.ts:562`、`member-ops.ts:534`），按 `docs/i18n.md` 的分层规则属于「产品内容」——必须英文硬编码、不做服务端 locale 感知。若照字面中文化，中文会漏进模型上下文与英文界面。处置：领域层保持英文（加注释说明归属），界面侧新增 `message.heldNoticeAction`（两包）承担本地化，`NoticeToast` 的 held 槽只显示这条 UI 文案，不再贴英文摘要；`hooks/useChannelData.ts` 的 task 槽 notice 同改。**净效果满足清单意图**（用户看到的不再是英文长句），但实现位置与清单字面不同。
+
+4. **A3 的标题按钮用 `fontFamily: "inherit"` 而非 `font: "inherit"`。** 派发清单给的样式里有 `font: "inherit"`，但 `font` 是简写属性，会连带把 `.card-title` 的 12.5px / semi 字重重置成卡片默认值（内联优先于 class），是形态回归。改为只继承字族并保留 `color: "inherit"`；`SearchView` 的作者名按钮同理（`fontFamily` + `fontSize` + 显式 `fontWeight`）。320/1440 实测字重与字号与改造前一致。
+
+5. **B6 的量化验收口径调整。** 派发清单写「字面 `**` 从 53 条降到 0、丢 `<li>` 从 13 条降到 0」。按真实库（`~/.worksplice/worksplice.db`，558 条消息、334 条含 mention）复测：旧实现 **80** 条、新实现 **30** 条、丢 `<li>` 1 → **0**。剩下的 30 条与「不含 mention 的普通消息」基线是同一批源文本问题（全角引号包裹的 `**`、行内代码里的 `**`、源里本就奇数个 `**`）——即由 mention 切割造成的额外破坏归零，但「降到绝对 0」需要改 Markdown 解析器，超出本票范围。
 
 ### 同步更新的既有断言（因契约变更，逐条点名）
 
