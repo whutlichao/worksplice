@@ -506,13 +506,16 @@ test("C3：`saved-pop` 的关键帧从 `--online-fill` 派生（keyframes 总数
 test("E2：会留下持久视觉状态的三条 hover 有 hover 守卫", () => {
   // `.ws-message-row:hover` / `.card:hover` 包进 `@media (hover: hover)`；
   // `.msg:hover` 在 `hover: none` 下退回无底色（触屏不粘住）。
-  const anchor = globalsCss.indexOf("@media (hover: hover)");
-  assert.ok(anchor !== -1, "缺少 @media (hover: hover) 守卫");
-  const hoverBlock = globalsCss.slice(anchor, globalsCss.indexOf("@media (hover: none)"));
-  assert.match(hoverBlock, /\.ws-message-row:hover\s*\{[^}]*var\(--fg-soft\)/);
-  assert.match(hoverBlock, /\.card:hover\s*\{[^}]*var\(--border-strong\)/);
-  const noneBlock = globalsCss.slice(globalsCss.indexOf("@media (hover: none)"));
-  assert.match(noneBlock, /\.msg:hover\s*\{[^}]*background:\s*none/);
+  const blocks = [...stripComments(globalsCss).matchAll(
+    /@media \(hover: hover\) \{([\s\S]*?)\n\}/g,
+  )].map((m) => m[1]);
+  const guarded = blocks.join("\n");
+  assert.ok(blocks.length > 0, "缺少 @media (hover: hover) 守卫");
+  assert.match(guarded, /\.ws-message-row:hover\s*\{[^}]*var\(--fg-soft\)/);
+  assert.match(guarded, /\.card:hover\s*\{[^}]*var\(--border-strong\)/);
+  assert.match(guarded, /\.msg:hover\s*\{[^}]*var\(--fg-soft\)/);
+  // 三条统一机制：不再有反向的 `hover: none` 复位
+  assert.doesNotMatch(stripComments(globalsCss), /@media \(hover: none\)/);
 });
 
 test("E3：`.kv.stack` 竖排左对齐（长路径行不再右对齐折行）", () => {

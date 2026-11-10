@@ -1134,7 +1134,10 @@ test("NoticeToast 渲染出无障碍语义与 i18n 文案（role=status / aria-l
         }),
     );
     assert.match(held, /data-notice="held"/);
-    assert.match(held, /Room changed: @alice replied/);
+    // 界面评审 D2 + `docs/i18n.md` 分层：held 槽的 `text` 是英文产品内容（`whatHappened`
+    // 会进模型上下文），不能直接上屏；toast 只显示本地化的动作提示。
+    assert.match(held, /The room changed while you were writing — review and send again/);
+    assert.doesNotMatch(held, /@alice replied/);
 });
 
 test("pickNoticeToast 单槽仲裁：新 notice 顶掉旧的，被顶掉的旧 notice 不回弹", async () => {

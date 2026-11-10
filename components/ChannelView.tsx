@@ -119,6 +119,10 @@ export function pickNoticeToast(seen: NoticeSlots, next: NoticeSlots): NoticeToa
 export function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {
   const { t } = useI18n();
   if (!toast) return null;
+  // 文案口径（界面评审 D2 + `docs/i18n.md` 分层）：held 摘要（`whatHappened`）是**产品内容**
+  // （要进模型上下文，必须英文），不能直接贴到中文界面；界面这里只给本地化的动作提示。
+  // task 槽的 notice 由调用方用 `t(...)` 组装，本身就是 UI 文案，原样透传。
+  const text = toast.kind === "held" ? t("message.heldNoticeAction") : toast.text;
   return (
     <div
       role="status"
@@ -142,7 +146,7 @@ export function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {
         pointerEvents: "none",
       }}
     >
-      {toast.kind === "held" ? `${t("message.heldNotice")} ${toast.text}` : toast.text}
+      {text}
     </div>
   );
 }
@@ -2549,13 +2553,12 @@ export function TaskCard({
   dragging?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, task: ChannelTask) => void;
   onDragEnd?: () => void;
-  /** 「关闭任务」的确认入口（由 TaskViews 持有共享确认框）；缺省时直接执行关闭动作。 */
-  onRequestClose?: (task: ChannelTask) => void;
+  /** 「关闭任务」的确认入口（由 TaskViews 持有共享确认框）。**必填**：留一个缺省值
+   *  等于给「跳过确认直接关闭」留后门，破坏 D3 的意图。 */
+  onRequestClose: (task: ChannelTask) => void;
 }) {
   const { t } = useI18n();
-  const requestClose =
-    onRequestClose ?? ((target: ChannelTask) => onAction(target, "updateStatus", "closed"));
-  const actions = taskActionsFor(task, currentMemberId, onAction, t, requestClose);
+  const actions = taskActionsFor(task, currentMemberId, onAction, t, onRequestClose);
   const currentOwner = currentMembersById?.get(task.owner_id ?? "") ?? task.owner;
   return (
     <div
@@ -2678,7 +2681,7 @@ export function TaskList({
   ) => void;
   onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
   /** 关闭任务的确认入口（TaskViews 的共享确认框）。 */
-  onRequestClose?: (task: ChannelTask) => void;
+  onRequestClose: (task: ChannelTask) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -2766,7 +2769,7 @@ export function TaskBoard({
   onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
   onInvalidDrop: (task: ChannelTask, status: TaskStatus) => void;
   /** 关闭任务的确认入口（TaskViews 的共享确认框）。 */
-  onRequestClose?: (task: ChannelTask) => void;
+  onRequestClose: (task: ChannelTask) => void;
 }) {
   const { t } = useI18n();
   const [dragId, setDragId] = useState<string | null>(null);

@@ -170,34 +170,16 @@ export function sendMessage(input: {
 
 /** held 摘要：期间发生了什么（§3.3/§6.3）。任务 claim/updateStatus 复用同一事实（§3.7）。
  *
- * 文案口径（界面评审 D2）：这段文本经 `whatHappened` 直出到用户眼前的 held 提示里，
- * 原先的英文句子在中文界面里是裸露的英文。本函数在服务端/领域层执行，**不能**依赖
- * React hook（`useI18n`），故按 i18n 包的 zh-CN 与 en 值参数化——调用方缺省取中文
- * （本仓默认界面语言为中文），需要英文时由调用点传 `en` 模板。 */
-export function summarizeChanges(
-  targetId: string,
-  sinceSeq: number,
-  templates: { none: string; some: string } = summarizeChangesTemplates.zh,
-): string {
+ * 语言归属（`docs/i18n.md` 的分层规则）：这段文本会进**模型上下文**
+ * （`lib/agent-loop/loop.ts` 的 revise prompt 直接插值），属于「产品内容」⇒ 英文硬编码，
+ * 不做服务端 locale 感知。界面侧的本地化在 `ChannelView` 的 held toast 上做
+ * （那里显示的是 `message.held`，不含本摘要）。 */
+export function summarizeChanges(targetId: string, sinceSeq: number): string {
   const arrived = getDb().listMessagesAfter(targetId, sinceSeq);
-  if (arrived.length === 0) return templates.none;
+  if (arrived.length === 0) return "The room changed but no new messages arrived";
   const seqs = `${arrived[0].seq}` + (arrived.length > 1 ? `–${arrived[arrived.length - 1].seq}` : "");
-  return templates.some
-    .replace("{count}", String(arrived.length))
-    .replace("{seqs}", seqs);
+  return `${arrived.length} new message(s) arrived in this target (seq ${seqs})`;
 }
-
-/** held 摘要的两套模板（与 `lib/i18n/messages` 的 zh-CN / en 语义一致；两处同时改）。 */
-export const summarizeChangesTemplates = {
-  zh: {
-    none: "房间已变化但没有新消息，请直接重新发送",
-    some: "期间新增 {count} 条消息（seq {seqs}），请核对后重新发送",
-  },
-  en: {
-    none: "The room changed but no new messages arrived — send again",
-    some: "{count} new message(s) arrived (seq {seqs}) — review and send again",
-  },
-} as const;
 
 /**
  * seq 游标分页（§5.7）：不传 before 取最新一页；返回 ASC 序消息 + 是否有更早分页。

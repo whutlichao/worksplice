@@ -250,7 +250,7 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 | `--muted` | `oklch(46% 0.030 300)` | 次级文字 |
 | `--faint` | `oklch(52% 0.024 300)` | 三级 / meta / placeholder |
 | `--border` | `oklch(90% 0.013 86)` | 发丝分隔 |
-| `--border-strong` | `oklch(78% 0.020 86)` | 输入框 / 可交互边界 |
+| `--border-strong` | `oklch(63% 0.020 86)` | 输入框 / 可交互边界（对 `--surface` 3.43:1，≥3:1） |
 | `--on-accent` | `var(--fg)` | 每个 fill 档上的文字 |
 | `--fg-soft` | `color-mix(in oklch, var(--fg) 5%, transparent)` | hover 填充 |
 | `--av-0…--av-4` | 薰衣草 / 薄荷 / 蜜桃 / 柠檬 / 藕灰 | 头像五格，确定性取色 |

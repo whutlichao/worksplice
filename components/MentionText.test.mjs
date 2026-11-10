@@ -63,9 +63,8 @@ test("B6：列表项与表格在 mention 相邻时结构完整（不丢 <li> / <
   assert.match(table, /<td><button[^>]*class="mention"/);
 });
 
-test("B6：#mention: 链接渲染成 .mention 按钮，点击回调拿到 memberId", () => {
-  const calls = [];
-  const html = render("看 @bob 这条", (token) => calls.push(token));
+test("B6：#mention: 链接渲染成 .mention 按钮（形态与改造前一致）", () => {
+  const html = render("看 @bob 这条");
   const button = html.match(/<button[^>]*class="mention"[^>]*>/)?.[0] ?? "";
   assert.ok(button, "应渲染 .mention 按钮");
   assert.match(button, /title="Click to view bob"/);
@@ -75,6 +74,21 @@ test("B6：#mention: 链接渲染成 .mention 按钮，点击回调拿到 member
   // 代码围栏内的 @token 保持原文（parseMentionTokens 既有规则），不渲染按钮
   const fenced = render("```\n@bob\n```");
   assert.doesNotMatch(fenced, /class="mention"/);
+});
+
+test("B6：token 与 memberId 的映射正确（同名不同 id / 人类成员）", () => {
+  const html = render("@bob 与 @Owner");
+  const buttons = [...html.matchAll(/<button[^>]*class="mention"[^>]*>([^<]*)</g)];
+  assert.deepEqual(
+    buttons.map((m) => m[1]),
+    ["@bob", "@Owner"],
+  );
+  // tokenizeMentions 是纯函数，直接验证 id 落到 href 上
+  const tokens = parseMentionTokens("@bob 与 @Owner", MEMBERS);
+  assert.equal(
+    tokenizeMentions("@bob 与 @Owner", tokens),
+    "[@bob](#mention:agent-bob) 与 [@Owner](#mention:human-owner)",
+  );
 });
 
 test("无 members 时退化为普通 MarkdownBody（不渲染 mention 按钮）", () => {

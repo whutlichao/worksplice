@@ -1576,10 +1576,10 @@ span.linenumber {
   border: 0;
 }
 .msg { display: flex; gap: 11px; padding: var(--sp-5) var(--sp-4); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
-.msg:hover { background: var(--fg-soft); }
-/* 触屏兜底（界面评审 E2）：`.msg:hover` 的整行底色在触屏上会粘住（看起来像被选中）。 */
-@media (hover: none) {
-  .msg:hover { background: none; }
+/* 触屏兜底（界面评审 E2）：`.msg:hover` 的整行底色在触屏上会粘住（看起来像被选中）——
+   与上面两条同一处置，统一用 `hover: hover` 守卫而不是反向的 `hover: none` 复位。 */
+@media (hover: hover) {
+  .msg:hover { background: var(--fg-soft); }
 }
 .msg:hover .msg-tools, .msg:focus-within .msg-tools { opacity: 1; }
 .msg-body { flex: 1; min-width: 0; }
@@ -1593,9 +1593,10 @@ span.linenumber {
 .msg-text p { margin: 0 0 var(--sp-4); }
 .msg-text p:last-child { margin-bottom: 0; }
 .msg-text code { font-family: var(--mono); font-size: 12px; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
-/* 代码块（界面评审 C3）：`.msg-text pre` 那三条冷蓝规则已删除——真实渲染点的 `<pre>`
-   由 `CodeBlock`（`components/MermaidBlock.tsx`）以自身样式接管，这三条被遮蔽、无渲染点，
-   且携带全仓唯一的冷蓝色相。`CodeBlock` 的输出随主题；此处不重声明。 */
+/* 代码块（界面评审 C3）：`.msg-text pre` 那三条冷蓝规则已删除——`CodeBlock`
+   （`components/MermaidBlock.tsx`）用 react-syntax-highlighter 自带的 `<pre>` 与行内样式
+   接管了代码块外观，这三条**实际不生效**（被行内样式覆盖），却携带全仓唯一的冷蓝色相。
+   `CodeBlock` 的输出随主题；此处不重声明。 */
 .msg-text .mention { color: var(--accent-deep); font-weight: var(--fw-semi); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; }
 .msg-tools { position: absolute; top: -12px; right: var(--sp-4); display: flex; gap: 2px; opacity: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); padding: 2px; transition: opacity var(--dur) var(--ease); }
 .msg-tools button { width: 26px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }

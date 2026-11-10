@@ -56,6 +56,19 @@ function escapeRe(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** 取**最后一处**同名规则的声明体（本仓的窄屏/配色覆盖行声明在逐字搬运行之后）。
+ *  行首锚定：`.board-wrap.is-list .board-toolbar` 这类后代选择器也以 `.board-toolbar {` 结尾。 */
+function lastBlockBody(css, selector) {
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const matches = [
+        ...stripped.matchAll(
+            new RegExp(`^[ \\t]*${escapeRe(selector)}[ \\t]*\\{([^}]*)\\}`, "gm"),
+        ),
+    ];
+    assert.ok(matches.length > 0, `缺少规则 \`${selector}\``);
+    return matches[matches.length - 1][1];
+}
+
 /** 取一条规则的声明体（选择器与 `{` 之间只允许空白，避免误命中更长的选择器）。 */
 function blockBody(css, selector) {
     const pattern = new RegExp(
@@ -756,16 +769,11 @@ test("D3：「关闭任务」走 btn-danger，点击先弹共享确认（TaskVie
 
 test("B2：窄屏工具条允许换行；创建表单的 textarea 整行独占且不再有 220px 下限", async () => {
     const toolbar = blockBody(globalsCss, ".board-toolbar");
-    // blockBody 取首处（上游逐字条）；窄屏覆盖是同选择器、后声明的那一条：
-    // 取所有**以 `.board-toolbar` 结尾**的规则体，其中必须有一条同时带 wrap + row-gap。
-    const wrapRules = globalsCss
-        .split("}")
-        .filter((chunk) => /\.board-toolbar\s*$/.test(chunk.split("{")[0].trim()))
-        .map((chunk) => chunk.split("{")[1] ?? "");
-    assert.ok(
-        wrapRules.some((body) => /flex-wrap:\s*wrap/.test(body) && /row-gap:\s*var\(--sp-4\)/.test(body)),
-        `缺少窄屏 wrap 覆盖：${JSON.stringify(wrapRules)}`,
-    );
+    // blockBody 取首处（上游逐字条）；窄屏覆盖是同选择器、后声明的那一条，
+    // 用 lastBlockBody 取。
+    const override = lastBlockBody(globalsCss, ".board-toolbar");
+    assert.match(override, /flex-wrap:\s*wrap/);
+    assert.match(override, /row-gap:\s*var\(--sp-4\)/);
     assert.match(toolbar, /display:\s*flex/);
     assert.match(channelViewSource, /style=\{\{ flex: "1 1 100%", minWidth: 0 \}\}/);
     assert.doesNotMatch(channelViewSource, /minWidth: 220/);

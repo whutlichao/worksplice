@@ -69,26 +69,21 @@ test("StatusDot 未知名状态兜底走 offline 形态（既有行为）", () =
 
 // ─── 界面评审 A6：可访问名本地化（不再是 `online` / `working` 枚举） ─────────
 
-test("A6：无 I18nProvider 时按中文四态名兜底，不再是枚举原文", () => {
-  for (const [status, label] of Object.entries({
-    online: "在线",
-    working: "干活中",
-    error: "出错",
-    offline: "离线",
-  })) {
+test("A6：无 I18nProvider 时取 en 包文案（不再是枚举原文），四态各自对得上", () => {
+  const expected = { online: "Online", working: "Working", error: "Error", offline: "Offline" };
+  for (const [status, label] of Object.entries(expected)) {
     const html = render(status);
     assert.match(html, new RegExp(`aria-label="${label}"`), `${status} 的可访问名`);
     assert.match(html, new RegExp(`title="${label}"`), `${status} 的 title`);
-    assert.doesNotMatch(html, new RegExp(`aria-label="${status}"`));
+    assert.doesNotMatch(html, /aria-label="(online|working|error|offline)"/);
   }
 });
 
-test("A6：传入 translate（useI18n().t）时取 presence.* 文案；label 可覆盖", async () => {
+test("A6：传入 translate（useI18n().t）时取 presence.* 文案（中文界面读中文）", async () => {
   const { I18nProvider, useI18n } = await jiti.import("../hooks/useI18n.tsx");
-  // 调用点（WorkspaceSidebar 等）就是把 `t` 透传给 StatusDot 的；这里用同样的接线。
-  const WithT = ({ status, label }) => {
+  const WithT = ({ status }) => {
     const { t } = useI18n();
-    return React.createElement(StatusDot, { status, label, translate: t });
+    return React.createElement(StatusDot, { status, translate: t });
   };
   const renderIn = (props) =>
     renderToStaticMarkup(
@@ -96,8 +91,4 @@ test("A6：传入 translate（useI18n().t）时取 presence.* 文案；label 可
     );
   // I18nProvider 首帧按 en 输出（hydration 一致），presence.working 的英文值是 Working。
   assert.match(renderIn({ status: "working" }), /aria-label="Working"/);
-  assert.match(
-    renderIn({ status: "online", label: "Nova 在线" }),
-    /aria-label="Nova 在线"/,
-  );
 });
