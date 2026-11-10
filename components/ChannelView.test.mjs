@@ -1946,3 +1946,32 @@ test("A3：TaskCard 不再嵌套交互控件——外层无语义角色，标题
         );
     });
 });
+
+test("A5：右键菜单容器有可访问名（role=group + aria-label），动词条不再悬空", () => {
+    const source = readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    return source.then((src) => {
+        const start = src.indexOf("function ContextMenu(");
+        const end = src.indexOf("/** 顶层消息渲染行", start);
+        assert.ok(start !== -1 && end > start);
+        const menu = src.slice(start, end);
+        assert.match(menu, /role="group"/);
+        assert.match(menu, /aria-label=\{t\("message\.moreActions"\)\}/);
+        assert.doesNotMatch(menu, /role="menuitem"/);
+    });
+});
+
+test("A5：@ 补全没有候选时 aria-activedescendant 不指向不存在的 option", () => {
+    const source = readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    return source.then((src) => {
+        assert.match(
+            src,
+            /atMenuOpen && atQuery !== null && atMatches\.length > 0\s*\n?\s*\?\s*`composer-at-option-\$\{atActiveIndex\}`/,
+        );
+    });
+});

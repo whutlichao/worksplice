@@ -136,5 +136,16 @@ Status: resolved
 | `MentionText.test.mjs` 用例名说「点击回调」但从未触发点击 | **已修**：拆成「形态」与「token→memberId 映射」两条 |
 | `.msg-text pre`「无渲染点」的注释理由不实 | **已修**：改为「被 react-syntax-highlighter 的行内样式覆盖，实际不生效」 |
 
-**Spec 轴** findings 见下节「与派发清单的偏离」——三条偏离均为清单显式允许或已在清单里预告的口径调整，无未落地的条目。
+**Spec 轴** findings 与处置：
+
+| finding | 处置 |
+|---|---|
+| D2 的 `summarizeChanges` 未按字面中文化 | **不改**：该文本进模型上下文，属 `docs/i18n.md` 的「产品内容」层，必须英文；本地化改在界面层（新增 `message.heldNoticeAction`）。理由与净效果见「与派发清单的偏离」第 3 条 |
+| B6 未达「字面 `**` 归零」 | **不改（口径已说明）**：增量归零（80 → 30，30 == 无 mention 基线），绝对 0 需改 Markdown 解析器，超出本票。见偏离第 5 条 |
+| C3 只改了 OAuth 的未连接点，`provider.configured` 状态点仍用 `--border` 当填充 | **已修**：同文件第二处改 `var(--offline)` |
+| A5 的 `ContextMenu` 关闭后无焦点归位、且删角色后无可访问名 | **已修**：容器补 `role="group"` + `aria-label`（右键菜单没有「触发按钮」，焦点归位无对象；命名是不悬空的最小处置） |
+| A5 的 `aria-activedescendant` 在无候选时指向不存在的 option | **已修**：加 `atMatches.length > 0` 条件 |
+| A5 的 `MessageMoreMenu` 新增 `role="group"` 属 scope creep | **保留**：删掉 `role="menu"` 后 `aria-label` 在裸 `div` 上不进 AX 树，`group` 是让清单要求的「保留 `aria-label`」真正生效的最小代价 |
+| A2 左栏桌面端无 `inert` 兜底 | **不改**：CSS 方案按清单优先级选取，且 `inert` 在桌面会误禁常驻栏 |
+| B6 的 base 计数与清单的 53/13 不一致 | **说明**：清单的 53/13 是估算口径；本票按真实库逐条复测（旧实现 80/1）。两者都以「新实现 == 无 mention 基线」为判据 |
 

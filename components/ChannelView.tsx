@@ -2019,6 +2019,7 @@ function ContextMenu({
   }>;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => {
@@ -2035,6 +2036,10 @@ function ContextMenu({
   }, [onClose]);
   return (
     <div
+      // 界面评审 A5 删掉了 `role="menu"`（实现没有菜单键盘模型）；容器仍需一个可访问名，
+      // `role="group"` 只做命名、不承诺键盘契约。
+      role="group"
+      aria-label={t("message.moreActions")}
       style={{
         position: "fixed",
         left: Math.min(x, window.innerWidth - 200),
@@ -3484,7 +3489,9 @@ export function Composer({
               aria-expanded={atMenuOpen}
               aria-controls="composer-at-menu"
               aria-activedescendant={
-                atMenuOpen && atQuery !== null
+                // 候选为空时不能指向不存在的 option（悬空的 activedescendant 会让读屏
+                // 报「无效目标」）。
+                atMenuOpen && atQuery !== null && atMatches.length > 0
                   ? `composer-at-option-${atActiveIndex}`
                   : undefined
               }
