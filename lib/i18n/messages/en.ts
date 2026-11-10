@@ -470,7 +470,6 @@ export const enLocale: LocalePlugin = {
       "Message… (Enter to send, Shift+Enter for newline)",
     "message.loadEarlier": "Load earlier messages",
     "message.held": "Send blocked — the room changed, send again",
-    "message.heldNotice": "Room changed:",
     "message.heldNoticeAction": "The room changed while you were writing — review and send again",
     "message.thread": "Thread",
     "message.openThreadBadge": "Open thread replies",

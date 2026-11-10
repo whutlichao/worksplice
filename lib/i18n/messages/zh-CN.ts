@@ -459,7 +459,6 @@ export const zhCNLocale: LocalePlugin = {
     "message.composerPlaceholder": "输入消息…（Enter 发送，Shift+Enter 换行）",
     "message.loadEarlier": "加载更早的消息",
     "message.held": "发送被拦截——房间已变化，请重新发送",
-    "message.heldNotice": "房间已变化：",
     "message.heldNoticeAction": "房间在你写作期间已变化，请核对后重新发送",
     "message.thread": "线程",
     "message.openThreadBadge": "展开线程回复",
