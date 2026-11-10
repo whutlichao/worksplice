@@ -197,7 +197,9 @@ test("rail 形态落盘：rail-head / brand* / search-btn / rail-actions / rail-
   assert.match(ruleBody(".brand-sub"), /letter-spacing:\s*var\(--ls-wide\)/);
 
   assert.match(ruleBody(".search-shell"), /padding:\s*0 var\(--sp-5\) 10px/);
-  assert.match(ruleBody(".search-btn"), /border:\s*1px solid var\(--border\)/);
+  // 界面评审 C1：搜索入口承载真实输入框的边界 ⇒ `--border-strong` 字段档
+  //（`--border` 是分隔发丝，压在 `--surface` 上不足 3:1）。
+  assert.match(ruleBody(".search-btn"), /border:\s*1px solid var\(--border-strong\)/);
   assert.match(ruleBody(".search-btn"), /border-radius:\s*var\(--r-md\)/);
   assert.match(ruleBody(".search-btn"), /background:\s*var\(--surface\)/);
   // 搜索入口的焦点环（ED-8）：字段环落在 shell 上，不是内层 input
@@ -252,4 +254,33 @@ test("导航激活态 = --surface 填充 + inset 发丝 + 2px 选中族竖条 + 
   assert.match(row, /color:\s*var\(--muted\)/);
   assert.match(ruleBody(".nav-row .hash"), /flex:\s*0 0 13px/);
   assert.match(ruleBody(".nav-row .grow"), /text-overflow:\s*ellipsis/);
+});
+
+// ─── 界面评审 A2：关闭态抽屉退出 Tab 序 / AX 树，汉堡键是真正的开关 ──────────
+
+test("A2：≤900 关闭态两栏 visibility:hidden，打开态恢复 visible（桌面不受影响）", () => {
+  const compact = globalsCss.slice(globalsCss.indexOf("@media (max-width: 900px)"));
+  assert.match(compact, /\.ws-left\s*\{[^}]*visibility:\s*hidden/);
+  assert.match(compact, /\.ws-left\.ws-left-open\s*\{[^}]*visibility:\s*visible/);
+  assert.match(compact, /\.ws-right\s*\{[^}]*visibility:\s*hidden/);
+  assert.match(compact, /\.ws-right\.ws-right-open\s*\{[^}]*visibility:\s*visible/);
+  // 桌面（≤900 段之外）不得声明 visibility，否则会禁用常驻栏里的控件
+  const beforeCompact = globalsCss.slice(0, globalsCss.indexOf("@media (max-width: 900px)"));
+  assert.doesNotMatch(beforeCompact, /\.ws-left\s*\{[^}]*visibility/);
+  assert.doesNotMatch(beforeCompact, /\.ws-right\s*\{[^}]*visibility/);
+});
+
+test("A2：汉堡键声明 aria-expanded / aria-controls，抽屉根带 id 与 Escape 关闭", async () => {
+  const source = await readFile(
+    new URL("./AppShell.tsx", import.meta.url),
+    "utf-8",
+  );
+  assert.match(source, /aria-expanded=\{sidebarOpen\}/);
+  assert.match(source, /aria-controls="ws-left"/);
+  assert.match(source, /id="ws-left"/);
+  assert.match(source, /id="ws-right"/);
+  // 打开后焦点进抽屉、关闭后回汉堡键；Escape 关闭
+  assert.match(source, /\.ws-sidebar-close/);
+  assert.match(source, /menuButtonRef\.current\?\.focus\(\)/);
+  assert.match(source, /e\.key !== "Escape"/);
 });

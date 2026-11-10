@@ -379,3 +379,25 @@ test("测试自己也得守门：SearchView.tsx 落在允许的改动面内（UI
   );
   assert.doesNotMatch(searchViewSource, /\/api\/search\/[^?]/);
 });
+
+// ─── 界面评审 A3 / B5：命中行不再嵌套交互控件、元信息行可换行 ────────────────
+
+test("A3：命中行外层不是按钮，作者名是原生 button（右边「打开」为兄弟按钮）", () => {
+  const html = renderHit();
+  const rowTag = html.match(/<div class="result"[^>]*>/)?.[0] ?? "";
+  assert.doesNotMatch(rowTag, /role="button"/);
+  assert.doesNotMatch(rowTag, /tabindex=/);
+  assert.doesNotMatch(rowTag, /onclick/i);
+  // 作者名按钮（打开入口）与右侧「打开」按钮并存，且都是 <button type="button">
+  const authorButton = html.match(/<button type="button"[^>]*>Sentry<\/button>/)?.[0] ?? "";
+  assert.ok(authorButton, "作者名应是原生 button");
+  assert.match(html, /class="btn btn-sm"[^>]*>Open</);
+});
+
+test("B5：`.result .r-top` 允许换行（row-gap 2px），时间用逻辑属性靠右", () => {
+  const top = blockBody(globalsCss, ".result .r-top");
+  assert.match(top, /flex-wrap:\s*wrap/);
+  assert.match(top, /row-gap:\s*2px/);
+  assert.match(searchViewSource, /marginInlineStart:\s*"auto"/);
+  assert.doesNotMatch(searchViewSource, /marginLeft:\s*"auto",\s*\n\s*color:\s*"var\(--faint\)"/);
+});

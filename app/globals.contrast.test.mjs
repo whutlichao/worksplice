@@ -67,7 +67,7 @@ const PAPER = {
   "--muted": "oklch(46% 0.030 300)",
   "--faint": "oklch(52% 0.024 300)",
   "--border": "oklch(90% 0.013 86)",
-  "--border-strong": "oklch(78% 0.020 86)",
+  "--border-strong": "oklch(63% 0.020 86)",
   "--on-accent": "var(--fg)",
   "--av-0": "oklch(84.9% 0.081 299.9)",
   "--av-1": "oklch(80.8% 0.108 159.6)",

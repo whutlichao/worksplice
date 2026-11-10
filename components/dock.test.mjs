@@ -459,7 +459,9 @@ test("agent 详情主体渲染 `.dock-scroll` + `.d-sec` / `.d-sec-title` 分节
   assert.match(html, /class="dock-scroll"/);
   assert.match(html, /class="d-sec"/);
   assert.match(html, /class="d-sec-title"/);
-  assert.match(html, /class="kv"/);
+  // 界面评审 E3：本 fixture 的长路径行（工作区）改 `.kv stack` 竖排左对齐——
+  // 值仍是 `.k` / `.v` 两个槽位，只是标签与值各占一行。
+  assert.match(html, /class="kv stack"/);
   assert.match(html, /class="k"/);
   assert.match(html, /class="v"/);
   // 分组标题文本仍在（mono 大写标签换形态，不换文案）。

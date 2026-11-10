@@ -23,10 +23,20 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="d-sec-title">{children}</div>;
 }
 
-/** key/value 行（`.kv`，票 07）：点线引导 + 值走 mono（ED-6）。 */
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+/** key/value 行（`.kv`，票 07）：点线引导 + 值走 mono（ED-6）。
+ *  `stack`（界面评审 E3）：值是长路径/长 id 时改竖排左对齐——380px dock 里右对齐折行
+ *  会把标签挤成窄条、读不出值从哪儿开始。形态在 globals.css 的 `.kv.stack`。 */
+function Row({
+  label,
+  value,
+  stack = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  stack?: boolean;
+}) {
   return (
-    <div className="kv">
+    <div className={stack ? "kv stack" : "kv"}>
       <span className="k">{label}</span>
       <span className="v">{value}</span>
     </div>
@@ -247,6 +257,14 @@ const CONFIRM_TITLE: Record<ConfirmKind, string> = {
   sessionReset: "agent.confirmSessionReset",
   fullReset: "agent.confirmFullReset",
   delete: "agent.confirmDelete",
+};
+
+/** 危险确认按钮的动作名（界面评审 D4）：`agent.confirm`（「确认」）只说明语气，
+ *  不说明要确认什么——三处危险动作的按钮必须各自复述对象。 */
+const CONFIRM_ACTION_LABEL: Record<ConfirmKind, string> = {
+  sessionReset: "agent.confirmSessionResetAction",
+  fullReset: "agent.confirmFullResetAction",
+  delete: "agent.confirmDeleteAction",
 };
 
 const TASK_STATUS_KEY: Record<TaskStatus, string> = {
@@ -1292,7 +1310,7 @@ export function AgentDetailPanel({
               </span>
             </div>
             <div className="dock-role">
-              <StatusDot status={agent.status} />
+              <StatusDot status={agent.status} translate={t} />
               <span
                 style={{
                   minWidth: 0,
@@ -1342,7 +1360,7 @@ export function AgentDetailPanel({
         <section className="d-sec">
           <SectionTitle>{t("status." + agent.status)}</SectionTitle>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-4)" }}>
-            <StatusDot status={agent.status} />
+            <StatusDot status={agent.status} translate={t} />
             <span style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-semi)" }}>
               {t("status." + agent.status)}
             </span>
@@ -1365,6 +1383,7 @@ export function AgentDetailPanel({
           <Row
             label={t("agent.workspace")}
             value={agent.workspace_path ?? t("agent.workspaceNotBound")}
+            stack
           />
           {isHomeWorkspace && (
             <div
@@ -1700,6 +1719,7 @@ export function AgentDetailPanel({
               <Row
                 label={t("observability.sessionFile")}
                 value={obs.session.file.split("/").slice(-2).join("/")}
+                stack
               />
               {obs.session.live?.contextUsage ? (
                 <>
@@ -1879,7 +1899,7 @@ export function AgentDetailPanel({
                 disabled={isBusy}
                 onClick={() => void run(confirming, confirmRequest(confirming))}
               >
-                {t("agent.confirm")}
+                {t(CONFIRM_ACTION_LABEL[confirming])}
               </button>
             </div>
           </div>

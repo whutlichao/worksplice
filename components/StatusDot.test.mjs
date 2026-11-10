@@ -66,3 +66,29 @@ test("StatusDot 未知名状态兜底走 offline 形态（既有行为）", () =
   assert.match(html, /class="presence offline"/);
   assert.match(html, /var\(--offline\)/);
 });
+
+// ─── 界面评审 A6：可访问名本地化（不再是 `online` / `working` 枚举） ─────────
+
+test("A6：无 I18nProvider 时取 en 包文案（不再是枚举原文），四态各自对得上", () => {
+  const expected = { online: "Online", working: "Working", error: "Error", offline: "Offline" };
+  for (const [status, label] of Object.entries(expected)) {
+    const html = render(status);
+    assert.match(html, new RegExp(`aria-label="${label}"`), `${status} 的可访问名`);
+    assert.match(html, new RegExp(`title="${label}"`), `${status} 的 title`);
+    assert.doesNotMatch(html, /aria-label="(online|working|error|offline)"/);
+  }
+});
+
+test("A6：传入 translate（useI18n().t）时取 presence.* 文案（中文界面读中文）", async () => {
+  const { I18nProvider, useI18n } = await jiti.import("../hooks/useI18n.tsx");
+  const WithT = ({ status }) => {
+    const { t } = useI18n();
+    return React.createElement(StatusDot, { status, translate: t });
+  };
+  const renderIn = (props) =>
+    renderToStaticMarkup(
+      React.createElement(I18nProvider, null, React.createElement(WithT, props)),
+    );
+  // I18nProvider 首帧按 en 输出（hydration 一致），presence.working 的英文值是 Working。
+  assert.match(renderIn({ status: "working" }), /aria-label="Working"/);
+});

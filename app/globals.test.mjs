@@ -418,12 +418,18 @@ const jiti = createJiti(import.meta.url, {
   tsconfigPaths: true,
 });
 const { StatusDot } = await jiti.import("../components/StatusDot.tsx");
+const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 test("T-D: StatusDot 四态渲染出在线/干活/出错/离线四个新语义 token", () => {
   const rendered = {};
   for (const status of ["online", "working", "error", "offline"]) {
+    // StatusDot 的可访问名走 i18n（界面评审 A6）⇒ 渲染必须包在 I18nProvider 里。
     rendered[status] = renderToStaticMarkup(
-      React.createElement(StatusDot, { status }),
+      React.createElement(
+        I18nProvider,
+        null,
+        React.createElement(StatusDot, { status }),
+      ),
     );
   }
   assert.match(rendered.online, /var\(--online\)/);
@@ -437,4 +443,83 @@ test("T-D: StatusDot 四态渲染出在线/干活/出错/离线四个新语义 t
       /var\(--(yellow|coral|stone|success)\)/,
     );
   }
+});
+
+// ─── 界面评审：样式契约的机械断言 ──────────────────────────────────────────────
+
+/** 取**最后一处**同名规则的声明体（本仓的覆盖行声明在逐字搬运行之后）。
+ *  不加前导边界：覆盖行前面只有注释与空白（`(?:^|[}])` 那种写法要求前一个字符是 `}`
+ *  或字符串开头，连续出现两次同选择器时第二次会被漏掉）。选择器 + 紧跟的 `{` 已经足够精确。 */
+function lastBlockBody(css, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // 行首锚定：`.board-wrap.is-list .board-toolbar` 这类后代选择器也以 `.board-toolbar {`
+  // 结尾，不加锚点会被当成同一条规则。
+  const matches = [
+    ...stripComments(css).matchAll(
+      new RegExp(`^[ \\t]*${escaped}[ \\t]*\\{([^}]*)\\}`, "gm"),
+    ),
+  ];
+  assert.ok(matches.length > 0, `缺少规则 \`${selector}\``);
+  return matches[matches.length - 1][1];
+}
+
+test("B1：窄屏频道头允许换行、标题可伸缩、工具条不收缩（上游条逐字保留）", () => {
+  // 上游条仍在（首处声明）：逐字搬运的可证性由 message-stream.test.mjs 守；这里守覆盖行。
+  assert.match(lastBlockBody(globalsCss, ".chan-top"), /flex-wrap:\s*wrap/);
+  assert.match(lastBlockBody(globalsCss, ".chan-top"), /row-gap:\s*var\(--sp-4\)/);
+  assert.match(lastBlockBody(globalsCss, ".chan-title"), /flex:\s*1 1 auto/);
+  assert.match(lastBlockBody(globalsCss, ".chan-tools"), /flex:\s*0 0 auto/);
+});
+
+test("B2 / B3：工具条可换行；`.overlay` 承接滚动（矮视口模态可滚到底栏）", () => {
+  assert.match(lastBlockBody(globalsCss, ".board-toolbar"), /flex-wrap:\s*wrap/);
+  assert.match(globalsCss, /\.overlay \{[^}]*overflow-y:\s*auto/);
+});
+
+test("B4：≤900px 搜索视图头部让开汉堡按钮（内联 padding 需 !important 才能覆盖）", () => {
+  const compact = globalsCss.slice(globalsCss.indexOf("@media (max-width: 900px)"));
+  assert.match(compact, /\.search-view header\s*\{[^}]*padding-left:\s*52px\s*!important/);
+});
+
+test("C1 / C3：`--border-strong` 是字段边界，搜索壳与 `.seg` 选中段不再用色板外色", () => {
+  assert.match(lastBlockBody(globalsCss, ".search-btn"), /border:\s*1px solid var\(--border-strong\)/);
+  const segActive = lastBlockBody(globalsCss, ".seg button.is-active");
+  assert.match(segActive, /background:\s*var\(--fg\)/);
+  assert.match(segActive, /color:\s*var\(--surface\)/);
+  assert.doesNotMatch(globalsCss, /oklch\(98% 0\.005 250\)/);
+  // 被 CodeBlock 遮蔽的三条冷蓝 `pre` 规则已删除（先剥注释：登记说明里会提到选择器名）
+  const cssNoComments = stripComments(globalsCss);
+  assert.doesNotMatch(cssNoComments, /\.msg-text pre\b/);
+  assert.doesNotMatch(cssNoComments, /\.msg-text pre \.(cmt|kw)\b/);
+});
+
+test("C3：`saved-pop` 的关键帧从 `--online-fill` 派生（keyframes 总数不减）", () => {
+  const savedPop = globalsCss.slice(
+    globalsCss.indexOf("@keyframes saved-pop"),
+    globalsCss.indexOf("@keyframes saved-check-draw"),
+  );
+  assert.match(savedPop, /color-mix\(in oklch, var\(--online-fill\) 55%, transparent\)/);
+  assert.doesNotMatch(savedPop, /rgba\(74,\s*222,\s*128/);
+  assert.ok([...globalsCss.matchAll(/@keyframes\s+[\w-]+/g)].length >= 12);
+});
+
+test("E2：会留下持久视觉状态的三条 hover 有 hover 守卫", () => {
+  // `.ws-message-row:hover` / `.card:hover` 包进 `@media (hover: hover)`；
+  // `.msg:hover` 在 `hover: none` 下退回无底色（触屏不粘住）。
+  const blocks = [...stripComments(globalsCss).matchAll(
+    /@media \(hover: hover\) \{([\s\S]*?)\n\}/g,
+  )].map((m) => m[1]);
+  const guarded = blocks.join("\n");
+  assert.ok(blocks.length > 0, "缺少 @media (hover: hover) 守卫");
+  assert.match(guarded, /\.ws-message-row:hover\s*\{[^}]*var\(--fg-soft\)/);
+  assert.match(guarded, /\.card:hover\s*\{[^}]*var\(--border-strong\)/);
+  assert.match(guarded, /\.msg:hover\s*\{[^}]*var\(--fg-soft\)/);
+  // 三条统一机制：不再有反向的 `hover: none` 复位
+  assert.doesNotMatch(stripComments(globalsCss), /@media \(hover: none\)/);
+});
+
+test("E3：`.kv.stack` 竖排左对齐（长路径行不再右对齐折行）", () => {
+  assert.match(globalsCss, /\.kv\.stack \{[^}]*flex-direction:\s*column/);
+  assert.match(globalsCss, /\.kv\.stack \{[^}]*align-items:\s*flex-start/);
+  assert.match(globalsCss, /\.kv\.stack \.v \{[^}]*text-align:\s*start/);
 });

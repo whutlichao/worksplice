@@ -135,7 +135,7 @@ function HumanProfileCard({
               </span>
             </div>
             <div className="dock-role">
-              <StatusDot status={member.status} />
+              <StatusDot status={member.status} translate={t} />
               <span>{t("status." + member.status)}</span>
             </div>
           </div>

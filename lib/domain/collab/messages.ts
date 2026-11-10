@@ -168,7 +168,12 @@ export function sendMessage(input: {
   }
 }
 
-/** held 摘要：期间发生了什么（§3.3/§6.3）。任务 claim/updateStatus 复用同一事实（§3.7）。 */
+/** held 摘要：期间发生了什么（§3.3/§6.3）。任务 claim/updateStatus 复用同一事实（§3.7）。
+ *
+ * 语言归属（`docs/i18n.md` 的分层规则）：这段文本会进**模型上下文**
+ * （`lib/agent-loop/loop.ts` 的 revise prompt 直接插值），属于「产品内容」⇒ 英文硬编码，
+ * 不做服务端 locale 感知。界面侧的本地化在 `ChannelView` 的 held toast 上做
+ * （那里显示的是 `message.held`，不含本摘要）。 */
 export function summarizeChanges(targetId: string, sinceSeq: number): string {
   const arrived = getDb().listMessagesAfter(targetId, sinceSeq);
   if (arrived.length === 0) return "The room changed but no new messages arrived";

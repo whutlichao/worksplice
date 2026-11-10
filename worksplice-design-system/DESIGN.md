@@ -65,7 +65,7 @@ All color is authored in `oklch()` in `colors_and_type.css`. Do not introduce he
 | `--muted` | `oklch(46% 0.030 300)` | secondary text, inactive nav / tab labels |
 | `--faint` | `oklch(52% 0.024 300)` | tertiary text, meta, placeholders, scrollbar |
 | `--border` | `oklch(90% 0.013 86)` | hairline separators |
-| `--border-strong` | `oklch(78% 0.020 86)` | inputs, composer, interactive borders |
+| `--border-strong` | `oklch(63% 0.020 86)` | inputs, composer, interactive borders (3.43:1 on `--surface`) |
 | `--on-accent` | `var(--fg)` | the ink that sits on every `fill` tier |
 
 Families are organised by **tier** — `fill` (pastel: fills only, `--on-accent` on top),

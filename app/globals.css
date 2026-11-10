@@ -877,9 +877,9 @@ span.linenumber {
 }
 
 @keyframes saved-pop {
-  0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); }
-  40%  { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(74, 222, 128, 0.25); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+  0%   { transform: scale(1); box-shadow: 0 0 0 0 color-mix(in oklch, var(--online-fill) 55%, transparent); }
+  40%  { transform: scale(1.08); box-shadow: 0 0 0 6px color-mix(in oklch, var(--online-fill) 25%, transparent); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 color-mix(in oklch, var(--online-fill) 0%, transparent); }
 }
 
 @keyframes saved-check-draw {
@@ -1123,11 +1123,16 @@ span.linenumber {
 .ws-message-row-anchor {
   background: var(--selected-soft);
 }
-.ws-message-row:hover {
-  background: var(--fg-soft);
-}
-.ws-message-row-anchor:hover {
-  background: var(--selected-soft);
+/* 触屏兜底（界面评审 E2）：`:hover` 在触屏上会「粘住」——点过一次后整行保持高亮底色，
+   看起来像被选中了。这三条会留下**持久视觉状态**的规则因此加 `hover: hover` 守卫；
+   其余只做轻微底色变化的 `:hover` 不动。 */
+@media (hover: hover) {
+  .ws-message-row:hover {
+    background: var(--fg-soft);
+  }
+  .ws-message-row-anchor:hover {
+    background: var(--selected-soft);
+  }
 }
 
 /* §3.3 消息动作栏：hover 才显示；emoji 二级层展开（ws-message-actions-open）时保持可见 */
@@ -1157,11 +1162,18 @@ span.linenumber {
     z-index: var(--z-rail);
     height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     transform: translateX(calc(-100% - 24px));
-    transition: transform var(--dur-drawer) var(--ease), box-shadow var(--dur-drawer) var(--ease);
+    /* 关闭态抽屉必须退出 Tab 序与 AX 树（界面评审 A2）：只靠 translateX 移出视口时，
+       离屏控件仍可被键盘聚焦、仍被读屏读出。`visibility: hidden` 同时做到这两件事，
+       且它随过渡延迟到滑出结束才生效（滑出动画因此不被打断）。桌面宽度下两栏常驻可见，
+       本规则只在 ≤900 这一层生效，不会禁用到桌面控件。 */
+    visibility: hidden;
+    transition: transform var(--dur-drawer) var(--ease), box-shadow var(--dur-drawer) var(--ease), visibility 0s linear var(--dur-drawer);
   }
   .ws-left.ws-left-open {
     transform: translateX(0);
     box-shadow: var(--shadow-pop);
+    visibility: visible;
+    transition: transform var(--dur-drawer) var(--ease), box-shadow var(--dur-drawer) var(--ease), visibility 0s;
   }
 
   .ws-right {
@@ -1174,11 +1186,14 @@ span.linenumber {
     /* 抽屉宽度：桌面宽度（inline `var(--dock-w)`）压到 ≤320px / 86vw */
     max-width: min(320px, 86vw);
     transform: translateX(calc(100% + 24px));
-    transition: transform var(--dur-drawer) var(--ease), box-shadow var(--dur-drawer) var(--ease);
+    visibility: hidden;
+    transition: transform var(--dur-drawer) var(--ease), box-shadow var(--dur-drawer) var(--ease), visibility 0s linear var(--dur-drawer);
   }
   .ws-right.ws-right-open {
     transform: translateX(0);
     box-shadow: var(--shadow-pop);
+    visibility: visible;
+    transition: transform var(--dur-drawer) var(--ease), box-shadow var(--dur-drawer) var(--ease), visibility 0s;
   }
 
   .ws-backdrop {
@@ -1198,6 +1213,13 @@ span.linenumber {
   }
 
   .ws-center-header {
+    padding-left: 52px !important;
+  }
+
+  /* 搜索视图头（界面评审 B4）：SearchView 的 <header> 不是 `.ws-center-header`，
+     320px 下它的标题左端会被汉堡按钮压住 22px。头部内边距是**内联**声明（`--sp-9`），
+     故这里必须 `!important`——与上一条同一处置（内联 padding 只能被 !important 覆盖）。 */
+  .search-view header {
     padding-left: 52px !important;
   }
 }
@@ -1236,9 +1258,11 @@ span.linenumber {
 }
 
 .search-shell { padding: 0 var(--sp-5) 10px; }
+/* 搜索入口承载真实输入框的边界 ⇒ 字段边界走 `--border-strong`（界面评审 C1：
+   `--border` 只作分隔发丝，压在 `--surface` 上不足 3:1，不能承担输入框边界）。 */
 .search-btn {
   width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 10px;
-  border: 1px solid var(--border); border-radius: var(--r-md);
+  border: 1px solid var(--border-strong); border-radius: var(--r-md);
   background: var(--surface); color: var(--muted); text-align: left;
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
@@ -1361,7 +1385,11 @@ span.linenumber {
 
 /* ─── card（拖拽态跟随任务板：票 06） ──────────────────────────────────── */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 11px; cursor: grab; transition: border-color var(--dur), box-shadow var(--dur), transform var(--dur); }
-.card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-card); }
+/* 触屏兜底（界面评审 E2）：`.card` 的 hover 会留下持久视觉状态（边框加深 + 阴影），
+   触屏点过一次就「粘住」——加 `hover: hover` 守卫。 */
+@media (hover: hover) {
+  .card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-card); }
+}
 
 /* ==========================================================================
    任务板 class 块（票 06，spec D7 组件表第 4 行）——逐字搬自 worksplice-design-system/
@@ -1381,12 +1409,20 @@ span.linenumber {
 /* ─── task board ─────────────────────────────────────────────────────────── */
 .board-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .board-toolbar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-5) var(--sp-9); border-bottom: 1px solid var(--border); background: var(--bg); }
+/* 窄屏工具条（界面评审 B2）：320px 下「新建任务 / 仅看未读回复 / 列表-看板」三项
+   在一行里必然溢出（创建表单的 textarea + 两个按钮 + 分段控件 ≈ 480px）。只加换行与
+   行距，形态与顺序不变——`.sep` 的 `flex: 1` 在换行后仍把分段控件推向右侧。
+   同选择器后声明 ⇒ 靠级联生效，上面那条逐字搬运行不动。 */
+.board-toolbar { flex-wrap: wrap; row-gap: var(--sp-4); }
 .board-toolbar .sep { flex: 1; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
 .seg button { padding: 0 11px; height: var(--icon-btn); font-size: 12px; font-weight: var(--fw-medium); color: var(--muted); border-right: 1px solid var(--border); }
 .seg button:last-child { border-right: 0; }
 .seg button:hover { background: var(--fg-soft); color: var(--fg); }
-.seg button.is-active { background: var(--fg); color: oklch(98% 0.005 250); }
+/* 选中段文字色（界面评审 C3）：上游那条的冷蓝裸值是全仓唯一不在色板内的色相，
+   故**就地替换**成 `--surface`（对 `--fg` 实测 12.19:1，远高于 4.5:1）。
+   这是本仓与该上游规则的唯一一处值偏离，`task-board.test.mjs` 的逐字清单已相应剔除该条。 */
+.seg button.is-active { background: var(--fg); color: var(--surface); }
 .filter-chip { display: inline-flex; align-items: center; gap: var(--sp-3); height: var(--icon-btn); padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--muted); font-size: 12px; }
 .filter-chip:hover { border-color: var(--border-strong); color: var(--fg); }
 .filter-chip.is-on { border-color: var(--selected-graphic); color: var(--selected-deep); background: var(--selected-soft); }
@@ -1470,6 +1506,15 @@ span.linenumber {
 .chan-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chan-desc { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
 .chan-tools { margin-left: auto; display: flex; align-items: center; gap: var(--sp-3); }
+
+/* 窄屏频道头（界面评审 B1）：上面三条逐字搬自上游、假设头部只有「标题 + 工具条」且宽度
+   充裕。320–360px 下标题被工具条压成 0 宽（`min-width: 0` + 默认可收缩 ⇒ 名字整段消失）。
+   本段只加**换行与伸缩**（同选择器、后声明 ⇒ 靠级联生效，逐字搬运行保持一字不动）：
+   ① `.chan-top` 允许换行，工具条整块让到第二行；
+   ② `.chan-title` 可伸可缩并拿到剩余宽度；③ `.chan-tools` 不参与收缩。 */
+.chan-top { flex-wrap: wrap; row-gap: var(--sp-4); }
+.chan-title { flex: 1 1 auto; }
+.chan-tools { flex: 0 0 auto; }
 .chan-divider { width: 1px; height: 20px; background: var(--border); }
 .pin-strip {
   display: flex; align-items: center; gap: 9px; margin-top: 11px; padding: 7px 10px;
@@ -1531,7 +1576,11 @@ span.linenumber {
   border: 0;
 }
 .msg { display: flex; gap: 11px; padding: var(--sp-5) var(--sp-4); margin: 0 -8px; border-radius: var(--r-sm); position: relative; }
-.msg:hover { background: var(--fg-soft); }
+/* 触屏兜底（界面评审 E2）：`.msg:hover` 的整行底色在触屏上会粘住（看起来像被选中）——
+   与上面两条同一处置，统一用 `hover: hover` 守卫而不是反向的 `hover: none` 复位。 */
+@media (hover: hover) {
+  .msg:hover { background: var(--fg-soft); }
+}
 .msg:hover .msg-tools, .msg:focus-within .msg-tools { opacity: 1; }
 .msg-body { flex: 1; min-width: 0; }
 .msg-head { display: flex; align-items: baseline; gap: var(--sp-4); margin-bottom: 1px; }
@@ -1544,9 +1593,10 @@ span.linenumber {
 .msg-text p { margin: 0 0 var(--sp-4); }
 .msg-text p:last-child { margin-bottom: 0; }
 .msg-text code { font-family: var(--mono); font-size: 12px; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); }
-.msg-text pre { margin: var(--sp-3) 0; padding: 10px 12px; background: oklch(24% 0.015 255); color: oklch(94% 0.01 250); border-radius: var(--r-md); overflow: auto; font-family: var(--mono); font-size: 11.5px; line-height: var(--lh-code); }
-.msg-text pre .cmt { color: oklch(66% 0.02 250); }
-.msg-text pre .kw { color: oklch(78% 0.11 256); }
+/* 代码块（界面评审 C3）：`.msg-text pre` 那三条冷蓝规则已删除——`CodeBlock`
+   （`components/MermaidBlock.tsx`）用 react-syntax-highlighter 自带的 `<pre>` 与行内样式
+   接管了代码块外观，这三条**实际不生效**（被行内样式覆盖），却携带全仓唯一的冷蓝色相。
+   `CodeBlock` 的输出随主题；此处不重声明。 */
 .msg-text .mention { color: var(--accent-deep); font-weight: var(--fw-semi); background: var(--accent-soft); padding: 0 4px; border-radius: 4px; }
 .msg-tools { position: absolute; top: -12px; right: var(--sp-4); display: flex; gap: 2px; opacity: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); padding: 2px; transition: opacity var(--dur) var(--ease); }
 .msg-tools button { width: 26px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }
@@ -1688,6 +1738,10 @@ span.linenumber {
 .kv:last-child { border-bottom: 0; }
 .kv .k { color: var(--muted); }
 .kv .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-caption); color: var(--fg); text-align: right; overflow-wrap: anywhere; }
+/* 长值改竖排（界面评审 E3）：会话文件路径 / 工作区路径这类长 id 在 380px dock 里
+   右对齐折行会把标签挤成窄条、读不出边界。`.kv.stack` 让标签与值各占一行、左对齐。 */
+.kv.stack { flex-direction: column; align-items: flex-start; gap: 2px; }
+.kv.stack .v { text-align: start; }
 .meter { height: 6px; border-radius: var(--r-pill); background: var(--panel-2); overflow: hidden; margin-top: var(--sp-2); }
 .meter i { display: block; height: 100%; background: var(--accent-graphic); border-radius: var(--r-pill); }
 .meter.warn i { background: var(--warn-graphic); }
@@ -1785,6 +1839,10 @@ span.linenumber {
 
 /* ─── overlay / modal ────────────────────────────────────────────────────── */
 .overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: start center; padding: 12vh var(--sp-7) var(--sp-10); background: oklch(33% 0.045 300 / 0.42); backdrop-filter: blur(2px); }
+/* 矮视口（界面评审 B3）：`.modal` 自己的 `overflow: hidden` 由组件内联覆盖成纵向滚动，
+   但外壳 `place-items: start center` + 固定 12vh 上边距在 400px 高的视口里仍会把模态底栏
+   顶出可视区。外壳承接滚动，模态整体可被滚到（形态不变：只有 overflow 一条）。 */
+.overlay { overflow-y: auto; }
 .overlay[hidden] { display: none; }
 .modal { width: 100%; max-width: var(--modal-max); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-pop); overflow: hidden; }
 .modal.wide { max-width: var(--modal-wide-max); }
@@ -1864,7 +1922,7 @@ span.linenumber {
 
 .result { display: block; width: 100%; text-align: left; padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); margin-bottom: 7px; }
 .result:hover { border-color: var(--border-strong); background: var(--panel); }
-.result .r-top { display: flex; align-items: center; gap: var(--sp-4); font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.result .r-top { display: flex; align-items: center; gap: var(--sp-4); font-size: 12px; color: var(--muted); margin-bottom: 3px; flex-wrap: wrap; row-gap: 2px; }
 .result .r-top .hash { font-family: var(--mono); color: var(--accent-deep); font-variant-numeric: tabular-nums; }
 .result .r-snip { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: var(--lh-snug); overflow-wrap: anywhere; }
 .result mark { background: var(--unread); color: inherit; border-radius: 2px; padding: 0 1px; }

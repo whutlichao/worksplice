@@ -180,6 +180,9 @@ test("频道面 class 块逐字搬自上游 app.css（形态来源唯一）", ()
         ".tab",
         ".tab.is-active",
     ];
+    // 界面评审 B1：本仓在逐字搬运行**之后**用同选择器追加了窄屏覆盖（`.chan-top` 换行、
+    // `.chan-title` 伸缩、`.chan-tools` 不收缩）。`blockBody` 取首处声明 ⇒ 这里比的仍是
+    // 「搬自上游」那一条；覆盖行由本文件末尾的窄屏测试单独守。
     for (const selector of ported) {
         assert.equal(
             normalize(blockBody(globalsCss, selector)),

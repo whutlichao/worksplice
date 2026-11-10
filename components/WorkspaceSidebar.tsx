@@ -64,6 +64,7 @@ function ChannelRow({
     <button
       type="button"
       onClick={() => onSelect(channel.id)}
+      aria-current={isSelected ? "page" : undefined}
       className={`nav-row${isSelected ? " is-active" : ""}`}
     >
       {isDM ? (
@@ -372,7 +373,7 @@ export function WorkspaceSidebar({
                   agentTint={agent.avatar_tint}
                 />
                 <span className="grow">{agent.name}</span>
-                <StatusDot status={agent.status} />
+                <StatusDot status={agent.status} translate={t} />
               </button>
             );
           })}

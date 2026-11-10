@@ -1174,7 +1174,9 @@ export function useChannelData(
             : await updateChannelTaskStatus(task.id, status ?? "todo", baseSeq);
         if (result.kind === "held") {
           setHeldNotice(t ? t("tasks.held") : "task held");
-          setTaskNotice(result.whatHappened);
+          // task 槽的 notice 已上屏给用户 ⇒ 只能放 UI 文案；英文的 `whatHappened`
+          // 是产品内容（进模型上下文），另由 held 槽的本地化提示承担（界面评审 D2）。
+          setTaskNotice(t ? t("tasks.held") : "task held");
         } else if (result.kind === "conflict" || result.kind === "blocked") {
           setTasksError(result.reason);
         }
@@ -1213,7 +1215,9 @@ export function useChannelData(
         );
         if (result.kind === "held") {
           setHeldNotice(t ? t("tasks.held") : "task held");
-          setTaskNotice(result.whatHappened);
+          // task 槽的 notice 已上屏给用户 ⇒ 只能放 UI 文案；英文的 `whatHappened`
+          // 是产品内容（进模型上下文），另由 held 槽的本地化提示承担（界面评审 D2）。
+          setTaskNotice(t ? t("tasks.held") : "task held");
         } else if (result.kind === "conflict" || result.kind === "blocked") {
           setTasksError(result.reason);
         }

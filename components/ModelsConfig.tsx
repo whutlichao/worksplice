@@ -1208,7 +1208,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
            <SectionTitle>{t("i18n.subscription")}</SectionTitle>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "var(--r-pill)", background: provider.loggedIn ? "var(--online)" : "var(--border)", display: "inline-block" }} />
+          <span style={{ width: 7, height: 7, borderRadius: "var(--r-pill)", background: provider.loggedIn ? "var(--online)" : "var(--offline)", display: "inline-block" }} />
           <span style={{ fontSize: "var(--fs-caption)", color: provider.loggedIn ? "var(--online-text)" : "var(--faint)" }}>
              {provider.loggedIn ? t("i18n.connected") : t("i18n.notConnected")}
           </span>
@@ -1401,7 +1401,7 @@ function ApiKeyDetail({ provider, onRefresh }: { provider: ApiKeyProvider; onRef
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
          <SectionTitle>{t("models.apiKey")}</SectionTitle>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "var(--r-pill)", background: provider.configured ? "var(--online)" : "var(--border)", display: "inline-block" }} />
+          <span style={{ width: 7, height: 7, borderRadius: "var(--r-pill)", background: provider.configured ? "var(--online)" : "var(--offline)", display: "inline-block" }} />
           <span style={{ fontSize: "var(--fs-caption)", color: provider.configured ? "var(--online-text)" : "var(--faint)" }}>
              {provider.configured ? t("i18n.configured") : t("i18n.notConfigured")}
           </span>

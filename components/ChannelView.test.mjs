@@ -1134,7 +1134,10 @@ test("NoticeToast 渲染出无障碍语义与 i18n 文案（role=status / aria-l
         }),
     );
     assert.match(held, /data-notice="held"/);
-    assert.match(held, /Room changed: @alice replied/);
+    // 界面评审 D2 + `docs/i18n.md` 分层：held 槽的 `text` 是英文产品内容（`whatHappened`
+    // 会进模型上下文），不能直接上屏；toast 只显示本地化的动作提示。
+    assert.match(held, /The room changed while you were writing — review and send again/);
+    assert.doesNotMatch(held, /@alice replied/);
 });
 
 test("pickNoticeToast 单槽仲裁：新 notice 顶掉旧的，被顶掉的旧 notice 不回弹", async () => {
@@ -1748,9 +1751,13 @@ test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务�
         onReminder: () => undefined,
         onConvertToTask: () => undefined,
     });
-    assert.match(full, /role="menu"/);
+    // 界面评审 A5：`role="menu"` / `role="menuitem"` 已删除——角色承诺了完整的菜单键盘
+    // 模型（方向键 / Home-End / type-ahead）而实现只有「打开聚焦第一项」，与实际不符。
+    // 现在面板是普通容器 + 原生按钮列表，`aria-label` 保留作分组说明。
+    assert.doesNotMatch(full, /role="menu"/);
+    assert.doesNotMatch(full, /role="menuitem"/);
     assert.match(full, /aria-label="More message actions"/);
-    assert.equal(full.split('role="menuitem"').length - 1, 4);
+    assert.equal(full.split('class="btn btn-ghost btn-sm msg-more-menu-item"').length - 1, 4);
     assert.match(full, /Add a reaction/);
     assert.match(full, /Pin to channel/);
     assert.match(full, /Set a reminder on this message/);
@@ -1764,7 +1771,7 @@ test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务�
     assert.doesNotMatch(pinned, /Pin to channel/);
 
     const bare = renderMenu();
-    assert.doesNotMatch(bare, /role="menuitem"/);
+    assert.doesNotMatch(bare, /msg-more-menu-item/);
     assert.doesNotMatch(bare, /Add a reaction|Pin to channel|Set a reminder|Convert to task/);
 });
 
@@ -1782,7 +1789,7 @@ test("··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠
         }),
     );
 
-    const items = html.match(/<button[^>]*role="menuitem"[^>]*>/g) ?? [];
+    const items = html.match(/<button[^>]*msg-more-menu-item[^>]*>/g) ?? [];
     assert.equal(items.length, 4, "四项菜单项都应渲染出来");
     for (const tag of items) {
         assert.match(
@@ -1804,7 +1811,7 @@ test("··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠
 
     // 面板宽度策略要与 nowrap 标签自洽：`max-content` 允它长过 minWidth，
     // 否则绝对定位的收缩宽度会被触发器的 26px 容器块钉住（190 以外的长标签只能溢出）。
-    const panel = html.match(/<div[^>]*role="menu"[^>]*>/)?.[0] ?? "";
+    const panel = html.match(/<div[^>]*aria-label="More message actions"[^>]*>/)?.[0] ?? "";
     assert.match(panel, /width:\s*max-content/);
     assert.match(panel, /min-width:\s*190px/);
 });
@@ -1829,7 +1836,9 @@ test("消息行默认只露高频动作，二级动作收进 ··· 触发器", 
     assert.match(html, /title="Quote"/);
     assert.match(html, /title="Copy link"/);
     assert.match(html, /title="More message actions"/);
-    assert.match(html, /aria-haspopup="menu"/);
+    // 面板已改 disclosure（无 `role="menu"`），触发器只声明展开态，不再 promise 菜单角色。
+    assert.doesNotMatch(html, /aria-haspopup/);
+    assert.match(html, /aria-expanded="false"/);
     assert.doesNotMatch(html, /Pin to channel/);
     assert.doesNotMatch(html, /Set a reminder on this message/);
     assert.doesNotMatch(html, /Convert to task/);
@@ -1870,3 +1879,99 @@ test("AppShell 复用 CreateAgentModal 打开秘书入口，不新增路由", as
     assert.match(source, /<CreateAgentModal/);
 });
 
+
+// ─── 界面评审：无障碍（A1 / A3 / A5） ────────────────────────────────────────
+
+test("A1：composer 的 textarea 有可访问名（aria-label 取 composerPlaceholder）", () => {
+    const html = renderI18n(
+        React.createElement(Composer, {
+            targetId: "#all",
+            disabled: false,
+            disabledHint: "",
+            quoting: null,
+            onClearQuote: () => undefined,
+            onSend: async () => undefined,
+        }),
+    );
+    const ta = html.match(/<textarea[^>]*class="composer-input"[^>]*>/)?.[0] ?? "";
+    assert.match(
+        ta,
+        /aria-label="Message… \(Enter to send, Shift\+Enter for newline\)"/,
+    );
+});
+
+test("A5：@ 补全弹层是 listbox + option，textarea 走 combobox 语义", () => {
+    const source = readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    return source.then((src) => {
+        assert.match(src, /id="composer-at-menu"[\s\S]{0,80}role="listbox"/);
+        assert.match(src, /role="option"[\s\S]{0,120}aria-selected=\{active\}/);
+        assert.match(src, /id=\{`composer-at-option-\$\{index\}`\}/);
+        assert.match(src, /aria-activedescendant=\{/);
+        assert.match(src, /aria-controls="composer-at-menu"/);
+        assert.match(src, /role="combobox"/);
+    });
+});
+
+test("A3：TaskCard 不再嵌套交互控件——外层无语义角色，标题是原生 button", () => {
+    const source = readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    return source.then((src) => {
+        const start = src.indexOf("export function TaskCard(");
+        const end = src.indexOf("/** 任务列表（§3.7 任务视图）", start);
+        assert.ok(start !== -1 && end > start, "TaskCard 切片应存在");
+        const card = src.slice(start, end);
+        // 只看卡片根元素的开标签（注释里提到旧写法不算）。
+        const rootTag = card.match(/<div\s+className=\{dragging[\s\S]*?>/) ?? [];
+        assert.equal(rootTag.length, 1, "TaskCard 根元素应为 .card 容器");
+        assert.doesNotMatch(
+            rootTag[0],
+            /role="button"/,
+            "卡片外层不得声明 role=button（内部有真实按钮）",
+        );
+        assert.doesNotMatch(
+            rootTag[0],
+            /\btabIndex=/,
+            "卡片外层不得自造 Tab 停靠点",
+        );
+        assert.doesNotMatch(rootTag[0], /onClick=/, "外层不再承担点击");
+        assert.match(
+            card,
+            /<button[\s\S]{0,160}?className="card-title"/,
+            "卡片标题应是原生 button（唯一的打开入口）",
+        );
+    });
+});
+
+test("A5：右键菜单容器有可访问名（role=group + aria-label），动词条不再悬空", () => {
+    const source = readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    return source.then((src) => {
+        const start = src.indexOf("function ContextMenu(");
+        const end = src.indexOf("/** 顶层消息渲染行", start);
+        assert.ok(start !== -1 && end > start);
+        const menu = src.slice(start, end);
+        assert.match(menu, /role="group"/);
+        assert.match(menu, /aria-label=\{t\("message\.moreActions"\)\}/);
+        assert.doesNotMatch(menu, /role="menuitem"/);
+    });
+});
+
+test("A5：@ 补全没有候选时 aria-activedescendant 不指向不存在的 option", () => {
+    const source = readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    return source.then((src) => {
+        assert.match(
+            src,
+            /atMenuOpen && atQuery !== null && atMatches\.length > 0\s*\n?\s*\?\s*`composer-at-option-\$\{atActiveIndex\}`/,
+        );
+    });
+});

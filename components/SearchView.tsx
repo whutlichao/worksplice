@@ -298,15 +298,6 @@ export function SearchHitRow({
   return (
     <div
       className="result"
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(hit)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen(hit);
-        }
-      }}
       style={{
         cursor: hit.channel ? "pointer" : "default",
         opacity: hit.channel ? 1 : 0.6,
@@ -324,9 +315,34 @@ export function SearchHitRow({
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="r-top">
-            <span style={{ color: "var(--accent-deep)", fontWeight: "var(--fw-semi)" }}>
-              {hit.author?.name ?? hit.author_id}
-            </span>
+            {/* 作者名是整行的「打开」入口（界面评审 A3）：原先外层是 `role="button"`，
+                行内又有真实按钮——嵌套交互控件在 AX 树里是非法结构。外层退回普通容器，
+                作者名用原生 button 承担打开动作，右侧「打开」按钮是它的兄弟节点。 */}
+            {hit.channel ? (
+              <button
+                type="button"
+                onClick={() => onOpen(hit)}
+                style={{
+                  color: "var(--accent-deep)",
+                  // 只继承字族与字号：`font` 简写会连带重置 fontWeight，把作者名的
+                  // semi 字重抹掉（内联样式优先于任何 class）。
+                  fontFamily: "inherit",
+                  fontSize: "inherit",
+                  fontWeight: "var(--fw-semi)",
+                  background: "none",
+                  border: 0,
+                  padding: 0,
+                  cursor: "pointer",
+                  textAlign: "start",
+                }}
+              >
+                {hit.author?.name ?? hit.author_id}
+              </button>
+            ) : (
+              <span style={{ color: "var(--accent-deep)", fontWeight: "var(--fw-semi)" }}>
+                {hit.author?.name ?? hit.author_id}
+              </span>
+            )}
             {hit.channel ? (
               <span>
                 #<span style={{ fontFamily: "var(--mono)" }}>{hit.channel.name}</span>
@@ -336,7 +352,9 @@ export function SearchHitRow({
             {hit.inThread && <span className="card-tag">{t("search.thread")}</span>}
             <span
               style={{
-                marginLeft: "auto",
+                // 逻辑属性（界面评审 B5）：`.r-top` 会换行，`margin-left: auto` 在换行后
+                // 仍按物理左推，横向书写方向下等价，但镜像（RTL）时会把时间顶到错误一侧。
+                marginInlineStart: "auto",
                 color: "var(--faint)",
                 fontSize: "var(--fs-mono-xs)",
               }}
@@ -352,10 +370,7 @@ export function SearchHitRow({
             type="button"
             className="btn btn-sm"
             style={{ flexShrink: 0 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(hit);
-            }}
+            onClick={() => onOpen(hit)}
           >
             {t("search.open")}
           </button>
