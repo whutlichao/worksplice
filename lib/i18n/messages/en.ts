@@ -451,6 +451,7 @@ export const enLocale: LocalePlugin = {
     "search.open": "Open",
     "search.error": "Search failed: {error}",
     "channel.create": "Create channel",
+    "channel.createFailed": "Could not create the channel — check the name and try again",
     "channel.name": "Name",
     "channel.type": "Type",
     "channel.public": "Public",
@@ -468,7 +469,7 @@ export const enLocale: LocalePlugin = {
     "message.composerPlaceholder":
       "Message… (Enter to send, Shift+Enter for newline)",
     "message.loadEarlier": "Load earlier messages",
-    "message.held": "Message held — the room changed while you were typing",
+    "message.held": "Send blocked — the room changed, send again",
     "message.heldNotice": "Room changed:",
     "message.thread": "Thread",
     "message.openThreadBadge": "Open thread replies",
@@ -609,9 +610,9 @@ export const enLocale: LocalePlugin = {
     "reminders.all": "My reminders",
     "reminders.allEmpty": "No reminders yet",
     "reminders.locate": "Locate",
-    "reminders.targetIn": "in #{{channel}}",
-    "reminders.targetInMsg": "in #{{channel}} · #{{seq}}",
-    "reminders.scheduledCount": "Reminders {{count}}",
+    "reminders.targetIn": "in #{channel}",
+    "reminders.targetInMsg": "in #{channel} · #{seq}",
+    "reminders.scheduledCount": "Reminders {count}",
     "reminders.allHint":
       "When due, a ⏰ message is posted directly into the channel's message flow; manage or locate it here anytime.",
     "tasks.empty": "No tasks in this channel yet",
@@ -619,22 +620,28 @@ export const enLocale: LocalePlugin = {
     "status.working": "Working",
     "status.error": "Error",
     "status.offline": "Offline",
+    "presence.online": "Online",
+    "presence.working": "Working",
+    "presence.error": "Error",
+    "presence.offline": "Offline",
     "detail.close": "Close panel",
     "channel.archived": "Archived",
     "tasks.new": "New task",
     "tasks.convert": "Convert to task",
     "tasks.convertHint":
       "Convert this message to a task (top-level messages only)",
-    "tasks.asTask": "As task",
+    "tasks.asTask": "Convert to task",
     "tasks.create": "Create task",
     "tasks.cancel": "Cancel",
     "tasks.createPlaceholder": "Describe the task… (Enter to create)",
     "tasks.claim": "Claim",
     "tasks.unclaim": "Unclaim",
-    "tasks.complete": "Complete",
+    "tasks.complete": "Submit for review",
     "tasks.approve": "Approve",
     "tasks.reject": "Reject",
-    "tasks.close": "Close",
+    "tasks.close": "Close task",
+    "tasks.closeConfirm":
+      "Close task #{number}? A closed task stays closed until you reopen it.",
     "tasks.reopen": "Reopen",
     "tasks.reopenedBadge": "REOPENED",
     "tasks.reopenedHint":
@@ -670,7 +677,9 @@ export const enLocale: LocalePlugin = {
     "tasks.dropHint": "Drag a task here",
     "tasks.dropInvalid":
       "Cannot move from {from} to {to} — not a legal transition",
-    "messages.emptyHint": "Messages here are immutable — no edits, no deletes.",
+    "messages.selectChannelHint":
+      "Pick a channel on the left, or create a new one to get started.",
+    "messages.emptyDMHint": "Send the first message in the box below.",
     "tasks.emptyHint":
       "Convert a message to a task, or create one from the board.",
     "shell.menu": "Toggle channel list",
@@ -706,8 +715,11 @@ export const enLocale: LocalePlugin = {
     "agent.confirmFullReset":
       "Clear the session and home directory contents? MEMORY.md is kept. This cannot be undone.",
     "agent.confirmDelete":
-      "Delete this agent identity? Message history is kept; the home directory will be removed (bound project directories are kept).",
+      "Delete this agent identity? Message history is kept; the home directory will be removed (bound project directories are kept). This cannot be undone.",
     "agent.confirm": "Confirm",
+    "agent.confirmDeleteAction": "Delete identity",
+    "agent.confirmSessionResetAction": "Reset session",
+    "agent.confirmFullResetAction": "Full reset",
     "agent.cancelOp": "Cancel",
     "agent.opError": "Operation failed: {message}",
     "agent.deleteFailed":

@@ -68,8 +68,11 @@ test("票 08 形态：行 = .kv（频道名 + 锚点 seq mono + 下一次触发 
   assert.match(html, /class="kv"/);
   assert.match(html, /class="k"/);
   assert.match(html, /class="v"/);
-  // 频道名 + 锚点 seq（i18n: "in #{{channel}} · #{{seq}}"；插值后的花括号形态不在本票面内）
+  // 频道名 + 锚点 seq（i18n: "in #{channel} · #{seq}"；契约是单层 `{name}` 占位，
+  // 字面 `#` 直接写在模板里 —— 双花括号 `{{name}}` 会被插值器留下外层花括号，
+  // 界面上渲染成 `在 #{{channel}}`（界面评审 D1））
   assert.match(html, /class="v">in [^<]*all[^<]*4[^<]*<\/span>/);
+  assert.doesNotMatch(html, /\{\{|#\{/);
   assert.match(html, /every:1m/);
   assert.match(html, /Snooze 15m/);
   assert.match(html, /Cancel reminder/);

@@ -418,3 +418,15 @@ test("票 03：rail agent 行头像 = .avatar.sm（--avatar-sm 22px，票 04 迁
     assert.match(row, /class="avatar sm /);
     assert.match(row, /class="presence online"/);
 });
+
+test("F：当前频道行带 aria-current=page（其余行不带）", () => {
+    const html = sidebarHtml(
+        [
+            { id: "c1", name: "reads", type: "public", unread: 0, messageCount: 1 },
+            { id: "c2", name: "other", type: "public", unread: 0, messageCount: 1 },
+        ],
+        { selectedChannelId: "c1" },
+    );
+    assert.match(navRow(html, "reads"), /aria-current="page"/);
+    assert.doesNotMatch(navRow(html, "other"), /aria-current/);
+});

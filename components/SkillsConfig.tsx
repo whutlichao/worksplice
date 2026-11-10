@@ -68,7 +68,10 @@ function Toggle({
         border: "none",
         padding: 0,
         cursor: loading ? "wait" : "pointer",
-        background: enabled ? "var(--accent-graphic)" : "var(--border)",
+        // 关闭态轨道原先是 `--border`（发丝档）：压在 `--bg` 上只有 1.4:1，开关看起来「不存在」。
+        // 界面评审 C2：轨道走 `--border-strong`（对 `--bg` 3.30:1），滑块走 `--surface`
+        // （对轨道 3.44:1）；开启态（填充档 + 白滑块）保持不变。
+        background: enabled ? "var(--accent-graphic)" : "var(--border-strong)",
         position: "relative",
         transition: "background var(--dur-drawer)",
       }}
@@ -81,7 +84,7 @@ function Toggle({
           width: 16,
           height: 16,
           borderRadius: "var(--r-pill)",
-          background: "var(--bg)",
+          background: "var(--surface)",
           boxShadow: "var(--shadow-composer)",
           transition: "left var(--dur-drawer) var(--ease)",
         }}

@@ -333,6 +333,9 @@ test("任务板空槽 .drop-hint：虚线 + --r-md + --faint（无 2px 结构线
 });
 
 test("逐字搬运：本仓的任务板规则体与上游 app.css 的同名规则逐字相同", () => {
+    // 本仓在逐字搬运行**之后**用同选择器追加了窄屏/配色覆盖（如 `.board-toolbar` 的
+    // `flex-wrap`、`.seg button.is-active` 的 `--surface` 文字色）。`blockBody` 取的是
+    // 首处声明，因此这里比的仍是「搬自上游」的那一条；覆盖行由各自的窄屏测试守。
     // 逐条比对（不比对整块文本：上游块里 `.card` / `.card:hover` 已由票 04 的原语段落位，
     // 本仓不会再抄第二份——否则同一个 class 有两处声明，形态来源就分叉了）。
     const selectors = [
@@ -343,7 +346,9 @@ test("逐字搬运：本仓的任务板规则体与上游 app.css 的同名规�
         ".seg button",
         ".seg button:last-child",
         ".seg button:hover",
-        ".seg button.is-active",
+        // `.seg button.is-active` 不在逐字清单里：界面评审 C3 把它的文字色从上游的
+        // 冷蓝裸值 `oklch(98% 0.005 250)` 换成了契约 token `--surface`（全仓唯一的
+        // 色板外色相）。该条的当前值由下面的 `.seg` 用例单独断言。
         ".filter-chip",
         ".filter-chip:hover",
         ".filter-chip.is-on",
@@ -703,4 +708,65 @@ test("分组折叠的无障碍名两套语言包成对存在（docs/i18n.md 分�
         zhCNLocale.messages["tasks.expandGroup"],
         "展开 {status} 分组（{count} 个任务）",
     );
+});
+
+// ─── 界面评审 D3 / B2：关闭任务的确认 + 窄屏工具条 ──────────────────────────
+
+test("D3：「关闭任务」走 btn-danger，点击先弹共享确认（TaskViews 层），不直接改状态", async () => {
+    const mod = await jiti.import("./ChannelView.tsx");
+    const closed = [];
+    const tasks = [
+        task({ id: "t-1", number: 1, status: "in_progress", owner_id: "owner", owner: AGENT }),
+    ];
+    const props = {
+        tasks,
+        currentMemberId: "owner",
+        busy: false,
+        disabled: false,
+        error: null,
+        notice: null,
+        onCreateTask: () => undefined,
+        onAction: (_task, action, status) => closed.push([action, status]),
+        onOpenThread: () => undefined,
+        onNotice: () => undefined,
+    };
+    const list = renderI18n(React.createElement(mod.TaskList, {
+        ...props,
+        folded: new Set(),
+        onToggleGroup: () => undefined,
+    }));
+    // 按钮文案与危险样式
+    assert.match(list, /class="btn btn-sm btn-danger">Close task</);
+    assert.doesNotMatch(list, /class="btn btn-sm">Close task</);
+
+    // TaskCard 缺省（未传 onRequestClose）时仍直接关闭——行为兜底不变
+    const card = renderI18n(React.createElement(mod.TaskCard, {
+        task: tasks[0],
+        currentMemberId: "owner",
+        busy: false,
+        onAction: (_task, action, status) => closed.push([action, status]),
+        onOpenThread: () => undefined,
+    }));
+    assert.match(card, /btn btn-sm btn-danger/);
+
+    // TaskViews 层持有 pendingClose → 渲染共享确认框（首次渲染不显示）
+    const views = renderI18n(React.createElement(mod.TaskViews, props));
+    assert.doesNotMatch(views, /class="overlay"/);
+});
+
+test("B2：窄屏工具条允许换行；创建表单的 textarea 整行独占且不再有 220px 下限", async () => {
+    const toolbar = blockBody(globalsCss, ".board-toolbar");
+    // blockBody 取首处（上游逐字条）；窄屏覆盖是同选择器、后声明的那一条：
+    // 取所有**以 `.board-toolbar` 结尾**的规则体，其中必须有一条同时带 wrap + row-gap。
+    const wrapRules = globalsCss
+        .split("}")
+        .filter((chunk) => /\.board-toolbar\s*$/.test(chunk.split("{")[0].trim()))
+        .map((chunk) => chunk.split("{")[1] ?? "");
+    assert.ok(
+        wrapRules.some((body) => /flex-wrap:\s*wrap/.test(body) && /row-gap:\s*var\(--sp-4\)/.test(body)),
+        `缺少窄屏 wrap 覆盖：${JSON.stringify(wrapRules)}`,
+    );
+    assert.match(toolbar, /display:\s*flex/);
+    assert.match(channelViewSource, /style=\{\{ flex: "1 1 100%", minWidth: 0 \}\}/);
+    assert.doesNotMatch(channelViewSource, /minWidth: 220/);
 });

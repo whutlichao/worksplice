@@ -27,7 +27,7 @@
   --muted:         oklch(46% 0.030 300);   /* secondary text             */
   --faint:         oklch(52% 0.024 300);   /* tertiary / meta text       */
   --border:        oklch(90% 0.013 86);    /* hairline separators        */
-  --border-strong: oklch(78% 0.020 86);    /* inputs, focus containers   */
+  --border-strong: oklch(63% 0.020 86);    /* inputs, focus containers（≥3:1 on --surface/--panel/--bg） */
   --on-accent:     var(--fg);              /* ink that sits on every fill tier */
 
   /* ─── accent (macaron pink · action) ─────────────────────────────────── */

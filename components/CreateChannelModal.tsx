@@ -57,7 +57,7 @@ export function CreateChannelModal({
         }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Failed to create channel");
+      if (!res.ok) throw new Error(body.error ?? t("channel.createFailed"));
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -85,14 +85,15 @@ export function CreateChannelModal({
           />
         </div>
 
-        <div className="field">
-          <label>{t("channel.type")}</label>
+        <div className="field" role="group" aria-labelledby="channel-type-label">
+          <label id="channel-type-label">{t("channel.type")}</label>
           <div className="radio-row">
             {(["public", "private"] as const).map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => selectType(value)}
+                aria-pressed={type === value}
                 className={type === value ? "radio-card is-on" : "radio-card"}
               >
                 <b>{value === "public" ? t("channel.public") : t("channel.private")}</b>
@@ -113,8 +114,8 @@ export function CreateChannelModal({
         </div>
 
         {agents.length > 0 && (
-          <div className="field">
-            <label>{t("channel.initialMembers")}</label>
+          <div className="field" role="group" aria-labelledby="channel-members-label">
+            <label id="channel-members-label">{t("channel.initialMembers")}</label>
             <div className="member-pick">
               {agents.map((agent) => {
                 const selected = memberIds.includes(agent.id);
@@ -123,6 +124,7 @@ export function CreateChannelModal({
                     key={agent.id}
                     type="button"
                     onClick={() => toggleMember(agent.id)}
+                    aria-pressed={selected}
                     className={selected ? "member-opt is-on" : "member-opt"}
                   >
                     <Avatar

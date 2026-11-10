@@ -57,7 +57,7 @@ export function BrutalModal({
         className={wide ? "modal wide" : "modal"}
         // `.modal` 的 `overflow: hidden` 是上游形态；这里显式覆盖成整体纵向滚动，
         // 保住旧外壳「超高内容可滚动」的行为（形态改动不带行为回归）。
-        style={{ maxHeight: "min(640px, 90dvh)", overflowY: "auto" }}
+        style={{ maxHeight: "min(640px, calc(100dvh - 2 * var(--sp-10)))", overflowY: "auto" }}
       >
         <div className="modal-head">
           <h2>{title}</h2>

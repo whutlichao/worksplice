@@ -54,6 +54,7 @@ import { MentionText } from "./MentionText";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import { ReminderModal } from "./ReminderModal";
+import { BrutalModal } from "./BrutalModal";
 import { copyText } from "@/lib/clipboard";
 import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "@/lib/data/schema";
@@ -426,7 +427,7 @@ function EmptyState({  glyph,
           placeItems: "center",
           background: "var(--surface)",
           border: `1px solid var(--border)`,
-          boxShadow: "var(--shadow-card)",
+          // 静止内容不加阴影（ED-4，界面评审 E1）：空态图标块原先挂了 `--shadow-card`。
           fontFamily: "var(--mono)",
           fontSize: 36,
           fontWeight: 700,
@@ -480,11 +481,15 @@ export function JourneyBar({ step }: { step: JourneyStep }) {
         style={{
           display: "flex",
           alignItems: "center",
-          flexWrap: "wrap",
+          // 窄屏不折行（界面评审 B5）：320px 下 `wrap` 会把「步骤 4」与它前面的 `→`
+          // 拆到两行，读起来像断链。改为横向滚动，`→` 与步骤同属 `<li>` 因此永不分离。
+          flexWrap: "nowrap",
           gap: 4,
           margin: 0,
           padding: "var(--sp-3) var(--sp-9)",
           listStyle: "none",
+          overflowX: "auto",
+          scrollbarWidth: "thin",
           borderBottom: `1px solid var(--border)`,
         }}
       >
@@ -518,7 +523,10 @@ export function JourneyBar({ step }: { step: JourneyStep }) {
                   fontWeight: 600,
                   color: active ? "var(--fg)" : "var(--muted)",
                   background: active ? "var(--accent-soft)" : "transparent",
-                  border: `1px solid ${active ? "var(--accent)" : "transparent"}`,
+                  // 当前步骤的边框走图形档（界面评审 C4）：`--accent`（fill 档）压在自家
+                  // `--accent-soft` 淡底上只有 1.4:1，看不出边界；`--accent-graphic` 对
+                  // `--surface` 3.65:1、对淡底 3.3:1（≥3:1 图形档下限）。淡底与数字徽标不动。
+                  border: `1px solid ${active ? "var(--accent-graphic)" : "transparent"}`,
                   borderRadius: "var(--r-pill)",
                   whiteSpace: "nowrap",
                 }}
@@ -1258,7 +1266,7 @@ export function JourneyGuideCard({
         background: "var(--surface)",
         border: `1px solid var(--border)`,
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-card)",
+        // 静止内容不加阴影（ED-4，界面评审 E1）：引导卡常驻首屏，原先挂 `--shadow-card`。
       }}
     >
       <div ref={rootRef} className="journey-guide-root">
@@ -1668,8 +1676,12 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
 
 /**
  * `···` 二级动作菜单（票 16）：reaction / pin / 提醒 / 转为任务从 hover 动作栏收进来，
- * 默认不占首屏。触发器是普通按钮（键盘可达），菜单项是 `role="menuitem"` 按钮；
+ * 默认不占首屏。触发器是普通按钮（键盘可达）；菜单本体是普通容器 + 原生按钮列表，
  * 点击外部或 Escape 关闭。门控与旧动作栏一致：没传 handler 就不出现。
+ *
+ * 界面评审 A5：这里原先声明的 `role="menu"` / `role="menuitem"` 承诺了完整的菜单键盘模型
+ * （方向键在项间移动、Home/End、type-ahead），实际只实现了「打开时聚焦第一项」——角色
+ * 与行为不符比没有角色更糟。改为普通容器 + 原生按钮后，Tab 序就是真实的键盘模型。
  */
 export function MessageMoreMenu({
   message,
@@ -1748,7 +1760,9 @@ export function MessageMoreMenu({
 
   return (
     <div
-      role="menu"
+      // `role="group"` 让 `aria-label` 真的被读屏用上（裸 div 上的 aria-label 不进 AX 树）；
+      // group 不承诺任何键盘模型，与「普通按钮列表 + Tab 序」的实现一致。
+      role="group"
       aria-label={t("message.moreActions")}
       style={{
         position: "absolute",
@@ -1773,7 +1787,6 @@ export function MessageMoreMenu({
         <button
           key={item.key}
           type="button"
-          role="menuitem"
           // 几何/颜色单点给在 `.msg-tools .msg-more-menu-item`（globals.css）：内联 width /
           // justify-content 与 port 的 `.msg-tools button` 图标键几何互相打架就是这个缺陷的成因。
           className="btn btn-ghost btn-sm msg-more-menu-item"
@@ -1825,6 +1838,7 @@ function MessageActions({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLSpanElement>(null);
+  const pickerTriggerRef = useRef<HTMLButtonElement>(null);
   const completeAction = (action: () => void) => {
     onDismiss();
     setPickerOpen(false);
@@ -1847,11 +1861,15 @@ function MessageActions({
       document.removeEventListener("keydown", onKey);
     };
   }, [moreOpen]);
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!moreOpen) return;
-    moreRef.current
-      ?.querySelector<HTMLElement>('[role="menuitem"]')
-      ?.focus();
+    // 打开后聚焦第一项（键盘用户不必先 Tab 过触发器）；
+    moreRef.current?.querySelector<HTMLElement>(".msg-more-menu-item")?.focus();
+    // 关闭后焦点还给 `···` 触发器（界面评审 A5）：否则焦点落在已被卸载的菜单里，
+    // 失焦到 body，键盘用户失去位置。
+    const trigger = moreTriggerRef.current;
+    return () => trigger?.focus();
   }, [moreOpen]);
 
   const hasMoreActions = Boolean(
@@ -1899,10 +1917,12 @@ function MessageActions({
             style={{ position: "relative", display: "inline-flex" }}
           >
             <button
+              ref={moreTriggerRef}
               type="button"
               title={t("message.moreActions")}
               aria-label={t("message.moreActions")}
-              aria-haspopup="menu"
+              // 弹出层已无 `role="menu"`（界面评审 A5），因此不再声明 `aria-haspopup`：
+              // 只剩 `aria-expanded` 时，按钮读作「展开/收起」的 disclosure，与实现相符。
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((open) => !open)}
             >
@@ -1948,9 +1968,11 @@ function MessageActions({
           ))}
           <span style={{ position: "relative", display: "inline-flex" }}>
             <button
+              ref={pickerTriggerRef}
               type="button"
               title={t("message.addReaction")}
               className="reaction"
+              aria-expanded={pickerOpen}
               onClick={() => setPickerOpen((open) => !open)}
             >
               <SmilePlus size={13} />
@@ -1960,7 +1982,12 @@ function MessageActions({
                 onPick={(emoji) =>
                   completeAction(() => onToggleReaction?.(message, emoji))
                 }
-                onClose={() => setPickerOpen(false)}
+                onClose={() => {
+                  setPickerOpen(false);
+                  // 关闭后焦点还给「添加回应」按钮（界面评审 A5）：否则焦点落在已卸载的
+                  // 弹层里，键盘用户失去位置。
+                  pickerTriggerRef.current?.focus();
+                }}
               />
             )}
           </span>
@@ -2004,7 +2031,6 @@ function ContextMenu({
   }, [onClose]);
   return (
     <div
-      role="menu"
       style={{
         position: "fixed",
         left: Math.min(x, window.innerWidth - 200),
@@ -2022,7 +2048,6 @@ function ContextMenu({
         <button
           key={item.label}
           type="button"
-          role="menuitem"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
@@ -2424,7 +2449,9 @@ function readTaskViewPref(): "list" | "board" {
   }
 }
 
-/** §3.7 任务卡片动作（List/Board 共用；与服务端状态机一致：互审 + owner 限定）。 */
+/** §3.7 任务卡片动作（List/Board 共用；与服务端状态机一致：互审 + owner 限定）。
+ *  `danger: true` 的动作（关闭任务）在卡片上走 `btn-danger`，且点击后先经一层确认
+ *  （界面评审 D3：原先「取消」既像放弃表单、又会真的把任务终止，且无二次确认）。 */
 function taskActionsFor(
   task: ChannelTask,
   currentMemberId: string,
@@ -2434,7 +2461,8 @@ function taskActionsFor(
     status?: TaskStatus,
   ) => void,
   t: (key: string, params?: TranslationParams) => string,
-): Array<{ label: string; onClick: () => void }> {
+  onRequestClose: (task: ChannelTask) => void,
+): Array<{ label: string; onClick: () => void; danger?: boolean }> {
   const mine = task.owner_id === currentMemberId;
   switch (task.status) {
     case "todo":
@@ -2454,7 +2482,8 @@ function taskActionsFor(
             },
             {
               label: t("tasks.close"),
-              onClick: () => onAction(task, "updateStatus", "closed"),
+              onClick: () => onRequestClose(task),
+              danger: true,
             },
           ]
         : [];
@@ -2463,7 +2492,8 @@ function taskActionsFor(
         ? [
             {
               label: t("tasks.close"),
-              onClick: () => onAction(task, "updateStatus", "closed"),
+              onClick: () => onRequestClose(task),
+              danger: true,
             },
           ]
         : [
@@ -2501,6 +2531,7 @@ export function TaskCard({
   dragging = false,
   onDragStart,
   onDragEnd,
+  onRequestClose,
 }: {
   task: ChannelTask;
   currentMembersById?: ReadonlyMap<string, MemberRow>;
@@ -2518,15 +2549,17 @@ export function TaskCard({
   dragging?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, task: ChannelTask) => void;
   onDragEnd?: () => void;
+  /** 「关闭任务」的确认入口（由 TaskViews 持有共享确认框）；缺省时直接执行关闭动作。 */
+  onRequestClose?: (task: ChannelTask) => void;
 }) {
   const { t } = useI18n();
-  const actions = taskActionsFor(task, currentMemberId, onAction, t);
+  const requestClose =
+    onRequestClose ?? ((target: ChannelTask) => onAction(target, "updateStatus", "closed"));
+  const actions = taskActionsFor(task, currentMemberId, onAction, t, requestClose);
   const currentOwner = currentMembersById?.get(task.owner_id ?? "") ?? task.owner;
   return (
     <div
       className={dragging ? "card dragging" : "card"}
-      role="button"
-      tabIndex={0}
       title={t("tasks.threadHint")}
       // `.card` 自带 `cursor: grab`（上游形态）；List 视图的卡片不可拖（draggable 缺省 false），
       // 光标退回 pointer。形态仍全走 class，这里只纠一个指针暗示。
@@ -2540,15 +2573,33 @@ export function TaskCard({
             })
           : undefined
       }
-      onClick={() => onOpenThread(task.anchor, task.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onOpenThread(task.anchor, task.id);
-      }}
       draggable={draggable}
       onDragStart={onDragStart ? (e) => onDragStart(e, task) : undefined}
       onDragEnd={onDragEnd}
     >
-      <div className="card-title">{previewLine(task.anchor.content)}</div>
+      {/* 卡片标题是**唯一**打开讨论的入口（界面评审 A3）：原先外层是 `role="button"` +
+          `tabIndex`，内层又有真实按钮——嵌套交互控件在 AX 树里是非法结构，读屏读不出动作栏，
+          且 Enter 只在卡片上生效、空格无效。现在外层退回语义容器，标题用原生 button 承担
+          「打开讨论」，动作按钮是它的兄弟节点（已 stopPropagation）。 */}
+      <button
+        type="button"
+        className="card-title"
+        onClick={() => onOpenThread(task.anchor, task.id)}
+        style={{
+          textAlign: "start",
+          width: "100%",
+          background: "none",
+          border: 0,
+          padding: 0,
+          cursor: "pointer",
+          // 只继承字族：`font: inherit` 这个简写会把 `.card-title` 的 12.5px / semi
+          // 一并重置成卡片默认值（内联优先于 class），那是形态回归。
+          fontFamily: "inherit",
+          color: "inherit",
+        }}
+      >
+        {previewLine(task.anchor.content)}
+      </button>
       <div className="card-meta">
         <span className="card-num">#{task.number}</span>
         {showUnreadDetails && (
@@ -2586,7 +2637,7 @@ export function TaskCard({
             <button
               key={action.label}
               type="button"
-              className="btn btn-sm"
+              className={action.danger ? "btn btn-sm btn-danger" : "btn btn-sm"}
               disabled={busy}
               onClick={action.onClick}
             >
@@ -2610,6 +2661,7 @@ export function TaskList({
   onAction,
   onOpenThread,
   showUnreadDetails = false,
+  onRequestClose,
 }: {
   tasks: ChannelTask[];
   currentMembersById?: ReadonlyMap<string, MemberRow>;
@@ -2625,6 +2677,8 @@ export function TaskList({
     status?: TaskStatus,
   ) => void;
   onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
+  /** 关闭任务的确认入口（TaskViews 的共享确认框）。 */
+  onRequestClose?: (task: ChannelTask) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -2674,6 +2728,7 @@ export function TaskList({
                   onAction={onAction}
                   onOpenThread={onOpenThread}
                   showUnreadDetails={showUnreadDetails}
+                  onRequestClose={onRequestClose}
                 />
               ))}
             </div>
@@ -2696,6 +2751,7 @@ export function TaskBoard({
   onOpenThread,
   onInvalidDrop,
   showUnreadDetails = false,
+  onRequestClose,
 }: {
   tasks: ChannelTask[];
   currentMembersById?: ReadonlyMap<string, MemberRow>;
@@ -2709,6 +2765,8 @@ export function TaskBoard({
   ) => void;
   onOpenThread: (anchor: ChannelMessage, taskId?: string) => void;
   onInvalidDrop: (task: ChannelTask, status: TaskStatus) => void;
+  /** 关闭任务的确认入口（TaskViews 的共享确认框）。 */
+  onRequestClose?: (task: ChannelTask) => void;
 }) {
   const { t } = useI18n();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -2795,6 +2853,7 @@ export function TaskBoard({
                   onAction={onAction}
                   onOpenThread={onOpenThread}
                   showUnreadDetails={showUnreadDetails}
+                  onRequestClose={onRequestClose}
                   draggable={!busy}
                   dragging={dragId === task.id}
                   onDragStart={handleDragStart}
@@ -2882,6 +2941,9 @@ export function TaskViews({
     () => (unreadOnly ? sortUnreadTasks(tasks) : tasks),
     [tasks, unreadOnly],
   );
+  /** 关闭任务的共享确认（界面评审 D3）：List 与 Board 共用同一个待确认任务，
+   *  确认框渲染在 TaskViews 层——TaskCard 内部嵌 modal 会与它的语义容器改造打架。 */
+  const [pendingClose, setPendingClose] = useState<ChannelTask | null>(null);
 
   const toggleGroup = (status: TaskStatus) => {
     setFolded((prev) => {
@@ -2940,7 +3002,9 @@ export function TaskViews({
               disabled={disabled}
               rows={2}
               autoFocus
-              style={{ flex: 1, minWidth: 220 }}
+              // 320px 下 220px 的 minWidth 会把「创建 / 取消」挤出工具条（界面评审 B2）：
+              // 改成整行独占一列（`flex-basis: 100%`），按钮自然落到第二行。
+              style={{ flex: "1 1 100%", minWidth: 0 }}
             />
             <button
               type="button"
@@ -3033,6 +3097,7 @@ export function TaskViews({
             onToggleGroup={toggleGroup}
             onAction={onAction}
             onOpenThread={onOpenThread}
+            onRequestClose={setPendingClose}
           />
         ) : (
           <TaskBoard
@@ -3043,6 +3108,7 @@ export function TaskViews({
             busy={busy}
             onAction={onAction}
             onOpenThread={onOpenThread}
+            onRequestClose={setPendingClose}
             onInvalidDrop={(task, status) =>
               onNotice(
                 t("tasks.dropInvalid", {
@@ -3054,6 +3120,42 @@ export function TaskViews({
           />
         )}
       </div>
+      {/* 关闭任务的确认（界面评审 D3）：与 AgentDetailPanel 的危险确认同形（BrutalModal +
+          正文说明 + btn-danger），列出任务号避免误关。 */}
+      {pendingClose && (
+        <BrutalModal
+          title={t("tasks.close")}
+          onClose={() => setPendingClose(null)}
+        >
+          <div className="modal-body">
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "var(--fg)" }}>
+              {t("tasks.closeConfirm", { number: String(pendingClose.number) })}
+            </p>
+          </div>
+          <div className="modal-foot">
+            <span className="sep" />
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setPendingClose(null)}
+            >
+              {t("tasks.cancel")}
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={busy}
+              onClick={() => {
+                const target = pendingClose;
+                setPendingClose(null);
+                onAction(target, "updateStatus", "closed");
+              }}
+            >
+              {t("tasks.close")}
+            </button>
+          </div>
+        </BrutalModal>
+      )}
     </div>
   );
 }
@@ -3370,6 +3472,19 @@ export function Composer({
               placeholder={
                 disabled ? disabledHint : t("message.composerPlaceholder")
               }
+              aria-label={t("message.composerPlaceholder")}
+              // 带 listbox 弹层的文本输入按 ARIA 1.2 是 combobox：`aria-expanded` /
+              // `aria-controls` / `aria-activedescendant` 只有在该角色上才成立
+              //（裸 textbox 不支持 expanded，eslint jsx-a11y 也会报）。
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={atMenuOpen}
+              aria-controls="composer-at-menu"
+              aria-activedescendant={
+                atMenuOpen && atQuery !== null
+                  ? `composer-at-option-${atActiveIndex}`
+                  : undefined
+              }
               disabled={disabled}
               rows={2}
               className="composer-input"
@@ -3382,6 +3497,9 @@ export function Composer({
             />
             {atMenuOpen && atQuery !== null && !disabled && (
               <div
+                id="composer-at-menu"
+                role="listbox"
+                aria-label={t("mention.title")}
                 style={{
                   position: "absolute",
                   left: 0,
@@ -3436,10 +3554,16 @@ export function Composer({
                     return (
                       <button
                         key={member.id}
+                        id={`composer-at-option-${index}`}
+                        role="option"
+                        aria-selected={active}
                         ref={(node) => {
                           atItemRefs.current[index] = node;
                         }}
                         type="button"
+                        // 选项由 textarea 的 `aria-activedescendant` 命名，自身不抢 Tab 序
+                        //（Tab 在补全菜单里是「接受当前项」，不是移动焦点）。
+                        tabIndex={-1}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           applyAtCompletion(member);
@@ -3465,7 +3589,7 @@ export function Composer({
                           fontSize: 12,
                         }}
                       >
-                        <StatusDot status={member.status} />
+                        <StatusDot status={member.status} translate={t} />
                         <span>@{member.name}</span>
                         {!member.joined && (
                           <span
@@ -4411,7 +4535,11 @@ export function ChannelView({
         <div className="chan-top">
           <h1 className="chan-title">
             <span className="hash">#</span>
-            <span>{channel?.name ?? t("shell.selectChannel")}</span>
+            {/* 截断时用 title 回读全名（界面评审 B1）：320px 下名字被省略号截断，
+                悬停/读屏仍要能拿到完整频道名。 */}
+            <span title={channel?.name ?? undefined}>
+              {channel?.name ?? t("shell.selectChannel")}
+            </span>
           </h1>
           {channel && (
             <>
@@ -4677,7 +4805,7 @@ export function ChannelView({
                         })
                       }
                     >
-                      <StatusDot status={member.status} />
+                      <StatusDot status={member.status} translate={t} />
                       {member.name}
                     </button>
                     {member.type === "agent" &&
@@ -4755,7 +4883,7 @@ export function ChannelView({
                               )
                             }
                           >
-                            <StatusDot status={m.status} />
+                            <StatusDot status={m.status} translate={t} />
                             {m.name}
                           </button>
                         ))}
@@ -4972,7 +5100,7 @@ export function ChannelView({
             <EmptyState
               glyph="#"
               title={t("shell.selectChannel")}
-              hint={t("messages.emptyHint")}
+              hint={t("messages.selectChannelHint")}
             />
           ) : loadError ? (
             <div style={{ padding: 24, color: "var(--error)", fontSize: 13 }}>
@@ -4989,7 +5117,7 @@ export function ChannelView({
               <EmptyState
                 glyph="#"
                 title={t("messages.emptyDM")}
-                hint={t("messages.emptyHint")}
+                hint={t("messages.emptyDMHint")}
               />
             ) : (
               <div style={{ padding: "var(--sp-6) var(--sp-9)" }}>

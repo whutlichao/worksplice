@@ -439,6 +439,27 @@ export function AppShell() {
     return (dm?.messageCount ?? 0) > 0;
   }, [resolvablePanel, agents, channels]);
 
+  /** 抽屉的键盘/读屏语义（界面评审 A2）：
+   *  - 汉堡键是左栏的开关：`aria-expanded` 反映开合，`aria-controls` 指向 `#ws-left`；
+   *  - 打开后焦点移进抽屉（关闭键），Escape / 遮罩关闭后焦点回到汉堡键——否则焦点留在
+   *    已被隐藏的抽屉里（CSS 的 `visibility: hidden` 会让它失焦到 body）。
+   *  右栏由侧栏 agent 行触发（不是同一个按钮），因此只保证「关闭态不可 Tab」。 */
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarWasOpenRef = useRef(false);
+
+  useEffect(() => {
+    const wasOpen = sidebarWasOpenRef.current;
+    sidebarWasOpenRef.current = sidebarOpen;
+    if (sidebarOpen) {
+      sidebarRef.current
+        ?.querySelector<HTMLElement>(".ws-sidebar-close")
+        ?.focus();
+    } else if (wasOpen) {
+      menuButtonRef.current?.focus();
+    }
+  }, [sidebarOpen]);
+
   return (
     <div
       className="ws-shell"
@@ -452,8 +473,15 @@ export function AppShell() {
     >
       {/* 左栏：channels + agents（宽度取自设计系统的 --rail-w 252px；紧凑端抽屉沿用同一宽度） */}
       <aside
+        id="ws-left"
+        ref={sidebarRef}
         className={`ws-left${sidebarOpen ? " ws-left-open" : ""}`}
         style={{ width: "var(--rail-w)" }}
+        onKeyDown={(e) => {
+          if (e.key !== "Escape" || !sidebarOpen) return;
+          e.stopPropagation();
+          setSidebarOpen(false);
+        }}
       >
         <WorkspaceSidebar
           channels={channels}
@@ -479,9 +507,12 @@ export function AppShell() {
       {/* 中央：channel 消息流 / Tasks tab */}
       <div className="ws-center">
         <button
+          ref={menuButtonRef}
           type="button"
           aria-label={t("shell.menu")}
           title={t("shell.menu")}
+          aria-expanded={sidebarOpen}
+          aria-controls="ws-left"
           className="ws-mobile-toggle"
           onClick={() => setSidebarOpen((v) => !v)}
         >
@@ -518,8 +549,14 @@ export function AppShell() {
           桌面宽度取自 --dock-w 380px（≤1080 由 CSS 的 max-width 收窄到 --dock-w-md，≤900 压到抽屉宽度） */}
       {resolvablePanel && (
         <aside
+          id="ws-right"
           className="ws-right ws-right-open"
           style={{ width: "var(--dock-w)" }}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            e.stopPropagation();
+            handleClosePanel();
+          }}
         >
           <DetailPanel
             content={resolvablePanel}
