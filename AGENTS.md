@@ -32,6 +32,20 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 - 文档除了指定结构外，正文尽量使用中文
   <!-- LANGUAGE_START -->
 
+## Agent skills
+
+### Issue tracker
+
+Issues 与 spec 以 Markdown 存放在 `.scratch/<feature-slug>/`（本地 Markdown 追踪器）。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+五个标准 triage 角色，标签字符串与角色同名（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`）。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+单上下文：词汇表 `CONTEXT.md`（agent 上下文术语另见 `GLOSSARY.md`），决策记录 `docs/adr/`。See `docs/agents/domain.md`.
+
 ## Quick Start
 
 装依赖只用 `bun install`（新 checkout 可加 `--frozen-lockfile`）；**不要 `npm install`**——它忽略 `bun.lock`，会让依赖版本漂移、门禁基线不可比（见 `.scratch/worktree-dep-drift/`）。`npm run <script>` 不受影响：脚本运行器与依赖解析无关，照常可用。
