@@ -57,9 +57,10 @@ function forwardedAuthority(request: Request): string | null {
   return forwarded && hostnameFromAuthority(forwarded) ? forwarded : null;
 }
 
-function forwardedProtocol(request: Request): string | null {
+/** 只接受 http / https（大小写不敏感），其余返回 null 由调用方回退。 */
+function forwardedScheme(request: Request): string | null {
   const forwarded = firstForwardedValue(request.headers.get("x-forwarded-proto"))?.toLowerCase();
-  return forwarded === "http" || forwarded === "https" ? `${forwarded}:` : null;
+  return forwarded === "http" || forwarded === "https" ? forwarded : null;
 }
 
 /**
@@ -81,8 +82,9 @@ function getRequestOrigin(request: Request): string | null {
   const requestUrl = new URL(request.url);
   const authority = forwardedAuthority(request) ?? request.headers.get("host");
   if (!authority) return null;
-  const protocol = forwardedProtocol(request) ?? requestUrl.protocol;
-  return canonicalOrigin(`${protocol}//${authority}`);
+  // requestUrl.protocol 带尾冒号（"http:"），统一成不带冒号的 scheme 再拼接。
+  const scheme = forwardedScheme(request) ?? requestUrl.protocol.slice(0, -1);
+  return canonicalOrigin(`${scheme}://${authority}`);
 }
 
 function isUserInitiatedSessionExportNavigation(request: Request): boolean {
