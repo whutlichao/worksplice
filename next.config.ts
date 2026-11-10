@@ -36,7 +36,11 @@ const nextConfig: NextConfig = {
     "@earendil-works/pi-ai",
     "@earendil-works/pi-tui",
   ],
-  allowedDevOrigins: ["192.168.*.*"],
+  // Orca 把每个 worktree 的 dev server 标成 `<worktree>.orca.localhost`；Next 的
+  // wildcard 只匹配单层子域（内置的 `*.localhost` 匹配不到多层的
+  // `<worktree>.orca.localhost`），所以这里显式补上这一项。bare `orca.localhost`
+  // 由 Next 内置的 `localhost` / `*.localhost` 覆盖，本项不重复追加。
+  allowedDevOrigins: ["192.168.*.*", "*.orca.localhost"],
   async headers() {
     return [
       {
