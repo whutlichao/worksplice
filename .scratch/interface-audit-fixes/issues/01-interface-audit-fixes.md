@@ -113,7 +113,24 @@ Status: resolved
 - 布局实测：320px 频道名 27px / 长名 121px 且带 `title`；搜索标题与汉堡间隙 **+10px**（修复前 −22px）；任务工具条 5 控件全在视口内且无横向溢出；640×400 模态滚到底后「创建频道」按钮 `bottom: 383 ≤ 400`；「我的提醒」渲染 `在 ##all`，无 `{{` / `#{`。
 - 截图：`/tmp/ws-interface-fixes/after/`；证据汇总：`/tmp/ws-interface-fixes/evidence.md`。
 
-### 双轴 code-review
+### 双轴 code-review（Standards + Spec，各一个独立 sub-agent）
 
-Standards 与 Spec 两轴各跑一个独立 sub-agent（输入为完整 diff + 仓库书面标准 / 完整派发清单），findings 见本次交付说明；已修的项已并入代码，未改的逐条给出理由。
+**Standards 轴** findings 与处置（全部已落地，见 commit `a2b986b`）：
+
+| finding | 处置 |
+|---|---|
+| `summarizeChanges` 缺省中文，但该文本进模型上下文（`docs/i18n.md`：产品内容英文硬编码） | **已修**：恢复英文；界面侧新增 `message.heldNoticeAction` 承担本地化，`NoticeToast` 不再贴 `whatHappened` |
+| `StatusDot` 的中文 fallback 硬编码、无断言守同步 | **已修**：兜底改取 en 包文案（`translateMessage`），不硬编码任何语言 |
+| `presence.*` 与 `status.*` 同一四态两套措辞（「干活中」vs「正在干活」） | **已修**：措辞对齐 |
+| `docs/spec.md` / `DESIGN.md` 仍写 `--border-strong: 78%` | **已修**：同步为 63% |
+| 三处 `:hover` 两种机制（`hover: hover` 与反向 `hover: none`） | **已修**：统一 `hover: hover` |
+| `summarizeChanges` 手写 `{count}` 替换、重复插值职责 | **已修**：随中文化回退一并消失 |
+| `summarizeChangesTemplates.en` 无调用方 | **已修**：整块删除 |
+| `StatusDot` 的 `label` prop 无调用点 | **已修**：删除 |
+| `onRequestClose` 三层透传 + 缺省 fallback 仍直接关闭（给跳过确认留后门） | **已修**：三层都改必填 |
+| `task-board.test.mjs` 自制第三套规则体解析器 | **已修**：复用 `lastBlockBody` |
+| `MentionText.test.mjs` 用例名说「点击回调」但从未触发点击 | **已修**：拆成「形态」与「token→memberId 映射」两条 |
+| `.msg-text pre`「无渲染点」的注释理由不实 | **已修**：改为「被 react-syntax-highlighter 的行内样式覆盖，实际不生效」 |
+
+**Spec 轴** findings 见下节「与派发清单的偏离」——三条偏离均为清单显式允许或已在清单里预告的口径调整，无未落地的条目。
 
