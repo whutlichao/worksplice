@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Check } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
+import { useModalFocus } from "@/hooks/useModalFocus";
+import { DialogCloseButton } from "./DialogCloseButton";
 import type {
   SkillInfo as Skill,
   SkillInstallScope,
@@ -906,6 +908,13 @@ export function SkillsConfig({
 
   const selectedSkill = skills.find((s) => s.filePath === selected) ?? null;
 
+  /**
+   * 对话框语义与焦点管理（票 03，S1 / S2）：与 `BrutalModal` / `ModelsConfig` 共用
+   * `hooks/useModalFocus.ts` 这层接线；判定在 `lib/modal-focus.ts`。
+   * 首焦点取对话框内首个可聚焦控件（头部关闭键）——本浮层主控件是左侧列表，不是输入框。
+   */
+  const dialogRef = useModalFocus<HTMLDivElement>(onClose);
+
   return (
     <div
       style={{
@@ -922,6 +931,12 @@ export function SkillsConfig({
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="skills-config-title"
+        // 兜底焦点落点（`tabIndex={-1}` 不进 Tab 序）：列表加载中/空态时焦点仍留在对话框里。
+        tabIndex={-1}
         style={{
           width: isMobile ? "calc(100vw - 16px)" : 860,
           maxWidth: "calc(100vw - 16px)",
@@ -949,6 +964,7 @@ export function SkillsConfig({
         >
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
             <span
+              id="skills-config-title"
               style={{ fontSize: "var(--fs-title)", fontWeight: 700, color: "var(--fg)" }}
             >
                {t("common.skills")}
@@ -967,20 +983,7 @@ export function SkillsConfig({
               {shortenPath(cwd ?? "")}
             </code>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--muted)",
-              cursor: "pointer",
-              fontSize: "var(--fs-heading)",
-              lineHeight: 1,
-              padding: "2px 6px",
-            }}
-          >
-            ×
-          </button>
+          <DialogCloseButton onClose={onClose} />
         </div>
 
         {!projectResourcesLoaded && (

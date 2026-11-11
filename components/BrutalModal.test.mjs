@@ -163,25 +163,19 @@ test("R1: 对话框本身可承接兜底焦点（tabindex=-1，不进 Tab 序）
  * `lib/modal-focus.test.mjs` 的 13 条用例钉住，浏览器里的三件事（移入 / 回绕 / 归还）
  * 由 ego-browser 实测。组件层只剩「调用哪两个规则」这一个可测接缝。
  */
-test("R1: 焦点陷阱接线到 lib/modal-focus 的规则层（不自己重写一份判定）", () => {
-  assert.match(brutalModalSource, /import \{ collectTabbables, nextTabTarget \} from "@\/lib\/modal-focus"/);
-  assert.match(brutalModalSource, /e\.key !== "Tab"/);
+test("R1: 焦点陷阱接线到共享连接层（不自己重写一份判定）", () => {
+  // 票 03 把接线收进 `hooks/useModalFocus.ts`：BrutalModal 只消费那一层，
+  // 不再直接接 `lib/modal-focus`（否则三个浮层各抄一份）。
+  assert.match(brutalModalSource, /import \{ useModalFocus \} from "@\/hooks\/useModalFocus"/);
+  assert.match(brutalModalSource, /useModalFocus<HTMLDivElement>\(onClose\)/);
 });
 
-test("R1: 焦点不在模态里时按方向拉回边界（body 也算「不在」）", () => {
-  // `document.activeElement` 无焦点时就是 body；直接传给规则层会命中 indexOf === -1
-  // 的「让浏览器自己走」分支，背景就会被 Tab 到。
-  assert.match(
-    brutalModalSource,
-    /dialog\.contains\(activeElement\) \? activeElement : null/,
-  );
-  // 初始移焦只做一次：父级重渲染（`onClose` 多为内联箭头）不能让 effect 把焦点抢回关闭键。
-  assert.match(brutalModalSource, /initialFocusDoneRef/);
-});
-
-test("R1: 子浮层（createPortal 到 body 的 DirectoryPicker）在场时父模态让路", () => {
-  // portal 子树不在 `.modal` 的 DOM 里，但仍是 role=dialog aria-modal=true：
-  // 焦点在别的 dialog 里时，父模态既不再接管 Tab、也不重复响应 Escape。
-  assert.match(brutalModalSource, /focusInChildDialog/);
-  assert.match(brutalModalSource, /closest\(\s*'\[role="dialog"\]\[aria-modal="true"\]'\s*\)/);
+test("R1: 初始移焦 / 兜底焦点 / 子浮层让路的行为各自只有一份", async () => {
+  const hookSource = await readFile(new URL("../hooks/useModalFocus.ts", import.meta.url), "utf8");
+  // 行为级断言在 `hooks/useModalFocus.test.mjs` 与浏览器实测；这里只钉
+  // 「BrutalModal 不再自带一份 effect」，避免接线层与组件层双份逻辑。
+  assert.doesNotMatch(brutalModalSource, /initialFocusDoneRef/);
+  assert.doesNotMatch(brutalModalSource, /focusInChildDialog/);
+  assert.match(hookSource, /initialFocusDoneRef/);
+  assert.match(hookSource, /focusInChildDialog/);
 });
