@@ -778,3 +778,78 @@ test("B2：窄屏工具条允许换行；创建表单的 textarea 整行独占�
     assert.match(channelViewSource, /style=\{\{ flex: "1 1 100%", minWidth: 0 \}\}/);
     assert.doesNotMatch(channelViewSource, /minWidth: 220/);
 });
+
+// ─── 界面评审残留 R3：≤900px 看板堆叠成单列 ────────────────────────────────
+
+/**
+ * 设计系统 `worksplice-design-system/SKILL.md §3.5 Responsive`：`≤900px` 时
+ * "board stacks to a single full-width column"。本仓的 `.board-cols` / `.col`
+ * 一直没有媒体查询覆盖：500px 视口下 5 列里 3 列落在视口外。
+ *
+ * 红→绿：`node --test components/task-board.test.mjs`
+ * 红：900 段里没有 `.board-cols` / `.col` 的堆叠覆盖（`scrollWidth > clientWidth`）。
+ * 绿：900 段补纵向堆叠 + 列宽 100%（前两条逐字取上游 app.css 的 ≤900 段，本仓当初漏搬），
+ *     桌面（>900px）逐字不动；不引入视口魔数。
+ */
+
+/** ≤900px 段的 CSS 文本（只取「板堆叠」那段：骨架段的 ≤900 与任务板段分处两处）。 */
+function compactBoardBlock() {
+    const marker = globalsCss.indexOf("看板堆叠（界面评审残留 R3");
+    assert.notEqual(marker, -1, "globals.css 应有看板堆叠段");
+    // 从段注释的 `/*` 起切：注释里提到的旧档位（如 `46vh`）要被 stripComments 剥掉，
+    // 从中文标题起切会把开头那个 `/*` 漏在外面，注释就剥不干净。
+    const start = globalsCss.lastIndexOf("/*", marker);
+    const rest = globalsCss.slice(start);
+    const end = rest.indexOf("\n}\n");
+    return end === -1 ? rest : rest.slice(0, end);
+}
+
+test("R3：≤900px 看板堆叠成单列（上游两条逐字 + min-width 扩展）", () => {
+    const compact = compactBoardBlock();
+    assert.match(compact, /\.board-cols\s*\{[^}]*flex-direction:\s*column/, "900 段缺看板纵向堆叠");
+    assert.match(compact, /\.board-cols\s*\{[^}]*min-width:\s*0/, "堆叠后不应再有 min-content 横向最小宽");
+    assert.match(compact, /\.board-cols\s*\{[^}]*height:\s*auto/, "堆叠后列高随内容，不撑满横向时代的 100%");
+    assert.match(compact, /\.col\s*\{[^}]*width:\s*100%/, "堆叠后列宽应等于容器宽");
+    // 上游原文是 `flex-basis: auto`（不是 `flex: 0 0 auto`）：逐字搬运优先
+    assert.match(compact, /\.col\s*\{[^}]*flex-basis:\s*auto/, "堆叠后列不再按 236px 固定占位");
+    // 任务板段明令禁止视口魔数：堆叠态不得再引入 `46vh` 这类档位（去注释后判）
+    assert.doesNotMatch(
+        compact.replace(/\/\*[\s\S]*?\*\//g, ""),
+        /\d+(?:\.\d+)?(?:vh|dvh|vw)/,
+        "堆叠段不得引入视口魔数",
+    );
+    // 桌面形态零变化：>900 处仍是固定 236px 横向列。
+    const col = blockBody(globalsCss, ".col");
+    assert.match(col, /width:\s*var\(--board-col-w\)/);
+    assert.match(col, /flex:\s*0 0 var\(--board-col-w\)/);
+    const cols = blockBody(globalsCss, ".board-cols");
+    assert.match(cols, /display:\s*flex/);
+    assert.doesNotMatch(cols, /flex-direction:\s*column/);
+});
+
+test("R3：≤900 的两条与上游 app.css 的堆叠规则逐字一致（本仓当初漏搬）", () => {
+    const compact = compactBoardBlock();
+    const pick = (css, selector) => {
+        const escaped = escapeRe(selector);
+        const m = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+        assert.ok(m, `缺少 ${selector}`);
+        return m[1].replace(/\s+/g, " ").trim();
+    };
+    for (const selector of [".board-cols", ".col"]) {
+        const ours = pick(compact, selector);
+        const theirs = pick(upstreamCss.slice(upstreamCss.indexOf("@media (max-width: 900px)")), selector);
+        // 本仓在逐字条后追加了扩展声明（min-width），因此按「包含」而非「相等」判。
+        assert.ok(
+            theirs.split(";").filter(Boolean).every((decl) => ours.includes(decl.trim())),
+            `${selector} 未包含上游 ≤900 的全部声明：ours=${ours} upstream=${theirs}`,
+        );
+    }
+});
+
+test("R3：堆叠态下纵向滚动归 .board（列体限高后仍要能滚到第 5 列）", () => {
+    const compact = compactBoardBlock();
+    // 桌面 `.board.is-board` 是 `overflow-x: auto; overflow-y: hidden`——堆叠后横向不再需要，
+    // 纵向必须放开，否则 5 列里后面的列永远滚不到。
+    assert.match(compact, /\.board\.is-board\s*\{[^}]*overflow-y:\s*auto/, "堆叠态下纵向滚动必须放开");
+    assert.match(compact, /\.board\.is-board\s*\{[^}]*overflow-x:\s*hidden/, "堆叠态下不应再有横向滚动");
+});

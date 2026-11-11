@@ -475,6 +475,7 @@ export const zhCNLocale: LocalePlugin = {
     "message.react": "回应",
     "message.addReaction": "添加回应",
     "message.moreActions": "更多消息操作",
+    "message.rowLabel": "{author} 在 #{seq} 的发言",
     "message.pin": "置顶到频道",
     "message.unpin": "取消置顶",
     "pinned.toggle": "展开/收起置顶消息",

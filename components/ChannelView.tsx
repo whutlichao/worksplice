@@ -2153,9 +2153,33 @@ export const MessageRow = memo(function MessageRow({
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [reactOpen, setReactOpen] = useState(false);
   const [actionsDismissed, setActionsDismissed] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+  /** 动作完成触发的收起标记：下一次「焦点重新进入本行」时复位（见 onFocus）。 */
+  const dismissedByActionRef = useRef(false);
+  /** 本次 focus 由 `dismissActions` 自己发起：不复位刚设上的收起标记。 */
+  const selfFocusRef = useRef(false);
   const dismissActions = () => {
     setReactOpen(false);
     setActionsDismissed(true);
+    dismissedByActionRef.current = true;
+    // 键盘用户从动作栏按下动作后，动作栏立刻 `display: none`，被按的按钮随之下线、
+    // 焦点跌到 BODY——键盘用户就此丢掉位置。行根是这轮新增的停靠点，把焦点留在行上：
+    // 按 Tab 继续走到下一条消息。
+    // 只在被按的按钮是**键盘聚焦**时接手：鼠标点完让焦点照旧落到 BODY（改动前就是这样），
+    // 不因为本票新增的行停靠点去搬动鼠标路径的焦点。
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active &&
+      rowRef.current?.contains(active) &&
+      active.matches(":focus-visible")
+    ) {
+      selfFocusRef.current = true;
+      rowRef.current.focus();
+      // 收起标记的复位要等这一次 focus 事件派发完（React 的合成事件在 focus() 内同步发出）。
+      window.setTimeout(() => {
+        selfFocusRef.current = false;
+      }, 0);
+    }
   };
   const actionsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -2203,8 +2227,29 @@ export const MessageRow = memo(function MessageRow({
     const isAgent = message.author?.type === "agent";
     return (
       <div
+        ref={rowRef}
         className={`${isAnchor ? "msg ws-message-row ws-message-row-anchor" : "msg ws-message-row"}${actionsDismissed ? " ws-message-actions-dismissed" : ""}`}
+        // 键盘入口（界面评审残留 R2）：`.ws-message-actions` 用 `display` 揭示，隐藏时
+        // 后代不在 Tab 序里——行内没有可聚焦元素，补一条 `:focus-within` 也永远触发不了。
+        // 让行自己是停靠点：Tab 到行首时 CSS 揭示整条动作栏，继续 Tab 就进到按钮。
+        // 未聚焦时的形态零变化（不加 padding/border，焦点环由 reset 的 `:focus-visible` 承担）。
+        tabIndex={0}
+        role="article"
+        aria-label={t("message.rowLabel", {
+          author: message.author?.name ?? t("message.unknownAuthor"),
+          seq: String(message.seq),
+        })}
         onMouseEnter={() => setActionsDismissed(false)}
+        onFocus={() => {
+          // 动作完成收起后，键盘用户继续 Tab 会离开本行、再 Shift+Tab 回来——行根的
+          // `:focus-visible` 仍成立，但 dismissed 标记会把动作栏挡住。焦点重新进入本行时
+          // 复位它（与 onMouseEnter 的指针复位同一语义，不新增状态机）。
+          // `selfFocusRef` 排除 dismissActions 自己发起的那一次（否则刚收起就又被揭开）。
+          if (dismissedByActionRef.current && !selfFocusRef.current) {
+            dismissedByActionRef.current = false;
+            setActionsDismissed(false);
+          }
+        }}
         style={
           highlighted
             ? {

@@ -178,8 +178,18 @@ test('MessageRow preserves readable long-form Markdown and visible message metad
 
     assert.match(html, /<span class="msg-author(?: is-agent)?">Owner<\/span>/);
     assert.ok(sequence);
-    assert.ok(html.indexOf('Owner') < html.indexOf('#43'));
-    assert.match(html, /#43<\/span><span class="msg-time mono">[^<]+<\/span>/);
+    // R2 起行根带 aria-label（"... #43 ..."），所以按属性定位会命中标签属性而不是正文：
+    // 先切出可见的 msg-head 段，再断言「作者在序号之前」。
+    const header = html.slice(
+        html.indexOf('<div class="msg-head"'),
+        html.indexOf('<div class="msg-text"'),
+    );
+    assert.ok(header.indexOf('Owner') < header.indexOf('#43'));
+    // 收紧到与原断言等强：作者名后紧跟 `#seq`，再紧跟时间戳。
+    assert.match(
+        header,
+        /Owner<\/span><span class="msg-time mono">#43<\/span><span class="msg-time mono">[^<]+<\/span>/,
+    );
     assert.match(
         html,
         /<p>Latin readers can follow this longer paragraph with <code class="markdown-inline-code"[^>]*>inline-code<\/code> in context\.<\/p>/,

@@ -146,15 +146,18 @@ test("DetailPanel thread 变体渲染锚点与消息（测试注入 initialAncho
     const replySequence = html.match(
         /<span class="msg-time mono"[^>]*>#4<\/span>/,
     )?.[0];
+    // R2 起行根带 aria-label（"... #4 ..."），`html.indexOf("#4")` 会命中标签属性：
+    // 从可见的 msg-head 段起切，断言仍在「作者 → #seq → 时间」这个可见顺序上。
     const replyHeader = html.slice(
-        html.indexOf("#4"),
+        html.indexOf('<div class="msg-head"', html.indexOf("#4")),
         html.indexOf("thread reply"),
     );
     assert.match(html, /<span class="msg-author is-agent">bob<\/span>/);
     assert.ok(replySequence);
+    // 收紧到与原断言等强：作者名后面紧跟 `#seq`，再紧跟时间戳（都在可见的 msg-head 里）。
     assert.match(
         replyHeader,
-        /^#4<\/span><span class="msg-time mono">[^<]+<\/span>/,
+        /bob<\/span><span class="msg-time mono">#4<\/span><span class="msg-time mono">[^<]+<\/span>/,
     );
     assert.match(
         html,

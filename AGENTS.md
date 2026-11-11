@@ -236,6 +236,9 @@ lib/
   agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
   journey-state.ts    票 16 旅程状态推导（纯函数）：消息数 + 任务快照 → 1..4 步（描述/交接/让它跑/复核）
                       + 引导卡种类 + Tasks badge 未完成计数；无后端接口、SSR 可测
+  modal-focus.ts      模态焦点陷阱的判定层（纯函数 + DOM 读取分层）：isTabbable / focusableWithin /
+                        nextTabTarget（边界回绕、子浮层让路）+ collectTabbables；BrutalModal 是唯一消费方
+                        （行为面由浏览器实测 + lib/modal-focus.test.mjs 守）
   agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import lib/rpc/SDK）+ deriveLiveAgentStatus
                       + startSession 应用 per-agent 模型覆盖（§3.10）
   agent-lifecycle.ts  Restart / Session reset / Full reset（仅家目录）/ 换 workspace / 删除身份（只 rm 家目录，fs + 运行时 + DB 编排）
