@@ -260,14 +260,16 @@ function planForOp(name: string, fields: Record<string, unknown>): MemberOpPlan 
       return { kind: "planned", action: { op: "search", query, limit } };
     }
     case "reply":
-    case "task":
+    case "task": {
       // 这两个是协议自己的字段（action / task），不是 `ops` 条目。理由要说准，
       // 不能对刚判为开口的名字回一句「default deny」（报边界要准确，ADR-0011 D7）。
-      return {
-        kind: "rejected",
-        name,
-        reason: `"${name}" is not an "ops" entry — it is the round's own action/task field`,
-      };
+      // `task` 的措辞要额外点明边界：模型常把 `{"task":{...}}` 塞进 `ops`（现场形态）。
+      const reason =
+        opName === "task"
+          ? '"task" is not an "ops" entry — it is the round\'s own top-level field; put it at the top level of your JSON, outside "ops", and use one task operation per round'
+          : `"${name}" is not an "ops" entry — it is the round's own action/task field`;
+      return { kind: "rejected", name, reason };
+    }
     default: {
       // 编译期兜底：开口表新增成员而未补 case 时，这里的 opName 不再是 never（编译失败）。
       const exhaustive: never = opName;
