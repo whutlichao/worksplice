@@ -1,0 +1,64 @@
+{
+  "ticket": "ui-feedback-journey-pills / 01-remove-journey-bar-running-card",
+  "environment": {
+    "browser": "ego-browser (Chromium, ego lite 0.6.2.8)",
+    "newBuild": "WORKSPLICE_DATA_DIR=/tmp/ws-ui-feedback-data next dev -H 127.0.0.1 -p 30199 (branch ui-feedback-journey-pills)",
+    "baselineBuild": "WORKSPLICE_DATA_DIR=/tmp/ws-baseline-data next dev -H 127.0.0.1 -p 30198 (detached worktree @ 40af86e)",
+    "seed": "node scripts/seed-demo.mjs（5 agent / 4 频道 / 54 消息 / 14 任务）"
+  },
+  "journeyBar": {
+    "baseline": {
+      "navOlCount": 1,
+      "navOlText": "描述→交接→让它跑→4复核"
+    },
+    "after": {
+      "navOlCount": 0,
+      "hasGuidedJourneyText": false,
+      "hasShouShangLvChengText": false,
+      "note": "消息页 #all：nav > ol 计数 0，'Guided journey' / '上手旅程' 均无命中"
+    }
+  },
+  "guideCard": {
+    "allChannelHasInReview": {
+      "baselineCards": ["去复核"],
+      "afterCards": ["去复核"],
+      "note": "#all 有 1 个 in_review 任务，复核卡在改动前后都存在（保留行为）"
+    },
+    "infraCostOnlyInProgress": {
+      "baselineCardCount": 1,
+      "baselineCardLabel": "让它跑",
+      "afterCardCount": 0,
+      "afterBodyHasReviewCard": false,
+      "afterBodyHasWaitingCard": false,
+      "note": "infra-cost 只有 1 个 in_progress 任务；改动前消息流末尾有『让它跑』卡，改动后 section.journey-guide-card 计数 0"
+    }
+  },
+  "mutePanel": {
+    "selector": "button.member-opt（静音面板内 @成员 胶囊）",
+    "baselineWidthsPx": [112.7, 109.3, 112.7, 101.0, 124.9, 118.6],
+    "baselineContainerStyle": "display: flex; flex-direction: column; gap: 6px; align-items: flex-start;",
+    "afterWidthsPx": [124.88, 124.88, 124.88, 124.88, 124.88, 124.88],
+    "afterContainerStyle": "display: grid; grid-template-columns: fit-content(100%); gap: 6px; justify-items: stretch;"
+  },
+  "membersPanel": {
+    "channel": "#stream-sync（非内置频道，有移除键）",
+    "baseline": [
+      { "member": "Iris", "widthPx": 48.0, "removeLeftPx": 326.0 },
+      { "member": "Quill", "widthPx": 56.3, "removeLeftPx": 334.3 },
+      { "member": "Nova", "widthPx": 59.7, "removeLeftPx": 337.7 },
+      { "member": "Marlow", "widthPx": 71.9, "removeLeftPx": 349.9 },
+      { "member": "Rune", "widthPx": 59.7, "removeLeftPx": 337.7 },
+      { "member": "Susan", "widthPx": 65.6, "removeLeftPx": 343.6 }
+    ],
+    "after": [
+      { "member": "Iris", "widthPx": 71.87, "removeLeftPx": 349.87 },
+      { "member": "Quill", "widthPx": 71.87, "removeLeftPx": 349.87 },
+      { "member": "Nova", "widthPx": 71.87, "removeLeftPx": 349.87 },
+      { "member": "Marlow", "widthPx": 71.87, "removeLeftPx": 349.87 },
+      { "member": "Rune", "widthPx": 71.87, "removeLeftPx": 349.87 },
+      { "member": "Susan", "widthPx": 71.87, "removeLeftPx": 349.87 },
+      { "member": "Owner（人类，无移除键）", "widthPx": 71.87, "removeLeftPx": null }
+    ],
+    "afterRowsAlignment": "6 个移除键 left 全为 349.87px；人类行没有移除键，胶囊仍与其它行等宽"
+  }
+}

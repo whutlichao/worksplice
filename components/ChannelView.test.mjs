@@ -17,7 +17,6 @@ const {
     ChannelView,
     getPinnedNavigationStep,
     hasPinnedNavigationError,
-    JourneyBar,
     JourneyGuideCard,
     nextJourneyGuideView,
     completeJourneyGuideExit,
@@ -1307,32 +1306,18 @@ test("切换频道后，已知频道中新到达的任务事件仍会播报", ()
     );
 });
 
-// —— 票 16：B·Guided Journey（旅程条 / 四态引导卡 / Tasks badge / ··· 二级菜单） ——
+// —— 票 16：B·Guided Journey（引导卡 / Tasks badge / ··· 二级菜单） ——
 
-test("旅程条按四种频道状态标注当前步骤与已完成步骤", () => {
-    const render = (step) =>
-        renderI18n(React.createElement(JourneyBar, { step }));
-
-    const step1 = render(1);
-    assert.match(step1, /aria-label="Guided journey"/);
-    assert.match(step1, /aria-label="Describe — Current step"/);
-    assert.match(step1, /aria-current="step"/);
-    assert.doesNotMatch(step1, /Describe — Done/);
-
-    const step2 = render(2);
-    assert.match(step2, /aria-label="Describe — Done"/);
-    assert.match(step2, /aria-label="Hand off — Current step"/);
-
-    const step3 = render(3);
-    assert.match(step3, /aria-label="Describe — Done"/);
-    assert.match(step3, /aria-label="Hand off — Done"/);
-    assert.match(step3, /aria-label="Let it run — Current step"/);
-
-    const step4 = render(4);
-    assert.match(step4, /aria-label="Describe — Done"/);
-    assert.match(step4, /aria-label="Hand off — Done"/);
-    assert.match(step4, /aria-label="Let it run — Done"/);
-    assert.match(step4, /aria-label="Review — Current step"/);
+test("旅程条已从消息页移除：没有 JourneyBar 导出，也没有它的渲染点", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    // 旅程条在 `!messagesLoading` 门控后才渲染，SSR 永远停在加载态，渲染断言读不到它；
+    // 这里只能扫源码（与仓库既有的「路由源码级断言」同一形态）。
+    assert.doesNotMatch(source, /JourneyBar/);
+    assert.doesNotMatch(source, /JOURNEY_STEPS/);
+    assert.doesNotMatch(source, /journey\.label/);
 });
 
 test("无消息引导卡：描述 CTA 聚焦输入，秘书入口可打开现有创建流程", () => {
@@ -1395,17 +1380,7 @@ test("只有待办任务时引导卡改为提示交接或认领，并切到任�
     assert.doesNotMatch(html, /Convert the latest message/);
 });
 
-test("进行中与待审核引导卡分别提示看状态点和去复核", () => {
-    const running = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "running",
-            onOpenTasks: () => undefined,
-        }),
-    );
-    assert.match(running, /Let it run/);
-    assert.match(running, /Watch the agent status dots/);
-    assert.match(running, /Open the task board/);
-
+test("待审核引导卡提示去复核；running 不再是合法形态", async () => {
     const review = renderI18n(
         React.createElement(JourneyGuideCard, {
             kind: "review",
@@ -1415,6 +1390,22 @@ test("进行中与待审核引导卡分别提示看状态点和去复核", () =>
     assert.match(review, /Go review/);
     assert.match(review, /waiting for your review/);
     assert.match(review, /Open the task board/);
+
+    // 联合类型只留 describe / handoff / review，源码里不再有 running 分支。
+    const stateSource = await readFile(
+        new URL("../lib/journey-state.ts", import.meta.url),
+        "utf-8",
+    );
+    const union = stateSource.match(
+        /export type JourneyGuideKind =([^;]+);/,
+    )?.[1];
+    assert.ok(union, "JourneyGuideKind 联合类型应保留");
+    assert.doesNotMatch(union, /"running"/);
+    const viewSource = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.doesNotMatch(viewSource, /journey\.running/);
 });
 
 test("Central Tabs 保留 Messages/Tasks 切换，并为未完成任务显示数量 badge", () => {
@@ -1474,7 +1465,7 @@ test("Central Tabs 没有未完成任务时不显示 badge，未读讨论入口�
 
 // —— 引导卡内容过渡：粒子燃尽 → 重聚（最终设计） ——
 
-const GUIDE_KINDS = ["describe", "handoff", "running", "review"];
+const GUIDE_KINDS = ["describe", "handoff", "review"];
 
 test("引导卡 SSR 只渲染空粒子层，粒子坐标只在客户端生成", () => {
     for (const kind of GUIDE_KINDS) {
@@ -1502,7 +1493,7 @@ test("引导卡 SSR 只渲染空粒子层，粒子坐标只在客户端生成", 
 
 test("卡壳静止：阶段只进 data 属性，不挂整卡动画类", () => {
     const entering = renderI18n(
-        React.createElement(JourneyGuideCard, { kind: "running" }),
+        React.createElement(JourneyGuideCard, { kind: "handoff" }),
     );
     const enteringTag = entering.match(/<section[^>]*>/)?.[0] ?? "";
     assert.match(enteringTag, /class="journey-guide-card"/);
@@ -1660,9 +1651,9 @@ test("引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入", () =>
     assert.equal(completeJourneyGuideExit(switched), switched);
 
     // 退场中重新拿到形态：旧卡面还在屏幕上，按切换处理。
-    const reentered = nextJourneyGuideView(exiting, "running");
+    const reentered = nextJourneyGuideView(exiting, "review");
     assert.deepEqual(reentered, {
-        kind: "running",
+        kind: "review",
         phase: "switch",
         generation: 4,
     });
@@ -1707,13 +1698,13 @@ test("引导卡过渡状态机：切频道后等新频道数据快照，首张�
     });
 
     // 同频道后续形态变化才走 switch；同形态返回同一引用。
-    state = advanceJourneyGuideState(state, "running");
+    state = advanceJourneyGuideState(state, "review");
     assert.deepEqual(state.view, {
-        kind: "running",
+        kind: "review",
         phase: "switch",
         generation: 2,
     });
-    assert.equal(advanceJourneyGuideState(state, "running"), state);
+    assert.equal(advanceJourneyGuideState(state, "review"), state);
 
     // 退场与计时器清理沿用原状态机。
     state = advanceJourneyGuideState(state, null);
@@ -1854,7 +1845,7 @@ test("消息行默认只露高频动作，二级动作收进 ··· 触发器", 
     assert.doesNotMatch(html, /Convert to task/);
 });
 
-test("ChannelView 接线：旅程条/引导卡/任务角标/秘书入口都进中央视图", async () => {
+test("ChannelView 接线：引导卡/任务角标/秘书入口都进中央视图", async () => {
     const source = await readFile(
         new URL("../components/ChannelView.tsx", import.meta.url),
         "utf-8",
@@ -1863,7 +1854,6 @@ test("ChannelView 接线：旅程条/引导卡/任务角标/秘书入口都进�
         source,
         /deriveJourneyState\(\{ messageCount: messages\.length, tasks \}\)/,
     );
-    assert.match(source, /<JourneyBar step=\{journey\.step\}/);
     assert.match(source, /<CenterTabs/);
     assert.match(source, /openTaskCount=\{journey\.openTaskCount\}/);
     assert.match(source, /onTabChange=\{selectTab\}/);
@@ -1888,6 +1878,71 @@ test("AppShell 复用 CreateAgentModal 打开秘书入口，不新增路由", as
     );
     assert.match(source, /<CreateAgentModal/);
 });
+
+// —— 成员胶囊等宽：容器排版契约（弱证据；真正等宽由浏览器实测背书） ——
+
+/**
+ * 取 `anchor` 之前最近的一段 JSX 对象字面量（`style={{ ... }}`），用于断言
+ * 调用点容器的排版字段。只做文本级契约守卫，不解析 AST。
+ */
+const sliceContainerStyle = (source, anchor) => {
+    const anchorIndex = source.indexOf(anchor);
+    assert.ok(anchorIndex >= 0, `找不到锚点：${anchor}`);
+    const start = source.lastIndexOf("style={{", anchorIndex);
+    assert.ok(start >= 0, `锚点前缺少样式对象：${anchor}`);
+    const end = source.indexOf("}}", start);
+    assert.ok(end > start && end < anchorIndex, `样式对象不闭合：${anchor}`);
+    return source.slice(start, end);
+};
+
+test("静音面板列表容器按网格排版，成员胶囊取最宽内容等宽", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    // 静音面板的容器（button.member-opt 的父级）：grid + fit-content(100%)。
+    // 用 fit-content(100%) 而非裸 max-content：装不下时退化为容器宽并允许折行，
+    // 不会被面板的 overflow:hidden 裁掉。
+    const mutePanel = sliceContainerStyle(source, "{mutes.map((m) => (");
+    assert.match(mutePanel, /display:\s*"grid"/);
+    assert.match(mutePanel, /gridTemplateColumns:\s*"fit-content\(100%\)"/);
+    assert.match(mutePanel, /justifyItems:\s*"stretch"/);
+    // 不再残留旧的纵向 flex 排布。
+    assert.doesNotMatch(mutePanel, /flexDirection:\s*"column"/);
+});
+
+test("成员面板每行用两列 subgrid，胶囊与移除键各占一列", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    // 列表：两列（胶囊列 + 移除键列），窄屏装不下时第一列退化为容器宽。
+    const memberList = sliceContainerStyle(
+        source,
+        "{channelMembers.map((member) => (",
+    );
+    assert.match(memberList, /display:\s*"grid"/);
+    assert.match(
+        memberList,
+        /gridTemplateColumns:\s*"fit-content\(100%\) max-content"/,
+    );
+    assert.match(memberList, /columnGap:\s*6/);
+    assert.match(memberList, /rowGap:\s*6/);
+
+    // 每行：subgrid 继承父网格的列，两个子元素显式落列（不依赖自动排布）。
+    const subgridIndex = source.indexOf('gridTemplateColumns: "subgrid"');
+    assert.ok(subgridIndex >= 0, "成员行应使用 subgrid");
+    const memberRow = source.slice(
+        source.lastIndexOf("style={{", subgridIndex),
+        source.indexOf("}}", subgridIndex),
+    );
+    assert.match(memberRow, /gridColumn:\s*"1 \/ -1"/);
+    assert.match(memberRow, /columnGap:\s*6/);
+    assert.match(memberRow, /alignItems:\s*"center"/);
+    assert.match(source, /gridColumn:\s*"1",\s*gridRow:\s*"1"/);
+    assert.match(source, /gridColumn:\s*"2",\s*gridRow:\s*"1"/);
+});
+
 
 
 // ─── 界面评审：无障碍（A1 / A3 / A5） ────────────────────────────────────────

@@ -75,7 +75,6 @@ import { indexCurrentMembersById } from "@/lib/member-index";
 import {
   deriveJourneyState,
   type JourneyGuideKind,
-  type JourneyStep,
 } from "@/lib/journey-state";
 import { useChannelData } from "@/hooks/useChannelData";
 
@@ -465,115 +464,8 @@ function EmptyState({  glyph,
   );
 }
 
-/** 旅程条四步的顺序与文案 key（票 16）：描述 → 交接 → 让它跑 → 复核。 */
-const JOURNEY_STEPS = [
-  { step: 1, labelKey: "journey.describe" },
-  { step: 2, labelKey: "journey.handoff" },
-  { step: 3, labelKey: "journey.run" },
-  { step: 4, labelKey: "journey.review" },
-] as const;
-
 /**
- * 旅程条（票 16）：消息区顶部常显，按状态把已有步骤标 done、当前步骤标 active。
- * 状态推导在 lib/journey-state.ts（纯函数，SSR 可测）；这里只负责呈现。
- */
-export function JourneyBar({ step }: { step: JourneyStep }) {
-  const { t } = useI18n();
-  return (
-    <nav aria-label={t("journey.label")} style={{ flexShrink: 0 }}>
-      <ol
-        style={{
-          display: "flex",
-          alignItems: "center",
-          // 窄屏不折行（界面评审 B5）：320px 下 `wrap` 会把「步骤 4」与它前面的 `→`
-          // 拆到两行，读起来像断链。改为横向滚动，`→` 与步骤同属 `<li>` 因此永不分离。
-          flexWrap: "nowrap",
-          gap: 4,
-          margin: 0,
-          padding: "var(--sp-3) var(--sp-9)",
-          listStyle: "none",
-          overflowX: "auto",
-          scrollbarWidth: "thin",
-          borderBottom: `1px solid var(--border)`,
-        }}
-      >
-        {JOURNEY_STEPS.map((item, index) => {
-          const done = item.step < step;
-          const active = item.step === step;
-          const label = t(item.labelKey);
-          const status = done
-            ? t("journey.done")
-            : active
-              ? t("journey.active")
-              : null;
-          return (
-            <li
-              key={item.step}
-              aria-label={
-                status
-                  ? t("journey.stepStatus", { step: label, status })
-                  : label
-              }
-              aria-current={active ? "step" : undefined}
-              style={{ display: "flex", alignItems: "center", gap: 4 }}
-            >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "2px 8px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: active ? "var(--fg)" : "var(--muted)",
-                  background: active ? "var(--accent-soft)" : "transparent",
-                  // 当前步骤的边框走图形档（界面评审 C4）：`--accent`（fill 档）压在自家
-                  // `--accent-soft` 淡底上只有 1.4:1，看不出边界；`--accent-graphic` 对
-                  // `--surface` 3.65:1、对淡底 3.3:1（≥3:1 图形档下限）。淡底与数字徽标不动。
-                  border: `1px solid ${active ? "var(--accent-graphic)" : "transparent"}`,
-                  borderRadius: "var(--r-pill)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 18,
-                    height: 18,
-                    display: "grid",
-                    placeItems: "center",
-                    fontFamily: "var(--mono)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: active ? "var(--on-accent)" : "var(--muted)",
-                    background: active
-                      ? "var(--accent)"
-                      : done
-                        ? "var(--fg-soft)"
-                        : "var(--panel-2)",
-                    border: `1px solid var(--border)`,
-                    borderRadius: "var(--r-pill)",
-                  }}
-                >
-                  {done ? <Check size={10} /> : item.step}
-                </span>
-                <span>{label}</span>
-              </span>
-              {index < JOURNEY_STEPS.length - 1 && (
-                <span aria-hidden="true" style={{ color: "var(--muted)", fontSize: 11 }}>
-                  →
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}
-
-/**
- * 引导卡形态过渡（本票）：四种形态切换时播放一次「粒子消散 → 重聚」。
+ * 引导卡形态过渡（本票）：三种形态切换时播放一次「粒子消散 → 重聚」。
  *
  * 状态机只由「上一视图 + 新 guideKind」推导，不读时钟、不随机，SSR 与客户端同输入
  * 同输出。`guideKind` 变为 null 时用局部状态保留最后一张卡面的 kind，等退场播完再
@@ -820,17 +712,7 @@ function resolveJourneyGuideContent(
         onClick: (trigger) => handlers.onConvertLatest?.(trigger),
       });
     }
-  } else if (kind === "running") {
-    title = t("journey.running.title");
-    hint = t("journey.running.hint");
-    if (handlers.onOpenTasks) {
-      actions.push({
-        label: t("journey.running.cta"),
-        className: "btn btn-primary btn-sm",
-        onClick: () => handlers.onOpenTasks?.(),
-      });
-    }
-  } else {
+  } else if (kind === "review") {
     title = t("journey.review.title");
     hint = t("journey.review.hint");
     if (handlers.onOpenTasks) {
@@ -840,6 +722,10 @@ function resolveJourneyGuideContent(
         onClick: () => handlers.onOpenTasks?.(),
       });
     }
+  } else {
+    // 穷尽检查：以后新增 kind 时这里编译失败，而不是静默渲染「去复核」文案。
+    const exhaustive: never = kind;
+    throw new Error(`unhandled journey guide kind: ${String(exhaustive)}`);
   }
   return { title, hint, actions };
 }
@@ -3817,7 +3703,7 @@ export function ChannelView({
     createTaskFromBoard: createTaskFromBoardInHook,
   } = useChannelData(channel?.id, t, membersVersion);
 
-  // 票 16：旅程条与引导卡只从已加载的消息数 + 任务快照推导（无新增后端接口）。
+  // 票 16：引导卡只从已加载的消息数 + 任务快照推导（无新增后端接口）。
   const journey = useMemo(
     () => deriveJourneyState({ messageCount: messages.length, tasks }),
     [messages.length, tasks],
@@ -4750,10 +4636,14 @@ export function ChannelView({
             ) : (
               <div
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
+                  // 用户反馈「成员条等宽」：同一面板内的胶囊取同一宽度（最宽内容宽）。
+                  // `fit-content(100%)` 而非裸 `max-content`：装得下时两者等价，装不下
+                  // （超长成员名）时退化为容器宽并允许文本折行，不会被面板的
+                  // `overflow:hidden` 直接裁掉。
+                  display: "grid",
+                  gridTemplateColumns: "fit-content(100%)",
                   gap: 6,
-                  alignItems: "flex-start",
+                  justifyItems: "stretch",
                 }}
               >
                 {mutes.map((m) => (
@@ -4837,22 +4727,36 @@ export function ChannelView({
             ) : (
               <div
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  alignItems: "flex-start",
+                  // 用户反馈「成员条等宽」：两列网格（胶囊列 + 移除键列）。第一列
+                  // `fit-content(100%)` 让所有行共用同一胶囊宽度（最宽内容宽），
+                  // 超长名字时退化为容器宽并折行；第二列按移除键宽度固定。
+                  // 每行用 `subgrid` 继承这两列，移除键因此对齐到同一竖线。
+                  display: "grid",
+                  gridTemplateColumns: "fit-content(100%) max-content",
+                  columnGap: 6,
+                  rowGap: 6,
                 }}
               >
                 {channelMembers.map((member) => (
                   <div
                     key={member.id}
-                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "subgrid",
+                      gridColumn: "1 / -1",
+                      columnGap: 6,
+                      alignItems: "center",
+                    }}
                   >
                     <button
                       type="button"
                       title={member.description || member.name}
                       className="member-opt"
-                      style={{ cursor: "pointer" }}
+                      style={{
+                        cursor: "pointer",
+                        gridColumn: "1",
+                        gridRow: "1",
+                      }}
                       onClick={() =>
                         onOpenPanel?.({
                           kind: member.type === "human" ? "human" : "agent",
@@ -4874,7 +4778,9 @@ export function ChannelView({
                           style={{
                             width: 22,
                             height: 22,
-                            flex: "0 0 22px",
+                            // 显式落到第二列第一行：不依赖自动排布，移除键因此跨行对齐。
+                            gridColumn: "2",
+                            gridRow: "1",
                             opacity: memberBusy ? 0.55 : 1,
                           }}
                           onClick={() => void removeChannelMember(member)}
@@ -5120,11 +5026,6 @@ export function ChannelView({
         unreadTaskCount={channel?.unreadTaskCount ?? 0}
         onShowUnreadTasks={showUnreadTasks}
       />
-
-      {/* 票 16：旅程条在消息区顶部常显（描述 → 交接 → 让它跑 → 复核）。 */}
-      {channel && tab === "messages" && !messagesLoading && !loadError && (
-        <JourneyBar step={journey.step} />
-      )}
 
       {/* 主体：消息 tab 走上游 `.stream` / `.stream-inner`（padding + `--stream-max` 居中）；
           Tasks tab 仍是满宽看板（`.board-wrap` 自带 padding，不吃 stream 的 max-width）。

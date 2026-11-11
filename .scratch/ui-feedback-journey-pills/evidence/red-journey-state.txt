@@ -1,0 +1,66 @@
+(node:32916) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/lib/journey-state.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 无消息时给出「描述」引导卡 (0.507125ms)
+✔ 有消息但还没有任务时给出「交接」引导卡 (0.08125ms)
+✔ 只有待办任务时给出「交接」引导卡，等待交接或认领 (0.17075ms)
+✖ 只有进行中任务时不再出卡（in_progress 不产出任何引导） (0.514208ms)
+✖ 进行中与待办并存时回落「交接」引导卡 (0.180209ms)
+✔ 待审核优先于进行中，给出「复核」引导卡 (0.067ms)
+✔ 全部完成或关闭时不再显示引导卡 (0.058125ms)
+✔ 任务角标只统计未完成与待复核，不含 done/closed (0.067ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 6
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 111.141625
+
+✖ failing tests:
+
+test at lib/journey-state.test.mjs:40:1
+✖ 只有进行中任务时不再出卡（in_progress 不产出任何引导） (0.514208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'running' !== null
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/lib/journey-state.test.mjs:45:12)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'running',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at lib/journey-state.test.mjs:49:1
+✖ 进行中与待办并存时回落「交接」引导卡 (0.180209ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'running'
+  - 'handoff'
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/lib/journey-state.test.mjs:54:12)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'running',
+    expected: 'handoff',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
