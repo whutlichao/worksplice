@@ -65,7 +65,7 @@ composer 行为；不改 `openTaskCount` 口径与 Tasks badge。
 | 项 | 落地 |
 | --- | --- |
 | A1 | `ChannelView.tsx` 删 `JOURNEY_STEPS`（12 行）与 `JourneyBar`（约 100 行）及其渲染门控；`Check` 图标仍被复制链接按钮使用，import 保留 |
-| A2 | `journey-state.ts` 删 `JourneyStep` / `JourneyState.step` / 全部 step 计算（45 → 60 行，纯 guideKind 推导） |
+| A2 | `journey-state.ts` 删 `JourneyStep` / `JourneyState.step` / 全部 step 计算（73 → 55 行，纯 guideKind 推导） |
 | A3 | 两包各删 8 键；`journey.describe.*` / `journey.handoff.*` / `journey.review.*` 原样保留 |
 | B4–B6 | 联合类型收窄为三态；`in_progress` 单独不再出卡；`resolveJourneyGuideContent` 的 else 分支改为显式 `review` + `never` 兜底 |
 | B7 | 两包各删 3 个 `journey.running.*` 键；`journey.handoff.ctaTasks` / `journey.review.cta` 保留 |
@@ -139,16 +139,35 @@ composer 行为；不改 `openTaskCount` 口径与 Tasks badge。
 
 ### 双轴 code-review
 
-见下方「Review」段。
+**Standards 轴**（`docs/engineering-standards.md` + Fowler smell baseline）发现 4 处，处置如下：
+
+| finding | 处置 |
+| --- | --- |
+| 「旅程条已移除」测试用 `readFile` 扫源码，属实现细节 | 保留但收紧：删掉重复的 `<JourneyBar` / `openTaskCount` 断言（与「ChannelView 接线」测试重复），并在用例里写明理由——旅程条在 `!messagesLoading` 门控后才渲染，SSR 永远停在加载态，渲染断言读不到它，只能扫源码（与仓库既有的路由源码级断言同形态） |
+| 新增排版断言直接匹配 `style={{…}}` 文本 | 保留：排版本身没有别的可观察面（SSR 输出的是内联样式字符串），票据已声明这是弱证据、真正等宽由浏览器读数背书 |
+| 统一类型 / 命名：`deriveJourneyState` 已无 step，仍叫 journey | 不改：改名会牵动 `journey-state.ts` 文件名与多处导入，超出本票授权范围（票面只要求删 step） |
+| 两段 grid 容器近乎同形（Duplicated Code） | 不改：两者列数不同（一列 vs 两列 + subgrid 行），共用一个样式对象反而要把差异参数化，得不偿失 |
+| 同一 diff 在 `ChannelView.tsx` 做两件无关事（Divergent Change） | 不改：票面 A–D 明确把四项并成一票，是用户反馈的同一批改动 |
+
+**Spec 轴**发现 4 处，处置如下：
+
+| finding | 处置 |
+| --- | --- |
+| 票据 `## Answer` 的「双轴 code-review」只有占位句 | 已修：即本节 |
+| 票据 A2 的行数记录（45 → 60）与实际（73 → 55）不符 | 已修：改为实测值 |
+| 「偏离」段里关于 `max-content` 的描述是虚构冲突 | 已修：删掉该段；`§C` 与验收条目都写 `fit-content(100%)`，实现与票面一致 |
+| 静音面板「seed 下没有静音记录时列表为空」的说法与 GET 语义矛盾 | 已修：`GET /api/channels/[id]/mute` 返回频道内全部 agent 成员（含未静音），面板从不因无静音记录而空 |
+
+另一条被 review 标为「超出点名的断言范围」的项**不改**：票面验收第 3 条原文是
+「『进行中与待审核引导卡分别提示…』拆成只测 review（**并断言 running 不再是合法 kind**）」，
+扫联合类型与 `journey.running` 正是这句要求的落地方式。
 
 ### 偏离与遗留
 
-- 席位容器用 `fit-content(100%)` 而非票据口径里的「`max-content`」表述（票文本本身已写明
-  这一选择）：两者在装得下时等价，装不下时前者退化为容器宽并允许折行，避免被面板
-  `overflow:hidden` 裁掉。验收条目里「静音面板容器带 `gridTemplateColumns: "max-content"`」
-  一句与 §C 的 `fit-content(100%)` 冲突，按 §C 的显式口径落地，静态断言也断言
-  `fit-content(100%)`。
-- 排版契约的源码断言只是弱证据（文本级匹配），真正的等宽由上面的浏览器读数背书。
-- 静音面板在 seed 数据下没有静音记录时列表为空，所以 `#all` 面板读到的是 6 个未静音成员；
-  等宽结论在空/非空两种状态下都成立（容器与子项排布与内容无关）。
+- 静音面板与成员面板的等宽结论由浏览器读数背书（见上）；源码里的排版断言只是弱证据。
+- `docs/spec-rebuild.md` 仍在「已决索引」与验收第 5 条里把「旅程条 4 步」写成 pi-sdk-rebuild
+  票 07 的交付物（`prototype-ui/index.html?variant=b` 可点通四步）。那是那份 effort 的历史决策记录，
+  不在本票可编辑范围内，未改；如需同步需另开票。
+- `.scratch/ui-feedback-journey-pills/` 只有 `issues/` 与 `evidence/`（无 `map.md` / `spec.md`）：
+  与同级 effort 目录（如 `.scratch/interface-audit-fixes/`）及本票 `Ownership` 一致。
 - 未跑 `next build`（仓库禁止）；未跑打包期脚本与 Playwright。
