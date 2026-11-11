@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/hooks/useI18n";
+import { useModalFocus } from "@/hooks/useModalFocus";
+import { DialogCloseButton } from "./DialogCloseButton";
 
 interface DirectoryEntry {
   name: string;
@@ -88,6 +90,24 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
     void navigateTo();
   }, [navigateTo]);
 
+  /**
+   * 对话框接线（票 04，T1）：`DirectoryPicker` 是本仓唯一漏掉接线的对话框——
+   * 原先只有 `role="dialog"` / `aria-modal` 和 backdrop 上的一个 Esc，打开不移焦、
+   * Tab 两个方向都能逃出去、关闭不归还 opener。判定与接线全部复用既有那一层
+   * （`hooks/useModalFocus.ts` → `lib/modal-focus.ts`），本组件只负责把 ref 挂对。
+   *
+   * ref 必须挂在 `.directory-picker-backdrop`（即 `role="dialog"` 的那个元素）上，
+   * 不能挂内层 panel：`collectTabbables` 的根是它，挂内层会让头部关闭键掉出 Tab 序。
+   *
+   * 回调写成**内联箭头**是有意的：portal 在 effect 里才挂到 body，首帧渲染时
+   * `dialogRef.current` 还是 null、接线层 effect 早退；回调身份每次渲染都变，
+   * 接线层就会在 portal 挂载后的那一次重渲染里重跑并接上 Tab / 归还焦点。
+   * `busy` 守卫保留原行为：选择进行中按 Esc 不关闭（避免半途中断提交）。
+   */
+  const dialogRef = useModalFocus<HTMLDivElement>(() => {
+    if (!busy) onCancel();
+  });
+
   const handlePathSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const candidate = pathInput.trim();
@@ -101,15 +121,23 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="directory-picker-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label={t("directoryPicker.selectDirectory")}
+      // 兜底焦点落点（`tabIndex={-1}` 不进 Tab 序）：可用控件全部禁用时焦点仍留在对话框里。
+      tabIndex={-1}
       onClick={(event) => {
         if (event.target === event.currentTarget && !busy) onCancel();
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && !busy) onCancel();
+        if (event.key !== "Escape") return;
+        // 本组件被渲染在右栏 `aside` 的 React 子树里：Esc 的 React 冒泡会先被 aside
+        // 的处理器接住，把背后的 agent 面板一起关掉（实测 base 上就是这样）。接线层
+        // 的 Esc 监听挂在 window 上，管不到 React 树，所以这里显式截断并自行关闭。
+        event.stopPropagation();
+        if (!busy) onCancel();
       }}
       style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in oklch, var(--fg) 35%, transparent)" }}
     >
@@ -118,16 +146,13 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ color: "var(--fg)", fontWeight: 700, fontSize: "var(--fs-title)" }}>{t("directoryPicker.selectDirectory")}</div>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            title={t("i18n.close")}
-            aria-label={t("i18n.close")}
-            style={{ padding: "2px 6px", border: 0, background: "none", color: "var(--muted)", fontSize: "var(--fs-heading)", lineHeight: 1, cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1 }}
-          >
-            ×
-          </button>
+          <DialogCloseButton
+            // `busy` 期间不关闭（避免半途中断提交），保留原有守卫；标记文案复用
+            // `common.close`，与 `BrutalModal` 的头部关闭键同一份实现。
+            onClose={() => {
+              if (!busy) onCancel();
+            }}
+          />
         </div>
 
         <form onSubmit={handlePathSubmit} style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
