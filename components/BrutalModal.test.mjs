@@ -130,3 +130,58 @@ test(".modal-head / .modal-body / .modal-foot：三段结构落盘（foot 有 .s
   assert.match(foot, /display:\s*flex/);
   assert.match(blockBody(".modal-foot .sep"), /flex:\s*1/);
 });
+
+// ─── 界面评审残留 R1：模态焦点陷阱 ───────────────────────────────────────────
+
+/**
+ * 红→绿：`node --test components/BrutalModal.test.mjs`
+ * 红（在 base 的 BrutalModal.tsx 上）：只有 Escape 监听 —— 打开后不移动焦点、
+ *     Tab 能把焦点送出去、关闭后焦点丢到 BODY。
+ * 绿：`.modal` 可承接兜底焦点（tabindex=-1），组件接上 `lib/modal-focus` 的规则层；
+ *     打开移入 / Tab 回绕 / 关闭归还三条行为在浏览器里实测（见票据 Answer 的读数）。
+ *
+ * 规则层（`lib/modal-focus.ts` 的 isTabbable / nextTabTarget）另有单测；
+ * 这里钉的是「组件真的接上了那套规则」。
+ */
+const brutalModalSource = await readFile(
+  new URL("./BrutalModal.tsx", import.meta.url),
+  "utf8",
+);
+
+test("R1: 对话框本身可承接兜底焦点（tabindex=-1，不进 Tab 序）", () => {
+  const html = renderModal();
+  const dialog = html.match(/<div[^>]*role="dialog"[^>]*>/)?.[0] ?? "";
+  assert.ok(dialog, "模态外壳应有 role=dialog");
+  assert.match(dialog, /tabindex="-1"/);
+  // 原有无障碍契约不动
+  assert.match(dialog, /aria-modal="true"/);
+});
+
+/**
+ * 这里断的是「组件接上了规则层」，不是复述实现：
+ * 可聚焦判定（哪些元素进 Tab 序、边界回绕到谁）的**行为**由
+ * `lib/modal-focus.test.mjs` 的 13 条用例钉住，浏览器里的三件事（移入 / 回绕 / 归还）
+ * 由 ego-browser 实测。组件层只剩「调用哪两个规则」这一个可测接缝。
+ */
+test("R1: 焦点陷阱接线到 lib/modal-focus 的规则层（不自己重写一份判定）", () => {
+  assert.match(brutalModalSource, /import \{ collectTabbables, nextTabTarget \} from "@\/lib\/modal-focus"/);
+  assert.match(brutalModalSource, /e\.key !== "Tab"/);
+});
+
+test("R1: 焦点不在模态里时按方向拉回边界（body 也算「不在」）", () => {
+  // `document.activeElement` 无焦点时就是 body；直接传给规则层会命中 indexOf === -1
+  // 的「让浏览器自己走」分支，背景就会被 Tab 到。
+  assert.match(
+    brutalModalSource,
+    /dialog\.contains\(activeElement\) \? activeElement : null/,
+  );
+  // 初始移焦只做一次：父级重渲染（`onClose` 多为内联箭头）不能让 effect 把焦点抢回关闭键。
+  assert.match(brutalModalSource, /initialFocusDoneRef/);
+});
+
+test("R1: 子浮层（createPortal 到 body 的 DirectoryPicker）在场时父模态让路", () => {
+  // portal 子树不在 `.modal` 的 DOM 里，但仍是 role=dialog aria-modal=true：
+  // 焦点在别的 dialog 里时，父模态既不再接管 Tab、也不重复响应 Escape。
+  assert.match(brutalModalSource, /focusInChildDialog/);
+  assert.match(brutalModalSource, /closest\(\s*'\[role="dialog"\]\[aria-modal="true"\]'\s*\)/);
+});

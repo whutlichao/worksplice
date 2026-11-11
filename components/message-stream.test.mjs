@@ -61,6 +61,10 @@ function blockBody(css, selector) {
     return match[1];
 }
 
+function stripComments(css) {
+    return css.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
 function normalize(body) {
     return body.replace(/\s+/g, " ").trim();
 }
@@ -599,4 +603,91 @@ test("频道面源码无 rgba 硬阴影 / 无硬偏移阴影 / 无 2px 结构线
             `${name} 段仍有有色 2px 结构线`,
         );
     }
+});
+
+// ─── 界面评审残留 R2：消息动作栏的键盘入口 ────────────────────────────────────
+
+/**
+ * 红→绿证据（先红后绿都跑过同一条命令）：
+ *   node --test components/message-stream.test.mjs
+ * 红：`MessageRow` 根元素没有 `tabindex`，动作栏拿不到任何行内焦点揭示钩子。
+ * 绿：根元素 `tabIndex={0}` + `role="article"` + `aria-label`，CSS 补
+ *     `:focus-visible`（行根）+ `:focus-within`（行内）两条揭示选择器。
+ *
+ * 为什么不是「把 display 换成 opacity」：`display: none` 的后代不在 Tab 序里，
+ * 而这条动作栏是**整条消息唯一**的操作入口（反应 chip / 线程角标只覆盖部分消息）。
+ * 让行本身成为停靠点，键盘从行首 Tab 一次就能进动作栏；未聚焦时布局零变化。
+ */
+test("R2: 消息行是键盘停靠点（tabindex=0 + 文章语义 + 含作者与序号的名称）", () => {
+    const html = renderI18n(
+        React.createElement(MessageRow, {
+            message: MESSAGE,
+            onReply: () => undefined,
+            onQuote: () => undefined,
+            onCopyLink: () => undefined,
+        }),
+    );
+    const rootTag = html.match(/<div class="msg ws-message-row"[^>]*>/)?.[0] ?? "";
+    assert.ok(rootTag, "消息行根元素应带 .msg.ws-message-row");
+    assert.match(rootTag, /tabindex="0"/);
+    assert.match(rootTag, /role="article"/);
+    // 名称里既有作者名也有 #seq：读屏用户停在行首就知道「这是谁的第几条」。
+    assert.match(rootTag, /aria-label="[^"]*Owner/);
+    assert.match(rootTag, /aria-label="[^"]*#4/);
+    // 不得声明 aria-haspopup：动作栏不是弹出层，是行内展开的一块。
+    assert.doesNotMatch(rootTag, /aria-haspopup/);
+});
+
+test("R2: 键盘焦点进到行内时揭示整条动作栏（focus-visible + focus-within）", () => {
+    // 旧补救规则 `.msg:focus-within` 永远不生效——display:none 的后代不在 Tab 序里，
+    // 没有任何元素能在行内触发 :focus-within。行根用 :focus-visible 揭示
+    // （不是裸 :focus：鼠标点进正文也会让行获得焦点，那会让动作栏被「点住」常显），
+    // 焦点进到行内其它控件后由 :focus-within 续上。
+    const stripped = stripComments(globalsCss);
+    const reveal = stripped.match(
+        /\.msg:not\(\.ws-message-actions-dismissed\):focus-visible \.ws-message-actions,\s*\n\.msg:not\(\.ws-message-actions-dismissed\):focus-within:not\(:focus:not\(:focus-visible\)\):not\(:has\(:focus:not\(:focus-visible\)\)\) \.ws-message-actions \{([^}]*)\}/,
+    );
+    assert.ok(reveal, "缺键盘揭示规则（行根 focus-visible + 行内 focus-within 两条选择器同一条规则）");
+    assert.match(reveal[1], /display:\s*flex/);
+    // 焦点已进到行内其它控件（reaction chip / mention / 线程角标）时动作栏不得重新隐藏：
+    // 实测 `:focus-visible` 单独用不够——焦点从行根移到行内第一个控件时它立即失效，
+    // 浏览器在遍历 Tab 序**之前**就把 display 收回 none，动作栏整条被跳过。
+    assert.match(
+        stripped,
+        /\.msg:not\(\.ws-message-actions-dismissed\):focus-within:not\(:focus:not\(:focus-visible\)\):not\(:has\(:focus:not\(:focus-visible\)\)\) \.ws-message-actions \{[^}]*display:\s*flex/,
+    );
+    // `:focus-within` 那条必须带两重否定：否则鼠标点进正文 / 点行内 chip 后动作栏
+    // 被点住常显（指针手感回归）。实测：点行内 chip 后移开指针仍是 flex；两重否定后回到 none。
+    assert.match(stripped, /:not\(:focus:not\(:focus-visible\)\)/);
+    assert.match(stripped, /:not\(:has\(:focus:not\(:focus-visible\)\)\)/);
+    // 鼠标路径手感不变：揭示钩子不得用裸 `:focus`。
+    assert.doesNotMatch(
+        stripComments(globalsCss),
+        /\.msg:not\(\.ws-message-actions-dismissed\):focus \.ws-message-actions/,
+    );
+    // 揭示机制不改成常驻：未聚焦未 hover 时仍是 display:none。
+    assert.match(blockBody(globalsCss, ".ws-message-actions"), /display:\s*none/);
+});
+
+test("R2: 键盘停靠点不改变未聚焦时的行高（不加 outline/边框，只在 :focus-visible 上给环）", () => {
+    // 行本身不新增任何占位形态：padding/border/margin 与改动前一致。
+    const msg = blockBody(globalsCss, ".msg");
+    assert.match(msg, /padding:\s*var\(--sp-5\) var\(--sp-4\)/);
+    assert.match(msg, /margin:\s*0 -8px/);
+    assert.doesNotMatch(msg, /border:/);
+    // 焦点环由 reset 的 `:focus-visible` 承担（键盘可达、鼠标点击不出现环）。
+    assert.match(globalsCss, /:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--accent-graphic\)/);
+});
+
+test("R2: 键盘按下动作后焦点留在行上（动作栏收起不把键盘用户甩到 BODY）", () => {
+    // `completeAction` → `onDismiss` → `.ws-message-actions { display: none }`：被按的
+    // 按钮随动作栏一起下线。若不接手，`:focus` 落回 BODY——键盘用户丢掉位置。
+    const start = channelViewSource.indexOf("const dismissActions = () => {");
+    const end = channelViewSource.indexOf("const actionsRef", start);
+    assert.ok(start !== -1 && end > start, "ChannelView 应有 dismissActions 切片");
+    const dismiss = channelViewSource.slice(start, end);
+    assert.match(dismiss, /rowRef\.current\?\.contains\(active\)/);
+    assert.match(dismiss, /rowRef\.current\.focus\(\)/);
+    // 行根承接焦点的那条 ref 真的挂在根元素上
+    assert.match(channelViewSource, /ref=\{rowRef\}/);
 });

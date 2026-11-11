@@ -486,6 +486,7 @@ export const enLocale: LocalePlugin = {
     "message.react": "React",
     "message.addReaction": "Add a reaction",
     "message.moreActions": "More message actions",
+    "message.rowLabel": "Message #{seq} by {author}",
     "message.pin": "Pin to channel",
     "message.unpin": "Unpin",
     "pinned.toggle": "Toggle pinned messages",
