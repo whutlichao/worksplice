@@ -259,23 +259,17 @@ function planForOp(name: string, fields: Record<string, unknown>): MemberOpPlan 
       const limit = optionalPositiveInt(fields.limit, 50);
       return { kind: "planned", action: { op: "search", query, limit } };
     }
-    case "task":
-      // `task` 是本轮自己的协议字段，不是 `ops` 条目——模型常把
-      // `{"task":{"number":N,"op":"complete"}}` 塞进 `ops`（现场形态），边界要报准、
-      // 不能退回 default deny（ADR-0011 D7）。一轮只执行一个任务操作。
-      return {
-        kind: "rejected",
-        name,
-        reason:
-          '"task" is not an "ops" entry — it is the round\'s own top-level field; put it at the top level of your JSON, outside "ops", and use one task operation per round',
-      };
     case "reply":
-      // 同上：`action` 是本轮自己的字段（reply 是它的取值之一）。
-      return {
-        kind: "rejected",
-        name,
-        reason: `"${name}" is not an "ops" entry — it is the round's own action field`,
-      };
+    case "task": {
+      // 这两个是协议自己的字段（action / task），不是 `ops` 条目。理由要说准，
+      // 不能对刚判为开口的名字回一句「default deny」（报边界要准确，ADR-0011 D7）。
+      // `task` 的措辞要额外点明边界：模型常把 `{"task":{...}}` 塞进 `ops`（现场形态）。
+      const reason =
+        opName === "task"
+          ? '"task" is not an "ops" entry — it is the round\'s own top-level field; put it at the top level of your JSON, outside "ops", and use one task operation per round'
+          : `"${name}" is not an "ops" entry — it is the round's own action/task field`;
+      return { kind: "rejected", name, reason };
+    }
     default: {
       // 编译期兜底：开口表新增成员而未补 case 时，这里的 opName 不再是 never（编译失败）。
       const exhaustive: never = opName;

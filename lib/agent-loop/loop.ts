@@ -202,13 +202,20 @@ function extractJsonObject(text: string): string | null {
   return null;
 }
 
+/** 本轮任务操作请求（顶层 `task` 与 `ops` 里的 shorthand 共用同一形状）。 */
+type TaskOpRequest = NonNullable<AgentAction["task"]>;
+
+/** 普通对象守卫（不是数组 / null）：ops 条目与 task 载荷共用。 */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 /** 读一个任务操作形状：顶层 `task` 与 `ops` 里的 shorthand 共用同一套校验
  *  （`number` 为整数 > 0；`op` ∈ claim|complete|unclaim）。形状不合法返回 undefined。 */
-function parseTaskOp(value: unknown): { number: number; op: TaskOp } | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const record = value as Record<string, unknown>;
-  const number = Number(record.number);
-  const op = String(record.op);
+function parseTaskOp(value: unknown): TaskOpRequest | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const number = Number(value.number);
+  const op = String(value.op);
   if (!Number.isInteger(number) || number <= 0 || !TASK_OPS.has(op as TaskOp)) {
     return undefined;
   }
@@ -222,42 +229,44 @@ function parseTaskOp(value: unknown): { number: number; op: TaskOp } | undefined
  * 结果是回复正文照常投递、任务状态纹丝不动。
  *
  * 规则：
- * - 顶层 `task` 合法时永远优先；顶层缺失（或形状不合法）才提升**第一条**合法 shorthand。
+ * - 顶层 `task` 是对象时永远优先（形状不合法也不从 ops 里猜一个替代）；只有顶层缺失
+ *   才提升**第一条**合法 shorthand。
  * - 被提升的条目从 `ops` 里移除——它不是一个 op，不能重复执行。
- * - 其余 shorthand（第二个 / 与顶层冲突 / 形状不合法）保留在 `ops` 里、名字改写为 `task`：
- *   `planMemberOps` 会按「task 是本轮自己的字段、不进 ops、一轮只执行一个任务操作」拒绝，
- *   理由可读（不退回 default deny）。形状不合法的 shorthand 不提升，按条目拒绝。
+ * - 其余合法 shorthand（第二个 / 与顶层冲突）保留为 `task` 条目，由 `planMemberOps`
+ *   按「task 是本轮自己的字段、不进 ops、一轮只执行一个任务操作」拒绝（不走 default deny）。
+ * - 形状不合法的 shorthand 维持既有行为：原样留着，按坏条目拒绝（unknown）。
+ * - 带自有 op 名、又夹带 `task` 的条目：op 照常执行，夹带的 task 追加为一条被拒的 `task`
+ *   条目——不静默吞掉。
  */
 function splitTaskShorthandOps(
   value: unknown,
   hasTopLevelTask: boolean,
-): { ops: unknown; task?: { number: number; op: TaskOp } } {
+): { ops: unknown; task?: TaskOpRequest } {
   if (!Array.isArray(value)) return { ops: value };
-  let task: { number: number; op: TaskOp } | undefined;
+  let task: TaskOpRequest | undefined;
   const rest: unknown[] = [];
+  const refusedMarker = (nested: unknown) => ({ op: "task", task: nested });
   for (const entry of value) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    if (!isPlainObject(entry) || !isPlainObject(entry.task)) {
       rest.push(entry);
       continue;
     }
-    const record = entry as Record<string, unknown>;
-    const named = typeof record.op === "string" && record.op.trim() !== "";
-    const nested = record.task;
-    const isShorthand =
-      !named &&
-      Boolean(nested) &&
-      typeof nested === "object" &&
-      !Array.isArray(nested);
-    if (!isShorthand) {
-      rest.push(entry);
-      continue;
-    }
+    const nested = entry.task;
     const candidate = parseTaskOp(nested);
-    if (candidate && !hasTopLevelTask && !task) {
+    const hasOpName = typeof entry.op === "string" && entry.op.trim() !== "";
+    if (hasOpName) {
+      rest.push(entry, refusedMarker(nested)); // op 照跑，task 部分报边界
+      continue;
+    }
+    if (!candidate) {
+      rest.push(entry); // 形状不合法：维持既有行为（unknown → default deny）
+      continue;
+    }
+    if (!hasTopLevelTask && !task) {
       task = candidate;
       continue; // 提升：不再作为 op 重复执行
     }
-    rest.push({ ...record, op: "task" }); // 保留给 planMemberOps 按边界拒绝
+    rest.push(refusedMarker(nested));
   }
   return { ops: rest, task };
 }
@@ -319,12 +328,9 @@ export function parseAgentAction(text: string): AgentAction {
       ? (parsed.onConflict as ConflictChoice)
       : "resend";
     const rawTask = parsed.task;
-    // 容错提升：顶层 `task` 显式给出（无论形状是否合法）即视为本轮自己的字段、优先；
-    // 顶层缺失时才从 `ops` 条目里提升第一条合法 shorthand（见 splitTaskShorthandOps）。
-    const promoted = splitTaskShorthandOps(
-      parsed.ops,
-      Boolean(rawTask && typeof rawTask === "object" && !Array.isArray(rawTask)),
-    );
+    // 容错提升：顶层 `task` 是对象时即视为本轮自己的字段、永远优先（形状不合法也不去猜）；
+    // 顶层缺失（null / 标量）时才从 `ops` 条目里提升第一条合法 shorthand（见 splitTaskShorthandOps）。
+    const promoted = splitTaskShorthandOps(parsed.ops, isPlainObject(rawTask));
     const task: AgentAction["task"] = parseTaskOp(rawTask) ?? promoted.task;
     // 成员 op（ADR-0013 决策一）：与 task 同一条缝；空数组不落字段（向后兼容既有 deepEqual 断言）
     const ops = parseMemberOps(promoted.ops);
@@ -574,7 +580,7 @@ export function buildReplyPrompt(input: {
     '  Wrong: {"action":"reply","content":"...","ops":[{"task":{"number":1,"op":"complete"}}]}',
   );
   lines.push(
-    '- Extra operations: add "ops":[ ... ] to your JSON. Every op runs with YOUR identity; permissions are decided by the app, anything not listed here is refused. "task" is not an op — it stays a top-level field, never inside "ops".',
+    '- Extra operations: add "ops":[ ... ] to your JSON. Every op runs with YOUR identity; permissions are decided by the app, anything not listed here is refused. "task" is not an op: it is a top-level field, never inside "ops".',
   );
   lines.push(
     '  react {"op":"react","seq":N,"emoji":"👍"} | pin {"op":"pin","seq":N} | remind {"op":"remind","title":"...","inMinutes":30} (or "fireAt":"<ISO>"; "targetId" defaults to this target; optional "recurrence") | post {"op":"post","targetId":"#channel","content":"...","baseSeq":N} (pointer to another channel) | createChannel {"op":"createChannel","name":"...","type":"public"|"private","description":"...","members":["@Name"]} | createAgent {"op":"createAgent","name":"...","description":"...","provider":"...","modelId":"..."} | search {"op":"search","query":"...","limit":N}',
