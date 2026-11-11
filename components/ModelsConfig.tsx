@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
+import { useModalFocus } from "@/hooks/useModalFocus";
+import { DialogCloseButton } from "./DialogCloseButton";
 import type { ModelCatalogPreset, ModelCatalogRecommendation } from "@/lib/model-catalog";
 import type { DiscoveredModel } from "@/lib/model-discovery";
 // Color icons (have their own fill colors — no background needed)
@@ -1531,6 +1533,13 @@ function AddProviderPicker({
   const [search, setSearch] = useState("");
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
+  /**
+   * 这是叠在模型配置之上的第二个对话框（票 03，S2）：它自己也要有对话框语义与
+   * 焦点陷阱，否则下层会把 Esc / Tab 抢走。首焦点由下面原有的定时器移进搜索框
+   * （即本层主控件）——`useModalFocus` 只在「焦点还不在本层内」时才兜底移焦，
+   * 所以两者不打架。
+   */
+  const dialogRef = useModalFocus<HTMLDivElement>(onClose);
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 30); }, []);
 
@@ -1563,7 +1572,14 @@ function AddProviderPicker({
       style={{ position: "fixed", inset: 0, zIndex: 1100, background: "color-mix(in oklch, var(--fg) 40%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ width: 820, maxWidth: "calc(100vw - 32px)", maxHeight: "min(72vh, calc(100vh - 32px))", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-pop)", overflow: "hidden" }}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("i18n.addProvider")}
+        tabIndex={-1}
+        style={{ width: 820, maxWidth: "calc(100vw - 32px)", maxHeight: "min(72vh, calc(100vh - 32px))", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-pop)", overflow: "hidden" }}
+      >
         {/* Search */}
         <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, display: "flex", alignItems: "center", gap: 8 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--faint)", flexShrink: 0 }}>
@@ -1573,7 +1589,6 @@ function AddProviderPicker({
             ref={inputRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
              placeholder={t("i18n.searchProviders")}
             style={{ flex: 1, background: "none", border: "none", outline: "none", color: "var(--fg)", fontSize: "var(--fs-body)", boxSizing: "border-box" }}
           />
@@ -1812,6 +1827,13 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
   const activeOAuth = oauthProviders.filter((p) => p.loggedIn);
   const activeApiKey = apiKeyProviders.filter((p) => p.configured);
 
+  /**
+   * 对话框语义与焦点管理（票 03，S1 / S2）：走与 `BrutalModal` 同一层接线
+   * （`hooks/useModalFocus.ts`），判定仍是 `lib/modal-focus.ts` 的纯函数。
+   * 宽度/形态不归接线层管——本浮层自带 860px，不受 `--modal-max` 两档约束。
+   */
+  const dialogRef = useModalFocus<HTMLDivElement>(onClose);
+
   // Resolve current detail
   const detailContent = (() => {
     if (!selection) return null;
@@ -1859,15 +1881,23 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
     <>
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "color-mix(in oklch, var(--fg) 35%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ width: isMobile ? "calc(100vw - 16px)" : 860, maxWidth: "calc(100vw - 16px)", height: isMobile ? "calc(100dvh - 16px)" : "78vh", maxHeight: "calc(100dvh - 16px)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-pop)", overflow: "hidden" }}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="models-config-title"
+        // 兜底焦点落点：对话框内一个可聚焦控件都没有时（加载中、空列表），焦点仍留在对话框里。
+        // `tabIndex={-1}` 不进 Tab 序，不会多出停靠点。
+        tabIndex={-1}
+        style={{ width: isMobile ? "calc(100vw - 16px)" : 860, maxWidth: "calc(100vw - 16px)", height: isMobile ? "calc(100dvh - 16px)" : "78vh", maxHeight: "calc(100dvh - 16px)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-pop)", overflow: "hidden" }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-             <span style={{ fontSize: "var(--fs-title)", fontWeight: 700, color: "var(--fg)" }}>{t("common.models")}</span>
+             <span id="models-config-title" style={{ fontSize: "var(--fs-title)", fontWeight: 700, color: "var(--fg)" }}>{t("common.models")}</span>
             <code style={{ fontSize: "var(--fs-caption)", color: "var(--muted)", fontFamily: "var(--font-mono)" }}>~/.pi/agent/models.json</code>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "var(--fs-heading)", lineHeight: 1, padding: "2px 6px" }}>×</button>
+          <DialogCloseButton onClose={onClose} />
         </div>
 
         {/* Body */}
