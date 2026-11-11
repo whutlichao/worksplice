@@ -1,0 +1,968 @@
+✔ MessageRow renders author, seq, content and the three §3.2 actions (68.224125ms)
+✔ MessageRow renders pinned navigation feedback on the target message (2.112333ms)
+✔ pinned navigation pages backward until an older target is loaded (0.190292ms)
+✔ pinned navigation refreshes when the target is newer than the loaded page (0.099375ms)
+✔ pinned navigation detects a failed request without treating the initial state as failure (0.066125ms)
+✔ MessageRow preserves readable long-form Markdown and visible message metadata (47.623958ms)
+✔ Task anchor discussion entry shows total replies and an independent exact unread count (32.726ms)
+✔ MessageRow omits the reply action when onReply is absent (2.102542ms)
+✔ MessageMoreMenu omits the pin item when onTogglePin is absent, even when pinned (0.403959ms)
+✔ MessageMoreMenu pins and unpins through the same item label switch (0.86425ms)
+✔ MessageMoreMenu renders the convert-to-task item on the channel surface (0.949083ms)
+✔ MessageMoreMenu omits the convert item when onConvertToTask is absent (0.491209ms)
+✔ ChannelView wires convertInActionBar and onConvertToTask into the channel message list (57.161917ms)
+✔ MessageMoreMenu renders the ⏰ reminder item when onReminder is provided (§5.6) (3.561959ms)
+✔ MessageRow action handlers fire with the message (3.589916ms)
+✔ Composer shows the quoting chip with the quoted message preview (5.1265ms)
+✔ Composer renders without a quote chip when nothing is quoted (1.901792ms)
+✔ Composer surfaces the disabled hint when the channel is archived or not joined (0.886167ms)
+✔ ChannelView renders the select-a-channel empty state without a channel (15.004125ms)
+✔ ChannelView shows the channel header with the members entry and archive badge (8.176041ms)
+✔ mergeIncomingMessages dedupes by id and keeps messages sorted by seq (agent-loop 轮询合并) (0.436875ms)
+✔ ChannelView 发送通道：发送与 held 由 useChannelData 持有（02 票） (16.029417ms)
+✔ ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（01 票） (2.831834ms)
+✔ ChannelView pinned 与附属区：pinned/mute/members 数据循环由 useChannelData 持有（03 票） (2.017417ms)
+✔ MessageRow renders reaction chips and attachments; secondary actions live in ··· (§3.4/§3.5) (3.885209ms)
+✔ MessageRow hides reaction UI when handlers are absent (1.779042ms)
+✔ MessageRow renders the not-replied badge with agent name in the tooltip (§09) (2.037958ms)
+✔ MessageRow renders a count badge when multiple agents abandoned the message (1.804625ms)
+✔ MessageRow does not render the not-replied badge without abandonedMarks (17.474333ms)
+✔ Composer renders the paperclip attach control (§3.5) (0.988083ms)
+✔ ChannelView header exposes the pinned toggle for joined members (§3.5) (2.987792ms)
+✔ DM 头部不渲染成员管理/归档/静音入口，保留提醒与 pinned（§03） (1.950792ms)
+✔ TaskViews renders the task board layout without mounting the channel data loop (05 票排版回归) (2.00175ms)
+✔ 05 票瘦身：视图直接解构 hook 原名（无过渡别名解构） (1.997917ms)
+✔ 05 票瘦身：视图无过渡残留注释（01 过渡已收敛进 hook 语义） (4.363584ms)
+✔ 05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelTask/PinnedItem 直引 hook） (1.799916ms)
+✔ 05 票瘦身：视图不再 re-export hook 已有的数据循环类型（ChannelMessagesPage 直引 hook） (3.187916ms)
+✔ ChannelView 任务板数据循环由 useChannelData 持有（04 票） (4.558375ms)
+✔ ChannelView 三处可见性同一数据源：新成员进 channelMemberIds 后 channelAgents/mentionable/composer 候选全含（#12 回归） (0.429583ms)
+✔ ChannelView 透传 membersVersion 给 useChannelData（失效链不断，#12 回归） (1.707583ms)
+✔ AppShell 创建 agent 后递增 membersVersion（失效链源头，#12 回归） (0.402125ms)
+✔ TaskViews 服务端与客户端首帧渲染一致（localStorage 偏好为 board 也不 mismatch） (2.989125ms)
+✔ DM bugfix：handleSend 发送成功后上抛 onChannelChanged（侧栏 messageCount 信号即时更新，不依赖 15s 轮询/agent 回复） (3.025667ms)
+✔ notice toast 渲染在滚动流之外：<main>…</main> 里不再有 heldNotice/taskNotice 呈现位 (1.116875ms)
+✔ notice toast 锚在消息区底部、composer 上方居中，且 z-index 高于 composer (2.105ms)
+✔ NoticeToast 渲染出无障碍语义与 i18n 文案（role=status / aria-live / data-notice） (0.608167ms)
+✔ pickNoticeToast 单槽仲裁：新 notice 顶掉旧的，被顶掉的旧 notice 不回弹 (0.155125ms)
+✔ notice toast 自动消退：setTimeout 到点清空，且 useEffect 清理 timer (0.885541ms)
+✔ 任务创建事件以静态 note 呈现，预览 URL 是普通文本而非交互元素 (0.321625ms)
+✔ Task 锚点显示编号和状态，并为零未读提供精确讨论名称 (1.816667ms)
+✔ 任务创建事件播报跳过初始历史、只播报新事件一次 (0.190125ms)
+✔ 任务快照未到达时，动态创建事件仍会被识别并播报 (0.09525ms)
+✔ 切换频道后，已知频道中新到达的任务事件仍会播报 (0.05425ms)
+✖ 旅程条已从消息页移除：没有 JourneyBar 导出，也没有它的渲染点 (2.060833ms)
+✔ 无消息引导卡：描述 CTA 聚焦输入，秘书入口可打开现有创建流程 (1.107ms)
+✔ 无消息引导卡在未接线秘书入口时不渲染该按钮 (0.287208ms)
+✔ 有消息无任务引导卡：给出把消息转为任务的入口 (0.274375ms)
+✔ 只有待办任务时引导卡改为提示交接或认领，并切到任务板 (0.254542ms)
+✖ 待审核引导卡提示去复核；running 不再是合法形态 (16.493958ms)
+✔ Central Tabs 保留 Messages/Tasks 切换，并为未完成任务显示数量 badge (1.175292ms)
+✔ Central Tabs 没有未完成任务时不显示 badge，未读讨论入口保留 (0.391291ms)
+✔ 引导卡 SSR 只渲染空粒子层，粒子坐标只在客户端生成 (2.149209ms)
+✔ 卡壳静止：阶段只进 data 属性，不挂整卡动画类 (0.91875ms)
+✔ 引导卡粒子几何：逐字符行盒归并（折行/居中交给浏览器） (0.170875ms)
+✔ 引导卡粒子采样：2.6px 网格落在行盒墨迹内，行间不串行 (2.944583ms)
+✔ 引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入 (0.089416ms)
+✔ 引导卡过渡状态机：切频道后等新频道数据快照，首张卡按 enter 起算 (0.098958ms)
+✔ 引导卡过渡状态机：缓存频道的快照直接带形态时也按首张 enter 起算 (0.079542ms)
+✔ ··· 二级菜单展开后包含 reaction、pin、提醒与转为任务，门控与旧动作栏一致 (2.252833ms)
+✔ ··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠内联样式兜底 (2.676833ms)
+✔ 消息行默认只露高频动作，二级动作收进 ··· 触发器 (2.656042ms)
+✖ ChannelView 接线：引导卡/任务角标/秘书入口都进中央视图 (10.496625ms)
+✔ AppShell 复用 CreateAgentModal 打开秘书入口，不新增路由 (1.250208ms)
+✖ 静音面板列表容器按网格排版，成员胶囊取最宽内容等宽 (5.016167ms)
+✖ 成员面板每行用两列 subgrid，胶囊与移除键各占一列 (7.014375ms)
+✔ A1：composer 的 textarea 有可访问名（aria-label 取 composerPlaceholder） (1.161417ms)
+✔ A5：@ 补全弹层是 listbox + option，textarea 走 combobox 语义 (2.293583ms)
+✔ A3：TaskCard 不再嵌套交互控件——外层无语义角色，标题是原生 button (4.373458ms)
+✔ A5：右键菜单容器有可访问名（role=group + aria-label），动词条不再悬空 (2.098208ms)
+✔ A5：@ 补全没有候选时 aria-activedescendant 不指向不存在的 option (3.432625ms)
+✔ mergeIncomingMessages dedupes by id and keeps messages sorted by seq (0.981ms)
+✔ mergeIncomingMessages preserves the current duplicate and input semantics (0.193583ms)
+✔ loadMessagesPage requests the channel messages page with limit/before (0.219709ms)
+✔ loadMessagesPage maps HTTP errors to Error (2.129333ms)
+✔ applyPollPage advances maxSeq and merges new messages (0.344417ms)
+✔ applyPollPage returns the previous state when maxSeq does not advance (0.175708ms)
+✔ isCurrentChannelRequest rejects stale pages after a channel switch (0.067416ms)
+✔ prependPageMessages puts the earlier page first (0.164958ms)
+✔ isSameMessagesPage detects identical snapshots (0.182084ms)
+✔ postChannelMessage posts JSON with baseSeq and returns the sent message (1.129041ms)
+✔ postChannelMessage returns held with whatHappened on 409 held (0.631083ms)
+✔ postChannelMessage throws the server error for non-held failures (0.868ms)
+✔ postChannelMessage throws on empty success responses (0.238292ms)
+✔ postChannelMessage posts multipart with baseSeq when files are attached (32.480167ms)
+✔ sortPinnedItems orders pinned items by manual/recent/az (29.826791ms)
+✔ sortPinnedItems breaks recent ties by order desc (same-millisecond fallback) (0.332083ms)
+✔ loadPinnedPage requests the pinned list with sort and defaults missing pinned to [] (0.282042ms)
+✔ togglePinnedMessage unpins with DELETE and pins with POST (0.235041ms)
+✔ postPinnedOrder posts the reordered message ids in one request (0.193958ms)
+✔ loadMutesPage and loadChannelMemberIds fetch affiliated state with empty defaults (0.272458ms)
+✔ toggleChannelMute posts the toggled mute state and returns it (0.203125ms)
+✔ loadTasksPage requests the channel task board and defaults missing tasks to [] (0.201334ms)
+✔ claimChannelTask posts baseSeq and maps held/conflict/blocked to yield results (0.322458ms)
+✔ updateChannelTaskStatus posts status with baseSeq and maps held to yield results (0.2415ms)
+✔ loadTasksPage preserves the reopened flag for blocked claim display (0.152167ms)
+✔ completeTaskWithReply delivers the thread reply before the in_review transition (0.218791ms)
+✔ convertMessageToTaskRow and createBoardTaskRow post the task creation payloads (0.212792ms)
+✔ shouldInvalidateMembers only invalidates on an explicit positive version (0.093125ms)
+✔ loadChannelMemberIds converges to include the new member after invalidation (0.121959ms)
+✔ markChannelRead posts to the channel read endpoint and returns readSeq (0.126125ms)
+✔ markChannelRead maps HTTP errors to Error (0.126625ms)
+✔ markChannelRead defaults a missing readSeq to 0 (0.100458ms)
+✔ postTaskThreadRead sends only the addressed Task and presented thread seq (0.137583ms)
+✔ mergeTaskPollRows replaces changed rows with the server view while stable rows keep identity (0.241583ms)
+✔ mergeTaskPollRows adopts the reopened marker and the cleared owner from the poll (0.104542ms)
+✖ mergeTaskPollRows drives the journey guide card from the polled task status (1.658583ms)
+✔ mergeTaskPollRows takes the server order, adds new tasks and drops vanished ones (1.6195ms)
+✔ mergeTaskPollRows keeps the current total when the poll omits it (0.190833ms)
+✔ mergeTaskPollRows advances the Task thread read cursor from the same server refresh (0.136333ms)
+✔ mergeTaskPollRows refreshes total and unread replies from the same Task poll (0.149666ms)
+✔ mergeTaskPollRows advances the total when only an Owner reply arrives (0.110542ms)
+ℹ tests 121
+ℹ suites 0
+ℹ pass 115
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2341.318625
+
+✖ failing tests:
+
+test at components/ChannelView.test.mjs:1311:1
+✖ 旅程条已从消息页移除：没有 JourneyBar 导出，也没有它的渲染点 (2.060833ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /JourneyBar/. Input:
+  
+  '"use client";\n' +
+    '\n' +
+    'import {\n' +
+    '  memo,\n' +
+    '  useCallback,\n' +
+    '  useEffect,\n' +
+    '  useLayoutEffect,\n' +
+    '  useMemo,\n' +
+    '  useRef,\n' +
+    '  useState,\n' +
+    '} from "react";\n' +
+    'import {\n' +
+    '  AlarmClock,\n' +
+    '  Bell,\n' +
+    '  BellOff,\n' +
+    '  Check,\n' +
+    '  ChevronDown,\n' +
+    '  ChevronRight,\n' +
+    '  ChevronUp,\n' +
+    '  CircleSlash,\n' +
+    '  CornerDownRight,\n' +
+    '  FileText,\n' +
+    '  Kanban,\n' +
+    '  Link,\n' +
+    '  List,\n' +
+    '  ListPlus,\n' +
+    '  Paperclip,\n' +
+    '  Pin,\n' +
+    '  Quote,\n' +
+    '  Reply,\n' +
+    '  Send,\n' +
+    '  SmilePlus,\n' +
+    '  TriangleAlert,\n' +
+    '  Users,\n' +
+    '  X,\n' +
+    '} from "lucide-react";\n' +
+    'import { useI18n } from "@/hooks/useI18n";\n' +
+    'import type { TranslationParams } from "@/lib/i18n/types";\n' +
+    'import {\n' +
+    '  JOURNEY_GUIDE_CONTENT_FADE_MS,\n' +
+    '  JOURNEY_GUIDE_DISSOLVE_MS,\n' +
+    '  JOURNEY_GUIDE_ENTER_TOTAL_MS,\n' +
+    '  JOURNEY_GUIDE_EXIT_MS,\n' +
+    '  JOURNEY_GUIDE_REFORM_MS,\n' +
+    '  JOURNEY_GUIDE_REVEAL_MS,\n' +
+    '  JOURNEY_GUIDE_SWAP_MS,\n' +
+    '  JOURNEY_GUIDE_SWITCH_TOTAL_MS,\n' +
+    '  groupJourneyGuideTextLines,\n' +
+    '  sampleJourneyGuideParticles,\n' +
+    '  type JourneyGuideGlyphRect,\n' +
+    '  type JourneyGuideParticlePoint,\n' +
+    '} from "@/lib/journey-guide-particles";\n' +
+    'import { MentionText } from "./MentionText";\n' +
+    'import { Avatar } from "./Avatar";\n' +
+    'import { StatusDot } from "./StatusDot";\n' +
+    'import { ReminderModal } from "./ReminderModal";\n' +
+    'import { BrutalModal } from "./BrutalModal";\n' +
+    'import { copyText } from "@/lib/clipboard";\n' +
+    'import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";\n' +
+    'import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "@/lib/data/schema";\n' +
+    'import type {\n' +
+    '  AttachmentRow,\n' +
+    '  ChannelRow,\n' +
+    '  MemberRow,\n' +
+    '  TaskStatus,\n' +
+    '} from "@/lib/data/types";\n' +
+    'import {\n' +
+    '  extractAtQuery,\n' +
+    '  buildAtInsertText,\n' +
+    '  type AtQueryMatch,\n' +
+    '} from "@/lib/file-fuzzy";\n' +
+    'import { composerMentionCandidates } from "@/lib/mention";\n' +
+    'import { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";\n' +
+    'import { indexCurrentMembersById } from "@/lib/member-index";\n' +
+    'import {\n' +
+    '  deriveJourneyState,\n' +
+    '  type JourneyGuideKind,\n' +
+    '  type JourneyStep,\n' +
+    '} from "@/lib/journey-state";\n' +
+    'import { useChannelData } from "@/hooks/useChannelData";\n' +
+    '\n' +
+    'export type CenterTab = "messages" | "tasks";\n' +
+    '\n' +
+    '/** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */\n' +
+    'export const NOTICE_TOAST_MS = 3500;\n' +
+    'const PINNED_MESSAGE_HIGHLIGHT_MS = 1800;\n' +
+    '\n' +
+    '/** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */\n' +
+    'export interface NoticeSlots {\n' +
+    '  held: string | null;\n' +
+    '  task: string | null;\n' +
+    '}\n' +
+    '\n' +
+    '/** 正在上屏的那一条 notice。 */\n' +
+    'export interface NoticeToastItem {\n' +
+    '  kind: "held" | "task";\n' +
+    '  text: string;\n' +
+    '}\n' +
+    '\n' +
+    '/**\n' +
+    ' * 单槽仲裁：held（§6.3 freshness-hold）与 task（§3.7 任务动作结果）两个槽\n' +
+    ' * 合成至多一条可见 toast —— 判据是「谁的槽刚变成新内容」，所以新 notice 顶掉旧的，\n' +
+    ' * 被顶掉的那条不会在旧 notice 消失后回弹（纯派生会回弹：held 退场后旧 task 又冒出来）。\n' +
+    ' */\n' +
+    'export function pickNoticeToast(seen: NoticeSlots, next: NoticeSlots): NoticeToastItem | null {\n' +
+    '  const { held, task } = next;\n' +
+    '  if (held !== null && held !== seen.held) return { kind: "held", text: held };\n' +
+    '  if (task !== null && task !== seen.task) return { kind: "task", text: task };\n' +
+    '  return null;\n' +
+    '}\n' +
+    '\n' +
+    '/**\n' +
+    ' * 浮层 toast：锚在消息区底部、composer 上方居中，`--z-toast` 压过 composer。\n' +
+    ' *\n' +
+    ' * 为什么不再挂在滚动流里：notice 原先渲染在 `.stream-inner` 尾部 —— ① 被下方 composer\n' +
+    ' * 遮住/挤出视野；② 在消息流最底部，用户不滚动就看不到（用户症状：注意不到有这个提示）。\n' +
+    ' * `role="status"` + `aria-live="polite"` 让读屏器把它当状态播报，而不是流内正文。\n' +
+    ' */\n' +
+    'export function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {\n' +
+    '  const { t } = useI18n();\n' +
+    '  if (!toast) return null;\n' +
+    '  // 文案口径（界面评审 D2 + `docs/i18n.md` 分层）：held 摘要（`whatHappened`）是**产品内容**\n' +
+    '  // （要进模型上下文，必须英文），不能直接贴到中文界面；界面这里只给本地化的动作提示。\n' +
+    '  // task 槽的 notice 由调用方用 `t(...)` 组装，本身就是 UI 文案，原样透传。\n' +
+    '  const text = toast.kind === "held" ? t("message.heldNoticeAction") : toast.text;\n' +
+    '  return (\n' +
+    '    <div\n' +
+    '      role="status"\n' +
+    '      aria-live="polite"\n' +
+    '      data-notice={toast.kind}\n' +
+    '      style={{\n' +
+    '        position: "absolute",\n' +
+    '        bottom: "var(--sp-6)",\n' +
+    '        left: "50%",\n' +
+    '        transform: "translateX(-50%)",\n' +
+    '        zIndex: "var(--z-toast)",\n' +
+    '        maxWidth: "min(90%, 520px)",\n' +
+    '        padding: "8px 12px",\n' +
+    '        background: toast.kind === "held" ? "var(--accent-soft)" : "var(--panel-2)",\n' +
+    '        border: "1px solid var(--border)",\n' +
+    '        borderRadius: "var(--r-md)",\n' +
+    '        boxShadow: "var(--shadow-pop)",\n' +
+    '        fontFamily: "var(--mono)",\n' +
+    '        fontSize: 12,\n' +
+    '        // 纯提示层不吃指针事件，别挡住 composer 的输入框与拖放。\n' +
+    '        pointerEvents: "none",\n' +
+    '      }}\n' +
+    '    >\n' +
+    '      {text}\n' +
+    '    </div>\n' +
+    '  );\n' +
+    '}\n' +
+    '\n' +
+    'export interface ChannelWithMeta extends ChannelRow {\n' +
+    '  joined: boolean;\n' +
+    '  memberCount: number;\n' +
+    '  /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */\n' +
+    '  unread: number;\n' +
+    '  /** 含至少一条未读讨论回复的 Task 数；与普通消息未读数分离。 */\n' +
+    '  unreadTaskCount: number;\n' +
+    '  /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */\n' +
+    '  messageCount: number;\n' +
+    '}\n' +
+    '\n' +
+    '/** §3.4 reaction 聚合（与 lib/domain/collab/reactions.ts 同形）。 */\n' +
+    'export interface ReactionSummary {\n' +
+    '  emoji: string;\n' +
+    '  count: number;\n' +
+    '  memberIds: string[];\n' +
+    '}\n' +
+    '\n' +
+    'export interface ChannelMessage {\n' +
+    '  id: string;\n' +
+    '  target_id: string;\n' +
+    '  seq: number;\n' +
+    '  author_id: string;\n' +
+    '  content: string;\n' +
+    '  created_at: string;\n' +
+    '  author: MemberRow | null;\n' +
+    '  reactions?: ReactionSummary[];\n' +
+    '  attachments?: AttachmentRow[];\n' +
+    '  /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */\n' +
+    '  threadReplyCount?: number;\n' +
+    '  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/domain/collab/rounds.ts）。 */\n' +
+    '  abandonedMarks?: Array<{\n' +
+    '    agentId: string;\n' +
+    '    agentName: string;\n' +
+    '    reason: string;\n' +
+    '    baseSeq: number;\n' +
+    '    createdAt: string;\n' +
+    '  }>;\n' +
+    '}\n' +
+    '\n' +
+    'type PinnedNavigationMessage = Pick<ChannelMessage, "id" | "seq">;\n' +
+    'type PinnedNavigationStep = "loaded" | "latest" | "earlier" | "unavailable";\n' +
+    '\n' +
+    'interface PendingPinnedNavigation extends PinnedNavigationMessage {\n' +
+    '  channelId: string;\n' +
+    '  requestedEarlierBefore?: number;\n' +
+    '  requestedLatestAtSeq?: number;\n' +
+    '  requestedLoadError?: string | null;\n' +
+    '}\n' +
+    '\n' +
+    'export function getPinnedNavigationStep(\n' +
+    '  target: PinnedNavigationMessage,\n' +
+    '  messages: readonly PinnedNavigationMessage[],\n' +
+    '  hasMore: boolean,\n' +
+    '): PinnedNavigationStep {\n' +
+    '  if (messages.some((message) => message.id === target.id)) return "loaded";\n' +
+    '  if (messages.length === 0) return "latest";\n' +
+    '\n' +
+    '  const oldestSeq = messages[0].seq;\n' +
+    '  const newestSeq = messages[messages.length - 1].seq;\n' +
+    '  if (target.seq > newestSeq) return "latest";\n' +
+    '  if (target.seq < oldestSeq) return hasMore ? "earlier" : "unavailable";\n' +
+    '  return "unavailable";\n' +
+    '}\n' +
+    '\n' +
+    'export function hasPinnedNavigationError(\n' +
+    '  requestLoadError: string | null | undefined,\n' +
+    '  loadError: string | null,\n' +
+    '): boolean {\n' +
+    '  return requestLoadError !== undefined && requestLoadError !== loadError;\n' +
+    '}\n' +
+    '\n' +
+    '/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */\n' +
+    'import type { ChannelTask } from "@/hooks/useChannelData";\n' +
+    '\n' +
+    'export interface TaskCreationEvent {\n' +
+    '  number: number;\n' +
+    '  preview: string;\n' +
+    '}\n' +
+    '\n' +
+    'export interface TaskCreationAnnouncement extends TaskCreationEvent {\n' +
+    '  messageId: string;\n' +
+    '}\n' +
+    '\n' +
+    'const TASK_EVENT_ANNOUNCEMENT_LIMIT = 20;\n' +
+    '\n' +
+    'function parseTaskCreationEvent(\n' +
+    '  message: Pick<ChannelMessage, "author_id" | "content">,\n' +
+    '): TaskCreationEvent | null {\n' +
+    '  if (message.author_id !== OWNER_MEMBER_ID) return null;\n' +
+    '  const match = /^Task #(\\d+) created(?: — (.*))?$/.exec(message.content);\n' +
+    '  if (!match) return null;\n' +
+    '  const number = Number(match[1]);\n' +
+    '  if (!Number.isSafeInteger(number)) return null;\n' +
+    '  return { number, preview: match[2] ?? "" };\n' +
+    '}\n' +
+    '\n' +
+    '/** 按频道保留已观察的 seq 水位，切回旧频道时仍能识别新事件。 */\n' +
+    'export function createTaskCreationAnnouncementTracker() {\n' +
+    '  const observedSeqByChannel = new Map<string, number>();\n' +
+    '\n' +
+    '  return {\n' +
+    '    observe(\n' +
+    '      nextChannelId: string,\n' +
+    '      messages: ChannelMessage[],\n' +
+    '      ready: boolean,\n' +
+    '    ): TaskCreationAnnouncement[] {\n' +
+    '      if (!ready) return [];\n' +
+    '      const observedSeq = observedSeqByChannel.get(nextChannelId);\n' +
+    '      const maxSeq = messages.reduce(\n' +
+    '        (max, message) => Math.max(max, message.seq),\n' +
+    '        0,\n' +
+    '      );\n' +
+    '      if (observedSeq === undefined) {\n' +
+    '        observedSeqByChannel.set(nextChannelId, maxSeq);\n' +
+    '        return [];\n' +
+    '      }\n' +
+    '\n' +
+    '      const announcements: TaskCreationAnnouncement[] = [];\n' +
+    '      for (const message of messages) {\n' +
+    '        if (message.seq <= observedSeq) continue;\n' +
+    '        const event = parseTaskCreationEvent(message);\n' +
+    '        if (event) announcements.push({ ...event, messageId: message.id });\n' +
+    '      }\n' +
+    '      observedSeqByChannel.set(nextChannelId, Math.max(observedSeq, maxSeq));\n' +
+    '      return announcements;\n' +
+    '    },\n' +
+    '  };\n' +
+    '}\n' +
+    '\n' +
+    '/** 创建事件的静态呈现；预览有意保持为普通文本。 */\n' +
+    'export function TaskCreationEventRow({\n' +
+    '  event,\n' +
+    '}: {\n' +
+    '  event: TaskCreationEvent;\n' +
+    '}) {\n' +
+    '  const { t } = useI18n();\n' +
+    '  return (\n' +
+    '    <div className="ws-task-created-event" role="note">\n' +
+    '      <span>{t("tasks.created", { number: String(event.number) })}</span>\n' +
+    '      {event.preview && <span>{event.preview}</span>}\n' +
+    '    </div>\n' +
+    '  );\n' +
+    '}\n' +
+    '\n' +
+    '/** @ 提及补全菜单最大展示条数。 */\n' +
+    'const AT_MATCH_LIMIT = 20;\n' +
+    '/** 任务板状态分组顺序（§3.7）。 */\n' +
+    'const TASK_STATUS_ORDER: TaskStatus[] = [\n' +
+    '  "todo",\n' +
+    '  "in_progress",\n' +
+    '  "in_review",\n' +
+    '  "done",\n' +
+    '  "closed",\n' +
+    '];\n' +
+    '/** §3.4 hover 快捷 reaction（常用若干）。 */\n' +
+    'const QUICK_REACTIONS = ["👍", "❤️", "🎉", "👀"];\n' +
+    '/** §3.4 表情选择器候选（常用 + 任务场景）。 */\n' +
+    'const EMOJI_PICKER_OPTIONS = [\n' +
+    '  "👍",\n' +
+    '  "👎",\n' +
+    '  "❤️",\n' +
+    '  "🎉",\n' +
+    '  "👀",\n' +
+    '  "🔥",\n' +
+    '  "✅",\n' +
+    '  "❌",\n' +
+    '  "🙏",\n' +
+    '  "🚀",\n' +
+    '  "💡",\n' +
+    '  "🤔",\n' +
+    '  "😂",\n' +
+    '  "😅",\n' +
+    '  "😮",\n' +
+    '  "😢",\n' +
+    '  "😡",\n' +
+    '  "🥳",\n' +
+    '  "👏",\n' +
+    '  "🙌",\n' +
+    '  "🤝",\n' +
+    '  "📌",\n' +
+    '  "⏰",\n' +
+    '  "🔧",\n' +
+    '];\n' +
+    '\n' +
+    '/** 头部可展开面板（置顶/静音/成员）手风琴过渡时长与缓动：ease-out 曲线，避免瞬间出现/消失。 */\n' +
+    'const PANEL_COLLAPSE_TRANSITION =\n' +
+    '  "grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1), visibility 220ms";\n' +
+    '\n' +
+    '/** 面板折叠外壳：常驻渲染，靠 grid 行高 0fr↔1fr 过渡展开/收起（互斥手风琴，见 toggle*Panel）。 */\n' +
+    'const panelShellStyle = (open: boolean): React.CSSProperties => ({\n' +
+    '  flexShrink: 0,\n' +
+    '  display: "grid",\n' +
+    '  gridTemplateRows: open ? "1fr" : "0fr",\n' +
+    '  transition: PANEL_COLLAPSE_TRANSITION,\n' +
+    '  // visibility 参与过渡：收起动画播完才真正隐藏（离散属性在过渡期间保持可见），展开时立即可见。\n' +
+    '  visibility: open ? "visible" : "hidden",\n' +
+    '});\n' +
+    '\n' +
+    '/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。\n' +
+    '    背景取 `--surface`（ED-1：头部展开面板是 chrome，与 `.chan-head` 的底同层），横向 padding 与\n' +
+    '    `.chan-head` 的 `--sp-9` 对齐。\n' +
+    '    ⚠ 关闭态要把 padding 与下边框**也收掉**：网格项自己的 padding/边框不可收缩，\n' +
+    '    否则 0fr 行会停在它的 24px padding + 1px 边框上（面板“关着”却占位，把 tabs 往下顶）。\n' +
+    '    两者与外壳的 `grid-template-rows` 同步过渡（同一时长/缓动）。 */\n' +
+    'const panelCollapseInnerStyle = (open: boolean): React.CSSProperties => ({\n' +
+    '  minHeight: 0,\n' +
+    '  overflow: "hidden",\n' +
+    '  padding: open ? "var(--sp-5) var(--sp-9)" : "0 var(--sp-9)",\n' +
+    '  b'... 159343 more characters
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/components/ChannelView.test.mjs:1316:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '"use client";\n\nimport {\n  memo,\n  useCallback,\n  useEffect,\n  useLayoutEffect,\n  useMemo,\n  useRef,\n  useState,\n} from "react";\nimport {\n  AlarmClock,\n  Bell,\n  BellOff,\n  Check,\n  ChevronDown,\n  ChevronRight,\n  ChevronUp,\n  CircleSlash,\n  CornerDownRight,\n  FileText,\n  Kanban,\n  Link,\n  List,\n  ListPlus,\n  Paperclip,\n  Pin,\n  Quote,\n  Reply,\n  Send,\n  SmilePlus,\n  TriangleAlert,\n  Users,\n  X,\n} from "lucide-react";\nimport { useI18n } from "@/hooks/useI18n";\nimport type { TranslationParams } from "@/lib/i18n/types";\nimport {\n  JOURNEY_GUIDE_CONTENT_FADE_MS,\n  JOURNEY_GUIDE_DISSOLVE_MS,\n  JOURNEY_GUIDE_ENTER_TOTAL_MS,\n  JOURNEY_GUIDE_EXIT_MS,\n  JOURNEY_GUIDE_REFORM_MS,\n  JOURNEY_GUIDE_REVEAL_MS,\n  JOURNEY_GUIDE_SWAP_MS,\n  JOURNEY_GUIDE_SWITCH_TOTAL_MS,\n  groupJourneyGuideTextLines,\n  sampleJourneyGuideParticles,\n  type JourneyGuideGlyphRect,\n  type JourneyGuideParticlePoint,\n} from "@/lib/journey-guide-particles";\nimport { MentionText } from "./MentionText";\nimport { Avatar } from "./Avatar";\nimport { StatusDot } from "./StatusDot";\nimport { ReminderModal } from "./ReminderModal";\nimport { BrutalModal } from "./BrutalModal";\nimport { copyText } from "@/lib/clipboard";\nimport { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";\nimport { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "@/lib/data/schema";\nimport type {\n  AttachmentRow,\n  ChannelRow,\n  MemberRow,\n  TaskStatus,\n} from "@/lib/data/types";\nimport {\n  extractAtQuery,\n  buildAtInsertText,\n  type AtQueryMatch,\n} from "@/lib/file-fuzzy";\nimport { composerMentionCandidates } from "@/lib/mention";\nimport { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";\nimport { indexCurrentMembersById } from "@/lib/member-index";\nimport {\n  deriveJourneyState,\n  type JourneyGuideKind,\n  type JourneyStep,\n} from "@/lib/journey-state";\nimport { useChannelData } from "@/hooks/useChannelData";\n\nexport type CenterTab = "messages" | "tasks";\n\n/** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */\nexport const NOTICE_TOAST_MS = 3500;\nconst PINNED_MESSAGE_HIGHLIGHT_MS = 1800;\n\n/** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */\nexport interface NoticeSlots {\n  held: string | null;\n  task: string | null;\n}\n\n/** 正在上屏的那一条 notice。 */\nexport interface NoticeToastItem {\n  kind: "held" | "task";\n  text: string;\n}\n\n/**\n * 单槽仲裁：held（§6.3 freshness-hold）与 task（§3.7 任务动作结果）两个槽\n * 合成至多一条可见 toast —— 判据是「谁的槽刚变成新内容」，所以新 notice 顶掉旧的，\n * 被顶掉的那条不会在旧 notice 消失后回弹（纯派生会回弹：held 退场后旧 task 又冒出来）。\n */\nexport function pickNoticeToast(seen: NoticeSlots, next: NoticeSlots): NoticeToastItem | null {\n  const { held, task } = next;\n  if (held !== null && held !== seen.held) return { kind: "held", text: held };\n  if (task !== null && task !== seen.task) return { kind: "task", text: task };\n  return null;\n}\n\n/**\n * 浮层 toast：锚在消息区底部、composer 上方居中，`--z-toast` 压过 composer。\n *\n * 为什么不再挂在滚动流里：notice 原先渲染在 `.stream-inner` 尾部 —— ① 被下方 composer\n * 遮住/挤出视野；② 在消息流最底部，用户不滚动就看不到（用户症状：注意不到有这个提示）。\n * `role="status"` + `aria-live="polite"` 让读屏器把它当状态播报，而不是流内正文。\n */\nexport function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {\n  const { t } = useI18n();\n  if (!toast) return null;\n  // 文案口径（界面评审 D2 + `docs/i18n.md` 分层）：held 摘要（`whatHappened`）是**产品内容**\n  // （要进模型上下文，必须英文），不能直接贴到中文界面；界面这里只给本地化的动作提示。\n  // task 槽的 notice 由调用方用 `t(...)` 组装，本身就是 UI 文案，原样透传。\n  const text = toast.kind === "held" ? t("message.heldNoticeAction") : toast.text;\n  return (\n    <div\n      role="status"\n      aria-live="polite"\n      data-notice={toast.kind}\n      style={{\n        position: "absolute",\n        bottom: "var(--sp-6)",\n        left: "50%",\n        transform: "translateX(-50%)",\n        zIndex: "var(--z-toast)",\n        maxWidth: "min(90%, 520px)",\n        padding: "8px 12px",\n        background: toast.kind === "held" ? "var(--accent-soft)" : "var(--panel-2)",\n        border: "1px solid var(--border)",\n        borderRadius: "var(--r-md)",\n        boxShadow: "var(--shadow-pop)",\n        fontFamily: "var(--mono)",\n        fontSize: 12,\n        // 纯提示层不吃指针事件，别挡住 composer 的输入框与拖放。\n        pointerEvents: "none",\n      }}\n    >\n      {text}\n    </div>\n  );\n}\n\nexport interface ChannelWithMeta extends ChannelRow {\n  joined: boolean;\n  memberCount: number;\n  /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */\n  unread: number;\n  /** 含至少一条未读讨论回复的 Task 数；与普通消息未读数分离。 */\n  unreadTaskCount: number;\n  /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */\n  messageCount: number;\n}\n\n/** §3.4 reaction 聚合（与 lib/domain/collab/reactions.ts 同形）。 */\nexport interface ReactionSummary {\n  emoji: string;\n  count: number;\n  memberIds: string[];\n}\n\nexport interface ChannelMessage {\n  id: string;\n  target_id: string;\n  seq: number;\n  author_id: string;\n  content: string;\n  created_at: string;\n  author: MemberRow | null;\n  reactions?: ReactionSummary[];\n  attachments?: AttachmentRow[];\n  /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */\n  threadReplyCount?: number;\n  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/domain/collab/rounds.ts）。 */\n  abandonedMarks?: Array<{\n    agentId: string;\n    agentName: string;\n    reason: string;\n    baseSeq: number;\n    createdAt: string;\n  }>;\n}\n\ntype PinnedNavigationMessage = Pick<ChannelMessage, "id" | "seq">;\ntype PinnedNavigationStep = "loaded" | "latest" | "earlier" | "unavailable";\n\ninterface PendingPinnedNavigation extends PinnedNavigationMessage {\n  channelId: string;\n  requestedEarlierBefore?: number;\n  requestedLatestAtSeq?: number;\n  requestedLoadError?: string | null;\n}\n\nexport function getPinnedNavigationStep(\n  target: PinnedNavigationMessage,\n  messages: readonly PinnedNavigationMessage[],\n  hasMore: boolean,\n): PinnedNavigationStep {\n  if (messages.some((message) => message.id === target.id)) return "loaded";\n  if (messages.length === 0) return "latest";\n\n  const oldestSeq = messages[0].seq;\n  const newestSeq = messages[messages.length - 1].seq;\n  if (target.seq > newestSeq) return "latest";\n  if (target.seq < oldestSeq) return hasMore ? "earlier" : "unavailable";\n  return "unavailable";\n}\n\nexport function hasPinnedNavigationError(\n  requestLoadError: string | null | undefined,\n  loadError: string | null,\n): boolean {\n  return requestLoadError !== undefined && requestLoadError !== loadError;\n}\n\n/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */\nimport type { ChannelTask } from "@/hooks/useChannelData";\n\nexport interface TaskCreationEvent {\n  number: number;\n  preview: string;\n}\n\nexport interface TaskCreationAnnouncement extends TaskCreationEvent {\n  messageId: string;\n}\n\nconst TASK_EVENT_ANNOUNCEMENT_LIMIT = 20;\n\nfunction parseTaskCreationEvent(\n  message: Pick<ChannelMessage, "author_id" | "content">,\n): TaskCreationEvent | null {\n  if (message.author_id !== OWNER_MEMBER_ID) return null;\n  const match = /^Task #(\\d+) created(?: — (.*))?$/.exec(message.content);\n  if (!match) return null;\n  const number = Number(match[1]);\n  if (!Number.isSafeInteger(number)) return null;\n  return { number, preview: match[2] ?? "" };\n}\n\n/** 按频道保留已观察的 seq 水位，切回旧频道时仍能识别新事件。 */\nexport function createTaskCreationAnnouncementTracker() {\n  const observedSeqByChannel = new Map<string, number>();\n\n  return {\n    observe(\n      nextChannelId: string,\n      messages: ChannelMessage[],\n      ready: boolean,\n    ): TaskCreationAnnouncement[] {\n      if (!ready) return [];\n      const observedSeq = observedSeqByChannel.get(nextChannelId);\n      const maxSeq = messages.reduce(\n        (max, message) => Math.max(max, message.seq),\n        0,\n      );\n      if (observedSeq === undefined) {\n        observedSeqByChannel.set(nextChannelId, maxSeq);\n        return [];\n      }\n\n      const announcements: TaskCreationAnnouncement[] = [];\n      for (const message of messages) {\n        if (message.seq <= observedSeq) continue;\n        const event = parseTaskCreationEvent(message);\n        if (event) announcements.push({ ...event, messageId: message.id });\n      }\n      observedSeqByChannel.set(nextChannelId, Math.max(observedSeq, maxSeq));\n      return announcements;\n    },\n  };\n}\n\n/** 创建事件的静态呈现；预览有意保持为普通文本。 */\nexport function TaskCreationEventRow({\n  event,\n}: {\n  event: TaskCreationEvent;\n}) {\n  const { t } = useI18n();\n  return (\n    <div className="ws-task-created-event" role="note">\n      <span>{t("tasks.created", { number: String(event.number) })}</span>\n      {event.preview && <span>{event.preview}</span>}\n    </div>\n  );\n}\n\n/** @ 提及补全菜单最大展示条数。 */\nconst AT_MATCH_LIMIT = 20;\n/** 任务板状态分组顺序（§3.7）。 */\nconst TASK_STATUS_ORDER: TaskStatus[] = [\n  "todo",\n  "in_progress",\n  "in_review",\n  "done",\n  "closed",\n];\n/** §3.4 hover 快捷 reaction（常用若干）。 */\nconst QUICK_REACTIONS = ["👍", "❤️", "🎉", "👀"];\n/** §3.4 表情选择器候选（常用 + 任务场景）。 */\nconst EMOJI_PICKER_OPTIONS = [\n  "👍",\n  "👎",\n  "❤️",\n  "🎉",\n  "👀",\n  "🔥",\n  "✅",\n  "❌",\n  "🙏",\n  "🚀",\n  "💡",\n  "🤔",\n  "😂",\n  "😅",\n  "😮",\n  "😢",\n  "😡",\n  "🥳",\n  "👏",\n  "🙌",\n  "🤝",\n  "📌",\n  "⏰",\n  "🔧",\n];\n\n/** 头部可展开面板（置顶/静音/成员）手风琴过渡时长与缓动：ease-out 曲线，避免瞬间出现/消失。 */\nconst PANEL_COLLAPSE_TRANSITION =\n  "grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1), visibility 220ms";\n\n/** 面板折叠外壳：常驻渲染，靠 grid 行高 0fr↔1fr 过渡展开/收起（互斥手风琴，见 toggle*Panel）。 */\nconst panelShellStyle = (open: boolean): React.CSSProperties => ({\n  flexShrink: 0,\n  display: "grid",\n  gridTemplateRows: open ? "1fr" : "0fr",\n  transition: PANEL_COLLAPSE_TRANSITION,\n  // visibility 参与过渡：收起动画播完才真正隐藏（离散属性在过渡期间保持可见），展开时立即可见。\n  visibility: open ? "visible" : "hidden",\n});\n\n/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。\n    背景取 `--surface`（ED-1：头部展开面板是 chrome，与 `.chan-head` 的底同层），横向 padding 与\n    `.chan-head` 的 `--sp-9` 对齐。\n    ⚠ 关闭态要把 padding 与下边框**也收掉**：网格项自己的 padding/边框不可收缩，\n    否则 0fr 行会停在它的 24px padding + 1px 边框上（面板“关着”却占位，把 tabs 往下顶）。\n    两者与外壳的 `grid-template-rows` 同步过渡（同一时长/缓动）。 */\nconst panelCollapseInnerStyle = (open: boolean): React.CSSProperties => ({\n  minHeight: 0,\n  overflow: "hidden",\n  padding: open ? "var(--sp-5) var(--sp-9)" : "0 var(--sp-9)",\n  b'... 159343 more characters,
+    expected: /JourneyBar/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at components/ChannelView.test.mjs:1384:1
+✖ 待审核引导卡提示去复核；running 不再是合法形态 (16.493958ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /"running"/. Input:
+  
+  ' "describe" | "handoff" | "running" | "review"'
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/components/ChannelView.test.mjs:1404:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: ' "describe" | "handoff" | "running" | "review"',
+    expected: /"running"/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at components/ChannelView.test.mjs:1849:1
+✖ ChannelView 接线：引导卡/任务角标/秘书入口都进中央视图 (10.496625ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /<JourneyBar/. Input:
+  
+  '"use client";\n' +
+    '\n' +
+    'import {\n' +
+    '  memo,\n' +
+    '  useCallback,\n' +
+    '  useEffect,\n' +
+    '  useLayoutEffect,\n' +
+    '  useMemo,\n' +
+    '  useRef,\n' +
+    '  useState,\n' +
+    '} from "react";\n' +
+    'import {\n' +
+    '  AlarmClock,\n' +
+    '  Bell,\n' +
+    '  BellOff,\n' +
+    '  Check,\n' +
+    '  ChevronDown,\n' +
+    '  ChevronRight,\n' +
+    '  ChevronUp,\n' +
+    '  CircleSlash,\n' +
+    '  CornerDownRight,\n' +
+    '  FileText,\n' +
+    '  Kanban,\n' +
+    '  Link,\n' +
+    '  List,\n' +
+    '  ListPlus,\n' +
+    '  Paperclip,\n' +
+    '  Pin,\n' +
+    '  Quote,\n' +
+    '  Reply,\n' +
+    '  Send,\n' +
+    '  SmilePlus,\n' +
+    '  TriangleAlert,\n' +
+    '  Users,\n' +
+    '  X,\n' +
+    '} from "lucide-react";\n' +
+    'import { useI18n } from "@/hooks/useI18n";\n' +
+    'import type { TranslationParams } from "@/lib/i18n/types";\n' +
+    'import {\n' +
+    '  JOURNEY_GUIDE_CONTENT_FADE_MS,\n' +
+    '  JOURNEY_GUIDE_DISSOLVE_MS,\n' +
+    '  JOURNEY_GUIDE_ENTER_TOTAL_MS,\n' +
+    '  JOURNEY_GUIDE_EXIT_MS,\n' +
+    '  JOURNEY_GUIDE_REFORM_MS,\n' +
+    '  JOURNEY_GUIDE_REVEAL_MS,\n' +
+    '  JOURNEY_GUIDE_SWAP_MS,\n' +
+    '  JOURNEY_GUIDE_SWITCH_TOTAL_MS,\n' +
+    '  groupJourneyGuideTextLines,\n' +
+    '  sampleJourneyGuideParticles,\n' +
+    '  type JourneyGuideGlyphRect,\n' +
+    '  type JourneyGuideParticlePoint,\n' +
+    '} from "@/lib/journey-guide-particles";\n' +
+    'import { MentionText } from "./MentionText";\n' +
+    'import { Avatar } from "./Avatar";\n' +
+    'import { StatusDot } from "./StatusDot";\n' +
+    'import { ReminderModal } from "./ReminderModal";\n' +
+    'import { BrutalModal } from "./BrutalModal";\n' +
+    'import { copyText } from "@/lib/clipboard";\n' +
+    'import { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";\n' +
+    'import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "@/lib/data/schema";\n' +
+    'import type {\n' +
+    '  AttachmentRow,\n' +
+    '  ChannelRow,\n' +
+    '  MemberRow,\n' +
+    '  TaskStatus,\n' +
+    '} from "@/lib/data/types";\n' +
+    'import {\n' +
+    '  extractAtQuery,\n' +
+    '  buildAtInsertText,\n' +
+    '  type AtQueryMatch,\n' +
+    '} from "@/lib/file-fuzzy";\n' +
+    'import { composerMentionCandidates } from "@/lib/mention";\n' +
+    'import { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";\n' +
+    'import { indexCurrentMembersById } from "@/lib/member-index";\n' +
+    'import {\n' +
+    '  deriveJourneyState,\n' +
+    '  type JourneyGuideKind,\n' +
+    '  type JourneyStep,\n' +
+    '} from "@/lib/journey-state";\n' +
+    'import { useChannelData } from "@/hooks/useChannelData";\n' +
+    '\n' +
+    'export type CenterTab = "messages" | "tasks";\n' +
+    '\n' +
+    '/** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */\n' +
+    'export const NOTICE_TOAST_MS = 3500;\n' +
+    'const PINNED_MESSAGE_HIGHLIGHT_MS = 1800;\n' +
+    '\n' +
+    '/** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */\n' +
+    'export interface NoticeSlots {\n' +
+    '  held: string | null;\n' +
+    '  task: string | null;\n' +
+    '}\n' +
+    '\n' +
+    '/** 正在上屏的那一条 notice。 */\n' +
+    'export interface NoticeToastItem {\n' +
+    '  kind: "held" | "task";\n' +
+    '  text: string;\n' +
+    '}\n' +
+    '\n' +
+    '/**\n' +
+    ' * 单槽仲裁：held（§6.3 freshness-hold）与 task（§3.7 任务动作结果）两个槽\n' +
+    ' * 合成至多一条可见 toast —— 判据是「谁的槽刚变成新内容」，所以新 notice 顶掉旧的，\n' +
+    ' * 被顶掉的那条不会在旧 notice 消失后回弹（纯派生会回弹：held 退场后旧 task 又冒出来）。\n' +
+    ' */\n' +
+    'export function pickNoticeToast(seen: NoticeSlots, next: NoticeSlots): NoticeToastItem | null {\n' +
+    '  const { held, task } = next;\n' +
+    '  if (held !== null && held !== seen.held) return { kind: "held", text: held };\n' +
+    '  if (task !== null && task !== seen.task) return { kind: "task", text: task };\n' +
+    '  return null;\n' +
+    '}\n' +
+    '\n' +
+    '/**\n' +
+    ' * 浮层 toast：锚在消息区底部、composer 上方居中，`--z-toast` 压过 composer。\n' +
+    ' *\n' +
+    ' * 为什么不再挂在滚动流里：notice 原先渲染在 `.stream-inner` 尾部 —— ① 被下方 composer\n' +
+    ' * 遮住/挤出视野；② 在消息流最底部，用户不滚动就看不到（用户症状：注意不到有这个提示）。\n' +
+    ' * `role="status"` + `aria-live="polite"` 让读屏器把它当状态播报，而不是流内正文。\n' +
+    ' */\n' +
+    'export function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {\n' +
+    '  const { t } = useI18n();\n' +
+    '  if (!toast) return null;\n' +
+    '  // 文案口径（界面评审 D2 + `docs/i18n.md` 分层）：held 摘要（`whatHappened`）是**产品内容**\n' +
+    '  // （要进模型上下文，必须英文），不能直接贴到中文界面；界面这里只给本地化的动作提示。\n' +
+    '  // task 槽的 notice 由调用方用 `t(...)` 组装，本身就是 UI 文案，原样透传。\n' +
+    '  const text = toast.kind === "held" ? t("message.heldNoticeAction") : toast.text;\n' +
+    '  return (\n' +
+    '    <div\n' +
+    '      role="status"\n' +
+    '      aria-live="polite"\n' +
+    '      data-notice={toast.kind}\n' +
+    '      style={{\n' +
+    '        position: "absolute",\n' +
+    '        bottom: "var(--sp-6)",\n' +
+    '        left: "50%",\n' +
+    '        transform: "translateX(-50%)",\n' +
+    '        zIndex: "var(--z-toast)",\n' +
+    '        maxWidth: "min(90%, 520px)",\n' +
+    '        padding: "8px 12px",\n' +
+    '        background: toast.kind === "held" ? "var(--accent-soft)" : "var(--panel-2)",\n' +
+    '        border: "1px solid var(--border)",\n' +
+    '        borderRadius: "var(--r-md)",\n' +
+    '        boxShadow: "var(--shadow-pop)",\n' +
+    '        fontFamily: "var(--mono)",\n' +
+    '        fontSize: 12,\n' +
+    '        // 纯提示层不吃指针事件，别挡住 composer 的输入框与拖放。\n' +
+    '        pointerEvents: "none",\n' +
+    '      }}\n' +
+    '    >\n' +
+    '      {text}\n' +
+    '    </div>\n' +
+    '  );\n' +
+    '}\n' +
+    '\n' +
+    'export interface ChannelWithMeta extends ChannelRow {\n' +
+    '  joined: boolean;\n' +
+    '  memberCount: number;\n' +
+    '  /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */\n' +
+    '  unread: number;\n' +
+    '  /** 含至少一条未读讨论回复的 Task 数；与普通消息未读数分离。 */\n' +
+    '  unreadTaskCount: number;\n' +
+    '  /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */\n' +
+    '  messageCount: number;\n' +
+    '}\n' +
+    '\n' +
+    '/** §3.4 reaction 聚合（与 lib/domain/collab/reactions.ts 同形）。 */\n' +
+    'export interface ReactionSummary {\n' +
+    '  emoji: string;\n' +
+    '  count: number;\n' +
+    '  memberIds: string[];\n' +
+    '}\n' +
+    '\n' +
+    'export interface ChannelMessage {\n' +
+    '  id: string;\n' +
+    '  target_id: string;\n' +
+    '  seq: number;\n' +
+    '  author_id: string;\n' +
+    '  content: string;\n' +
+    '  created_at: string;\n' +
+    '  author: MemberRow | null;\n' +
+    '  reactions?: ReactionSummary[];\n' +
+    '  attachments?: AttachmentRow[];\n' +
+    '  /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */\n' +
+    '  threadReplyCount?: number;\n' +
+    '  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/domain/collab/rounds.ts）。 */\n' +
+    '  abandonedMarks?: Array<{\n' +
+    '    agentId: string;\n' +
+    '    agentName: string;\n' +
+    '    reason: string;\n' +
+    '    baseSeq: number;\n' +
+    '    createdAt: string;\n' +
+    '  }>;\n' +
+    '}\n' +
+    '\n' +
+    'type PinnedNavigationMessage = Pick<ChannelMessage, "id" | "seq">;\n' +
+    'type PinnedNavigationStep = "loaded" | "latest" | "earlier" | "unavailable";\n' +
+    '\n' +
+    'interface PendingPinnedNavigation extends PinnedNavigationMessage {\n' +
+    '  channelId: string;\n' +
+    '  requestedEarlierBefore?: number;\n' +
+    '  requestedLatestAtSeq?: number;\n' +
+    '  requestedLoadError?: string | null;\n' +
+    '}\n' +
+    '\n' +
+    'export function getPinnedNavigationStep(\n' +
+    '  target: PinnedNavigationMessage,\n' +
+    '  messages: readonly PinnedNavigationMessage[],\n' +
+    '  hasMore: boolean,\n' +
+    '): PinnedNavigationStep {\n' +
+    '  if (messages.some((message) => message.id === target.id)) return "loaded";\n' +
+    '  if (messages.length === 0) return "latest";\n' +
+    '\n' +
+    '  const oldestSeq = messages[0].seq;\n' +
+    '  const newestSeq = messages[messages.length - 1].seq;\n' +
+    '  if (target.seq > newestSeq) return "latest";\n' +
+    '  if (target.seq < oldestSeq) return hasMore ? "earlier" : "unavailable";\n' +
+    '  return "unavailable";\n' +
+    '}\n' +
+    '\n' +
+    'export function hasPinnedNavigationError(\n' +
+    '  requestLoadError: string | null | undefined,\n' +
+    '  loadError: string | null,\n' +
+    '): boolean {\n' +
+    '  return requestLoadError !== undefined && requestLoadError !== loadError;\n' +
+    '}\n' +
+    '\n' +
+    '/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */\n' +
+    'import type { ChannelTask } from "@/hooks/useChannelData";\n' +
+    '\n' +
+    'export interface TaskCreationEvent {\n' +
+    '  number: number;\n' +
+    '  preview: string;\n' +
+    '}\n' +
+    '\n' +
+    'export interface TaskCreationAnnouncement extends TaskCreationEvent {\n' +
+    '  messageId: string;\n' +
+    '}\n' +
+    '\n' +
+    'const TASK_EVENT_ANNOUNCEMENT_LIMIT = 20;\n' +
+    '\n' +
+    'function parseTaskCreationEvent(\n' +
+    '  message: Pick<ChannelMessage, "author_id" | "content">,\n' +
+    '): TaskCreationEvent | null {\n' +
+    '  if (message.author_id !== OWNER_MEMBER_ID) return null;\n' +
+    '  const match = /^Task #(\\d+) created(?: — (.*))?$/.exec(message.content);\n' +
+    '  if (!match) return null;\n' +
+    '  const number = Number(match[1]);\n' +
+    '  if (!Number.isSafeInteger(number)) return null;\n' +
+    '  return { number, preview: match[2] ?? "" };\n' +
+    '}\n' +
+    '\n' +
+    '/** 按频道保留已观察的 seq 水位，切回旧频道时仍能识别新事件。 */\n' +
+    'export function createTaskCreationAnnouncementTracker() {\n' +
+    '  const observedSeqByChannel = new Map<string, number>();\n' +
+    '\n' +
+    '  return {\n' +
+    '    observe(\n' +
+    '      nextChannelId: string,\n' +
+    '      messages: ChannelMessage[],\n' +
+    '      ready: boolean,\n' +
+    '    ): TaskCreationAnnouncement[] {\n' +
+    '      if (!ready) return [];\n' +
+    '      const observedSeq = observedSeqByChannel.get(nextChannelId);\n' +
+    '      const maxSeq = messages.reduce(\n' +
+    '        (max, message) => Math.max(max, message.seq),\n' +
+    '        0,\n' +
+    '      );\n' +
+    '      if (observedSeq === undefined) {\n' +
+    '        observedSeqByChannel.set(nextChannelId, maxSeq);\n' +
+    '        return [];\n' +
+    '      }\n' +
+    '\n' +
+    '      const announcements: TaskCreationAnnouncement[] = [];\n' +
+    '      for (const message of messages) {\n' +
+    '        if (message.seq <= observedSeq) continue;\n' +
+    '        const event = parseTaskCreationEvent(message);\n' +
+    '        if (event) announcements.push({ ...event, messageId: message.id });\n' +
+    '      }\n' +
+    '      observedSeqByChannel.set(nextChannelId, Math.max(observedSeq, maxSeq));\n' +
+    '      return announcements;\n' +
+    '    },\n' +
+    '  };\n' +
+    '}\n' +
+    '\n' +
+    '/** 创建事件的静态呈现；预览有意保持为普通文本。 */\n' +
+    'export function TaskCreationEventRow({\n' +
+    '  event,\n' +
+    '}: {\n' +
+    '  event: TaskCreationEvent;\n' +
+    '}) {\n' +
+    '  const { t } = useI18n();\n' +
+    '  return (\n' +
+    '    <div className="ws-task-created-event" role="note">\n' +
+    '      <span>{t("tasks.created", { number: String(event.number) })}</span>\n' +
+    '      {event.preview && <span>{event.preview}</span>}\n' +
+    '    </div>\n' +
+    '  );\n' +
+    '}\n' +
+    '\n' +
+    '/** @ 提及补全菜单最大展示条数。 */\n' +
+    'const AT_MATCH_LIMIT = 20;\n' +
+    '/** 任务板状态分组顺序（§3.7）。 */\n' +
+    'const TASK_STATUS_ORDER: TaskStatus[] = [\n' +
+    '  "todo",\n' +
+    '  "in_progress",\n' +
+    '  "in_review",\n' +
+    '  "done",\n' +
+    '  "closed",\n' +
+    '];\n' +
+    '/** §3.4 hover 快捷 reaction（常用若干）。 */\n' +
+    'const QUICK_REACTIONS = ["👍", "❤️", "🎉", "👀"];\n' +
+    '/** §3.4 表情选择器候选（常用 + 任务场景）。 */\n' +
+    'const EMOJI_PICKER_OPTIONS = [\n' +
+    '  "👍",\n' +
+    '  "👎",\n' +
+    '  "❤️",\n' +
+    '  "🎉",\n' +
+    '  "👀",\n' +
+    '  "🔥",\n' +
+    '  "✅",\n' +
+    '  "❌",\n' +
+    '  "🙏",\n' +
+    '  "🚀",\n' +
+    '  "💡",\n' +
+    '  "🤔",\n' +
+    '  "😂",\n' +
+    '  "😅",\n' +
+    '  "😮",\n' +
+    '  "😢",\n' +
+    '  "😡",\n' +
+    '  "🥳",\n' +
+    '  "👏",\n' +
+    '  "🙌",\n' +
+    '  "🤝",\n' +
+    '  "📌",\n' +
+    '  "⏰",\n' +
+    '  "🔧",\n' +
+    '];\n' +
+    '\n' +
+    '/** 头部可展开面板（置顶/静音/成员）手风琴过渡时长与缓动：ease-out 曲线，避免瞬间出现/消失。 */\n' +
+    'const PANEL_COLLAPSE_TRANSITION =\n' +
+    '  "grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1), visibility 220ms";\n' +
+    '\n' +
+    '/** 面板折叠外壳：常驻渲染，靠 grid 行高 0fr↔1fr 过渡展开/收起（互斥手风琴，见 toggle*Panel）。 */\n' +
+    'const panelShellStyle = (open: boolean): React.CSSProperties => ({\n' +
+    '  flexShrink: 0,\n' +
+    '  display: "grid",\n' +
+    '  gridTemplateRows: open ? "1fr" : "0fr",\n' +
+    '  transition: PANEL_COLLAPSE_TRANSITION,\n' +
+    '  // visibility 参与过渡：收起动画播完才真正隐藏（离散属性在过渡期间保持可见），展开时立即可见。\n' +
+    '  visibility: open ? "visible" : "hidden",\n' +
+    '});\n' +
+    '\n' +
+    '/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。\n' +
+    '    背景取 `--surface`（ED-1：头部展开面板是 chrome，与 `.chan-head` 的底同层），横向 padding 与\n' +
+    '    `.chan-head` 的 `--sp-9` 对齐。\n' +
+    '    ⚠ 关闭态要把 padding 与下边框**也收掉**：网格项自己的 padding/边框不可收缩，\n' +
+    '    否则 0fr 行会停在它的 24px padding + 1px 边框上（面板“关着”却占位，把 tabs 往下顶）。\n' +
+    '    两者与外壳的 `grid-template-rows` 同步过渡（同一时长/缓动）。 */\n' +
+    'const panelCollapseInnerStyle = (open: boolean): React.CSSProperties => ({\n' +
+    '  minHeight: 0,\n' +
+    '  overflow: "hidden",\n' +
+    '  padding: open ? "var(--sp-5) var(--sp-9)" : "0 var(--sp-9)",\n' +
+    '  b'... 159343 more characters
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/components/ChannelView.test.mjs:1858:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '"use client";\n\nimport {\n  memo,\n  useCallback,\n  useEffect,\n  useLayoutEffect,\n  useMemo,\n  useRef,\n  useState,\n} from "react";\nimport {\n  AlarmClock,\n  Bell,\n  BellOff,\n  Check,\n  ChevronDown,\n  ChevronRight,\n  ChevronUp,\n  CircleSlash,\n  CornerDownRight,\n  FileText,\n  Kanban,\n  Link,\n  List,\n  ListPlus,\n  Paperclip,\n  Pin,\n  Quote,\n  Reply,\n  Send,\n  SmilePlus,\n  TriangleAlert,\n  Users,\n  X,\n} from "lucide-react";\nimport { useI18n } from "@/hooks/useI18n";\nimport type { TranslationParams } from "@/lib/i18n/types";\nimport {\n  JOURNEY_GUIDE_CONTENT_FADE_MS,\n  JOURNEY_GUIDE_DISSOLVE_MS,\n  JOURNEY_GUIDE_ENTER_TOTAL_MS,\n  JOURNEY_GUIDE_EXIT_MS,\n  JOURNEY_GUIDE_REFORM_MS,\n  JOURNEY_GUIDE_REVEAL_MS,\n  JOURNEY_GUIDE_SWAP_MS,\n  JOURNEY_GUIDE_SWITCH_TOTAL_MS,\n  groupJourneyGuideTextLines,\n  sampleJourneyGuideParticles,\n  type JourneyGuideGlyphRect,\n  type JourneyGuideParticlePoint,\n} from "@/lib/journey-guide-particles";\nimport { MentionText } from "./MentionText";\nimport { Avatar } from "./Avatar";\nimport { StatusDot } from "./StatusDot";\nimport { ReminderModal } from "./ReminderModal";\nimport { BrutalModal } from "./BrutalModal";\nimport { copyText } from "@/lib/clipboard";\nimport { formatBytes, MAX_ATTACHMENT_BYTES, previewLine } from "@/lib/preview";\nimport { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "@/lib/data/schema";\nimport type {\n  AttachmentRow,\n  ChannelRow,\n  MemberRow,\n  TaskStatus,\n} from "@/lib/data/types";\nimport {\n  extractAtQuery,\n  buildAtInsertText,\n  type AtQueryMatch,\n} from "@/lib/file-fuzzy";\nimport { composerMentionCandidates } from "@/lib/mention";\nimport { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";\nimport { indexCurrentMembersById } from "@/lib/member-index";\nimport {\n  deriveJourneyState,\n  type JourneyGuideKind,\n  type JourneyStep,\n} from "@/lib/journey-state";\nimport { useChannelData } from "@/hooks/useChannelData";\n\nexport type CenterTab = "messages" | "tasks";\n\n/** notice toast 自动消退时长（ms）——3–4 秒带，用户裁决。 */\nexport const NOTICE_TOAST_MS = 3500;\nconst PINNED_MESSAGE_HIGHLIGHT_MS = 1800;\n\n/** 两个 notice 槽（held / task）的当前值；单槽仲裁的输入。 */\nexport interface NoticeSlots {\n  held: string | null;\n  task: string | null;\n}\n\n/** 正在上屏的那一条 notice。 */\nexport interface NoticeToastItem {\n  kind: "held" | "task";\n  text: string;\n}\n\n/**\n * 单槽仲裁：held（§6.3 freshness-hold）与 task（§3.7 任务动作结果）两个槽\n * 合成至多一条可见 toast —— 判据是「谁的槽刚变成新内容」，所以新 notice 顶掉旧的，\n * 被顶掉的那条不会在旧 notice 消失后回弹（纯派生会回弹：held 退场后旧 task 又冒出来）。\n */\nexport function pickNoticeToast(seen: NoticeSlots, next: NoticeSlots): NoticeToastItem | null {\n  const { held, task } = next;\n  if (held !== null && held !== seen.held) return { kind: "held", text: held };\n  if (task !== null && task !== seen.task) return { kind: "task", text: task };\n  return null;\n}\n\n/**\n * 浮层 toast：锚在消息区底部、composer 上方居中，`--z-toast` 压过 composer。\n *\n * 为什么不再挂在滚动流里：notice 原先渲染在 `.stream-inner` 尾部 —— ① 被下方 composer\n * 遮住/挤出视野；② 在消息流最底部，用户不滚动就看不到（用户症状：注意不到有这个提示）。\n * `role="status"` + `aria-live="polite"` 让读屏器把它当状态播报，而不是流内正文。\n */\nexport function NoticeToast({ toast }: { toast: NoticeToastItem | null }) {\n  const { t } = useI18n();\n  if (!toast) return null;\n  // 文案口径（界面评审 D2 + `docs/i18n.md` 分层）：held 摘要（`whatHappened`）是**产品内容**\n  // （要进模型上下文，必须英文），不能直接贴到中文界面；界面这里只给本地化的动作提示。\n  // task 槽的 notice 由调用方用 `t(...)` 组装，本身就是 UI 文案，原样透传。\n  const text = toast.kind === "held" ? t("message.heldNoticeAction") : toast.text;\n  return (\n    <div\n      role="status"\n      aria-live="polite"\n      data-notice={toast.kind}\n      style={{\n        position: "absolute",\n        bottom: "var(--sp-6)",\n        left: "50%",\n        transform: "translateX(-50%)",\n        zIndex: "var(--z-toast)",\n        maxWidth: "min(90%, 520px)",\n        padding: "8px 12px",\n        background: toast.kind === "held" ? "var(--accent-soft)" : "var(--panel-2)",\n        border: "1px solid var(--border)",\n        borderRadius: "var(--r-md)",\n        boxShadow: "var(--shadow-pop)",\n        fontFamily: "var(--mono)",\n        fontSize: 12,\n        // 纯提示层不吃指针事件，别挡住 composer 的输入框与拖放。\n        pointerEvents: "none",\n      }}\n    >\n      {text}\n    </div>\n  );\n}\n\nexport interface ChannelWithMeta extends ChannelRow {\n  joined: boolean;\n  memberCount: number;\n  /** BAI-6 未读角标：Owner 在该频道的未读数（作者非本人且 seq > 已读游标）。 */\n  unread: number;\n  /** 含至少一条未读讨论回复的 Task 数；与普通消息未读数分离。 */\n  unreadTaskCount: number;\n  /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */\n  messageCount: number;\n}\n\n/** §3.4 reaction 聚合（与 lib/domain/collab/reactions.ts 同形）。 */\nexport interface ReactionSummary {\n  emoji: string;\n  count: number;\n  memberIds: string[];\n}\n\nexport interface ChannelMessage {\n  id: string;\n  target_id: string;\n  seq: number;\n  author_id: string;\n  content: string;\n  created_at: string;\n  author: MemberRow | null;\n  reactions?: ReactionSummary[];\n  attachments?: AttachmentRow[];\n  /** 线程回复数（thread 以锚点消息 id 为 target；>0 时锚点行显示角标，可点击展开）。 */\n  threadReplyCount?: number;\n  /** §09 「未回复（已放弃）」标记（服务端从 round_logs 派生，见 lib/domain/collab/rounds.ts）。 */\n  abandonedMarks?: Array<{\n    agentId: string;\n    agentName: string;\n    reason: string;\n    baseSeq: number;\n    createdAt: string;\n  }>;\n}\n\ntype PinnedNavigationMessage = Pick<ChannelMessage, "id" | "seq">;\ntype PinnedNavigationStep = "loaded" | "latest" | "earlier" | "unavailable";\n\ninterface PendingPinnedNavigation extends PinnedNavigationMessage {\n  channelId: string;\n  requestedEarlierBefore?: number;\n  requestedLatestAtSeq?: number;\n  requestedLoadError?: string | null;\n}\n\nexport function getPinnedNavigationStep(\n  target: PinnedNavigationMessage,\n  messages: readonly PinnedNavigationMessage[],\n  hasMore: boolean,\n): PinnedNavigationStep {\n  if (messages.some((message) => message.id === target.id)) return "loaded";\n  if (messages.length === 0) return "latest";\n\n  const oldestSeq = messages[0].seq;\n  const newestSeq = messages[messages.length - 1].seq;\n  if (target.seq > newestSeq) return "latest";\n  if (target.seq < oldestSeq) return hasMore ? "earlier" : "unavailable";\n  return "unavailable";\n}\n\nexport function hasPinnedNavigationError(\n  requestLoadError: string | null | undefined,\n  loadError: string | null,\n): boolean {\n  return requestLoadError !== undefined && requestLoadError !== loadError;\n}\n\n/** §3.7 任务 = 消息 + 元数据：视图只显示状态，进展都在任务 thread（04 票起收进 hooks/useChannelData，直接 import）。 */\nimport type { ChannelTask } from "@/hooks/useChannelData";\n\nexport interface TaskCreationEvent {\n  number: number;\n  preview: string;\n}\n\nexport interface TaskCreationAnnouncement extends TaskCreationEvent {\n  messageId: string;\n}\n\nconst TASK_EVENT_ANNOUNCEMENT_LIMIT = 20;\n\nfunction parseTaskCreationEvent(\n  message: Pick<ChannelMessage, "author_id" | "content">,\n): TaskCreationEvent | null {\n  if (message.author_id !== OWNER_MEMBER_ID) return null;\n  const match = /^Task #(\\d+) created(?: — (.*))?$/.exec(message.content);\n  if (!match) return null;\n  const number = Number(match[1]);\n  if (!Number.isSafeInteger(number)) return null;\n  return { number, preview: match[2] ?? "" };\n}\n\n/** 按频道保留已观察的 seq 水位，切回旧频道时仍能识别新事件。 */\nexport function createTaskCreationAnnouncementTracker() {\n  const observedSeqByChannel = new Map<string, number>();\n\n  return {\n    observe(\n      nextChannelId: string,\n      messages: ChannelMessage[],\n      ready: boolean,\n    ): TaskCreationAnnouncement[] {\n      if (!ready) return [];\n      const observedSeq = observedSeqByChannel.get(nextChannelId);\n      const maxSeq = messages.reduce(\n        (max, message) => Math.max(max, message.seq),\n        0,\n      );\n      if (observedSeq === undefined) {\n        observedSeqByChannel.set(nextChannelId, maxSeq);\n        return [];\n      }\n\n      const announcements: TaskCreationAnnouncement[] = [];\n      for (const message of messages) {\n        if (message.seq <= observedSeq) continue;\n        const event = parseTaskCreationEvent(message);\n        if (event) announcements.push({ ...event, messageId: message.id });\n      }\n      observedSeqByChannel.set(nextChannelId, Math.max(observedSeq, maxSeq));\n      return announcements;\n    },\n  };\n}\n\n/** 创建事件的静态呈现；预览有意保持为普通文本。 */\nexport function TaskCreationEventRow({\n  event,\n}: {\n  event: TaskCreationEvent;\n}) {\n  const { t } = useI18n();\n  return (\n    <div className="ws-task-created-event" role="note">\n      <span>{t("tasks.created", { number: String(event.number) })}</span>\n      {event.preview && <span>{event.preview}</span>}\n    </div>\n  );\n}\n\n/** @ 提及补全菜单最大展示条数。 */\nconst AT_MATCH_LIMIT = 20;\n/** 任务板状态分组顺序（§3.7）。 */\nconst TASK_STATUS_ORDER: TaskStatus[] = [\n  "todo",\n  "in_progress",\n  "in_review",\n  "done",\n  "closed",\n];\n/** §3.4 hover 快捷 reaction（常用若干）。 */\nconst QUICK_REACTIONS = ["👍", "❤️", "🎉", "👀"];\n/** §3.4 表情选择器候选（常用 + 任务场景）。 */\nconst EMOJI_PICKER_OPTIONS = [\n  "👍",\n  "👎",\n  "❤️",\n  "🎉",\n  "👀",\n  "🔥",\n  "✅",\n  "❌",\n  "🙏",\n  "🚀",\n  "💡",\n  "🤔",\n  "😂",\n  "😅",\n  "😮",\n  "😢",\n  "😡",\n  "🥳",\n  "👏",\n  "🙌",\n  "🤝",\n  "📌",\n  "⏰",\n  "🔧",\n];\n\n/** 头部可展开面板（置顶/静音/成员）手风琴过渡时长与缓动：ease-out 曲线，避免瞬间出现/消失。 */\nconst PANEL_COLLAPSE_TRANSITION =\n  "grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1), visibility 220ms";\n\n/** 面板折叠外壳：常驻渲染，靠 grid 行高 0fr↔1fr 过渡展开/收起（互斥手风琴，见 toggle*Panel）。 */\nconst panelShellStyle = (open: boolean): React.CSSProperties => ({\n  flexShrink: 0,\n  display: "grid",\n  gridTemplateRows: open ? "1fr" : "0fr",\n  transition: PANEL_COLLAPSE_TRANSITION,\n  // visibility 参与过渡：收起动画播完才真正隐藏（离散属性在过渡期间保持可见），展开时立即可见。\n  visibility: open ? "visible" : "hidden",\n});\n\n/** 折叠外壳的内层：承接面板原有 padding/下边框/背景；minHeight 0 + overflow hidden 让行高可收缩。\n    背景取 `--surface`（ED-1：头部展开面板是 chrome，与 `.chan-head` 的底同层），横向 padding 与\n    `.chan-head` 的 `--sp-9` 对齐。\n    ⚠ 关闭态要把 padding 与下边框**也收掉**：网格项自己的 padding/边框不可收缩，\n    否则 0fr 行会停在它的 24px padding + 1px 边框上（面板“关着”却占位，把 tabs 往下顶）。\n    两者与外壳的 `grid-template-rows` 同步过渡（同一时长/缓动）。 */\nconst panelCollapseInnerStyle = (open: boolean): React.CSSProperties => ({\n  minHeight: 0,\n  overflow: "hidden",\n  padding: open ? "var(--sp-5) var(--sp-9)" : "0 var(--sp-9)",\n  b'... 159343 more characters,
+    expected: /<JourneyBar/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at components/ChannelView.test.mjs:1898:1
+✖ 静音面板列表容器按网格排版，成员胶囊取最宽内容等宽 (5.016167ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /display:\s*"grid"/. Input:
+  
+  '{mutes.map((m) => (\n' +
+    '                  <button\n' +
+    '                    key={m.memberId}\n' +
+    '                    type="button"\n' +
+    '                    title={t(m.muted ? "mute.unmuteFor" : "mute.for", {\n' +
+    '                      name: m.name,\n' +
+    '                    })}\n' +
+    '                    className={m.muted ? "member-opt is-on" : "member-opt"}\n' +
+    '                    style={{ cursor: "pointer" '
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/components/ChannelView.test.mjs:1907:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '{mutes.map((m) => (\n                  <button\n                    key={m.memberId}\n                    type="button"\n                    title={t(m.muted ? "mute.unmuteFor" : "mute.for", {\n                      name: m.name,\n                    })}\n                    className={m.muted ? "member-opt is-on" : "member-opt"}\n                    style={{ cursor: "pointer" ',
+    expected: /display:\s*"grid"/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at components/ChannelView.test.mjs:1914:1
+✖ 成员面板每行用两列 subgrid，胶囊与移除键各占一列 (7.014375ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /display:\s*"grid"/. Input:
+  
+  '{channelMembers.map((member) => (\n' +
+    '                  <div\n' +
+    '                    key={member.id}\n' +
+    '                    style={{ display: "flex", alignItems: "center", gap: 6 '
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/components/ChannelView.test.mjs:1924:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '{channelMembers.map((member) => (\n                  <div\n                    key={member.id}\n                    style={{ display: "flex", alignItems: "center", gap: 6 ',
+    expected: /display:\s*"grid"/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at hooks/useChannelData.test.mjs:977:1
+✖ mergeTaskPollRows drives the journey guide card from the polled task status (1.658583ms)
+  AssertionError [ERR_ASSERTION]: status=in_progress 时引导卡应为 null
+  
+  'running' !== null
+  
+      at TestContext.<anonymous> (file:///Users/apple/orca/workspaces/worksplice/ui-feedback-journey-pills/hooks/useChannelData.test.mjs:1012:12)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'running',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

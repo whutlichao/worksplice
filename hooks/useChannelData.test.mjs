@@ -991,11 +991,13 @@ test("mergeTaskPollRows drives the journey guide card from the polled task statu
     taskThreadReadSeq: 0,
     totalReplyCount: 0,
   };
-  // 用户报告的症状：消息页那张引导卡的形态只由 hook 的 tasks 推导（ChannelView:3028）。
-  // 轮询把 in_review 带进来，卡面就必须是「去复核」——这是本票的核心回归。
+  // 用户报告的症状：消息页那张引导卡的形态只由 hook 的 tasks 推导（ChannelView 的
+  // deriveJourneyState 调用点）。轮询把 in_review 带进来，卡面就必须是「去复核」——
+  // 这是本票的核心回归。
+  // 本票：只有 in_progress 不再出卡（null）——「让它跑」引导卡已删除。
   const cases = [
     ["in_review", "review"],
-    ["in_progress", "running"],
+    ["in_progress", null],
     ["todo", "handoff"],
     ["done", null],
     ["closed", null],

@@ -553,14 +553,6 @@ export const enLocale: LocalePlugin = {
     "center.messages": "Messages",
     "center.tasks": "Tasks",
     "center.tasksBadge": "Tasks, {count} open",
-    "journey.label": "Guided journey",
-    "journey.describe": "Describe",
-    "journey.handoff": "Hand off",
-    "journey.run": "Let it run",
-    "journey.review": "Review",
-    "journey.done": "Done",
-    "journey.active": "Current step",
-    "journey.stepStatus": "{step} — {status}",
     "journey.describe.title": "Hand the idea to a member and let it run",
     "journey.describe.hint":
       "Describe the task in the composer. An agent picks it up after you hand it off with @mention.",
@@ -574,10 +566,6 @@ export const enLocale: LocalePlugin = {
       "A task is waiting in To do. @mention an agent or claim it on the task board.",
     "journey.handoff.cta": "Convert the latest message",
     "journey.handoff.ctaTasks": "Open the task board",
-    "journey.running.title": "Let it run",
-    "journey.running.hint":
-      "Watch the agent status dots or open the task board to follow progress.",
-    "journey.running.cta": "Open the task board",
     "journey.review.title": "Go review",
     "journey.review.hint":
       "Tasks are waiting for your review on the task board.",
