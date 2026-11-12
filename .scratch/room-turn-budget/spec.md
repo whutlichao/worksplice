@@ -413,3 +413,171 @@ npm test                                             →  1771 用例：1770 pas
   待后续票显式化。
 - **改选人门（`runAgentRound` 的 CP0）必须跑 `lib/agent-loop/room-gate.test.mjs`**：它是把
   「门真的接在轮次入口上」变成机械判定的唯一防线（store 侧用例删掉 CP0 也全绿）。
+
+## Answer（文档落地：把房间轮次预算写进 AGENTS.md）
+
+Status 保持不变（`resolved`，见文件头）。本小节只追加，不改既有内容。
+
+### 交付了什么
+
+| 文件 | 改动 |
+|---|---|
+| `AGENTS.md` | 三处、纯新增：① File Map 的 `lib/domain/collab/` 段加 `room-budget.ts` 条目（置于 `reminders.ts` 与 `search.ts` 之间，续行对齐 34 列）；② `### Collaboration message domain (…)` 段尾加一条 bullet（`sendMessage` 是唯一写入面、`recordRoomTurn`、`roomContext` / `roomNotice` 两个入参的语义）；③ 在 `### agent-loop（ticket 06…）` 与 `### 任务板（ticket 07…）` 之间新增 `### 房间轮次预算（room turn budget，PR #218）` 整段（默认上限 / 三个构造口 / I1–I8 机制 / 两条接缝 / 七条纪律 / 已知边界 / 指针） |
+| `.scratch/room-turn-budget/spec.md` | 本小节（只在文件尾追加） |
+
+零代码改动：本票没碰任何 `.ts` / `.tsx` / `.mjs`，改动全在两个 Markdown 文件里。分支 `room-turn-budget-docs`；PR 号、PR body 路径与 CI 读数在 GitHub 与本轮仓库外台账，不在仓库内追加事实提交。
+
+### 必读：一处提纲与代码的偏差（已 ask 协调者确认）
+
+本文件上方（「双轴 review · Standards 第 1 条」）写「要改需替换 `ROOM_PRIVATE_CHANNEL_MESSAGE` 与**两处** `RoomBudgetError` 文案」。代码里 `RoomBudgetError` 的抛出点实为三处：`room-budget.ts:868`（`hop_limit_exceeded`）、`:888`（`pending_limit_per_sender`）、`:894`（`pending_limit_global`），三处文案都含「请问用户」，`room-budget.test.mjs` 的 T8 也分别断言 code 与 `/请问用户/`。
+
+协调者裁决：以代码为准、**判据用 code、不按位置数**（计数会漂）；并把事实补全为「本模块的中文错误文案共四处（`ROOM_PRIVATE_CHANNEL_MESSAGE` + 三条 `RoomBudgetError`），全部是票面逐字要求，与 `docs/engineering-standards.md` §1 / `docs/i18n.md` 的英文契约故意冲突，用户裁决为票面优先」。AGENTS.md 陷阱 #7 按这个口径落笔；本文件既有措辞不回改。
+
+### 逐条对照表（新段每条断言 → 代码出处）
+
+行号对 `main` 的 `5f7302a`（PR #218 合入后）。
+
+#### A · 结构与接口
+
+| 断言 | 代码出处 |
+|---|---|
+| 模块位置 `lib/domain/collab/room-budget.ts`，经协作域唯一导入面导出 | `lib/domain/collab/index.ts:34` `export * from "./room-budget.ts"` |
+| 对外接口 = `beginTurn / gate / noteReply / notePass / noteBusy / pump / markSuperseded / stopTurn / isCurrent / snapshot / reset` | `RoomTurnStore` 接口 `room-budget.ts:193`–`235`（`beginTurn` :196、`gate` :205、`noteReply` :212、`notePass` :221、`noteBusy` :223、`pump` :225、`markSuperseded` :227、`stopTurn` :229、`isCurrent` :230、`snapshot` :231、`reset` :233） |
+| `DEFAULT_ROOM_LIMITS` 四个数值：发言上限 / 波次上限 / 成员超时 / 迟到补充轮次上限 | `room-budget.ts:42`；`MAX_REPLIES: 10` :44、`MAX_ROUNDS: 3` :46、`MEMBER_TIMEOUT_MS: 600_000` :48、`MAX_LATE_TURNS: 3` :50（同处还有 `HISTORY_LINES` :52、`LINE_CHARS` :54、`MAX_REQUEST_HOPS` / `MAX_PENDING_MESSAGES` / `MAX_PENDING_MESSAGES_PER_SENDER` :56–60） |
+| `createRoomTurnStore` 造实例（`limits` / `now` / `directory` / `notify` 全可注入） | `room-budget.ts:302`；上限合并 `:303`、时钟 `:304`、`notify` `:305`、`directory` `:307` |
+| `getRoomTurnStore()` 是生产单例，挂 `globalThis.__workspliceRoomTurns` | `declare global` `room-budget.ts:918`；getter `:925`–`929` |
+| `setRoomTurnStore(null)` 是测试接缝（下次访问重建） | `room-budget.ts:933`–`934`（`store ?? undefined`）；测试用法 `room-gate.test.mjs` 每个用例 `setRoomTurnStore(store)` / `finally` 里 `setRoomTurnStore(null)` |
+| `RoomPrivateChannelForbidden` + `ROOM_PRIVATE_CHANNEL_MESSAGE` | `:816` / `:813`（文案逐字见 :814） |
+| 直连链两个原语 | `advanceRequestHop` `:864`（跳数单调 +1、第 `MAX_REQUEST_HOPS` 跳被拒）、`createDirectRequestBridge` `:876`（单发送者 / 全局待回信上限、`dispatch` 返回同步 ticket 而非 Promise） |
+
+#### B · 不变量 → 机制
+
+| 断言 | 代码出处 |
+|---|---|
+| I1 场次计数 `replies` 只在「本波当选且未结算」的实质发言上 +1 | `RoomTurnView.replies` `room-budget.ts:118`；`noteReply` `:519`（结算判据 `turn.elected.has && !turn.settled.has`）、`pump` 的 `reply_budget` 收口 `:488` |
+| I2 `wave` 记已执行波次，`pump` 先查预算再开下一波 | `RoomTurnView.wave` `:120`；`openWave` 自增 `:442`；`pump` 的 `round_budget` 收口 `:488` |
+| I3 `releaseTimeouts` 只比时间戳、从不 `await` 成员；`noteBusy` 立刻释放槽位 | `releaseTimeouts` `:366`（`now - askedAt < limits.MEMBER_TIMEOUT_MS`）；`noteBusy` `:622`（记 `busy-notice` 后立即 `pump`） |
+| I4 水位线比较 + 回边抑制 | `candidates` `:389`（`(turn.seen.get(member) ?? -1) >= atSeq` 跳过）；`isBackEdge` `:429`（反向重试 / 互引对两条判据） |
+| I5 `beginTurn` / `stopTurn` 推 `epoch`，`isCurrent` 是检查点判据 | `beginTurn` `:647`（`room.epoch += 1`、在跑场次 `retire(…, "superseded", true)`）、`stopTurn` `:770`、`isCurrent` `:784` |
+| I6 `sendMessage` 校验 `roomContext.channelId`，不等抛 | `lib/domain/collab/messages.ts:133`–`134` |
+| I7 `noteLateReply` + `lateTurns` + `pendingLateSeq`，Stop 后置哨兵 | `noteLateReply` `:574`（`room.lateTurns >= limits.MAX_LATE_TURNS` → `late_budget`）；`stopTurn` 里 `room.lateTurns = limits.MAX_LATE_TURNS` `:770` 段 |
+| I8 `beginTurn` 是唯一重置点；`@all` 只影响第一波选人 | `beginTurn` 里 `room.lateTurns = 0` `:647` 段；`ALL_MENTION` `:270`；`responders` `:708` |
+
+#### C · 两条接缝
+
+| 断言 | 代码出处 |
+|---|---|
+| `sendMessage` 提交成功后调 `recordRoomTurn`，排在 wake hint 之前 | `messages.ts:176`（调用）、`:187`（其后 `notifyMessageWakes`）；注释点明顺序承重 :173–175 |
+| `recordRoomTurn` 是唯一写入面：Owner → `beginTurn`、agent → `noteReply`、系统消息跳过 | `messages.ts:206`（定义）、`:215`（`roomNotice` 为真或 `systemMessage` 为真时早退）、`:217`–`233`（agent 分支 `noteReply`、Owner 分支 `beginTurn`） |
+| agent 消息跨 target 用 `message.rowid` 当水位线 | `messages.ts:226` 段（`order: input.message.rowid ?? input.message.seq`） |
+| CP0：未当选返回 `skipped` 且不推进消费游标 | `lib/agent-loop/loop.ts:1961`（`gate`）、`:1967`–`1969`（`not-elected` → `{ status: "skipped", reason: "not elected by room turn" }`，早于任何 ack）；black-box 回归 `room-gate.test.mjs` 用例 ①（游标前后相等、`runtime.sessions.has` 为 false） |
+| CP0 对 reminder / 续工轮次 bypass | `room-budget.ts` 的 `gate` `:737` 段（`reason === "reminder"` 或 `continuing` → `bypass`） |
+| CP2 出 prompt 前复查、CP3 回复落库后复查 | `loop.ts:2103`–`2111`（CP2）、`:2304`–`2307`（CP3） |
+| 投递带 `roomContext` | `loop.ts:2248`–`2249`；`deliverWithFreshness` 透传 `:1069` / `:1082` |
+| `wake.ts` 一字未改 | `git show --stat 5f7302a` 的文件清单里没有 `lib/domain/collab/wake.ts`；`grep -n "room\|Room" lib/domain/collab/wake.ts` 无命中 |
+| 房间场次不活跃 / DM 频道行为同旧 | `room-budget.ts` 的 `beginTurn` `:647` 段里 `isRoomChannel` 为假时只推 epoch 不设预算；`gate` 无场次时返回 `no-turn` `:737` |
+
+#### D · 陷阱段
+
+| 断言 | 代码出处 |
+|---|---|
+| 「Owner 署名 + 系统事件」必须 `roomNotice: true` | `messages.ts:215`（判据只看开关与作者类型）；`event-messages.ts:51`（`deliverEventMessage`）、`:130`（`notifyTaskCreated`）已显式声明 |
+| `reminders.ts` 仍靠 `wake: false` 覆盖、未显式化（遗留） | `reminders.ts:283`–`288`（`sendMessage({ … wake: false })`，无 `roomNotice`）；`messages.ts:215` 的 `systemMessage` 分支即 `input.wake === false`（`:182`） |
+| CP2 只收口不中止不 ack；改成「中止 + ack」会消费任务创建事件 | `loop.ts:2103`–`2111`（注释写明理由 + 只调 `markSuperseded`）；既有契约 `lib/agent-loop/loop-tasks.test.mjs:2137`（R3b）、`:2188`（R3c）、`:2261`（R3d） |
+| 改 CP0 必须跑 `lib/agent-loop/room-gate.test.mjs` | 该文件三条用例（① 未当选 ⇒ skipped 且游标不动、② 当选不被拦、③ 无场次 legacy）；store 侧 `room-budget.test.mjs` 不经过 `runAgentRound` |
+| 回边抑制是切环的实际机制；删 `isBackEdge` 则 T2 必红 | `isBackEdge` `room-budget.ts:429`；T2 `room-budget.test.mjs:151`（放大到 `MAX_ROUNDS: 50 / MAX_REPLIES: 100`，断言 `wave === 1` 见 `:168`）；T1 `:115` 的 `endedReason` 是允许集（可被预算兜住） |
+| 上限只走注入的 `RoomLimits`，禁 env / 配置 / 热更新 | `room-budget.ts:303`（`{ ...DEFAULT_ROOM_LIMITS, ...options.limits }`）；`grep -c "process.env" lib/domain/collab/room-budget.ts` = 0 |
+| 热重载：房间状态挂 `globalThis.__workspliceRoomTurns` | `room-budget.ts:918` / `:925`–`929`（注释 `:920`–`923` 明写与 `__workspliceWakeListeners` 同一套纪律） |
+| 中文错误文案四处：`ROOM_PRIVATE_CHANNEL_MESSAGE` + 三条 `RoomBudgetError` | `:813`；`:868`（`hop_limit_exceeded`）、`:888`（`pending_limit_per_sender`）、`:894`（`pending_limit_global`）；断言 T7 `room-budget.test.mjs:353`、T8 `:404`（三处均 `assert.match(error.message, /请问用户/)`） |
+
+#### E · 已知边界
+
+| 断言 | 代码出处 |
+|---|---|
+| `stopTurn()` 只有服务层 API，无路由无按钮 | `grep -rn "stopTurn"` 全仓只有 `room-budget.ts:229` / `:770`、`room-budget.test.mjs:310`、以及该文件头注释 `:18` / `:299`；`app/api/**` 无调用点 |
+| `HISTORY_LINES` / `LINE_CHARS` 只约束转写内存，转写不拼进 prompt | `:52` / `:54`；`pushLine` `:353`（`slice(0, limits.LINE_CHARS)` + `while (> limits.HISTORY_LINES) shift()`）；`grep -n "transcript" lib/agent-loop/loop.ts` 无命中 |
+| I3 只做惰性释放，不阻塞等待、无 `abort` | `releaseTimeouts` `:366` 只在 `pump` `:488`（及经 `pump` 的 `gate` / `noteReply` 等）里跑；模块无 `AbortController` / 无 `await` 成员处 |
+
+#### F · 指针
+
+| 断言 | 出处 |
+|---|---|
+| 设计记录、常量理由、7 条禁止项、偏差 D1–D4、双轴 review 与红绿证据在本文件 | `room-budget.ts:1`–`36`（文件头不变量 + 7 条禁止项）指向 `.scratch/room-turn-budget/spec.md`；本文件「禁止项」「与原始规格伪代码的差异」「红绿证据」「双轴 review」各节 |
+
+### 标识符自查（机械核对，非人工声称）
+
+做法：从 `git diff -U0 AGENTS.md` 里抽出全部反引号 token（65 个符合标识符形态的），逐个 `grep -rIl` 到 `lib/ app/ components/ hooks/ docs/ .scratch/room-turn-budget/`。
+
+```text
+checked: 65
+MISSING: ['RoomTurnView.replies', 'RoomTurnView.wave']
+```
+
+两条「未命中」是**成员访问表达式**（字面串当然查不到），其两半都在代码里：`RoomTurnView` 接口 `room-budget.ts:111`、成员 `replies` `:118` / `wave` `:120`。其余 63 个 token 全部有命中文件。
+
+关键符号的逐条命中行（`grep -n` 实测）：
+
+```text
+42:export const DEFAULT_ROOM_LIMITS = {
+193:export interface RoomTurnStore {
+302:export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTurnStore {
+366:  function releaseTimeouts(turn: InternalTurn): void {
+429:  function isBackEdge(
+488:  function pump(room: RoomState, turn: InternalTurn): void {
+519:  function noteReply(input: {
+574:  function noteLateReply(room: RoomState, turn: InternalTurn, line: RoomLine): RoomReplyNote {
+600:  function notePass(input: { channelId: string; memberId: string; epoch?: number }): void {
+622:  function noteBusy(input: { channelId: string; memberId: string; epoch?: number }): void {
+647:  function beginTurn(input: {
+737:    gate(input) {
+762:    markSuperseded(channelId, epoch) {
+770:    stopTurn(channelId) {
+784:    isCurrent(channelId, epoch) {
+813:export const ROOM_PRIVATE_CHANNEL_MESSAGE =
+816:export class RoomPrivateChannelForbidden extends Error {
+838:export class RoomBudgetError extends Error {
+864:export function advanceRequestHop(input: { hops: number; limits?: Partial<RoomLimits> }): number {
+876:export function createDirectRequestBridge(
+918:  var __workspliceRoomTurns: RoomTurnStore | undefined;
+925:export function getRoomTurnStore(): RoomTurnStore {
+933:export function setRoomTurnStore(store: RoomTurnStore | null): void {
+```
+
+```text
+lib/domain/collab/messages.ts:133:  if (input.roomContext && input.roomContext.channelId !== target.channel.id) {
+lib/domain/collab/messages.ts:176:      recordRoomTurn({
+lib/domain/collab/messages.ts:206:function recordRoomTurn(input: {
+lib/domain/collab/messages.ts:215:  if (input.roomNotice || input.systemMessage) return;
+lib/agent-loop/loop.ts:1967:  if (roomGate.state === "not-elected") {
+lib/agent-loop/loop.ts:1968:    return { status: "skipped", reason: "not elected by room turn" };
+lib/agent-loop/loop.ts:2111:      roomTurns.markSuperseded(channel.id, roomEpoch);
+lib/agent-loop/loop.ts:2248:      roomContext:
+lib/agent-loop/loop.ts:2307:      roomTurns.markSuperseded(channel.id, roomEpoch);
+lib/domain/collab/event-messages.ts:51:      roomNotice: true,
+lib/domain/collab/event-messages.ts:130:      roomNotice: true,
+```
+
+### 门禁读数（G-impl 文档子型：逐条出处核对 + diff 范围自检）
+
+本票**不跑** `npm test` / `tsc --noEmit` / `npm run lint` / `next build`：改的是 Markdown，不进入任何源码门禁的输入集（`AGENTS.md` 不被任何测试读取），硬跑只会产出与本改动无关的既存红噪声。实际执行的门禁：
+
+| 检查 | 读数 |
+|---|---|
+| diff 范围自检（`git diff --name-only origin/main..HEAD`） | 只有两个路径：`AGENTS.md`、`.scratch/room-turn-budget/spec.md`（`--stat` 的行数含本小节自身，故不在此写死数字） |
+| 逐条出处核对（第 2 节 A–F） | 见上方对照表，每条都指向符号或 `file:line` |
+| 标识符存在性（65 个反引号 token 全量 grep） | 63 命中；2 条为成员访问表达式，其组成符号均存在（见「标识符自查」） |
+| emoji / 本机路径 / 密钥 / 真实 session id 扫描（只扫新增行） | emoji 命中 0；`/Users/...` 命中 0；UUID 形态串命中 0 |
+| 既有章节完整性 | 三处改动都是纯插入（`git diff` 无 `-` 行），未重排、未改邻居段落；`&amp;` 等既有 HTML 实体原样保留，新段用纯 Markdown |
+
+### review 豁免（逐字）
+
+> review 豁免（理由同时写进 Answer）：§3 三条件全满足——①单张票；②方案已定（要写什么在本 spec 第 3 节逐条给出）；③影响面可圈定（一个 Markdown 文件，零代码、零接口）。故不要求双轴 `code-review`；替代证据 = 逐条「断言 → 代码出处」对照表。
+
+### skill 执行证据
+
+| skill | 加载方式 | 关键产物 / 可核查记录 |
+|---|---|---|
+| `implement` | **直接读取** `/Users/apple/.pi/agent/skills/implement/SKILL.md`（宿主未确认原生 `/implement` 入口；按 fallback 读取全文并遵循流程，原因记录在此） | 流程落点：先取票并复述标题（「房间轮次预算（room-turn-budget）」）；本票为**文档子型**，`tdd` 的接缝在「断言 → 代码出处」表上——先读代码取证再落笔（不接受提纲措辞当事实）；`code-review` 按上方豁免不执行；收尾提交 + 推送 + PR |
+| `pr` | **直接读取** `/Users/apple/.pi/agent/skills/pr/SKILL.md` | PR body 用其模板（Summary / Evidence / Merge Danger），以 `--body-file` 提交；Merge Danger 写「纯文档，零代码，回滚 = revert 一个 PR」 |
+
+过程中的一次 ask（禁 AskUserQuestion，走 `orchestration ask`）：提纲「两处 `RoomBudgetError`」与代码三处冲突 → 问回协调者，裁决见「必读」小节。
