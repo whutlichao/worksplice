@@ -2,7 +2,7 @@
 
 > 状态：**草稿（2026-08-20，ticket 09 已决，按段待确认）** — 本稿由 wayfinder effort `pi-sdk-rebuild` 地图闭合产出（9 票全决），按 `ADR-0009` 五段式骨架撰写；`docs/spec.md`（2026-08-03 已确认，8 章产品 spec）保持锁定不变，本文件为独立技术重构 spec。确认流程：人类按五段逐段放行，全部放行后标 **已确认** 并另起 effort 执行迁移（Plan, don't do）。
 > 正文简体中文，标识符英文；标注 **[已决]** 引已确认票据，标注 **[待确认]** 为本稿写作对后续实现的新提议（需在确认阶段逐段放行）。
-> 术语以 `CONTEXT.md` 为准（成员/agent/家目录/项目目录/工作区/会话文件/频道/唤醒/轮次/深模块/唯一导入面/SDK 委托边界/薄 Wrapper/Cwd 互斥/成本看板），新增术语经 `domain-modeling` 落 `CONTEXT.md`（本次无新增）。
+> 术语以 `GLOSSARY.md` 为准（成员/agent/家目录/项目目录/工作区/会话文件/频道/唤醒/轮次/深模块/唯一导入面/SDK 委托边界/薄 Wrapper/Cwd 互斥/成本看板），新增术语经 `domain-modeling` 落 `GLOSSARY.md`（本次无新增）。
 
 ## 已决索引
 
@@ -51,7 +51,7 @@
 | scope | lib/model-scope | `model-scope.ts:71` + `models-cache.ts` + `startup-preferences.ts` + `tool-presets.ts` | SDK thin adapter | `resolveVisibleModels` |
 | api | app/api | 76 路由薄封装 | HTTP 薄封装 | `POST /api/messages` 等 |
 
-> 深模块/唯一导入面定义见 `CONTEXT.md`；`Store` 宽总线保留与 `lib/domain/collab/index.ts` 单口纪律见 `ADR-0008 §决策`；`SDK 委托边界/薄 Wrapper` 见 `ADR-0007`。
+> 深模块/唯一导入面定义见 `GLOSSARY.md`；`Store` 宽总线保留与 `lib/domain/collab/index.ts` 单口纪律见 `ADR-0008 §决策`；`SDK 委托边界/薄 Wrapper` 见 `ADR-0007`。
 
 ## 3. 分步迁移
 
@@ -74,7 +74,7 @@
 - **迁移不变式**：`runMigrations()` 保持 `db.transaction(() => { trigram → 16 语句 → 4 检测 ALTER → seed → pragma })` 单事务全量执行，每次启动全量跑；`SCHEMA_VERSION` 严格 `+1` 单调递增，不压缩、不重编号。
 - **版本落点**：`SCHEMA_VERSION 12` 仅 `round_logs` 新增 `prompt_tokens INTEGER / completion_tokens INTEGER / cost REAL`（05 成本看板），`SCHEMA_STATEMENTS 16 语句` 与 FTS5 5 triggers + seed 不动（08 §版本落点）。
 - **热重载与单例**：`getDb(): Store` 单例 + `__workspliceDbOpenedVersion !== SCHEMA_VERSION` 重建双保留（`lib/data/db-singleton.ts:17-24`），`Store 57` 宽总线暂不拆。
-- **会话文件门禁**：`固化 / 无主文件永不解析 / backfill 归属门禁 / 跨作者内容去重` 四术语原定义保留（`CONTEXT.md:28-40`，ADR-0003/0004），校验在 `lib/agent-runtime.ts:62-130` 与 `lib/agent-loop/loop.ts:1031-1082`，不移入 SDK；备份清单不含 `~/.pi/agent/sessions/*.jsonl`（读写权归 SDK、app 只读）。
+- **会话文件门禁**：`固化 / 无主文件永不解析 / backfill 归属门禁 / 跨作者内容去重` 四术语原定义保留（`GLOSSARY.md:28-40`，ADR-0003/0004），校验在 `lib/agent-runtime.ts:62-130` 与 `lib/agent-loop/loop.ts:1031-1082`，不移入 SDK；备份清单不含 `~/.pi/agent/sessions/*.jsonl`（读写权归 SDK、app 只读）。
 - **文件面**：`attachments/` 随机文件名与 `agents/<slug>-<id8>/MEMORY.md` 六段大纲不入 `runMigrations`，仅入三件套备份 `worksplice.db + attachments/ + agents/`（`lib/data/dirs.ts:22-29`）。
 
 ## 5. 成本基线
@@ -180,7 +180,7 @@ flowchart TB
 
 ### D. 术语增量
 
-本次无新增 glossary（09 Q7 已决）。`CONTEXT.md` 已含 SDK 委托边界/薄 Wrapper（04）/ 深模块/唯一导入面（06）/ Cwd 互斥/成本看板（05）6 条增量共 117 行，后续新增经 `domain-modeling` 落 `CONTEXT.md`。
+本次无新增 glossary（09 Q7 已决）。`GLOSSARY.md` 已含 SDK 委托边界/薄 Wrapper（04）/ 深模块/唯一导入面（06）/ Cwd 互斥/成本看板（05）6 条增量共 117 行，后续新增经 `domain-modeling` 落 `GLOSSARY.md`。
 
 ### E. 原型与交付物链接
 

@@ -4,8 +4,9 @@
 
 ## 探索前先阅读
 
-- 仓库根目录下的 **`CONTEXT.md`**，或
-- 若存在 **`CONTEXT-MAP.md`** 则以它为准——它指向每个上下文对应的 `CONTEXT.md`。阅读所有与你主题相关的文件
+- 仓库根目录下的 **`GLOSSARY.md`**，或
+- 若存在 **`GLOSSARY-MAP.md`** 则以它为准——它指向每个上下文对应的 `GLOSSARY.md`。阅读所有与你主题相关的文件
+- 根目录的 **`CONTEXT.md`** 是历史指针文件：它已指向 `GLOSSARY.md`（仅为兼容 `docs/adr/` 与 `.scratch/` 里的旧引用），不要在这里新增词条
 - **`docs/adr/`** — 阅读与你即将工作的区域相关的 ADR。在多上下文仓库中，还需检查 `src/<context>/docs/adr/` 中上下文级别的决策
 
 如果这些文件不存在，**静默继续**。不要指出它们的缺失，也不要主动建议创建它们。`/domain-modeling` skill（通过 `/grill-with-docs` 和 `/improve-codebase-architecture` 触达）会在术语或决策实际确定时惰性创建它们。
@@ -14,33 +15,33 @@
 
 单上下文仓库（大多数仓库）：
 
-```
+```text
 /
-├── CONTEXT.md
+├── GLOSSARY.md
 ├── docs/adr/
 │   ├── 0001-event-sourced-orders.md
 │   └── 0002-postgres-for-write-model.md
 └── src/
 ```
 
-多上下文仓库（根目录存在 `CONTEXT-MAP.md` 时）：
+多上下文仓库（根目录存在 `GLOSSARY-MAP.md` 时）：
 
-```
+```text
 /
-├── CONTEXT-MAP.md
+├── GLOSSARY-MAP.md
 ├── docs/adr/                          ← 系统级决策
 └── src/
     ├── ordering/
-    │   ├── CONTEXT.md
+    │   ├── GLOSSARY.md
     │   └── docs/adr/                  ← 上下文特定决策
     └── billing/
-        ├── CONTEXT.md
+        ├── GLOSSARY.md
         └── docs/adr/
 ```
 
 ## 使用术语表词汇
 
-当你的输出命名某个领域概念时（如 issue 标题、重构提案、假设、测试名称），使用 `CONTEXT.md` 中定义的术语。不要偏离到术语表明确回避的同义词。
+当你的输出命名某个领域概念时（如 issue 标题、重构提案、假设、测试名称），使用 `GLOSSARY.md` 中定义的术语。不要偏离到术语表明确回避的同义词。
 
 如果你需要的概念还不在术语表中，这是一个信号——要么你在发明项目未使用的语言（重新考虑），要么存在真实缺口（记录下来供 `/domain-modeling` 处理）。
 

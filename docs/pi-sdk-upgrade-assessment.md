@@ -895,15 +895,15 @@ ADR 原文要点：`PRESET_NONE/DEFAULT/FULL` **不再持有工具名硬编码**
 | **§5.8「pi-web 改造策略」[锁定] 04** | 「整体保留复用（lib/API）：lib/rpc、session-reader、…、skills-service、project-trust」 | **不冲突**。这批文件都在第 3 节的盘点里，结论是「类型层全绿 + 3 条运行时洞」 |
 | **§7.2 品牌脱钩清单 [锁定] 06** + ADR-0010 | 「`README.md` 的致谢小节」 | **不冲突，且被 2.3 加强。** metadata 的 `repository.url` 三版不变 = `https://github.com/earendil-works/pi`，与 `README.md:5` / `README.md:166` 现值一致，**无需因升级而改 README** |
 
-### 5.3 `AGENTS.md` / `CONTEXT.md` 的术语一致性
+### 5.3 `AGENTS.md` / `GLOSSARY.md` 的术语一致性
 
 本报告按仓库既有语言写。核对结果：
 
 - **术语沿用一致**：`ADR-0007` 用的「SDK 委托边界」「二段式」「窄面」「thin adapter」
-  在本报告第 3、5 节沿用；`CONTEXT.md:111-117` 定义的 `SDK 委托边界` 词条
+  在本报告第 3、5 节沿用；`GLOSSARY.md:111-117` 定义的 `SDK 委托边界` 词条
   （含 `_Avoid_: SDK 边界（泛指）、中层收敛（未指明归属）`）本报告未违反。
 - **两处既有行号锚点已漂移**（**与升级无关**，但既然要改文档可顺手修）：
-  - `CONTEXT.md:116` 引 `lib/rpc/session.ts:55-65` 说「`AgentSessionWrapper` 的封装厚度约束」，
+  - `GLOSSARY.md:116` 引 `lib/rpc/session.ts:55-65` 说「`AgentSessionWrapper` 的封装厚度约束」，
     但该行号区间现在是 `ExtensionUiRequest` / `ExtensionCommandContextActionsLike` 的类型定义
     （`:55-66`），wrapper 的构造在 `:162`。
   - `AGENTS.md` 的文件地图把 `lib/rpc/` 描述为
@@ -1134,8 +1134,8 @@ UI 换模型/换思考级别后重启仍保持。（PR #64 的 A1 / A3 均实跑
 | ADR-0010 与 metadata 一致 | `docs/adr/0010-readme-source-attribution-exception.md`；`README.md:5`、`:160-166`；`README.zh-CN.md:160-166` |
 | 上游地址与 README 一致 | `README.md:5` / `README.md:166` 的 `https://github.com/earendil-works/pi` == 2.3 节的三版 metadata |
 | ADR-0006 决策未被升级触动 | `docs/adr/0006-backward-compat-and-migration-strategy.md`（单向前兼容 / 单事务幂等 / 会话文件门禁留在 worksplice 侧）——第 5.2 节的 B-3 修法正是「门禁留在 worksplice 侧」这条决策的延续 |
-| `CONTEXT.md` 术语词条 | `CONTEXT.md:28`（jsonl 读写权归 SDK，app 只读不解析）、`:111-117`（`SDK 委托边界` 词条与 `_Avoid_`）、`:36`（backfill 门禁） |
-| `CONTEXT.md:116` 的行号锚点已漂移 | `CONTEXT.md:116` 引 `lib/rpc/session.ts:55-65`，实际该区间是类型定义，wrapper 构造在 `:162` |
+| `GLOSSARY.md` 术语词条 | `GLOSSARY.md:28`（jsonl 读写权归 SDK，app 只读不解析）、`:111-117`（`SDK 委托边界` 词条与 `_Avoid_`）、`:36`（backfill 门禁） |
+| `GLOSSARY.md:116` 的行号锚点已漂移 | `GLOSSARY.md:116` 引 `lib/rpc/session.ts:55-65`，实际该区间是类型定义，wrapper 构造在 `:162` |
 
 ### 7.3 未经一手核实的条目
 

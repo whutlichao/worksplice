@@ -36,7 +36,7 @@ If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is 
 
 ### Issue tracker
 
-Issues 与 spec 以 Markdown 存放在 `.scratch/<feature-slug>/`（本地 Markdown 追踪器）。See `docs/agents/issue-tracker.md`.
+Issues 与 spec 存放在 GitHub Issues（`gh` CLI，仓库 `whutlichao/worksplice`）；`.scratch/` 存量冻结为历史存档。See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -44,7 +44,7 @@ Issues 与 spec 以 Markdown 存放在 `.scratch/<feature-slug>/`（本地 Markd
 
 ### Domain docs
 
-单上下文：词汇表 `CONTEXT.md`（agent 上下文术语另见 `GLOSSARY.md`），决策记录 `docs/adr/`。See `docs/agents/domain.md`.
+单上下文：词汇表 `GLOSSARY.md`（`CONTEXT.md` 是迁移后的指针文件），决策记录 `docs/adr/`。See `docs/agents/domain.md`.
 
 ## Quick Start
 
@@ -647,7 +647,7 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 
 | 任务类型        | spec 必须写的前置                              | 关键约束                                                                                              |
 | ----------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 需求对齐        | `grill-with-docs`（=grilling+domain-modeling 组合；按需加 `prototype`） | 有文档体系必用 grill-with-docs 边访谈边落文档；worker 先读 grill-with-docs/grilling/domain-modeling 三份 SKILL.md 全文；提问通道 `orchestration ask`（禁 AskUserQuestion）；spec 按 repo effort 模板写（Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes），禁自由发挥章节；术语决议 inline 落 CONTEXT.md（非草案代码块）；ADR 三条件全满足才建；open 决策 ask 回来、不编造 |
+| 需求对齐        | `grill-with-docs`（=grilling+domain-modeling 组合；按需加 `prototype`） | 有文档体系必用 grill-with-docs 边访谈边落文档；worker 先读 grill-with-docs/grilling/domain-modeling 三份 SKILL.md 全文；提问通道 `orchestration ask`（禁 AskUserQuestion）；spec 按 repo effort 模板写（Problem Statement / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope / Further Notes），禁自由发挥章节；术语决议 inline 落 GLOSSARY.md（非草案代码块）；ADR 三条件全满足才建；open 决策 ask 回来、不编造 |
 | 实施票         | `implement`（内含 `tdd` + 收尾 `code-review`） | 红绿单切片；收尾 Standards+Spec 双轴自审后再 worker_done                                                        |
 | 多票并行        | `implement-spec`（frontier 语义）            | 每票独立 worktree/分支；worker 间只用 context pointers 稀疏通信；合流后统一 code-review                               |
 | 修 bug       | `diagnosing-bugs`                        | 先建 tight 反馈回路（必红命令），无回路不许猜；修完留回归测试，`[DEBUG-]` 打扫干净                                                |
@@ -656,19 +656,19 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 | 设计验证        | `prototype`                              | 先定分支（logic/UI）；throwaway，可一键运行；结论 fold 回票据                                                        |
 | 合并冲突        | `resolving-merge-conflicts`              | 按意图解（查 commit/PR/issue），不 `--abort`，不 invent 新行为，跑全检查                                             |
 | 外部 issue/PR | `triage`                                 | 评论带 AI 免责声明；走状态机；ready-for-agent 才附 brief                                                         |
-| 术语/ADR 触及   | `domain-modeling`                        | 术语变更 inline 更新 CONTEXT.md；ADR 仅三条件全满足才建                                                           |
+| 术语/ADR 触及   | `domain-modeling`                        | 术语变更 inline 更新 GLOSSARY.md；ADR 仅三条件全满足才建                                                           |
 | 需人类/凭证/第三方  | 禁止 worker 代办                             | 必须 `ask`/`escalation` 问回 coordinator，不许编造、不许代点                                                    |
 
 
-全局约束：术语用 `codebase-design` 词汇（module/interface/depth/seam/adapter/leverage/locality，不许 component/service/API/boundary）；grill/grill-with-docs 的提问通道一律是 `orchestration ask`（禁 AskUserQuestion，dispatch preamble BEHAVIOR RULE #1）；派活前读 `.scratch/orchestration-dispatch-checklist.md` 逐项打勾。
+全局约束：术语用 `codebase-design` 词汇（module/interface/depth/seam/adapter/leverage/locality，不许 component/service/API/boundary）；grill/grill-with-docs 的提问通道一律是 `orchestration ask`（禁 AskUserQuestion，dispatch preamble BEHAVIOR RULE #1）；派活前读 `docs/agents/orchestration-dispatch-checklist.md` 逐项打勾。
 
 main / worktree 职责切分（铁律）：
 
-- **main 只做两件事**：派活（建 Run/task、起 worker）与验收（读收件箱、跑测试验证、审 Answer以及todo list是否已经check）。main 上禁止任何写操作——不改代码、不改票据、不收敛 Status、不落 commit。
-- **其余一切落在任务 worktree**：worker 的代码、Answer、收敛 commit（含 Status 收敛）、票据协议修订。完成后推分支 + `gh pr create` + 合并进 main。
-- 唯一例外：全局治理文档（本段策略、`orchestration-dispatch-checklist.md`、`docs/agents/`）由 coordinator 直推 main——它们是规则本身，不属于任务交付。
-- 票据事实来源唯一：任务 worktree 内的票据是唯一正本。worker 全权负责本票文件（含 Status 流转 in-progress→resolved + append Answer）；coordinator 在 main 只读验收，不碰任何票据文件。旧的"Status 收敛权归 coordinator"是双端编辑时代的残留，已作废。
-- 文档先行：新 effort 的 spec/tickets 先推远端，新 worktree 从 origin/main 切，自带票据。
+- **main 只做两件事**：派活（建 Run/task、起 worker）与验收（读收件箱、跑测试验证、审 Answer以及todo list是否已经check）。main 上禁止任何写操作——不改代码、不落 commit、不碰 GitHub issue（不建、不改标签/assignee、不评论、不关闭）。
+- **其余一切落在任务 worktree**：worker 的代码与收敛 commit。完成后推分支 + `gh pr create` + 合并进 main。
+- 唯一例外：全局治理文档（本段策略、`docs/agents/`）由 coordinator 直推 main——它们是规则本身，不属于任务交付。
+- 票据事实来源唯一：**GitHub issue 是唯一正本**（repo 全局，不在 worktree 里）。worker 全权负责本票 issue——写 Answer（`gh issue comment`）后 `gh issue close`；coordinator 在 main 只读验收（`gh issue view`），不代改。旧的"Status 收敛权归 coordinator"与"票据正本在 worktree 内"都是文件票时代的残留，已作废。
+- 文档先行：新 effort 的 spec issue 与 sub-issue 先建在 GitHub；worker 从 `origin/main` 切分支，再 `gh issue edit <n> --add-assignee @me` 认领。
 - 验收三件套（main 上只读执行）：测试用例执行（`npm test` 全绿，以任务 worktree 内跑的为准，coordinator 可独立重跑验证）、文件格式校验（tsc/lint 增量对照，只看改动文件相对改前基线的新增问题）、worker 工作流程校验（Answer 含 implement/tdd/code-review 证据链：红绿节奏 + Review 小节，无则打回）。
 
 不进 worker spec 的 skill（coordinator 规划侧专用）：`ask-matt`（路由）、`grill-me`（coordinator 亲自主持的深访谈）、`to-spec`/`to-tickets`/`to-questionnaire`（coordinator 落盘动作）、`handoff`/`claude-handoff`（会话间移交）、`setup-matt-pocock-skills`（一次性）、`wizard`（人类步骤生成器——worker 侧只保留 ask 回来）、`teach`/`wait-what`/写作类/video 类/脚手架类/`computer-use`（与代码派活无关）。`grill-with-docs`（=grilling+domain-modeling）是需求对齐 worker 的前置（见上表“需求对齐”行）；`wayfinder` 仅当需求装不进一个 session 或 fog 重时由该 worker 按 skill 建图——两者进 spec 时提问通道一律为 `orchestration ask`。

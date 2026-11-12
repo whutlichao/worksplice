@@ -10,12 +10,12 @@
 - [ ] bug 票：要求了 tight 回路先行 + 回归测试 + 清理 `[DEBUG-]`？
 - [ ] 报告票：产物绝对路径 + 只读约束（不改代码）写了吗？
 - [ ] 需人类步骤：明确标了 ask/escalate，不许编？
-- [ ] 词汇：`codebase-design` 术语 + CONTEXT.md 禁词（如 room）提醒了吗？
+- [ ] 词汇：`codebase-design` 术语 + GLOSSARY.md 禁词（如 room）提醒了吗？
 - [ ] worker_done 验收：改了哪些文件 + 测试命令结果 + 行为变化，齐了吗？
 - [ ] 复用终端？先 `terminal list` 看 preview 确认空闲——busy 终端 worker-start 会超时熔断并把 task 打成 failed。
-- [ ] 文档先行？新 effort 的 spec/tickets 是否已 commit + push（新 worktree 从 origin/main 切，自带票据）？
-- [ ] 票据协议写进 spec 了？worker 只 append Answer，Status/Blocked by 收敛权归 coordinator（验收时统一改）。
-- [ ] 单分支？所有改动（含票据收敛）只落在任务 worktree，main 保持干净，完工走 PR 合并？
+- [ ] 文档先行？新 effort 的 spec issue 与 sub-issue 是否已在 GitHub 建好（worker 不建票，只 `gh issue edit <n> --add-assignee @me` 认领）？
+- [ ] 票据协议写进 spec 了？worker 自己写 Answer（`gh issue comment`）后 `gh issue close`；coordinator 只读验收，不代改 issue。
+- [ ] 单分支？所有代码改动只落在任务 worktree，main 保持干净，完工走 PR 合并（票据在 GitHub，不在 worktree 里）？
 - [ ] worker_done 后 worktree 干净？pi-lens deferred format 会在 worker_done 后异步落地纯格式改动（worker 自查“干净”时它还没出现）——验收前再 `git status`，残留要么 commit 要么 restore（01/02 票均复现）
 - [ ] lint 在任务 worktree 内对改动文件做增量对照（改前改后），不去 main 上跑全仓？
 - [ ] Answer 有 review 小节？无 review 小节验收不通过，直接打回补审。

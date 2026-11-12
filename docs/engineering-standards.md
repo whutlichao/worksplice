@@ -1,7 +1,7 @@
 # 工程规范（Engineering Standards）
 
 > 状态：**生效（2026-08-13，BAI-6）** — 沉淀 worksplice 首个应用打磨期的工程纪律。
-> 本文是活文档：新增约定在此集中记录；与 AGENTS.md / CONTEXT.md / docs/adr 冲突时，以最近的决策为准并回填本文。
+> 本文是活文档：新增约定在此集中记录；与 AGENTS.md / GLOSSARY.md / docs/adr 冲突时，以最近的决策为准并回填本文。
 > 正文一律简体中文，技术术语保留英文。
 
 ## 1. 代码风格
@@ -10,7 +10,7 @@
 - **Tabs/引号**：无强制的缩进宽度（沿用 next 脚手架 2 空格）；字符串统一单引号（`eslint` 默认）。提交前必须 `npm run lint` 干净。
 - **命名**：
   - 服务层函数动词开头（`listXxx` / `createXxx` / `updateXxx` / `markXxx`）；路由文件一律 `export async function GET/POST(...)`。
-  - 术语必须用 CONTEXT.md 的领域词表（成员/agent/频道/任务/轮次/唤醒/…），禁止引入同义词造成漂移。
+  - 术语必须用 GLOSSARY.md 的领域词表（成员/agent/频道/任务/轮次/唤醒/…），禁止引入同义词造成漂移。
   - 避免 `any`；服务层返回显式 union（如 `SendMessageResult`、状态机转移结果），让类型系统成为文档。
 - **分层**：UI 组件不直连 DB——所有数据经 `lib/domain/collab/*.ts` 服务层 → `app/api/*/route.ts`（薄封装，校验入参 + 映射错误码）。数据存取走 `Store` 契约（`lib/data/store.ts`，Ticket 03 Separate Data Layer；业务模块经 `getDb(): Store` 取实例，不写 SQL、不 import 具体 adapter `lib/data/sqlite.ts`）。新查询方法 = 在 `Store` 接口声明 + 在 `SQLiteAdapter`（sqlite.ts）实现；纯查询辅助（`toFtsQuery`/`buildSearchSnippet`）落在 `lib/data/types.ts`。**协作域唯一导入面**：`lib/domain/collab/index.ts` 是 协作服务层唯一对外导入面，消费方一律 `from "@/lib/domain/collab"`（或相对等价），**不按子路径逐个导入**子模块；`getDb(): Store` 不在此索引面，归 `lib/data/db-singleton.ts`。
 - **错误码语义**：业务冲突用 409（held / conflict / blocked），非法入参用 400，资源缺失用 404。同语义错误跨路由必须同状态码（反例已整改：claim 边 conflict/blocked 与 /claim 对齐 409）。
@@ -76,6 +76,6 @@
 
 ## 5. 流程纪律（日常）
 
-- 每个 ticket 结束留可验证产物（修复 + 单测 + 文档），结论写进 `.scratch/<effort>/map.md` 的 Decisions-so-far。
+- 每个 ticket 结束留可验证产物（修复 + 单测 + 文档），结论写进本票 issue 的 Answer（`gh issue comment`）；effort 级决策追加到 spec issue。
 - 改 agent-loop 深模块（loop.ts 内的 driver/wake/backfill/cron 段）等被 globalThis 闭包引用的模块后，**必须重启 dev server**（热重载不生效），并验证启动时间晚于改动。
-- 术语/命名/决策变更：先更新 CONTEXT.md / ADR，再动代码。
+- 术语/命名/决策变更：先更新 GLOSSARY.md / ADR，再动代码。
