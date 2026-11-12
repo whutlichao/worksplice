@@ -31,6 +31,10 @@ function mentionText(name: string): string {
  * 事件消息投递（§4.2 方案 A）：Owner 署名 + wake:false + 定向唤醒秘书。
  * 尽力而为——无秘书、Owner 不在目标 channel、channel 已归档等场景静默跳过，
  * 投递失败只记日志，绝不向上抛（主操作已提交，事件消息不得反向破坏调用方）。
+ *
+ * `roomNotice: true`：这是**系统事件**、不是人类真的敲出来的消息——不得开房间场次、
+ * 不得重置 `lateTurns`（房间轮次预算禁止项 #5，见 `.scratch/room-turn-budget/spec.md`）。
+ * （即便 `wake: false` 已经让预算跳过它，这里也显式标明语义，不依赖两个开关的巧合。）
  */
 function deliverEventMessage(channelId: string, content: string): void {
   const susan = findSusanMember();
@@ -44,6 +48,7 @@ function deliverEventMessage(channelId: string, content: string): void {
       authorId: OWNER_MEMBER_ID,
       content,
       wake: false,
+      roomNotice: true,
     });
     if (!sent.held) {
       emitWake({
@@ -103,6 +108,10 @@ export function notifyChannelCreated(channel: ChannelRow): void {
  * （欢迎路径专用语义）；这里是全 channel 扇出，抢占认领失败让路是既有语义（§3.7）。
  * 故另起一个函数，不改也不复用 `deliverEventMessage` 的行为。
  *
+ * `roomNotice: true`（房间轮次预算禁止项 #5）：`Task #N created` 是系统事件，Owner 署名只是
+ * 沿用既有的事件署名约定——它**不得**开启新房次、不得重置 `lateTurns`、不得 supersede 在跑
+ * 的场次。`wake: true` 保留：全 channel 扇出是既有语义（抢占认领失败让路，§3.7）。
+ *
  * 尽力而为：频道已归档 / Owner 不在频道 / 投递抛错 → 静默跳过或只记日志，绝不反向
  * 破坏调用方（任务已落库，事件消息不得让 `createTask` 失败）。
  */
@@ -113,7 +122,13 @@ export function notifyTaskCreated(channelId: string, taskNumber: number, anchorC
   const preview = anchorContent ? previewLine(anchorContent, 80) : "";
   const content = preview ? `Task #${taskNumber} created — ${preview}` : `Task #${taskNumber} created`;
   try {
-    sendMessage({ targetId: channelId, authorId: OWNER_MEMBER_ID, content, wake: true });
+    sendMessage({
+      targetId: channelId,
+      authorId: OWNER_MEMBER_ID,
+      content,
+      wake: true,
+      roomNotice: true,
+    });
   } catch (error) {
     console.error("[event-messages] task created message delivery failed:", error);
   }
