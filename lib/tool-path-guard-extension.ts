@@ -190,7 +190,11 @@ export function guardFileOperations(scope: PathGuardScope): GuardedFileOperation
         const stats = await fsp.stat(absolutePath);
         return stats.isDirectory();
       }),
-      readFile: guarded((absolutePath: string) => fsp.readFile(absolutePath, "utf-8")),
+      // 不交 `readFile`：1.5.1 起它在 `GrepOperations` 里是 `@deprecated Ignored`，1.5.2 的
+      // `grep.js` 全文件零调用——上下文行改由 ripgrep 的 `--context` + `context` 事件给出。
+      // 交一个上游不调的字段等于写一句守不住的承诺（我们曾把它当读拦截用，见 ADR-0011）。
+      // 剩下的防线是搜索根的定义级 realpath 判定（`guardSearchRootCall`），实测能拦住的
+      // 正是「符号链接当搜索根」那条路（ADR-0011 的「grep 的上下文行」小节有实测三元组）。
     },
     ls: {
       exists,
