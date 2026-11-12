@@ -1,5 +1,5 @@
 /**
- * 回复 JSON 泄漏修复（reply-json-leak）：**两档相互独立的放宽**，各有已实证形态。
+ * 回复 JSON 泄漏修复（reply-json-leak）：**三档相互独立的放宽**，各有已实证形态。
  *
  * **第一档（票 01）**——模型偶发把 JSON 对象的开头 `{"` 输出成 `","` 或 `,"`：
  *   ```json","action":"reply","content":"…","onConflict":"resend"}
@@ -12,13 +12,25 @@
  *   {"action":"reply","content":"第一行<裸 LF><裸 LF>第二行","onConflict":"revise"}
  * 整串 `JSON.parse` 报 `Bad control character in string literal`；`extractJsonObject` 反而
  * **取得到**平衡的 `{…}`（裸换行不影响括号配对），再 parse 报同一个错；第一档也不命中——
- * 三档全落空，整段 JSON 当正文落库。判据见 `repairRawControlChars`。
+ * 整段 JSON 当正文落库。判据见 `repairRawControlChars`。
  *
- * 两档是**各自独立**的放宽，不共用判据：形态复发时重新评估一档，而不是扩大另一档的常量。
- * 两档共用的是**同一份形状校验口径**（`acceptProtocolObject`）与**同一个返回形状**
+ * **第三档（reply-json-leak-tail）**——协议 JSON 的字面量与转义都**写对了**，但对象的**最后一个
+ * 成员名是空字符串**，没有冒号也没有值，紧接 `}` 闭合（live 实测 messages.id `fc9bc7f1…`）：
+ *   {"action":"reply","content":"…用正确格式重提 #1 并在本串外汇报验证结果。",""}
+ * `JSON.parse` 报 `Expected ':' after property name in JSON at position 1868`；
+ * `extractJsonObject` 取得到平衡的 `{…}`（空键不影响括号配对），再 parse 报同一个错；
+ * 前两档都不命中（不以 `","` / `,"` 开头，也没有裸控制字符）→ 整段 JSON 当正文落库，
+ * 顺带把 `task` / `ops` 声明整段吞掉。判据见 `scanProtocolTail`。
+ *
+ * 三档是**各自独立**的放宽，不共用判据：形态复发时重新评估一档，而不是扩大另一档的常量。
+ * 第三档尤其不能借第二档的判据：后者的语义是「字符串字面量里有哪些字符要转义」（一个逐字符
+ * 变换），前者是「对象尾部有没有一段结构上不合法的成员」——两件事的输入面与失败模式都不同。
+ * 而且第三档必须同时回答**两个**问题（这段文本值得当候选看吗？这段文本能修吗？），
+ * 第二档只有前者（改完能 parse 就是能修）——共用一个 `changed` 标记会把「只报告」误读成「能修」。
+ * 三档共用的是**同一份形状校验口径**（`acceptProtocolObject`）与**同一个返回形状**
  * （`RepairedReply`），所以调用方只跨 `parseLeakedReply` 一个 seam。
  *
- * 本模块是这两条修复判定的**唯一实现**：`parseAgentAction`（loop.ts，防未来）与
+ * 本模块是这三条修复判定的**唯一实现**：`parseAgentAction`（loop.ts，防未来）与
  * `scripts/fix-reply-json-leak.mjs`（一次性存量清洗）都从这里取候选与校验，两处同源同形。
  * 零依赖纯函数：不 import 任何模块，不碰 IO，只做「文本 → 修复候选 → 协议形状校验」。
  */
@@ -39,11 +51,11 @@ export function repairJsonPrologue(text: string): string | null {
 }
 
 // ----------------------------------------------------------------------------
-// 两档共用的类型与校验
+// 三档共用的类型与校验
 // ----------------------------------------------------------------------------
 
 /** 命中的是哪一档。 */
-export type ReplyLeakForm = "prologue" | "raw-control";
+export type ReplyLeakForm = "prologue" | "raw-control" | "trailing-key";
 
 export interface RepairedReply {
   /** 命中档位。 */
@@ -68,7 +80,7 @@ export function isProtocolAction(value: unknown): value is ProtocolAction {
 }
 
 /**
- * 协议形状校验——**两档共用同一份口径**（与 parseAgentAction 里 extractJsonObject 分支
+ * 协议形状校验——**三档共用同一份口径**（与 parseAgentAction 里 extractJsonObject 分支
  * 逐条同款）：对象、非数组、`action` ∈ {reply, ignore, conclude}。绝不把「碰巧长得像」
  * 的文本当回复。
  */
@@ -204,20 +216,138 @@ function parseRawControlReply(text: string): RepairedReply | null {
   return parseCandidate(candidate, "raw-control");
 }
 
+// ----------------------------------------------------------------------------
+// 第三档：协议对象尾部的结构性缺陷
+// ----------------------------------------------------------------------------
+
 /**
- * 两档合一——`parseAgentAction` 与清洗脚本跨的就是这一个 seam：同一份形状校验、
- * 同一个返回形状，档位由 `RepairedReply.form` 带出。两档判据互不重叠
- * （第一档要求开头没有 `{`，第二档要求 `{`…`}`），顺序不影响结果。
+ * RFC 8259 意义上的可忽略空白（空格 / 制表 / LF / CR）。
+ *
+ * 与脚本 SQL 侧的 `trim(content, char(32)||char(9)||char(10)||char(13))` 是**同一组字符**的两份表示
+ * （那份不变量由 `fix-reply-json-leak.test.mjs` 的「SQL 候选捞取不漏斗」用例钉住：以空格开头的
+ * 候选行只能靠 SQL 的 trim 捞到，trim 掉了就红）。这里刻意不用 JS `trim()`：它还会吃一堆
+ * Unicode 空白，SQLite 的 trim 不吃，两边就分叉了。制表 / LF / CR 开头的行另已被第二档的
+ * 裸控制字符 GLOB 捞到，所以这三字符上即使漂移也只会多捞不会漏斗。
+ */
+const PROTOCOL_WHITESPACE_EDGES = /^[ \t\n\r]+|[ \t\n\r]+$/g;
+
+/** 去掉两端可忽略空白——本档的结构扫描都在这个切片上做（不是 JS `trim()`）。 */
+function stripProtocolWhitespace(text: string): string {
+  return text.replace(PROTOCOL_WHITESPACE_EDGES, "");
+}
+
+function isProtocolWhitespace(ch: string): boolean {
+  return ch === " " || ch === "\t" || ch === "\n" || ch === "\r";
+}
+
+/**
+ * 第三档的结构判定结果。两种缺陷共用**同一个前置筛**（去空白后以 `{"` 开头，即
+ * “协议对象形状”），但处理方式不同：
+ * - `trailing-key`：可从结构上剥离的冗余空成员名尾，**可修**；
+ * - `unclosed`：对象/字符串写到一半就断了，**只报告、绝不修**（补全括号或把残文当正文都是有损猜测）。
+ */
+type ProtocolTailDefect =
+  | { readonly kind: "trailing-key"; readonly start: number; readonly end: number }
+  | { readonly kind: "unclosed" };
+
+/**
+ * 从逗号位置往后看：`[空白] "" [空白] }` —— 即一个**只有名字、没有冒号与值**的成员。
+ * 返回要剥离的区间 `[逗号, 空成员名闭合引号之外)`；不是这个形状则 null。
+ *
+ * ⚠️ 只在字面量之外调用（调用方已跟踪 inString）。合法 JSON 在字面量之外**永远**不会出现
+ * `,` + `""` + `}` 这个序列（逗号后必须是成员名，而成员名必须跟冒号与值），所以它既能被
+ * 无歧义地识别，也就能被无歧义地剥离——这正是本档的“凭什么是这一档”。
+ */
+function matchTrailingKeyAt(text: string, commaIndex: number): { start: number; end: number } | null {
+  let i = commaIndex + 1;
+  while (i < text.length && isProtocolWhitespace(text[i])) i += 1;
+  if (text[i] !== '"' || text[i + 1] !== '"') return null;
+  const end = i + 2;
+  let j = end;
+  while (j < text.length && isProtocolWhitespace(text[j])) j += 1;
+  if (text[j] !== "}") return null;
+  return { start: commaIndex, end };
+}
+
+/**
+ * 第三档的结构扫描：拉一次字符级走查（跟踪字符串字面量与转义），同时回答两件事——
+ * 字面量之外是否存在可剥离的冗余空成员名尾（取**文档序最后**那一个，即最贴近文本末尾的；
+ * 嵌套对象里的同名缺陷同属本档——它们同样是 `,` + `""` + `}` 这种在合法 JSON 里不可能出现的序列），
+ * 以及走到文本尽头时对象/字符串是否仍未闭合。
+ *
+ * 不做任何猜测性修复：不配平引号、不做通用尾部垃圾剥离、不补全截断。
+ */
+function scanProtocolTail(text: string): ProtocolTailDefect | null {
+  const trimmed = stripProtocolWhitespace(text);
+  if (!trimmed.startsWith('{"')) return null;
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+  let trailingKey: { start: number; end: number } | null = null;
+  for (let i = 0; i < trimmed.length; i += 1) {
+    const ch = trimmed[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{" || ch === "[") depth += 1;
+    else if (ch === "}" || ch === "]") depth -= 1;
+    else if (ch === ",") {
+      const match = matchTrailingKeyAt(trimmed, i);
+      if (match) trailingKey = match;
+    }
+  }
+  if (trailingKey) return { kind: "trailing-key", ...trailingKey };
+  if (inString || depth > 0) return { kind: "unclosed" };
+  return null;
+}
+
+/**
+ * 第三档的修复候选：把那段冗余空成员名尾（连同它前面的分隔逗号）拿掉，剩下原样。
+ * 只剥离**结构上已证实**的那一段；是否真的采纳仍由 `parseCandidate` 的 parse + 形状校验决定。
+ */
+function repairTrailingKey(text: string): string | null {
+  const defect = scanProtocolTail(text);
+  if (defect === null || defect.kind !== "trailing-key") return null;
+  const trimmed = stripProtocolWhitespace(text);
+  return trimmed.slice(0, defect.start) + trimmed.slice(defect.end);
+}
+
+/** 第三档：尾部空成员名 → 候选 → parse → 形状校验。 */
+function parseTrailingKeyReply(text: string): RepairedReply | null {
+  const candidate = repairTrailingKey(text);
+  if (candidate === null) return null;
+  return parseCandidate(candidate, "trailing-key");
+}
+
+/**
+ * 三档合一——`parseAgentAction` 与清洗脚本跨的就是这一个 seam：同一份形状校验、
+ * 同一个返回形状，档位由 `RepairedReply.form` 带出。三档判据互不重叠
+ * （第一档要求开头没有 `{`，第二档要求 `{`…`}`，第三档要求尾部结构缺陷），顺序不影响结果。
  */
 export function parseLeakedReply(text: string): RepairedReply | null {
-  return parseRepairedReply(text) ?? parseRawControlReply(text);
+  return parseRepairedReply(text) ?? parseRawControlReply(text) ?? parseTrailingKeyReply(text);
 }
 
 /**
  * 文本是否落在**任一档的候选面**上（前置判据，不含 parse / 形状校验）。
  * 清洗脚本 SQL 里那份「捞候选」的条件与它是同一件事的两份表示，由测试钉住不变式
  * （JS 候选面必须被 SQL 全部捞到；SQL 多捞的只允许进 skipped）。
+ *
+ * ⚠️ 本函数回答的是**值不值得当候选**，不是**能不能修**：第三档把“未闭合尾”也算候选
+ * （只报告不修），所以 `isLeakedReplyCandidate(x) === true` 与 `parseLeakedReply(x) !== null`
+ * 不是同一件事。这个区分是本档能否站住的关键（有独立用例钉住）。
  */
 export function isLeakedReplyCandidate(text: string): boolean {
-  return LEAK_PROLOGUE_PATTERN.test(text) || repairRawControlChars(text) !== null;
+  return (
+    LEAK_PROLOGUE_PATTERN.test(text) ||
+    repairRawControlChars(text) !== null ||
+    scanProtocolTail(text) !== null
+  );
 }
