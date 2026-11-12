@@ -211,3 +211,26 @@ JSON 当正文落库，顺带把 `task` / `ops` 声明整段吞掉。
 | `implement` | 直接读取 | `/Users/apple/.pi/agent/skills/implement/SKILL.md` 首行 `---`；typecheck / 单文件测试 / code-review / commit 按其次序执行 |
 | `code-review` | 直接读取 + 两个并行子 agent（各轴独立上下文） | `/Users/apple/.pi/agent/skills/code-review/SKILL.md` 首行 `---`；两轴结论与处置见上 |
 | `pr` | 直接读取 | `/Users/apple/.pi/agent/skills/pr/SKILL.md` 首行 `---`；PR body 按 Summary / Evidence / Merge Danger 三段写 |
+
+## 验收打回与处置（第二轮）
+
+coordinator 独立复核通过核心交付（303/303 绿、副本库 repaired=1 / skipped=8、apply 后仅那 1 条变、
+备份生成、第二遍 0 changes、PR MERGEABLE、双轴 review 的 P1/P2 处置认可），打回两处**本票直接后果**
+的漏改——「行为已变、引用它的文字没跟上」。两处都只改文字，代码与测试零改动：
+
+1. **`lib/agent-loop/loop.ts:306-311`**：注释仍写「泄漏修复（reply-json-leak，两档）」并只列 ①②。
+   本轮已把 ③ `trailing-key` 接进 `parseLeakedReply`，旧注释会主动误导下一个扩档的人。
+   已改成三档，补 ③ 的形态（字面量与转义都对，但最后一个成员名是空字符串、没有冒号与值，紧接 `}`
+   闭合，parse 报 `Expected ':' after property name`），并补一句「三档不共用判据：① 缺开头、
+   ② 字面量内的字符要转义（逐字符改写）、③ 对象尾部的结构缺陷（只需走查、不需改写）」，与
+   `json-prologue.ts` 头部口径一致。`loop.ts` 的**代码**未动（diff 只有注释行）。
+
+2. **`AGENTS.md` File Map 的 `lib/agent-loop/` 段**：只列 `loop.ts` 与 `index.ts`，缺 `json-prologue.ts`
+   （回复协议解析的第二个深模块、三档判据与清洗脚本共用的 seam，缺条目会让后续 agent 绕路定位）。
+   已补一条，长度与相邻条目相当，写明「三档判据唯一实现（prologue / raw-control / trailing-key）／
+   `parseAgentAction` 与 `scripts/fix-reply-json-leak.mjs` 共用的 seam／零依赖纯函数／候选面
+   （含只报告不修的未闭合尾）与可修面分开」。
+
+**门禁读数（改后复跑）**：`node --test --test-timeout=60000 "lib/agent-loop/*.test.mjs"` → `tests 303 /
+pass 303 / fail 0`；`node_modules/.bin/tsc --noEmit` 干净。未跑自动格式化；`git diff` 只有这 2 个文件
+的注释/文档行。live 库的 `--apply` 仍由 coordinator 在验收收尾执行，本轮未碰。
