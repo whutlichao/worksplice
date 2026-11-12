@@ -276,7 +276,7 @@ body: {"error":"Error: Failed to patch exported HTML: sortChildren expected 1 ma
 | V9 | ModelsConfig 读模型列表 + 测一次连通性 | **通过** | `GET /api/models` → 29 个模型，默认 `magpie/group/dsv4.1f`，`modelScopeWarnings: null`、`thinkingLevelPins: {}`；`POST /api/models-config/test` → `{"ok":true,"latencyMs":2329,"status":200,"responseText":"OK"}` |
 | V10 | PRESET_NONE 会话抓请求体，确认 `tools` 字段是否存在 | **通过** | 请求体 `Object.hasOwn(body,"tools") === false`（1.5.1 起不再发 `"tools": []`）、无 `system` 顶层字段、`messages` 1 条、`stream: true` |
 | V11 | Anthropic provider 两轮，第 2 轮增量消息路径 | **部分通过（真实 Anthropic 未验证）** | 本机 Anthropic **无凭证**（`/api/auth/all-providers`：`anthropic configured: false`；OAuth `loggedIn: false`），故用本地假 `anthropic-messages` endpoint 跑两轮：第 2 轮请求体 `messages=3`（user/assistant/user）、`tools` 缺席。**未见「只发增量」形态**，真实端点行为未验证（需凭证） |
-| V12 | 成本看板读数与 SDK `getSessionStats()` 对齐 | **通过（附口径观察）** | observability `totals`: `messageCount 5 / cached 26368 / uncached 28067 / total 54606 / costTotal 0`；独立从 jsonl 重算（sum(input)=28067、sum(cacheRead)=26368）逐项一致。`getSessionStats` 在 `1.5.2` **不再从包根导出**，`lib/session-stats.ts` 的同口径镜像仍是唯一路径 |
+| V12 | 成本看板读数与 SDK `getSessionStats()` 对齐 | **通过（附口径观察）** | observability `totals`: `messageCount 5 / cached 26368 / uncached 28067 / total 54606 / costTotal 0`；独立从 jsonl 重算（sum(input)=28067、sum(cacheRead)=26368）逐项一致。`getSessionStats` **一直是 `AgentSession` 的实例方法、不在包根导出**（两版 `dist/index.d.ts` 均 0 命中），本仓 `lib/rpc/session.ts:680` 的 `this.inner.getSessionStats()` 与 `lib/session-stats.ts` 的同口径镜像都不受影响（读数见下注） |
 | V13 | 同一 cwd 第二个成员会话 → `BusyCwdError` | **通过** | agent-runtime 接缝：第一个会话 prompt 在飞时 `startSession(第二个成员)` → `BusyCwdError: Another agent session is already active in <cwd>`；既有 cwd-mutex 自动用例同结论 |
 | V14 | `npm test` 全绿（对照基线） | **通过（相对基线）** | 见 §6 |
 | V15 | `npm run build` exit 0，且 `.next/server` 无 `pi-schema` | **通过（口径见下）** | build exit 0（先停掉自己的 dev server 再 build）；`.next/server` 的 **`.js` chunk 里 `@earendil-works/pi-schema` 命中 0**，`.nft.json` 追踪清单里 76 处（同探针对 `@earendil-works/pi-coding-agent` 是 152 处——两者都是 external 的运行时引用，不是打进 bundle）；`.next/server` 下 `node_modules` 目录数 **0**；`next.config.ts` 相对 HEAD **零 diff** |
@@ -284,6 +284,12 @@ body: {"error":"Error: Failed to patch exported HTML: sortChildren expected 1 ma
 > V15 的口径要说清：票据写「`.next/server` 内**不出现** `@earendil-works/pi-schema`」。字面判据不成立——
 > Next 的 `*.nft.json` 文件追踪清单**会把 external 包的文件路径也列进去**（`pi-coding-agent` 同样在列）。
 > 成立的是探针真正要证的结论：**`pi-schema` 没有被 webpack 编译进任何 server chunk**（`.js` 命中 0、无 node_modules、`next.config.ts` 零 diff）。
+
+**V12 补充读数（`getSessionStats` 不是升级引入的变化）**：它**一直是 `AgentSession` 的实例方法、从未从包根导出**——
+两版 `dist/index.d.ts` 的 `grep -c getSessionStats` 都是 **0**（`0.99.2` → 0，`1.5.2` → 0）；
+实例方法声明两版都在 `dist/core/agent-session.d.ts`（`0.99.2:836` / `1.5.2:916`，签名 `getSessionStats(): SessionStats`）。
+本仓的 `this.inner.getSessionStats()`（`lib/rpc/session.ts:680`）与镜像声明（`lib/pi-types.ts:174`）因此两版都成立、**不需要改 `lib/pi-types.ts`**；
+`lib/session-stats.ts` 的同口径解析是「直接读 jsonl、不建会话」那条路的实现，与「包根是否导出」无关。
 
 ---
 
