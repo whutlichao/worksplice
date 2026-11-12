@@ -431,7 +431,7 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 
 ### Exported session HTML
 
-- `/api/sessions/[id]/export` delegates to pi's export helper, then patches recursive tree helpers in the generated HTML to iterative versions so very deep linear sessions do not overflow the browser call stack.
+- `/api/sessions/[id]/export` delegates to pi's export helper and returns the generated HTML as-is. The patch that rewrote the template's recursive tree helpers (`sortChildren` / `mapNodes` / `markActive`) into explicit stacks is gone: `pi-coding-agent@1.5.2` already ships those traversals as explicit stacks, so very deep linear sessions no longer overflow the browser call stack and we no longer maintain a copy of an upstream implementation. `app/api/sessions/[id]/export/route.test.mjs` guards the route end to end (status / content type / disposition / payload).
 
 ### 启动钩子的 edge 双编译：instrumentation 顶层不得静态引 Node 内置模块
 

@@ -18,8 +18,26 @@
 > **更正（2026-10-06，实施票 02 实测推翻「六个工具同构」的部分前提）**：`find` 不满足上述同构——`find.js` 只在 `customOps?.glob` 为真时才走 operations 分支，否则退回 `spawn(fd)` 真实遍历、`ops` 一次不碰；只做 operations 守卫时 `find "*" <dataDir>` 仍能枚举出 `agents/… attachments/… worksplice.db`。`grep` 部分不满足：它把自己的 `ops.isDirectory` 异常改写成 `Path not found`，调用被拒但允许根清单到不了模型。因此实施票为 find 与 grep 补了**定义级搜索根前置判定**（判定发生在进入 fs 之前，所以 grep 的文案问题一并闭合），取保守形态：不复刻 pi 的完整路径解析，拿不准就拒绝。
 >
 > 这条更正**不动决策四的结论**（注入点仍是同名覆盖，仍走 `extensionFactories`，主流程仍零改动），也不推翻否决 `tool_call` 钩子与 `baseToolsOverride` 的理由——那两条的理由是「拿不到绝对路径」与「需退回更低层会话组装」，与覆盖面无关。要改的是一句话的强度：`operations` 是**主要的** fs 出口，不是**唯一**的；下一个读本 ADR 的人不要再拿「operations 无洞」去论证别的路线。
+>
+> **更正（2026-11-12，1.5.2 升级票实测：`grep` 的上下文行不再经过任何守卫代码）**：`GrepOperations.readFile` 从 `pi-coding-agent@1.5.1` 起是 `@deprecated Ignored`，`1.5.2` 的 `dist/core/tools/grep.js` 全文件**零** `readFile` 调用——上下文行改由 ripgrep 的 `--context` 与 `context` 事件给出（源码注释原文：`rg emits the surrounding lines as context events, so no matched file is ever read here (#9276)`）。`lib/tool-path-guard-extension.ts` 里那道 `readFile: guarded(...)` 因此成了死代码，升级票把它**删掉**，并用一条断言守着（`"readFile" in operations.grep === false`，`lib/tool-path-guard-extension.test.mjs` 的「R1 守卫面」用例）——继续交一个上游不调的字段，等于在代码里留一句守不住的承诺。
+>
+> **实测三元组（「删掉是否安全」的证据，不要只信结论）**：
+>
+> 1. **符号链接当搜索根**（允许根内 `link.md` → 根外文件，`linkdir` → 根外目录），`grep` 带 `context`：**被拒**，报错 `path outside this agent's allowed roots: …` 且列出允许根清单。拦下它的是定义级 `guardSearchRootCall` 的 realpath 判定（0.99.2 同款代码也拦）。
+> 2. **符号链接躺在搜索根内部**（搜家目录本身，其中 `link.md` 指向根外），`grep` 带 `context`：返回 `No matches found`。原因是 ripgrep 目录遍历**不跟随**符号链接——`rg --help` 的 `-L, --follow` 原文："This flag instructs ripgrep to follow symbolic links while traversing directories. This behavior is disabled by default."（同一份 `rg` 命令在纯 shell 下复跑同样 0 命中）。
+> 3. **搜索根在允许根之外**，`grep` 带 `context`：**仍被拒**（`path outside this agent's allowed roots`）——缩水的只有「遍历途中的逐文件读取」，不是整块消失。
+>
+> **复跑方式**（留命令，不只留结论）：`rg --help | grep -A3 -- '-L, --follow'` 可直接复现第 2 条引的那段说明；
+> 形态 1/3 的拒绝文案可在 `lib/tool-path-guard-extension.test.mjs` 的「R1 行为面」用例里逐字看到（真会话 + 真工具）。
+> 两点限制要说清：① 第 1 条扇注的「0.99.2 同款代码也拦」来自升级前在旧依赖树上的探针，升级后仓库里已不装 0.99.2，
+> **该读数不可在 HEAD 上复跑**（保留它是因为它决定了「删除是否安全」——若 0.99.2 不拦，那本条就更不是升级引入的缩水）；
+> ② 形态 2 的 0 命中依赖 ripgrep 版本的默认值，`rg --version` 当时的读数是 `15.2.0`，换了看上游是否改默认。
+>
+> 结论：**上下文行的 `readFile` 拦截在可达形态上是冗余的**——符号链接只有被当作搜索根显式传入时才会被读，而那一步本来就有定义级 realpath 判定；目录遍历下 ripgrep 不跟随符号链接。**实际防线是搜索根判定，不是 `readFile`。** 反过来：若上游将来给 rg 传 `--follow` 或重新引入逐文件读取，上下文行会重新变成读面。`1.5.2` 起 grep 额外传 `--no-config`（`rg --help`："When this flag is present, ripgrep will not respect the RIPGREP_CONFIG_PATH environment variable."），顺带堵住了「用使用者 ripgrep 配置注入 `--follow`」这条路——这一条 0.99.2 没有。
+>
+> 这条更正**只撤掉**下文「为什么不是另外两条路」里 `grep` 的 `ops.readFile` 那半句论据，不改变否决 `tool_call` 钩子的结论（另一条理由「钩子拿到的是模型给的原始字符串而非绝对路径」仍然成立），也不改变决策四（注入点仍是同名覆盖）。
 
-**为什么不是另外两条路**：`baseToolsOverride` 虽写在 `AgentSessionConfig` 上，但 worksplice 走的 `createAgentSessionFromServices` 未暴露它，要用就得退回更低层的 `createAgentSession` 自行组装 `agent`/`settingsManager`/`modelRuntime`，那是 ADR-0007 判给 pi 的地盘；`tool_call` 钩子虽可 `{ block: true }`，但它拿到的是模型给的**原始字符串**路径而非绝对路径（pi 的 `resolveToCwd` / `resolveReadPathAsync` 不在包的公开导出面上，自写一份必然与上游的 macOS 文件名变体回退漂移），且 `grep` 的 `ops.readFile` 发生在遍历途中、钩子只能看到搜索根看不到实际读了哪些文件——守卫要判的不只是参数，还有副作用。
+**为什么不是另外两条路**：`baseToolsOverride` 虽写在 `AgentSessionConfig` 上，但 worksplice 走的 `createAgentSessionFromServices` 未暴露它，要用就得退回更低层的 `createAgentSession` 自行组装 `agent`/`settingsManager`/`modelRuntime`，那是 ADR-0007 判给 pi 的地盘；`tool_call` 钩子虽可 `{ block: true }`，但它拿到的是模型给的**原始字符串**路径而非绝对路径（pi 的 `resolveToCwd` / `resolveReadPathAsync` 不在包的公开导出面上，自写一份必然与上游的 macOS 文件名变体回退漂移）——钩子只能看到搜索根，看不到遍历途中实际读了哪些文件，守卫要判的不只是参数，还有副作用。（0.99.2 时代这条论据还点着 `grep` 的 `ops.readFile`；该字段在 1.5.2 已被上游忽略，见上一条更正。）
 
 **决策五（越界处置）**：越界 = 工具报错，且错误文本**列出该成员当前允许的根**。只报错会让模型反复换路径重试、烧轮次，而 `MUST_RESPOND_FAILURE_CAP = 2`（ADR-0005）在连续失败后 cap-ack 推进游标——一次注入就能作废一个正常成员的这一轮；给出清单等于让模型一次就自我纠正。**不清静改写**（重定向到工作区内的同名相对路径，会让模型以为自己读到了目标文件，是比拒绝更坏的失效形态），**不静默截断**（同样让模型拿到「看起来能用」的错误内容）。
 

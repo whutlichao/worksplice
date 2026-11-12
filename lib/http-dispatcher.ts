@@ -68,6 +68,12 @@ export function configureHttpDispatcher(
   const dispatcher = withUndiciErrorListener(
     new undici.EnvHttpProxyAgent({
       allowH2: false,
+      // undici 8.12.3 把明文 http 经代理的默认形态从 CONNECT 隧道改成了
+      // 「绝对 URI 直写」（`shouldProxyTunnel = proxyTunnel === true ||
+      // requestProtocol !== 'http:'`，lib/dispatcher/proxy-agent.js）；
+      // 8.5.0 的等价默认是 `proxyTunnel = true`。升级到 8.12.3 时显式设回，
+      // 保持升级前的口径（http 与 https 都走隧道），不放宽也不改变既有行为。
+      proxyTunnel: true,
       bodyTimeout: normalizedTimeoutMs,
       headersTimeout: normalizedTimeoutMs,
       clientFactory: createUndiciClient,
