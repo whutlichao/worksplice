@@ -18,6 +18,18 @@
 // 取得到平衡的 `{…}` 却一样 parse 不过 → 整段 JSON 当正文落库。逐字形如：
 //   `{"action":"reply","content":"第一行<裸 LF>第二行","onConflict":"revise"}`
 //
+// 存量第三档（reply-json-leak-tail）：协议 JSON 的字面量与转义都**写对了**，但对象的最后一个
+// 成员名是空字符串，没有冒号也没有值，紧接 `}` 闭合（`JSON.parse` 报
+// `Expected ':' after property name`）。逐字尾部形如：
+//   `…用正确格式重提 #1 并在本串外汇报验证结果。",""}`
+// 前两档都不命中（不以 `","` / `,"` 开头，也没有裸控制字符）——存量里它连候选都算不上，
+// 所以本轮把 SQL 候选面补上第一条结构前置筛（见 PROTOCOL_TAIL_GLOB_SQL），修复判定仍全在
+// `json-prologue.ts`。
+//
+// 同一档还带出**只报告不修**的一类：协议对象写到一半就断了（未闭合尾）。它进候选面是为了让
+// 报告诚实（不得静默吞掉“协议形状但解析不了”的消息），但 `parseLeakedReply` 对它必须继续返回
+// null：补全括号、把 `"content":"` 之后的残文当正文，都是有损猜测，明确排除。
+//
 // 为什么是脚本而不是「在读取侧兼容」（同 migrate-i18n-content 的理由）：这是**一次性**脏数据，
 // 修完就不再需要兼容分支。修完的库里没有一条消息命中形态，兼容分支成了纯负债。
 //
@@ -82,9 +94,24 @@ export const MESSAGES_NO_UPDATE_SQL = `CREATE TRIGGER IF NOT EXISTS messages_no_
 const RAW_CONTROL_GLOB_SQL = `'*[${String.fromCharCode(1)}-${String.fromCharCode(31)}]*'`;
 
 /**
- * 候选行扫描：content 命中第一档（`","` / `,"` 开头）或第二档（含裸控制字符）的消息。
+ * 第三档（协议对象尾部结构缺陷）的 SQL 前置筛：去空白后以 `{"` 开头的 content。
+ *
+ * 为什么只需这一条就够：本档的**两类**缺陷（尾部冗余空键、未闭合尾）都要求「协议对象形状」，
+ * 而 `json-prologue.ts` 的 `scanProtocolTail` 的前置筛正是「去两端可忽略空白后以 `{"` 开头」。
+ * 两边用**同一组空白字符**（RFC 8259：空格 / 制表 / LF / CR，即 `PROTOCOL_WHITESPACE_EDGES`），
+ * 所以 SQL 这一侧是 JS 候选面的**严格超集**，不依赖「逗号后无空白」之类会跟 JS 漂移的字面量。
+ *
+ * 注意：超集里「已闭合且没有尾部空键」的行（比如合法 JSON 正文）在 JS 侧不被当候选，
+ * 会落进静默超集分支——这是不变式允许的方向（多捞只能进 skipped / 静默，不能进 repaired）。
+ */
+const JSON_WHITESPACE_SQL = `char(32) || char(9) || char(10) || char(13)`;
+const PROTOCOL_TAIL_GLOB_SQL = `trim(content, ${JSON_WHITESPACE_SQL}) GLOB '{"*'`;
+
+/**
+ * 候选行扫描：content 命中第一档（`","` / `,"` 开头）、第二档（含裸控制字符）或第三档
+ * （协议对象形状 + 尾部结构缺陷）的消息。
  * 判据用 LIKE / GLOB 先收窄（避免全表捞；模式全是字面量，不拼接任何用户输入）——
- * 第二档这一侧刻意是**超集**：两端都是全表扫描，超集不额外花 I/O，多捞的代价只是一次
+ * 第二档与第三档这两侧刻意是**超集**：两端都是全表扫描，超集不额外花 I/O，多捞的代价只是一次
  * `parseLeakedReply` 早退，换来的是一条不会漏斗的候选面。
  *
  * 排序按 rowid（= 消息实际插入序）而不是 created_at：同毫秒落库的两条消息 created_at 会相等，
@@ -93,6 +120,7 @@ const RAW_CONTROL_GLOB_SQL = `'*[${String.fromCharCode(1)}-${String.fromCharCode
 const CANDIDATE_SQL = `SELECT id, target_id, seq, author_id, content, created_at
   FROM messages
   WHERE content LIKE '","%' OR content LIKE ',"%' OR content GLOB ${RAW_CONTROL_GLOB_SQL}
+    OR ${PROTOCOL_TAIL_GLOB_SQL}
   ORDER BY rowid`;
 
 const USAGE = `用法：node scripts/fix-reply-json-leak.mjs [--dry-run] [--apply] [--data-dir <path>] [--json]
