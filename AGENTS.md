@@ -182,6 +182,12 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   （workspace 绑定唯一性校验；删除 = soft-delete）
   reminders.ts                    schedule/list/snooze/update/cancel/log/fireDueReminders（§3.9/§5.6）
                                   fire 投递系统消息（wake:false）+ 定向唤醒作者（agent → emitWake reason=reminder）
+  room-budget.ts                  房间轮次预算（PR #218，设计记录 `.scratch/room-turn-budget/spec.md`）：
+                                  createRoomTurnStore（场次状态机 / 选人水位线 / 迟到补充轮次）/ getRoomTurnStore
+                                  （生产单例挂 `globalThis.__workspliceRoomTurns`）/ setRoomTurnStore(null)（测试接缝）
+                                  + DEFAULT_ROOM_LIMITS（注入式上限）+ ROOM_PRIVATE_CHANNEL_MESSAGE /
+                                  RoomPrivateChannelForbidden（I6 房间可见性）+ 直连链原语 advanceRequestHop /
+                                  createDirectRequestBridge
   search.ts                       §6.4 搜索服务层：searchMessages（trigram FTS 双路径 + LIKE 兜底；结果附 channel/author/inThread）
   observability.ts                §6.5 任务历史服务层：listAgentTasks（owner/锚点作者/thread 进展参与判定）+ buildAgentTimeline（消息 + 任务状态点时间线）
   recurrence.ts                   recurrence DSL 纯解析器：every:Nm/Nh/Nd / daily@HH:MM / weekly:mon,fri@HH:MM
@@ -489,6 +495,7 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **UI 单一引用态**：`ChannelView` 的 `quoting` 是组件级单一状态，channel composer 独享（ticket 13 线程迁出右栏后引用态变面板局部——`ThreadPanel` 自持 quoting，channel 与 thread 引用互不污染）；`handleSend` 按 target 决定 baseSeq 来源（channel → `maxSeq`，thread → 该线程最后一条 seq）。
 - **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。右栏线程面板（`ThreadPanel`）另有同纪律 3s 轮询（`THREAD_POLL_MS`），任务线程回复自动冒出，与中央轮询并存为两套循环。
 - **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq &gt; read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/domain/collab/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
+- **房间轮次预算挂在消息漏斗上**（PR #218）：`sendMessage` 是房间预算的**唯一写入面**——提交成功后调 `recordRoomTurn`：Owner 消息 → `beginTurn`（开新房次 + 第一波选人），agent 消息 → `noteReply`（计发言 + 水位线 + 引用边），`roomNotice: true` 或 `wake: false` 的系统消息整个跳过。两个入参的语义：`roomContext: { channelId, epoch? }` 是「本轮在哪个房间回合里发言」的语境——解析出的频道不等于 `channelId` 时抛 `RoomPrivateChannelForbidden`（I6 房间内无隐身通道），`epoch` 让被取代场次的回复照常落库但按 `stale` 记账；`roomNotice: true` 声明「这是系统 / 事件消息，不是人类真的敲出来的」，不得开新房次、不得重置 `lateTurns`。不变量、陷阱与接入点见 Key Design Decisions 的「房间轮次预算」段。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
 
@@ -513,6 +520,42 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **driver 编排**：每 agent 一个 FIFO 队列，同 (agent, target) hint 合并；**⚠️ 合并窗口是承重不变式**：`processAgent` 必须在 `queue.shift()` **出队之前**先让出一个微任务（`await null`），同一同步回合内到达的同 target hint 才能并进同一条 entry、一轮 drain 取尽（板上 Create Task 的「用户消息 + 任务创建事件消息」就走这条：合并后第一轮 claim 直接成功，不被自己顶出的那条消息 hold）。改这段时**不要在 `shift` 之前加 `await`、也不要挪动循环**——合并会静默失效（退化成多跑一轮、该轮 claim 被 hold 让路），tsc/lint 都不会报，唯一护栏是 loop-tasks 的特征用例；这条让出以前是「顺带」的：只有生产形态（runtime=null，`state.runtime ?? (await getAgentRuntime())` 走右半）恰好让出，注入 fake runtime 时 `??` 短路不让出，测试与生产形态分叉（见 loop-tasks）；busy（会话运行中）/ busy-cwd（同 cwd 被占用）时挂 settle 监听（`SETTLE_EVENTS`：agent_end/agent_settled/prompt_done/compaction_end/auto_compaction_end）后重试，不丢 hint；busy-cwd 找不到等待对象（对方会话 starting 窗口未入 registry）时退避 `BUSY_CWD_RETRY_DELAY_MS` 后重试（不热自旋，定时器随 stop() 取消）；状态挂 `__workspliceAgentLoopDriver`。loop 只依赖 `LoopRuntime` 结构子集（findSession/startSession/findBusySessionForCwd），测试注入 fake，**不静态 import lib/rpc**。
 - **⚠️ 热重载陷阱（改代码必须重启 dev server）**：wake 监听器（`__workspliceWakeListeners`）在 server 启动时由 `startAgentLoopDriver` 注册，`started` 守卫阻止热重载后重新订阅——**旧监听器闭包永久持有旧 `runAgentRound`/`parseAgentAction`**。改 agent-loop/driver/wake/backfill 等被 globalThis 闭包引用的模块后，热重载不生效，行为照旧（曾因 parseAgentAction 修复不生效，脏 JSON 消息继续落库数小时）。验证手段：查 `ps aux | grep next-server` 的启动时间是否晚于改动。同理，`getAgentRuntime()` 的 wrapper 记账与 session 启动路径同此约束。
 - **状态点**：loop 在 prompt 前后 publish working/online（与 wrapper 的 agent_start/agent_end 事件双保险）；会话错误 publish error 且不推进游标（下次 wake 重试）。
+
+### 房间轮次预算（room turn budget，PR #218）
+
+源码 `lib/domain/collab/room-budget.ts`（深模块：对外只有 `beginTurn / gate / noteReply / notePass / noteBusy / pump / markSuperseded / stopTurn / isCurrent / snapshot / reset`，波次推进全在内部，调用方无法跳过预算）。要解决的是「多 agent 群里结构性不可能无限互相接话」——落在计数器 / 序号水位线 / 状态机 / 显式取消上，**不是**提示词自律。
+
+- **默认上限**（`DEFAULT_ROOM_LIMITS`，`room-budget.ts:42`）：`MAX_REPLIES = 10`（一条用户消息引发的 bot 发言总数）/ `MAX_ROUNDS = 3`（对话波次，0 基、含第一波）/ `MEMBER_TIMEOUT_MS = 600_000`（单成员超时）/ `MAX_LATE_TURNS = 3`（迟到回答的补充轮次上限）；同处还有 `HISTORY_LINES` / `LINE_CHARS`（转写内存，见已知边界）与 `MAX_REQUEST_HOPS` / `MAX_PENDING_MESSAGES` / `MAX_PENDING_MESSAGES_PER_SENDER`（直连链）。
+- **三个构造口**：`createRoomTurnStore({ limits, now, directory, notify })` 造实例（上限 / 时钟 / 目录 / 唤醒投递全可注入）；`getRoomTurnStore()` 取生产单例（挂 `globalThis.__workspliceRoomTurns`）；`setRoomTurnStore(null)` 是测试接缝，下一次访问重建。
+- **I1 发言预算**：场次计数 `replies`（`RoomTurnView.replies`，`room-budget.ts:118`）跨轮累计，只在「本波当选且尚未结算」的实质发言上 +1（`noteReply`），到顶由 `pump` 收口为 `reply_budget`。
+- **I2 波次预算**：`wave`（`RoomTurnView.wave`，`room-budget.ts:120`）记已执行波次，`pump` 在波次结算后先查预算再决定开不开下一波，到顶收口为 `round_budget`。
+- **I3 超时不阻塞**：`releaseTimeouts` 只比较 `askedAt` 与 `MEMBER_TIMEOUT_MS`，从不 `await` 成员；`noteBusy` 让忙碌成员立刻还回槽位并记一条 `busy-notice`。
+- **I4 同一条 @ 不二次唤起**：`candidates()` 用单调水位线 `seen` 比较（`seen[member] >= citedAtSeq` 即视为已看过这条引用）；`isBackEdge` 做回边抑制（反向重试 / 互引对）。
+- **I5 用户掐断**：`beginTurn` / `stopTurn` 推进 `epoch`，`isCurrent` 是检查点判据；`runAgentRound` 的 CP0 / CP2 / CP3 据此拒绝入场或标 `stale`。
+- **I6 房间内无隐身通道**：`sendMessage` 收到 `roomContext` 时校验解析出的频道是否等于 `roomContext.channelId`，不等抛 `RoomPrivateChannelForbidden`。
+- **I7 迟到独立预算**：`noteLateReply` + `lateTurns` + `pendingLateSeq`——忙碌 / 超时被释放的成员之后的发言走补充波，最多 `MAX_LATE_TURNS` 次；`stopTurn` 把 `lateTurns` 置哨兵，Stop 之后零补充波。
+- **I8 预算不可自助重置**：预算只挂在房间状态上，`beginTurn`（= 人类新消息）是唯一重置点；`@all` / `@everyone` 只影响第一波选人（`responders()` + `ALL_MENTION`），改不动计数。
+- **接入点一 —— `sendMessage` → `recordRoomTurn`**（`lib/domain/collab/messages.ts`）：Owner 消息 → `beginTurn`（epoch+1、`lateTurns` 归零、第一波选人）；agent 消息 → `noteReply`（I1 计数 + 水位线 + 引用边；跨 target 用 `message.rowid` 当水位线，因为 thread 有自己的 seq 空间）；`roomNotice: true` 或 `wake: false` 的系统消息整个跳过。记账排在 wake hint 之前是承重的——被唤醒的轮次入场第一件事就是问「我是否被这一波选中」。
+- **接入点二 —— `runAgentRound` 的 CP0 选人门**（`lib/agent-loop/loop.ts`）：入场问 `gate({ channelId, memberId, reason, continuing })`，`not-elected` 直接返回 `{ status: "skipped", reason: "not elected by room turn" }` 且**不推进消费游标**（被后来召见时上下文完整，也不起会话、不花模型调用）；reminder 轮次与任务续工轮次由 `gate` 内部 `bypass`。CP2 在出 prompt 前、CP3 在回复落库后各复查一次 `isCurrent`，投递时带 `roomContext`（I6）。
+- **`lib/domain/collab/wake.ts` 一字未改**：门落在**执行期**（`runAgentRound` 入场）而不是广播期，所以既有 wake 语义逐字节不变——广播照旧扇出，被唤醒但没当选的成员自己让路。房间场次不活跃、或 DM 频道（`isRoomChannel` = false）时行为也完全同旧。
+
+**会静默破坏它的纪律**（每条都是「踩了不报错，只会错」）：
+
+1. **「Owner 署名 + 系统事件」的消息必须 `roomNotice: true`**：`recordRoomTurn` 只看作者类型与开关，`OWNER_MEMBER_ID` 署名的系统消息在唯一漏斗里与人类消息**不可区分** ⇒ 开新房次、`lateTurns` 归零、把在跑的场次 supersede（违反禁止项 #5）。判据只有一句「这条消息是人类真的敲出来的吗」。现状：`event-messages.ts` 的 `notifyTaskCreated` / `deliverEventMessage` 已显式声明；`reminders.ts` 的 `fireReminder` 仍只靠 `wake: false` 被跳过、**未显式化**——这是遗留（不是 bug），后续票再补 `roomNotice`。
+2. **CP2 只收口场次记录，不中止、不 ack**：改成「中止 + ack」会静默消费掉尚未处理的任务创建事件（既有 `lib/agent-loop/loop-tasks.test.mjs` 的 R3b / R3c / R3d 契约守的正是「让路轮停在创建事件之前」）；I5 的**退出**语义落在 CP0（已被取代的场次进不来）与 CP3（回复照常落库、按 `stale` 记账、不续波）。
+3. **改 CP0 必须跑 `lib/agent-loop/room-gate.test.mjs`**：store 侧用例删掉 CP0 也全绿，只有这个文件能把「门真的接在轮次入口上」判成红（删掉那段 `return`，它的「未当选 ⇒ skipped」用例必红）。
+4. **回边抑制是切环的实际机制**：仅靠水位线比较不足以切断——后发言者的 `@` seq 必然晚于先发言者自己的发言 seq，A↔B 乒乓下水位数永远成立、环永远成立；删掉 `isBackEdge`，`lib/domain/collab/room-budget.test.mjs` 的 T2 必红（T2 把预算放大到 `MAX_ROUNDS: 50 / MAX_REPLIES: 100`，断言 `wave === 1`）。T1 仍可能被 I1 / I2 预算兜住——T1 守「预算兜得住」，T2 守「环在数据层就被切断」。
+5. **上限只走注入的 `RoomLimits`**：禁 env / 配置文件 / 热更新 / prompt 软约束——`createRoomTurnStore({ limits })` 是唯一入口（模块里没有 `process.env`、没有文件读取），测试要能确定地改小。
+6. **热重载**：房间状态挂 `globalThis.__workspliceRoomTurns`，改本模块（或 `messages.ts` / `loop.ts` 的接缝）后必须重启 dev server，否则旧闭包继续持有旧预算实现（与 `__workspliceWakeListeners` 同一套陷阱）。
+7. **I6 与直连链的中文错误文案是有意的**：本模块的中文错误文案共四处——`ROOM_PRIVATE_CHANNEL_MESSAGE`，以及三条 `RoomBudgetError` 文案（按 code 定位：`hop_limit_exceeded` / `pending_limit_per_sender` / `pending_limit_global`）。它们与 `docs/engineering-standards.md` §1「错误消息用英文」、`docs/i18n.md`「进模型上下文的内容英文硬编码」**故意冲突**，用户裁决为票面优先。**不是 bug，别顺手改成英文**；要改须一次改全（判据用 code，不要按出现位置数），并同步改 `room-budget.test.mjs` 的 T7 / T8 断言。
+
+**已知边界**（都有出处，别当缺陷）：
+
+- `stopTurn()` 只有服务层 API，没有路由、没有按钮（后续票接线；现无任何 `app/api/**` 调用点）。
+- `HISTORY_LINES` / `LINE_CHARS` 只约束场次转写（选人裁决用）的内存占用，转写**不拼进 prompt**；丢最老的行只会让候选变少，不会放大预算。
+- I3 只做**惰性释放**：`releaseTimeouts` 在 `pump` / `gate` 里跑，比较时间戳后把槽位还回去；不阻塞等待、也没有 `abort` 去打断成员会话。
+
+设计记录（常量理由、7 条禁止项、与原始伪代码的偏差 D1–D4、双轴 review 与红绿证据）在 `.scratch/room-turn-budget/spec.md`。
 
 ### 任务板（ticket 07，§3.7/§5.7 tasks 路由组）
 
