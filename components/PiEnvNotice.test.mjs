@@ -33,7 +33,7 @@ test("P1 环境：状态条出现、给「初始化」动作，并给出环境�
   assert.match(html, /data-pi-env-notice="uninitialized"/);
   assert.match(html, /The pi config root is not initialized/);
   assert.match(html, /skeleton files/);
-  // 侧欄用短版逃生口：只用环境变量供 key 的人不该被这一步打扰。
+  // 侧栏用短版逃生口：只用环境变量供 key 的人不该被这一步打扰。
   assert.match(html, /Skip this if your key comes from the environment/);
   assert.match(html, />Initialize</);
   assert.doesNotMatch(html, /Log in \/ add key/);

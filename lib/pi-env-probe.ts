@@ -12,19 +12,13 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { ModelRuntime, SettingsManager } from "@earendil-works/pi-coding-agent";
-import type {
-  PiEnvDirState,
-  PiEnvModelReading,
-  PiEnvProbes,
-  PiEnvSettingsReading,
+import {
+  EMPTY_SETTINGS_READING,
+  type PiEnvDirState,
+  type PiEnvModelReading,
+  type PiEnvProbes,
+  type PiEnvSettingsReading,
 } from "./pi-env-status.ts";
-
-const EMPTY_SETTINGS: PiEnvSettingsReading = {
-  defaultProvider: null,
-  defaultModel: null,
-  enabledModels: null,
-  error: null,
-};
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -51,7 +45,7 @@ export function readSettings(agentDir: string, cwd: string): PiEnvSettingsReadin
     const manager = SettingsManager.create(cwd, agentDir, { projectTrusted: false });
     const errors = manager.drainErrors().filter((entry) => entry.scope === "global");
     if (errors.length > 0) {
-      return { ...EMPTY_SETTINGS, error: errors.map((entry) => errorMessage(entry.error)).join("; ") };
+      return { ...EMPTY_SETTINGS_READING, error: errors.map((entry) => errorMessage(entry.error)).join("; ") };
     }
     return {
       defaultProvider: manager.getDefaultProvider() ?? null,
@@ -60,18 +54,18 @@ export function readSettings(agentDir: string, cwd: string): PiEnvSettingsReadin
       error: null,
     };
   } catch (error) {
-    return { ...EMPTY_SETTINGS, error: errorMessage(error) };
+    return { ...EMPTY_SETTINGS_READING, error: errorMessage(error) };
   }
 }
 
 /**
  * 模型面读数：可用模型数 + 其中凭据已配置的 provider 数。
  *
- * `allowModelNetwork: false` 是既有纪律（`lib/model-listing.ts` 同款）：状态判定不该为了
- * 一份模型目录去联网。探测失败按「读不出可用模型」算（0 / 0）—— 那会把用户送到凭证面，
- * 而凭证面正是这类失败最常见的原因，且动作不碰目录。
+ * `allowModelNetwork: false` 显式写出（SDK 默认也是 false）：状态判定不该为了一份模型目录
+ * 去联网。读取失败按「读不出可用模型」算（0 / 0）—— 那会把用户送到凭证面，而凭证面正是
+ * 这类失败最常见的原因，且动作不碰目录。
  */
-export async function probeModels(agentDir: string): Promise<PiEnvModelReading> {
+export async function readModelPlane(agentDir: string): Promise<PiEnvModelReading> {
   try {
     const runtime = await ModelRuntime.create({
       authPath: join(agentDir, "auth.json"),
@@ -101,6 +95,6 @@ export function createPiEnvProbes(cwd: string = process.cwd()): PiEnvProbes {
     // 目录不可读时 P1(b) 已经先命中，走不到这条。
     settingsFileExists: (agentDir) => existsSync(join(agentDir, "settings.json")),
     readSettings: (agentDir) => readSettings(agentDir, cwd),
-    probeModels,
+    readModelPlane,
   };
 }

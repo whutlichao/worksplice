@@ -75,7 +75,7 @@ export interface PiEnvSettingsReading {
 }
 
 /**
- * 模型面读数。P2 的判据是「读不出任何带凭证可用的模型」：
+ * 模型面读数（`readModelPlane` 的产物）。P2 的判据是「读不出任何带凭证可用的模型」：
  * `available === 0` 或 `configuredProviders === 0`。
  *
  * 注意：真实探测（`ModelRuntime.create`）会补建 `auth.json` / `models-store.json`
@@ -95,7 +95,7 @@ export interface PiEnvProbes {
   /** settings 面读数（P1(a)/(b) 不成立时才问）。 */
   readSettings(agentDir: string): PiEnvSettingsReading;
   /** 模型面读数（P1 不成立时才问；异步 = SDK 的 `getAvailable()`）。 */
-  probeModels(agentDir: string): Promise<PiEnvModelReading>;
+  readModelPlane(agentDir: string): Promise<PiEnvModelReading>;
 }
 
 /** 一份完整观测；`models === null` 表示「没探模型面」（P1 已成立时短路）。 */
@@ -105,6 +105,14 @@ export interface PiEnvObservation {
   settings: PiEnvSettingsReading;
   models: PiEnvModelReading | null;
 }
+
+/** 空 settings 读数：目录不可读时不再问 settings 面，用它兜底（唯一字面量来源）。 */
+export const EMPTY_SETTINGS_READING: PiEnvSettingsReading = Object.freeze({
+  defaultProvider: null,
+  defaultModel: null,
+  enabledModels: null,
+  error: null,
+});
 
 /** settings 面三条读数是否全空（P1(d) 的内容面）。 */
 export function isSettingsReadingEmpty(reading: PiEnvSettingsReading): boolean {
@@ -149,7 +157,7 @@ export function judgePiEnv(observation: PiEnvObservation): {
 /**
  * 现算一次两档结论（不缓存、不落库）。
  *
- * 顺序是承重的：先目录、再 settings 面，P1 一旦成立就返回，**一次都不调 `probeModels`**
+ * 顺序是承重的：先目录、再 settings 面，P1 一旦成立就返回，**一次都不调 `readModelPlane`**
  * —— 探模型面会写 SDK 的两个空壳，「检测」就变成了「修改」（空目录那条用例靠这条）。
  */
 export async function readPiEnvStatus(
@@ -160,12 +168,12 @@ export async function readPiEnvStatus(
   const readable = dir === "ok";
   const settings: PiEnvSettingsReading = readable
     ? probes.readSettings(agentDir)
-    : { defaultProvider: null, defaultModel: null, enabledModels: null, error: null };
+    : EMPTY_SETTINGS_READING;
   const settingsFileExists = readable ? probes.settingsFileExists(agentDir) : false;
 
   const p1 = judgePiEnv({ dir, settingsFileExists, settings, models: null });
   if (p1.finding !== null) return { agentDir, ...p1 };
 
-  const models = await probes.probeModels(agentDir);
+  const models = await probes.readModelPlane(agentDir);
   return { agentDir, ...judgePiEnv({ dir, settingsFileExists, settings, models }) };
 }

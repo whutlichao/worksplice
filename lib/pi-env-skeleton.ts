@@ -87,18 +87,6 @@ function wrapSkeletonError(error: unknown, agentDir: string): Error {
 }
 
 /**
- * 干跑：列出此刻初始化动作会补的项（不写盘）。空数组 = 骨架已就绪。
- */
-export function planPiAgentDirSkeleton(
-  agentDir: string,
-  fileSystem: PiEnvSkeletonFileSystem = nodePiEnvSkeletonFileSystem,
-): string[] {
-  return PI_AGENT_DIR_SKELETON.filter(
-    (entry) => !fileSystem.exists(join(agentDir, entry.path)),
-  ).map(displayPath);
-}
-
-/**
  * 补缺。返回本次真正创建的项（幂等：第二次为空）。
  *
  * 已存在的路径一律跳过（不区分它是文件还是目录 —— 用户的东西不归我们判断）。

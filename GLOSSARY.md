@@ -212,6 +212,18 @@ _Avoid_: 色阶（会被读成同色相的明度渐变序列，那是色板而�
 以**角色**而不是色相命名的一组档位（`--accent*` / `--selected*` / `--unread*` / `--warn*` / `--online*` …），每个角色恰好一个色相。它回答「多色 pastel 怎么映射到既有单色 token 名」：族名沿用旧名（`--accent*` 不动），新增档位加后缀（`-deep` / `-graphic` / `-fill`）。
 _Avoid_: 配色组（泛指）、主题（会被读成可切换的一套）
 
+**配置根 (Config Root)**:
+worksplice 既读又写的 pi 配置目录 `~/.pi/agent`（尊重 `PI_CODING_AGENT_DIR`）：models.json / auth.json / settings.json / sessions 等都在它下面。它不可用时的表现是**退化而不是报错**（模型列表空、建会话失败），所以需要单独判定并说出来。
+_Avoid_: 数据目录（那是 `~/.worksplice`）、工作区（那是成员的绑定目录）
+
+**骨架 (Skeleton)**:
+配置根下最小的空壳清单：`settings.json` / `models.json` / `auth.json`（内容各为 `{}` 或 `{"providers": {}}`）+ `sessions/` 目录。初始化动作只**补缺**——已存在的文件逐字节不动、可重复执行、不装 CLI。它刻意不含 `defaultProvider` / `defaultModel`：替用户选模型是越权。
+_Avoid_: 初始化脚本（会被读成一次性迁移）、模板（会被读成可覆盖）
+
+**两档故障 (P1 / P2)**:
+配置根不可用的两个**独立**信号，判据都取自「读出来的状态」而不是「枚举文件是否存在」：**P1 环境未初始化**＝目录缺失 / 不可读 / settings 面读取抛错 / settings 读出为空且 `settings.json` 从未被写过；**P2 无可用凭证**＝模型面读不出一项带凭证可用的模型。修复动作不同（P1 补骨架、P2 只引导配凭证），优先级固定（P1 成立只报 P1），两者都不成立则提示面渲染 null。
+_Avoid_: 配置错误（太泛）、初始化失败（那是动作结果，不是判据）
+
 ## Agent 上下文
 
 本上下文区分 Worksplice 中当前送入模型的信息、持久会话记录与跨会话记忆，以便讨论长期使用时的 token 成本与记忆连续性。

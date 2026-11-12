@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, KeyRound } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
-import type { PiEnvStatus } from "@/lib/pi-env-status";
+import type { TranslationParams } from "@/lib/i18n/types";
+import type { PiEnvFinding, PiEnvReason, PiEnvStatus } from "@/lib/pi-env-status";
 
 /**
  * pi 配置根两档故障的**提示面**（issue #226）：侧栏配置区常驻状态条 + `ModelsConfig` 顶部入口。
@@ -15,6 +16,9 @@ import type { PiEnvStatus } from "@/lib/pi-env-status";
  */
 
 export type PiEnvNoticeVariant = "rail" | "modal";
+
+/** 两种落点：侧栏状态条（~240px，短句）与弹框顶部（宽，完整句）。 */
+type Shape = PiEnvNoticeVariant;
 
 export interface PiEnvNoticeBarProps {
   variant: PiEnvNoticeVariant;
@@ -40,7 +44,7 @@ const CONTAINER_STYLE: React.CSSProperties = {
   background: "var(--warn-soft)",
   color: "var(--fg)",
   fontSize: "var(--fs-sm)",
-  lineHeight: "var(--lh-tight, 1.35)",
+  lineHeight: "var(--lh-tight)",
 };
 
 const TITLE_STYLE: React.CSSProperties = {
@@ -55,7 +59,7 @@ const LINE_STYLE: React.CSSProperties = {
 
 const ERROR_STYLE: React.CSSProperties = {
   marginTop: 2,
-  color: "var(--error-deep)",
+  color: "var(--error)",
   overflowWrap: "anywhere",
 };
 
@@ -66,21 +70,104 @@ const ACTIONS_STYLE: React.CSSProperties = {
   flexShrink: 0,
 };
 
-/** P1 的分支文案：不同成因给不同的一句，别让「点了没变化」无从解释。 */
-const REASON_DETAIL_KEY: Record<string, string> = {
-  "agent-dir-missing": "piEnv.uninitialized.dirMissing",
-  "agent-dir-unreadable": "piEnv.uninitialized.dirUnreadable",
-  "settings-unreadable": "piEnv.uninitialized.settingsUnreadable",
-  "settings-unwritten": "piEnv.uninitialized.body",
+const ICON_STYLE: React.CSSProperties = { flexShrink: 0, marginTop: 1 };
+
+/** P1 的成因 → 文案键（rail = 侧栏短句，modal = 弹框完整句）。 */
+type P1Reason = Exclude<PiEnvReason, "no-credentials">;
+
+/**
+ * 键型是全量 `Record` —— 判定层新增一种成因时这里必须补，不会静默回落到默认句。
+ * 侧栏只有 ~240px，所以 `settings-unwritten` 在两种落点取不同长度的一句。
+ */
+const REASON_COPY: Record<P1Reason, Record<Shape, string>> = {
+  "agent-dir-missing": {
+    rail: "piEnv.uninitialized.dirMissing",
+    modal: "piEnv.uninitialized.dirMissing",
+  },
+  "agent-dir-unreadable": {
+    rail: "piEnv.uninitialized.dirUnreadable",
+    modal: "piEnv.uninitialized.dirUnreadable",
+  },
+  "settings-unreadable": {
+    rail: "piEnv.uninitialized.settingsUnreadable",
+    modal: "piEnv.uninitialized.settingsUnreadable",
+  },
+  "settings-unwritten": {
+    rail: "piEnv.uninitialized.bodyRail",
+    modal: "piEnv.uninitialized.body",
+  },
 };
 
-/** 侧欄只有 ~240px：同一句话在侧欄用短版、在弹框顶部用长版。 */
-const RAIL_BODY_KEY: Record<string, string> = {
-  "agent-dir-missing": "piEnv.uninitialized.dirMissing",
-  "agent-dir-unreadable": "piEnv.uninitialized.dirUnreadable",
-  "settings-unreadable": "piEnv.uninitialized.settingsUnreadable",
-  "settings-unwritten": "piEnv.uninitialized.bodyRail",
-};
+function isP1Reason(reason: PiEnvReason | null): reason is P1Reason {
+  return reason !== null && reason !== "no-credentials";
+}
+
+function titleKey(finding: PiEnvFinding | null): string {
+  if (finding === "no-credentials") return "piEnv.noCredentials.title";
+  return "piEnv.uninitialized.title";
+}
+
+interface NoticeLineInput {
+  shape: Shape;
+  finding: PiEnvFinding | null;
+  reason: PiEnvReason | null;
+  error: string | null;
+  doneLine: string | null;
+  noopLine: string | null;
+  t: (key: string, params?: TranslationParams) => string;
+}
+
+/** 正文行：一行一个事实（成因 / 逃生口 / 动作结果），按出现顺序摊开。 */
+function buildNoticeLines(input: NoticeLineInput): string[] {
+  const { shape, finding, reason, error, doneLine, noopLine, t } = input;
+  if (error) return [`${t("piEnv.failed")}: ${error}`];
+
+  const lines: string[] = [];
+  if (finding === "uninitialized") {
+    lines.push(t(REASON_COPY[isP1Reason(reason) ? reason : "settings-unwritten"][shape]));
+  }
+  if (finding === "no-credentials") {
+    lines.push(t(shape === "rail" ? "piEnv.noCredentials.bodyRail" : "piEnv.noCredentials.bodyModal"));
+  }
+  if (reason === "settings-unwritten") {
+    // 误报逃生口：凭证齐全（含环境变量）但没写过 settings.json 的人可以不理这一步。
+    lines.push(t(shape === "rail" ? "piEnv.uninitialized.envKeyHintRail" : "piEnv.uninitialized.envKeyHint"));
+  }
+  if (doneLine) lines.push(doneLine);
+  if (noopLine) lines.push(noopLine);
+  return lines;
+}
+
+function NoticeActions({
+  finding,
+  initializing,
+  onInitialize,
+  onOpenModels,
+}: {
+  finding: PiEnvFinding | null;
+  initializing: boolean;
+  onInitialize?: () => void;
+  onOpenModels?: () => void;
+}) {
+  const { t } = useI18n();
+  const canInitialize = finding === "uninitialized" && Boolean(onInitialize);
+  const canOpenModels = finding !== "uninitialized" && Boolean(onOpenModels);
+
+  return (
+    <div style={ACTIONS_STYLE}>
+      {canInitialize && (
+        <button type="button" className="btn btn-sm" onClick={onInitialize} disabled={initializing}>
+          {initializing ? t("piEnv.uninitialized.running") : t("piEnv.uninitialized.action")}
+        </button>
+      )}
+      {canOpenModels && (
+        <button type="button" className="btn btn-sm" onClick={onOpenModels}>
+          {t("piEnv.noCredentials.action")}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function PiEnvNoticeBar({
   variant,
@@ -106,32 +193,17 @@ export function PiEnvNoticeBar({
   // 无结论且这次动作也没留下可看的反馈 ⇒ 渲染 null（存量用户零感知）。
   if (finding === null && doneLine === null && !error) return null;
 
-  const rail = variant === "rail";
-  const detailKey = (rail ? RAIL_BODY_KEY : REASON_DETAIL_KEY)[reason ?? ""]
-    ?? "piEnv.uninitialized.body";
-  const noCredentialsKey = rail ? "piEnv.noCredentials.bodyRail" : "piEnv.noCredentials.bodyModal";
-  const lineStyle: React.CSSProperties = rail
-    ? { ...LINE_STYLE, fontSize: "var(--fs-caption)" }
-    : LINE_STYLE;
-  const title = error
-    ? t("piEnv.failed")
-    : finding === "no-credentials"
-      ? t("piEnv.noCredentials.title")
-      : t("piEnv.uninitialized.title");
-
-  // 正文行按顺序摊开再渲染：一行一个成因，分支多但每条只有一句。
-  const lines: string[] = [];
-  if (error) {
-    lines.push(`${t("piEnv.failed")}: ${error}`);
-  } else {
-    if (finding === "uninitialized") lines.push(t(detailKey));
-    if (finding === "no-credentials") lines.push(t(noCredentialsKey));
-    if (reason === "settings-unwritten") {
-      lines.push(rail ? t("piEnv.uninitialized.envKeyHintRail") : t("piEnv.uninitialized.envKeyHint"));
-    }
-    if (doneLine) lines.push(doneLine);
-    if (noopLine) lines.push(noopLine);
-  }
+  const lines = buildNoticeLines({
+    shape: variant,
+    finding,
+    reason,
+    error,
+    doneLine,
+    noopLine,
+    t,
+  });
+  const lineStyle: React.CSSProperties =
+    variant === "rail" ? { ...LINE_STYLE, fontSize: "var(--fs-caption)" } : LINE_STYLE;
 
   return (
     <div
@@ -140,33 +212,24 @@ export function PiEnvNoticeBar({
       style={CONTAINER_STYLE}
     >
       {finding === "no-credentials" && !error ? (
-        <KeyRound size={14} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 1 }} />
+        <KeyRound size={14} strokeWidth={2.2} style={ICON_STYLE} />
       ) : (
-        <AlertTriangle size={14} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 1 }} />
+        <AlertTriangle size={14} strokeWidth={2.2} style={ICON_STYLE} />
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={TITLE_STYLE}>{title}</div>
+        <div style={TITLE_STYLE}>{error ? t("piEnv.failed") : t(titleKey(finding))}</div>
         {lines.map((line, index) => (
-          <div key={index} style={error ? ERROR_STYLE : lineStyle}>{line}</div>
+          <div key={index} style={error ? ERROR_STYLE : lineStyle}>
+            {line}
+          </div>
         ))}
       </div>
-      <div style={ACTIONS_STYLE}>
-        {finding === "uninitialized" && onInitialize && (
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={onInitialize}
-            disabled={initializing}
-          >
-            {initializing ? t("piEnv.uninitialized.running") : t("piEnv.uninitialized.action")}
-          </button>
-        )}
-        {finding !== "uninitialized" && onOpenModels && (
-          <button type="button" className="btn btn-sm" onClick={onOpenModels}>
-            {t("piEnv.noCredentials.action")}
-          </button>
-        )}
-      </div>
+      <NoticeActions
+        finding={finding}
+        initializing={initializing}
+        onInitialize={onInitialize}
+        onOpenModels={onOpenModels}
+      />
     </div>
   );
 }
@@ -204,10 +267,12 @@ export function PiEnvNotice({
     setError(null);
     try {
       const response = await fetch("/api/pi-env/init", { method: "POST" });
-      const payload = (await response.json().catch(() => ({}))) as {
-        created?: string[];
-        error?: string;
-      };
+      let payload: { created?: string[]; error?: string } = {};
+      try {
+        payload = (await response.json()) as typeof payload;
+      } catch {
+        // 非 JSON 正文：保留 HTTP 状态码作为可读原因
+      }
       if (!response.ok) {
         setError(payload.error ?? `HTTP ${response.status}`);
         return;
