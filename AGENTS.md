@@ -110,6 +110,11 @@ app/api/
   models-config/catalog/route.ts  GET models.dev pricing presets
   models-config/discover/route.ts POST fetch a configured provider's upstream model list
   models-config/test/route.ts     POST test a configured model/provider
+  pi-env/status/route.ts          GET 两档结论 { agentDir, finding, reason | null }（issue #226 薄封装：
+                                  判定层 lib/pi-env-status.ts、探测 lib/pi-env-probe.ts；不缓存不落库）
+  pi-env/init/route.ts            POST 初始化 ~/.pi/agent 骨架 { agentDir, created[] }（幂等 / 不覆盖 /
+                                  不装 CLI；目标目录固定取 getAgentDir()，经 HTTP 指定目录一律 400；
+                                  权限 ⇒ 403、路径形态冲突 ⇒ 409、其余 ⇒ 500，正文可读）
   plugins/route.ts                GET/POST package plugin management
   skills/route.ts                 GET/PATCH loaded skills and disable-model-invocation
   skills/install/route.ts         POST install skills through npx skills add
@@ -256,6 +261,14 @@ lib/
                       probeVerdictStatus / shouldPublishProbeVerdict）；SDK 经 AgentRuntime 接缝 + 可注入 probe 进入
   model-probe.ts      模型探测内核：凭证判据 + 最小调用（maxTokens 16 / maxRetries 0 / 20s / 同一份 prompt）+ 结论映射；
                       与模型配置面板共用同一份常量与结论语义；不碰状态、不碰 DB、不建会话
+  pi-env-status.ts    pi 配置根两档故障的**判定层**（issue #226，纯逻辑：零 React / 零 Next / 零 SDK）：
+                      P1 未初始化（目录缺失 / 不可读 / settings 读抛错 / settings 读出为空 ∧ settings.json
+                      从未写过）+ P2 无可用凭证（模型面读不出一项带凭证可用的模型）+ 优先级（P1 成立即返回，
+                      **一次都不探模型面**）+ readPiEnvStatus 现算一次；探测经注入接口进来
+  pi-env-probe.ts     判定层的真实探测接线：readdir/ENOENT 与 EACCES 分流、SettingsManager（projectTrusted:false，
+                      只看全局面、错误取自 drainErrors）、ModelRuntime.create 后 getAvailable/hasConfiguredAuth
+  pi-env-skeleton.ts  初始化动作：settings.json / models.json / auth.json（各 0600 空壳）+ sessions/，flag:"wx"
+                      独占创建（已存在逐字节不动）+ 幂等 + 只碰目标目录 + 不 spawn / 不下载
   agent-client.ts     typed fetch helper for /api/agent commands
   draft-store.ts       local draft persistence helpers
   file-access.ts       allowed file roots for /api/files and worktrees
@@ -320,6 +333,9 @@ components/
   MessageView.tsx        pi-web 遗留会话消息渲染（agent 会话用，保留复用）
   MarkdownBody.tsx       markdown 渲染器（channel 消息复用）
   ModelsConfig.tsx       modal for editing models.json (opened from sidebar bottom)
+  PiEnvNotice.tsx        pi 配置根两档故障的提示面（issue #226）：侧栏配置区常驻状态条（rail）+ ModelsConfig
+                        顶部入口（modal）；只消费 /api/pi-env/status 的结论、自己不判定；无结论渲染 null；
+                        PiEnvNoticeBar 是纯呈现（SSR 可直接跑三态断言）
   ModelPicker.tsx        模型/思考级别选择器（§3.10 runtime 区复用；provider 分组 + 过滤 + 继承全局默认）
   PluginsConfig.tsx      modal for installed package plugins
   SkillsConfig.tsx       modal for loaded/search/installable skills
@@ -423,6 +439,25 @@ Newer pi emits `compaction_start` / `compaction_end`; older versions emitted `au
 - OAuth/device-code/manual-code flows are streamed by `GET /api/auth/login/[provider]`; manual code responses POST back with a short-lived token stored in `globalThis.__piLoginCallbacks`.
 - API-key routes store and remove keys through `AuthStorage`. Status endpoints must never return the raw key.
 - The model test route is `app/api/models-config/test/route.ts`; `app/api/models/test/` is not a real route.
+
+### pi 配置根两档故障（issue #226，P1 未初始化 / P2 无可用凭证）
+
+- **判定层 `lib/pi-env-status.ts` 零依赖**（不 import React / Next / SDK）：观测经注入的四个探测接口进来，
+  `judgePiEnv` 是对一份观测的纯函数，`readPiEnvStatus` 只做「按优先级现算一次」的编排。测试用临时目录 +
+  假读数覆盖每个分支，不碰真实 `~/.pi/agent`。
+- **P1 路径一次都不碰模型面**：`ModelRuntime.create` 会补建 `auth.json` / `models-store.json` 两个空壳，
+  P1 若靠探模型面判，「检测」就变成了「修改」——空目录用例里「跑完目录仍为空」那条断言守的就是这条。
+- **P1(d) 与票面口径的偏离（已裁决，理由见 `lib/pi-env-status.ts` 头注释）**：字面判据「settings 读出为空」
+  在初始化骨架之后读数字节相同、永不解除（初始化按钮点了状态不变），还会把「凭证齐全（含环境变量）但
+  从未写过 settings.json」的**能用**环境误报成未初始化。收窄为「settings 读出为空 ∧ `settings.json`
+  从未被写过」——**文件存在性判据只此一个**，绝不枚举 `auth.json` / `models.json`（那正是决策 1 要挡的
+  误报面）。残量误报用文案逃生口兜（「已用环境变量配 key 可忽略」），且用户一旦在界面选过模型，
+  `lib/startup-preferences.ts` 会写 `defaultProvider` / `defaultModel`，`settings.json` 随之产生、误报自愈。
+- **初始化动作 `lib/pi-env-skeleton.ts`**：`flag: "wx"` 独占创建 ⇒ 已存在文件逐字节不动；幂等（第二次
+  `created` 为空）；只碰目标目录；**不** `npm i -g`、不下载、不改 PATH、不动 `package.json` 的 `bin`。
+- **目标目录固定 `getAgentDir()`**（尊重 `PI_CODING_AGENT_DIR`）：`POST /api/pi-env/init` 的 body 里指定
+  目录一律 400 —— 否则一个网页请求就获得了「在任意路径下建目录写文件」的能力。
+- 结论**不缓存、不落库**：环境会在外部被改变（装 CLI、改环境变量），每次请求现算。
 
 ### Completion sound
 

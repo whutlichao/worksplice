@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { Avatar } from "./Avatar";
+import { PiEnvNotice } from "./PiEnvNotice";
 import { StatusDot } from "./StatusDot";
 import type { ChannelWithMeta } from "./ChannelView";
 import type { MemberRow } from "@/lib/data/types";
@@ -379,6 +380,10 @@ export function WorkspaceSidebar({
           })}
         </div>
       </div>
+
+      {/* pi 配置根的两档故障状态条（issue #226）：与下面的 Models / Skills 同层，
+          常驻、不拦路；正常环境下自己渲染 null（存量用户零感知）。 */}
+      <PiEnvNotice variant="rail" onOpenModels={onOpenModels} />
 
       {/* 底部设置：提醒 + 模型 + 技能 + 语言（§3.10 全局设置保留；提醒入口 §5.6） */}
       <div className="rail-foot">
