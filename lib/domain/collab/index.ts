@@ -14,6 +14,9 @@
  *   同时被子模块 inbox.ts / wake.ts 原样 re-export——同名同绑定，`export *` 汇合不歧义。
  * - `getDb(): Store` 不在此面：db-singleton 属数据层（`lib/data/db-singleton.ts`），
  *   业务代码需要 DB 时从那里取。
+ * - `room-budget`（房间轮次预算：场次计数器 / 选人水位线 / Stop 取消 / 房间可见性守卫）：
+ *   房间状态单例经 `getRoomTurnStore()` 取，**只在 `sendMessage` 与 `runAgentRound` 两个
+ *   接缝上使用**；消费方不得绕过它直接改预算（见 `.scratch/room-turn-budget/spec.md`）。
  */
 export * from "./attachments.ts";
 export * from "./channels.ts";
@@ -28,6 +31,7 @@ export * from "./reactions.ts";
 export * from "./reads.ts";
 export * from "./recurrence.ts";
 export * from "./reminders.ts";
+export * from "./room-budget.ts";
 export * from "./rounds.ts";
 export * from "./search.ts";
 export * from "./secretary-auto-create.ts";
