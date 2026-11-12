@@ -1384,7 +1384,9 @@ span.linenumber {
 .input::placeholder, .textarea::placeholder { color: var(--faint); }
 
 /* ─── card（拖拽态跟随任务板：票 06） ──────────────────────────────────── */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 11px; cursor: grab; transition: border-color var(--dur), box-shadow var(--dur), transform var(--dur); }
+/* `position: relative` 是`票：整卡命中区`的承重件（逐字搬运行上唯一的本仓追加）：
+   `.card-title::after` 要以卡片为定位祖先才能铺满整卡。只加定位，不改形态。 */
+.card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 11px; cursor: grab; transition: border-color var(--dur), box-shadow var(--dur), transform var(--dur); }
 /* 触屏兜底（界面评审 E2）：`.card` 的 hover 会留下持久视觉状态（边框加深 + 阴影），
    触屏点过一次就「粘住」——加 `hover: hover` 守卫。 */
 @media (hover: hover) {
@@ -1441,6 +1443,17 @@ span.linenumber {
 .col.invalid-over { border-color: var(--error); }
 .card.dragging { opacity: .4; cursor: grabbing; }
 .card-title { font-size: 12.5px; font-weight: var(--fw-semi); line-height: var(--lh-snug); margin-bottom: 7px; overflow-wrap: anywhere; }
+
+/* 整卡进入入口（设计反馈：看板里只有标题能点进 thread，其余区域点了没反应）。
+   形态是「拉伸链接」：标题按钮保持 static（不被定位），`::after` 以 `.card`
+   （position: relative）为定位祖先 `inset: 0` 铺满 padding box，命中区因此覆盖整张卡，
+   而语义树里仍是**一个**按钮（界面评审 A3 的判据逐字未变：卡片外层依旧无 role/tabIndex/onClick）。
+   两条同为 `z-index: auto` 的定位元素按 DOM 序绘制，动作栏（`.card` 内的 `position: relative`）
+   在 `::after` 之后 ⇒ 压在命中区之上，点动作按钮不会穿透成「打开 thread」。
+   指针暗示：reset 的 `button { cursor: pointer }` 会把看板的拖拽暗示顶掉，故标题覆盖回
+   `inherit`：List 视图 pointer、Board 视图 grab（`.card:hover` 的边框/阴影仍是整卡提示）。*/
+.card-title { cursor: inherit; }
+.card-title::after { content: ""; position: absolute; inset: 0; cursor: inherit; }
 .card-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .card-num { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); }
 .card-tag { font-family: var(--mono); font-size: var(--fs-mono-micro); padding: 1px 5px; border-radius: 4px; background: var(--panel-2); color: var(--muted); }

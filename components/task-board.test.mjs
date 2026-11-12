@@ -313,6 +313,47 @@ test("任务板卡片：.card-title / .card-meta / .card-num（mono）/ .card-ow
     );
 });
 
+test("整卡进入入口：标题按钮的命中区拉伸到整卡（::after inset:0 + 动作栏压在上层）", () => {
+    // 形态是「拉伸链接」（设计反馈：看板里只有标题能点进 thread，其余区域点了没反应）：
+    // 语义入口仍是标题那个原生 button（A3 判据不变），只把它的**命中区**铺满整卡。
+    // ① 卡片必须是定位祖先，`::after` 才有「整卡」的参照盒。
+    assert.match(blockBody(globalsCss, ".card"), /position:\s*relative/);
+
+    // ② 命中区本体：绝对定位 + inset 0（只给 `top/left` 会退化成零宽高）。
+    const hit = blockBody(globalsCss, ".card-title::after");
+    assert.match(hit, /content:\s*""/);
+    assert.match(hit, /position:\s*absolute/);
+    assert.match(hit, /inset:\s*0/);
+
+    // ③ 指针暗示：reset 的 `button { cursor: pointer }` 会顶掉看板的拖拽暗示（.card 是 grab），
+    //    标题与命中区都覆盖回 inherit ⇒ List=pointer / Board=grab。
+    const titleRule = lastBlockBody(globalsCss, ".card-title");
+    assert.match(titleRule, /cursor:\s*inherit/);
+    assert.match(hit, /cursor:\s*inherit/);
+
+    // ④ 动作栏必须压过命中区（同为 z-index:auto 的定位元素时按 DOM 序绘制），
+    //    否则点动作按钮会穿透成「打开 thread」。
+    const actionsRow =
+        channelViewSource.match(
+            /\{actions\.length > 0 && \([\s\S]{0,800}?<\/div>\s*\)\}/,
+        )?.[0] ?? "";
+    assert.ok(actionsRow !== "", "应当找到 TaskCard 的动作栏切片");
+    assert.match(actionsRow, /position:\s*"relative"/);
+
+    // ⑤ 反向判据：标题按钮不得自己设定位，否则 `::after` 的定位祖先退回标题本身，
+    //    命中区从「整卡」缩回「标题」——这正是本反馈要修的那个形态。
+    const titleTag =
+        channelViewSource.match(
+            /<button\s+type="button"\s+className="card-title"[\s\S]{0,700}?>/,
+        )?.[0] ?? "";
+    assert.ok(titleTag !== "", "应当找到 .card-title 按钮的开标签");
+    assert.doesNotMatch(
+        titleTag,
+        /\bposition:/,
+        "标题按钮不得自设定定位（命中区会退回标题本身）",
+    );
+});
+
 test("任务板工具条：.seg 分段控件（is-active 走 --fg 实底）/ .filter-chip（is-on 走 accent）", () => {
     const seg = blockBody(globalsCss, ".seg");
     assert.match(seg, /display:\s*inline-flex/);

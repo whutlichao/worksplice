@@ -2516,10 +2516,16 @@ export function TaskCard({
       onDragStart={onDragStart ? (e) => onDragStart(e, task) : undefined}
       onDragEnd={onDragEnd}
     >
-      {/* 卡片标题是**唯一**打开讨论的入口（界面评审 A3）：原先外层是 `role="button"` +
+      {/* 卡片标题是唯一的**语义**入口（界面评审 A3）：原先外层是 `role="button"` +
           `tabIndex`，内层又有真实按钮——嵌套交互控件在 AX 树里是非法结构，读屏读不出动作栏，
           且 Enter 只在卡片上生效、空格无效。现在外层退回语义容器，标题用原生 button 承担
-          「打开讨论」，动作按钮是它的兄弟节点（已 stopPropagation）。 */}
+          「打开讨论」，动作按钮是它的兄弟节点。
+
+          **命中区已拉伸到整卡**（设计反馈：看板里只有标题能点进 thread）：`.card-title::after`
+          以 `.card`（`position: relative`）为定位祖先铺满 padding box，点卡片任意空白处都等于点
+          这个按钮——语义树里仍是**一个**按钮、一个新 Tab 停靠点都没有，Enter/Space 与读屏名不变。
+          外层因此仍然不需要（也不允许）`onClick` / `role` / `tabIndex`：A3 的判据逐字未变，
+          stretch 只换命中区几何。 */}
       <button
         type="button"
         className="card-title"
@@ -2530,7 +2536,8 @@ export function TaskCard({
           background: "none",
           border: 0,
           padding: 0,
-          cursor: "pointer",
+          // 指针暗示交给 `.card-title { cursor: inherit }`：List 视图 pointer、Board 视图 grab
+          // （reset 的 `button { cursor: pointer }` 会把看板的拖拽暗示顶掉）。
           // 只继承字族：`font: inherit` 这个简写会把 `.card-title` 的 12.5px / semi
           // 一并重置成卡片默认值（内联优先于 class），那是形态回归。
           fontFamily: "inherit",
@@ -2567,10 +2574,17 @@ export function TaskCard({
         </span>
       </div>
       {actions.length > 0 && (
+        // 动作栏反向压住标题按钮的整卡命中区：两条同为 `z-index: auto` 的定位元素时按 DOM 序
+        // 绘制，动作栏在 `::after` 之后 ⇒ 点按钮不会穿透成「打开 thread」。这里**不**靠
+        // `stopPropagation` 划界（卡片根元素上没有点击处理器，那是没有作用对象的兜底）。
         <div
-          style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
+          style={{
+            display: "flex",
+            gap: 6,
+            marginTop: 8,
+            flexWrap: "wrap",
+            position: "relative",
+          }}
         >
           {actions.map((action) => (
             <button
