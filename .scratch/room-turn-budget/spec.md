@@ -431,7 +431,7 @@ Status 保持不变（`resolved`，见文件头）。本小节只追加，不改
 
 本文件上方（「双轴 review · Standards 第 1 条」）写「要改需替换 `ROOM_PRIVATE_CHANNEL_MESSAGE` 与**两处** `RoomBudgetError` 文案」。代码里 `RoomBudgetError` 的抛出点实为三处：`room-budget.ts:868`（`hop_limit_exceeded`）、`:888`（`pending_limit_per_sender`）、`:894`（`pending_limit_global`），三处文案都含「请问用户」，`room-budget.test.mjs` 的 T8 也分别断言 code 与 `/请问用户/`。
 
-协调者裁决：以代码为准、**判据用 code、不按位置数**（计数会漂）；并把事实补全为「本模块的中文错误文案共四处（`ROOM_PRIVATE_CHANNEL_MESSAGE` + 三条 `RoomBudgetError`），全部是票面逐字要求，与 `docs/engineering-standards.md` §1 / `docs/i18n.md` 的英文契约故意冲突，用户裁决为票面优先」。AGENTS.md 陷阱 #7 按这个口径落笔；本文件既有措辞不回改。
+协调者裁决（补充答复带完整标识符）：以代码为准、**判据用 code、不按位置数**（计数会漂）；并把事实补全为「本模块的中文错误文案共四处（`ROOM_PRIVATE_CHANNEL_MESSAGE` + 三条 `RoomBudgetError`），全部是票面逐字要求，与 `docs/engineering-standards.md` §1 / `docs/i18n.md` 的英文契约故意冲突，用户裁决为票面优先」；陷阱还要写清「为什么必须写全」——后来者英文化时只改 I6 那一条，会留下三处不一致。AGENTS.md 陷阱 #7 按这个口径落笔；本文件既有措辞不回改。
 
 ### 逐条对照表（新段每条断言 → 代码出处）
 
@@ -488,7 +488,8 @@ Status 保持不变（`resolved`，见文件头）。本小节只追加，不改
 | 回边抑制是切环的实际机制；删 `isBackEdge` 则 T2 必红 | `isBackEdge` `room-budget.ts:429`；T2 `room-budget.test.mjs:151`（放大到 `MAX_ROUNDS: 50 / MAX_REPLIES: 100`，断言 `wave === 1` 见 `:168`）；T1 `:115` 的 `endedReason` 是允许集（可被预算兜住） |
 | 上限只走注入的 `RoomLimits`，禁 env / 配置 / 热更新 | `room-budget.ts:303`（`{ ...DEFAULT_ROOM_LIMITS, ...options.limits }`）；`grep -c "process.env" lib/domain/collab/room-budget.ts` = 0 |
 | 热重载：房间状态挂 `globalThis.__workspliceRoomTurns` | `room-budget.ts:918` / `:925`–`929`（注释 `:920`–`923` 明写与 `__workspliceWakeListeners` 同一套纪律） |
-| 中文错误文案四处：`ROOM_PRIVATE_CHANNEL_MESSAGE` + 三条 `RoomBudgetError` | `:813`；`:868`（`hop_limit_exceeded`）、`:888`（`pending_limit_per_sender`）、`:894`（`pending_limit_global`）；断言 T7 `room-budget.test.mjs:353`、T8 `:404`（三处均 `assert.match(error.message, /请问用户/)`） |
+| 中文错误文案共四处：`ROOM_PRIVATE_CHANNEL_MESSAGE` + 三条 `RoomBudgetError`（直连链跳数 / 单发送者待回信 / 全局待回信） | `:813`；`:868`（`hop_limit_exceeded`）、`:888`（`pending_limit_per_sender`）、`:894`（`pending_limit_global`）；断言 T7 `room-budget.test.mjs:372`–`373`（整串等值 + 等于常量）、T8 `:416` / `:439` / `:458`（逐处断言 code 与 `/请问用户/`） |
+| 提纲写「两处 `RoomBudgetError`」→ 代码实为三处（且本模块共四处中文错误文案）→ 落笔按 code 点名、不写计数 | 偏差已 ask 裁决（`msg_41575881390c` → 答复 `msg_16ac159e84bc`）；代码事实 `room-budget.ts:813` / `:868` / `:888` / `:894`，判据用 code（计数会漂） |
 
 #### E · 已知边界
 

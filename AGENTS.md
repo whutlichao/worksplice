@@ -547,7 +547,7 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 4. **回边抑制是切环的实际机制**：仅靠水位线比较不足以切断——后发言者的 `@` seq 必然晚于先发言者自己的发言 seq，A↔B 乒乓下水位数永远成立、环永远成立；删掉 `isBackEdge`，`lib/domain/collab/room-budget.test.mjs` 的 T2 必红（T2 把预算放大到 `MAX_ROUNDS: 50 / MAX_REPLIES: 100`，断言 `wave === 1`）。T1 仍可能被 I1 / I2 预算兜住——T1 守「预算兜得住」，T2 守「环在数据层就被切断」。
 5. **上限只走注入的 `RoomLimits`**：禁 env / 配置文件 / 热更新 / prompt 软约束——`createRoomTurnStore({ limits })` 是唯一入口（模块里没有 `process.env`、没有文件读取），测试要能确定地改小。
 6. **热重载**：房间状态挂 `globalThis.__workspliceRoomTurns`，改本模块（或 `messages.ts` / `loop.ts` 的接缝）后必须重启 dev server，否则旧闭包继续持有旧预算实现（与 `__workspliceWakeListeners` 同一套陷阱）。
-7. **I6 与直连链的中文错误文案是有意的**：本模块的中文错误文案共四处——`ROOM_PRIVATE_CHANNEL_MESSAGE`，以及三条 `RoomBudgetError` 文案（按 code 定位：`hop_limit_exceeded` / `pending_limit_per_sender` / `pending_limit_global`）。它们与 `docs/engineering-standards.md` §1「错误消息用英文」、`docs/i18n.md`「进模型上下文的内容英文硬编码」**故意冲突**，用户裁决为票面优先。**不是 bug，别顺手改成英文**；要改须一次改全（判据用 code，不要按出现位置数），并同步改 `room-budget.test.mjs` 的 T7 / T8 断言。
+7. **I6 与直连链的中文错误文案是有意的**：本模块的中文错误文案共四处——`ROOM_PRIVATE_CHANNEL_MESSAGE`（I6 房间可见性），以及三条 `RoomBudgetError`（直连链跳数 / 单发送者待回信 / 全局待回信，按 code 定位：`hop_limit_exceeded` / `pending_limit_per_sender` / `pending_limit_global`）。四处都是票面逐字要求（`.scratch/room-turn-budget/spec.md` 的「Out of Scope」末条：按规格逐字保留中文），与 `docs/engineering-standards.md` §1「错误消息用英文（对外契约）」、`docs/i18n.md`「进模型上下文的内容英文硬编码」**故意冲突**，用户裁决为票面优先。**不是 bug，别顺手改成英文**；要改必须一次改全——只英文化 I6 那一条会留下三处不一致（判据用 code，不要按出现位置数），并同步改 `room-budget.test.mjs` 的 T7 / T8 断言。
 
 **已知边界**（都有出处，别当缺陷）：
 
