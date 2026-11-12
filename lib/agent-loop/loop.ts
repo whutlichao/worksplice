@@ -21,6 +21,7 @@ import {
   filterVisibleMessages,
   getAgent,
   getPendingTargets,
+  getRoomTurnStore,
   getSince,
   isChannelMember,
   isDM,
@@ -958,6 +959,8 @@ export type ReplySender = (opts: {
   authorId: string;
   content: string;
   baseSeq?: number;
+  /** 房间回合语境（I6）：只在 `runAgentRound` 的投递路径上存在。 */
+  roomContext?: { channelId: string; epoch?: number };
 }) => SendMessageResult;
 
 export type DeliverOutcome =
@@ -1000,6 +1003,8 @@ export async function deliverWithFreshness(input: {
   baseSeq: number;
   promptFn: (promptText: string) => Promise<string>;
   send?: ReplySender;
+  /** 房间回合语境（I6 房间可见性 + I5 epoch 记账）；缺省 = 不在房间回合里投递。 */
+  roomContext?: { channelId: string; epoch?: number };
   /** hold 重路由裁决；返回 null 或缺省 = 保持既有 hold 处理。 */
   resolveHeldRoute?: (input: {
     newMessages: MessageWithAuthor[];
@@ -1061,6 +1066,7 @@ export async function deliverWithFreshness(input: {
       authorId: input.agent.id,
       content: action.content,
       baseSeq,
+      roomContext: input.roomContext,
     });
     if (!result.held)
       return { status: "replied", message: result.message, ackSeq };
@@ -1073,6 +1079,7 @@ export async function deliverWithFreshness(input: {
           targetId: input.targetId,
           authorId: input.agent.id,
           content: action.content,
+          roomContext: input.roomContext,
         });
         if (forced.held)
           return {
@@ -1947,6 +1954,27 @@ export async function runAgentRound(
   // §3.9 reminder 唤醒：系统提醒消息以作者署名投递（作者本人视角 = 全是自己的消息），
   // reminder 驱动的轮次不能按"只有自己的消息"跳过——agent 要看到自己的提醒并行动
   const reminderDriven = reason === "reminder";
+  // CP0（I5）/ 选人门（本票 spec §6.3）：房间场次活跃时，本场次从未被问过的成员不得在房间语境里
+  // 自主插话——返回 skipped 且**不推进消费游标**（它被后来召见时上下文完整）。
+  // reminder 轮次 / 任务延续轮次不受此门约束（gate 内部 bypass）；wake.ts 广播口径一字未改。
+  const roomTurns = getRoomTurnStore();
+  const roomGate = roomTurns.gate({
+    channelId: channel.id,
+    memberId: agent.id,
+    reason,
+    continuing,
+  });
+  if (roomGate.state === "not-elected") {
+    return { status: "skipped", reason: "not elected by room turn" };
+  }
+  /** 本轮的场次 epoch（null = 无活跃场次 / reminder 或续工轮次）：I5 检查点的比较基准。 */
+  const roomEpoch = roomGate.state === "elected" ? roomGate.epoch : null;
+  /** pass 协议（本票 spec §5）：把槽位还给房间（不计 replies、不进 spoke）。 */
+  const noteRoomPass = (): void => {
+    if (roomEpoch !== null) {
+      roomTurns.notePass({ channelId: channel.id, memberId: agent.id, epoch: roomEpoch });
+    }
+  };
   // 本票不变量 (3)：peer 明确收束（thread 内其他 agent 的最后一条消息是收束语）⇒ 本 agent
   // 不再被对话拉回。确定信号一律优先（人类 @ / DM owner 消息 / 进行中任务线程的工作信号）；
   // reminder 轮次照常（提醒指向自己，不是 peer 对话）。
@@ -2001,6 +2029,11 @@ export async function runAgentRound(
       // 02-决策一：BusyCwdError 是瞬态（占用会话必然 settle）——映射为 busy-cwd，
       // driver 等占用会话 settle 后重试：不丢 hint、状态不变 error（error 轮会被丢弃）。
       if (error instanceof BusyCwdError) {
+        // I3：房间不等待忙碌成员——记 busy-notice 并把槽位还给房间（后续发言走 I7 迟到预算），
+        // driver 的 settle 重试仍会进来（该成员已被问过，选人门不再拦）
+        if (roomEpoch !== null) {
+          roomTurns.noteBusy({ channelId: channel.id, memberId: agent.id, epoch: roomEpoch });
+        }
         // 07-承诺：busy-cwd 轮同 error 轮——携带本轮 drain 的房间版本（round_logs base_seq 非 0）
         return { status: "busy-cwd", reason: error.message, baseSeq };
       }
@@ -2015,7 +2048,13 @@ export async function runAgentRound(
     session = rt.findSession(agent);
   }
   if (!session) return { status: "skipped", reason: "no session after start" };
-  if (session.isRunning()) return { status: "busy" };
+  if (session.isRunning()) {
+    // I3：不等待忙碌成员（不 await、不阻塞整场）——记 busy-notice 并释放槽位
+    if (roomEpoch !== null) {
+      roomTurns.noteBusy({ channelId: channel.id, memberId: agent.id, epoch: roomEpoch });
+    }
+    return { status: "busy" };
+  }
 
   publishAgentStatus(agent.id, "working");
   const prompt = buildReplyPrompt({
@@ -2061,6 +2100,16 @@ export async function runAgentRound(
     return withOps(outcome);
   };
   try {
+    // CP2（I5）：出 prompt 前复查场次是否还在。已被取代时 **只收口场次记录**（stale +
+    // superseded），**不中止本轮也不推进游标**：
+    // - 不中止：本轮可能正携带着尚未消费的任务创建事件（`lib/agent-loop/loop-tasks.test.mjs`
+    //   的 R3b/R3c/R3d）——在这里中止+ack 会把创建事件静默消费成「永无 owner」，
+    //   而那正是既有回归守的东西；本仓同目标并发已有 freshness-hold 负责。
+    // - 不推进游标：没落库的轮次不得静默吞掉触发消息（下次 wake 重读完整上下文）。
+    // I5 的退出语义落在 CP0（入场门直接拒绝已被取代的场次）与 CP3（发言人结束后）。
+    if (roomEpoch !== null && !roomTurns.isCurrent(channel.id, roomEpoch)) {
+      roomTurns.markSuperseded(channel.id, roomEpoch);
+    }
     const first = await promptSession(session, prompt);
     if (!first.ok) {
       publishAgentStatus(agent.id, "error");
@@ -2138,6 +2187,8 @@ export async function runAgentRound(
       if (hasMustRespondSignal(agent.id, targetId, effectiveIncoming)) {
         const failures = recordMustRespondFailure(agent.id, targetId);
         publishAgentStatus(agent.id, "error");
+        // 声明了 ignore = pass：槽位还给房间（房间不因单个成员不接话而卡住）
+        noteRoomPass();
         if (failures >= MUST_RESPOND_FAILURE_CAP) {
           ack(agentId, targetId, baseSeq);
           resetMustRespondFailures(agent.id, targetId);
@@ -2158,6 +2209,7 @@ export async function runAgentRound(
       }
       resetMustRespondFailures(agent.id, targetId);
       ack(agentId, targetId, baseSeq);
+      noteRoomPass();
       return withOps({ status: "ignored", baseSeq });
     }
     if (!effectiveAction.content) {
@@ -2165,6 +2217,7 @@ export async function runAgentRound(
       // 却给不出文本 = 本轮失败，与空文本同语义——不推进游标、publish error，触发消息
       // 保持 pending 供下次 wake 重试；否则消息被静默消费、agent 永不回复。
       publishAgentStatus(agent.id, "error");
+      noteRoomPass();
       return withOps({
         status: "error",
         reason: "reply action without content",
@@ -2176,6 +2229,7 @@ export async function runAgentRound(
     if (!isMember) {
       if (channel.type === "private") {
         ack(agentId, targetId, baseSeq);
+        noteRoomPass();
         return withOps({
           status: "silent",
           reason: "not a member of the private channel",
@@ -2190,6 +2244,9 @@ export async function runAgentRound(
       channel,
       action: effectiveAction,
       baseSeq,
+      // I6：房间回合的投递带上房间语境——房间看见的记录之外一律拒绝（只在本轮有活跃场次时带）
+      roomContext:
+        roomEpoch === null ? undefined : { channelId: channel.id, epoch: roomEpoch },
       promptFn: async (revisionPrompt) => {
         const revised = await promptSession(session, revisionPrompt);
         return revised.ok ? revised.text : "";
@@ -2244,10 +2301,16 @@ export async function runAgentRound(
         }),
       );
     }
+    // CP3（I5）：回复已落库（照常可见），场次已被用户新消息取代时不再续波——
+    // 只把这场标成早已了结（stale），不计预算、不参与 cited()。
+    if (roomEpoch !== null && !roomTurns.isCurrent(channel.id, roomEpoch)) {
+      roomTurns.markSuperseded(channel.id, roomEpoch);
+    }
     if (outcome.status === "error") {
       // 11-整改：revised 空内容 = error 轮——不推进游标（触发消息保持 pending 供下次 wake
       // 重试）、error 状态点；与直接空 reply 路径（reply action without content）归类一致
       publishAgentStatus(agent.id, "error");
+      noteRoomPass();
       return withOps({
         status: "error",
         reason: outcome.reason,
@@ -2272,6 +2335,8 @@ export async function runAgentRound(
     resetMustRespondFailures(agent.id, targetId);
     publishAgentStatus(agent.id, "online");
     if (outcome.status === "silent") {
+      // silent 让路同样是 pass：把槽位还给房间（否则整波要等到超时才结算）
+      noteRoomPass();
       return withOps({
         status: "silent",
         reason: outcome.reason,
