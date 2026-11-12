@@ -5,6 +5,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/hooks/useI18n";
 import { useModalFocus } from "@/hooks/useModalFocus";
 import { DialogCloseButton } from "./DialogCloseButton";
+import { PiEnvNotice } from "./PiEnvNotice";
 import type { ModelCatalogPreset, ModelCatalogRecommendation } from "@/lib/model-catalog";
 import type { DiscoveredModel } from "@/lib/model-discovery";
 // Color icons (have their own fill colors — no background needed)
@@ -1899,6 +1900,10 @@ export function ModelsConfig({ onClose }: { onClose: () => void }) {
           </div>
           <DialogCloseButton onClose={onClose} />
         </div>
+
+        {/* pi 配置根的两档故障入口（issue #226）：模型列表为空时，第一眼就看出缺什么、下一步点哪里。
+            正常环境渲染 null。provider 面就在下方，所以这里不给第二个按钮。 */}
+        <PiEnvNotice variant="modal" />
 
         {/* Body */}
         <div style={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden" }}>
