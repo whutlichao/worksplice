@@ -293,17 +293,101 @@ A↔B 乒乓的形状下，第一轮之后每个人都只被对方引用一次�
 
 **Spec 轴缺口（诚实记录，不粉饰）**：
 
-- **runAgentRound 的选人门没有新增 black-box 回归**。本票 Target 只允许新增
-  `lib/domain/collab/room-budget.test.mjs`，而 agent-loop 侧测试文件不在其中；门本身的机制由
-  T4b 的 `gate()` 断言守住（`elected` / `not-elected` / `bypass` 三态），但「门真的让
-  `runAgentRound` 返回 `skipped` 且不推进游标」缺一条端到端用例。建议后续票补一条
-  `lib/agent-loop/*.test.mjs` 用例（成本：一个 fake runtime + 一次 `runAgentRound`）。
-- **Stop 的 UI/路由接线**不在本票 Target 内：`stopTurn` 已作为公共 API 暴露并有用例覆盖，
+- ~~**runAgentRound 的选人门没有 black-box 回归**~~ → **已补**（验收打回【必改 2】）：
+  新增 `lib/agent-loop/room-gate.test.mjs`，三条用例分别断言「未当选 ⇒ skipped 且游标不动」、
+  「当选 ⇒ 不被该门拦」、「无场次 ⇒ 不拦（legacy）」。删掉 CP0 的 `return` 整段，该文件必红
+  （见下方 follow-up 的红证据）。
+- ~~**Owner 署名的事件消息会开新房次并重置 lateTurns**~~ → **已修**（验收打回【必改 1】）：
+  `notifyTaskCreated` 与 `deliverEventMessage` 显式传 `roomNotice: true`（`wake: true` 保留），
+  回归用例 T9 锁住「epoch / lateTurns / 当选者 / 场次 supersede 都不许动，但 wake 照常扇出」。
+- **Stop 的 UI/路由接线**仍不在本票 Target 内：`stopTurn` 已作为公共 API 暴露并有用例覆盖，
   但没有 `/api/.../stop` 路由与按钮接线。
-- **Owner 署名的事件消息也会开一场新房次**（`Task #N created` 走 `notifyTaskCreated`，署名
-  Owner 且 `wake:true`，与人类消息在漏斗里不可区分）——因此它也会重置 `lateTurns`。这是
-  I8 字面意义的边缘偏差（重置者不是成员，是系统事件）；根治需要改 `event-messages.ts` 的调用点
-  传 `roomNotice: true`，而该文件不在本票 Target 内。
+- **I6 报错文案的语言**（中文逐字 vs `docs/engineering-standards.md` §1「错误消息用英文」）
+  等用户裁决；本轮按要求**未动**文案与 T7/T8 断言。
+
+### Follow-up：验收打回后的两处必改（同一 PR、同一分支）
+
+#### 必改 1 —— 系统/事件消息不得开房间场次、不得重置 `lateTurns`（禁止项 #5）
+
+**事实**：`notifyTaskCreated` 用 `sendMessage({ authorId: OWNER_MEMBER_ID, wake: true })`，
+在唯一漏斗里与人类消息不可区分 ⇒ `beginTurn` ⇒ epoch+1、`lateTurns` 归零、在跑场次被
+supersede。这是 I8 / 禁止项 #5 的**直接违反**，不是「边缘偏差」。
+
+**改法**（`lib/domain/collab/event-messages.ts`）：
+
+- `notifyTaskCreated`：加 `roomNotice: true`，**保留 `wake: true`**（全 channel 扇出是既有
+  语义：抢占认领失败让路，§3.7）；
+- `deliverEventMessage`：同样显式加 `roomNotice: true`（它本来就因 `wake: false` 被跳过，
+  但语义要显式，不依赖两个开关的巧合）。
+
+**红 → 绿**（T9，`lib/domain/collab/room-budget.test.mjs`）：
+
+```text
+改前：✖ T9 … AssertionError: 事件消息不得推进 epoch  →  actual: 2, expected: 1
+改后：✔ T9 Owner 署名的任务创建事件不开新房次、不重置 lateTurns、wake 照常扇出
+```
+
+T9 的构造（真库真漏斗 + 注入时钟/上限）：人类消息开场次 → 成员超时被释放为迟到 → 其迟到回答
+`@beta` 触发补充波（此时 `lateTurns === 1`、场次重新活跃）→ 期间投递 `Task #1 created` 事件消息。
+断言：`epoch` 不变、`lateTurns` 仍为 1、`turn.epoch` 不变、`turn.stale === false`、
+`turn.endedReason === null`、`askLog` 长度不变（不产生新当选者），且 wake 仍扇出到两个
+agent 成员（事件消息照常唤醒）。
+
+#### 必改 1 的扫描清单（本域全部 `sendMessage` 调用点，逐个处置）
+
+| 调用点 | 署名 | wake | 判定 | 处置 |
+|---|---|---|---|---|
+| `event-messages.ts` `notifyTaskCreated`（被 `tasks.ts:286` 的三条建任务途径共用） | Owner | `true` | **系统事件**（人类敲的是锚点消息，不是这条） | ✅ 加 `roomNotice: true`，`wake: true` 保留 |
+| `event-messages.ts` `deliverEventMessage`（`notifyChannelCreated` / `notifySecretaryWelcome`，含 `secretary-init.ts:133`） | Owner | `false` | **系统事件** | ✅ 加 `roomNotice: true`（原本由 `wake:false` 跳过，现显式） |
+| `reminders.ts` `fireReminder`（到点投递系统提醒） | 提醒作者（Owner 或 agent） | `false` | **系统事件** | ⚠️ **未改**：`reminders.ts` 不在本轮可编辑范围；已由 `wake:false` 覆盖预算语义。**建议**：后续票加 `roomNotice: true` 显式化 |
+| `agent-loop/member-ops.ts` `post` op | 该 agent | 默认 `true` | **真的是成员发言**（agent 主动在房间说话） | 保持原样（应计入 I1 预算、参与 `cited()`） |
+| `app/api/messages/route.ts` | `CURRENT_MEMBER_ID`(Owner) | 默认 | **真的是人类消息** | 保持原样（开场次） |
+| `app/api/tasks/route.ts`（发送并建任务） | `CURRENT_MEMBER_ID`(Owner) | 默认 | **真的是人类消息**（随后的创建事件才由 `notifyTaskCreated` 负责） | 保持原样 |
+| `lib/domain/collab/secretary-auto-create.ts` / `tasks.ts` | — | — | 无直接 `sendMessage` 调用（前者不发消息，后者经 `notifyTaskCreated`） | 无需处置 |
+| `scripts/seed-demo.mjs` / `scripts/screencast/*` | 脚本 | — | 演示/取证脚本，不在 lib 运行面 | 不在本票范围 |
+
+#### 必改 2 —— 选人门的 black-box 回归（`lib/agent-loop/room-gate.test.mjs`）
+
+三条用例（真库 + fake runtime，不真起会话、不接模型）：
+
+1. **① 未当选 ⇒ 跳过且游标不动**：人类消息只点名 alpha（第一波 = {alpha}），beta 是成员且有待
+   消费消息；`runAgentRound(beta)` → `{ status: "skipped", reason: "not elected by room turn" }`，
+   `consumedSeq(beta)` 未推进，且**根本没有起会话**（`runtime.sessions` 里没有 beta）。
+2. **② 当选者不被该门拦**：同一场次对 alpha 跑一轮 → `status === "replied"`、消息落库、游标推进。
+3. **③ 无活跃场次 ⇒ legacy 不变**：只有 agent 消息（不开场次）时，同一成员不被门拦
+   （`reason !== "not elected by room turn"`，走到正常回复）。
+
+**红证据（机制消融，隔离 worktree `/tmp/rtb-red2`）**：把 `runAgentRound` 里 CP0 的
+`if (roomGate.state === "not-elected") { return ... }` 整段删掉后：
+
+```text
+✖ ① … actual: 'replied', expected: 'skipped'
+ℹ tests 3 / pass 2 / fail 1      （②③ 仍绿——它们守的是「不要拦错」）
+── 同时跑 lib/domain/collab/room-budget.test.mjs：10/10 仍绿
+   （证明这条门只在 agent-loop 接缝上，store 侧用例管不到它——所以必须由本文件守）
+恢复后：room-gate 3/3 绿
+```
+
+#### Follow-up 的门禁读数（第 2 轮）
+
+```text
+node --test lib/domain/collab/room-budget.test.mjs   →  10/10 绿（新增 T9）
+node --test lib/agent-loop/room-gate.test.mjs        →  3/3 绿（新增文件）
+node --test lib/data/default-datadir-guard.test.mjs  →  绿（新测试文件走 globalThis.__workspliceDb，不碰默认数据目录）
+node_modules/.bin/tsc --noEmit                       →  TSC_OK
+npm run lint                                         →  0 error / 1 warning（与 origin/main 逐字相同）
+npm test                                             →  1771 用例：1770 pass / 1 fail
+                                                        唯一红仍是既存环境红（lib/model-listing.test.mjs）
+```
+
+#### Follow-up 的双轴自审（增量）
+
+- **Standards**：原先「`roomNotice` 没有调用方（Speculative Generality 气味）」的观察**已消解**
+  ——它现在有两个真实调用点，且注释写清「为什么它不能只靠 `wake:false` 的巧合」。新测试文件遵守
+  仓库纪律（node:test、tmp 库、`globalThis.__workspliceDb`、fake runtime 零 SDK 依赖、不碰默认
+  数据目录）。`reminders.ts` 的同类调用点留在扫描清单里，是本轮范围的诚实边界。
+- **Spec**：禁止项 #5 从「边缘偏差」升级为「已闭合」；§6.3 的选人门从「只有机制级断言」升级为
+  「有 black-box 回归且可被一行删除判红」。剩余未闭合项只有 Stop 接线与 I6 文案语言（等裁决）。
 
 ### skill 执行记录
 
@@ -322,3 +406,10 @@ A↔B 乒乓的形状下，第一轮之后每个人都只被对方引用一次�
   只约束它的内存占用，丢最老的行只会让候选变少。
 - 生产上限是 `MAX_REPLIES=10 / MAX_ROUNDS=3`：一个用户消息最多引发 3 波、10 条 bot 发言；
   迟到回答另有 3 次补充波预算。
+- **新增「Owner 署名 + 系统事件」的 `sendMessage` 调用点时，必须带 `roomNotice: true`**：
+  否则它会开启新房次、重置 `lateTurns`、把在跑的场次 supersede（禁止项 #5）。判据只有一句：
+  这条消息是**人类真的敲出来的**吗？不是 → `roomNotice: true`（`wake` 照各自语义，别顺手改）。
+  当前全部调用点的处置见 Answer 的「必改 1 扫描清单」；`reminders.ts` 仍靠 `wake:false` 覆盖，
+  待后续票显式化。
+- **改选人门（`runAgentRound` 的 CP0）必须跑 `lib/agent-loop/room-gate.test.mjs`**：它是把
+  「门真的接在轮次入口上」变成机械判定的唯一防线（store 侧用例删掉 CP0 也全绿）。
