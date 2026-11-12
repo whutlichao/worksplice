@@ -4,6 +4,8 @@ import { getMember } from "./members.ts";
 import { notifyMessageWakes } from "./wake.ts";
 import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
 import { listAbandonedMarks, type AbandonedMark } from "./rounds.ts";
+import { RoomPrivateChannelForbidden, getRoomTurnStore } from "./room-budget.ts";
+import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import {
   discardAttachmentFiles,
   stageAttachmentFiles,
@@ -105,6 +107,15 @@ export function sendMessage(input: {
   attachments?: MessageAttachmentDraft[];
   /** 系统消息（reminder 到点投递）不触发 channel 级 wake，只由 fire 流程定向唤醒作者（§3.9）。 */
   wake?: boolean;
+  /**
+   * 房间回合语境（只由 `runAgentRound` 的投递路径传入，I6）：
+   * 解析出的频道必须等于 `channelId`，否则抛 `RoomPrivateChannelForbidden`——成员在
+   * 房间回合里不能把话说到房间看不见的地方。`epoch` 在场的意义是 I5：被取代场次的
+   * 回复照常落库、但按 `stale` 记账（不计预算、不参与选人）。
+   */
+  roomContext?: { channelId: string; epoch?: number };
+  /** 系统/事件消息（任务创建通知等）不占房间回合预算。 */
+  roomNotice?: boolean;
 }): SendMessageResult {
   const content = input.content.trim();
   if (!content && (input.attachments?.length ?? 0) === 0) {
@@ -116,6 +127,11 @@ export function sendMessage(input: {
   }
   if (!isChannelMember(target.channel.id, input.authorId)) {
     throw new Error("You are not a member of this channel");
+  }
+  // I6 房间可见性（本票 spec §6.6）：房间回合只允许在房间自己的 target 上发言。
+  // 无 roomContext 的既有调用（人类 UI / 事件消息 / 秘书 DM / 路由层）行为不变。
+  if (input.roomContext && input.roomContext.channelId !== target.channel.id) {
+    throw new RoomPrivateChannelForbidden();
   }
 
   const quotedRow = input.quoteId ? getDb().getMessage(input.quoteId) : null;
@@ -154,9 +170,20 @@ export function sendMessage(input: {
       }
       return { held: false as const, message };
     });
-    // 提交成功后发 wake hint（只含 seq/目标，不含正文）；事务外分发，避免回滚误唤醒。
-    // wake: false —— reminder 系统消息：只由 fireReminder 定向唤醒作者，不惊动全 channel（§3.9）
+    // 提交成功后：先记房间回合预算（场次计数器 / 水位线 / 选人），再发 wake hint。
+    // 顺序是承重的——唤醒驱动的轮次入场就要问「我是否被这一波选中」，预算必须先落。
     if (!result.held) {
+      recordRoomTurn({
+        message: result.message,
+        channelId: target.channel.id,
+        authorId: input.authorId,
+        roomContext: input.roomContext,
+        roomNotice: input.roomNotice,
+        systemMessage: input.wake === false,
+        replyToAuthorId: quoted?.author_id ?? null,
+      });
+      // wake hint 只含 seq/目标，不含正文；事务外分发，避免回滚误唤醒。
+      // wake: false —— reminder 系统消息：只由 fireReminder 定向唤醒作者，不惊动全 channel（§3.9）
       if (input.wake !== false) notifyMessageWakes(result.message);
     } else {
       discardAttachmentFiles(staged);
@@ -165,6 +192,50 @@ export function sendMessage(input: {
   } catch (error) {
     discardAttachmentFiles(staged);
     throw error;
+  }
+}
+
+/**
+ * 房间回合预算的唯一写入面（本票 spec §6.2）：一条消息落库后立刻反映到场次状态机上。
+ * - 人类（Owner）消息 = 新场次（`beginTurn`：epoch+1、lateTurns 归零、第一波选人）；
+ * - agent 消息 = `noteReply`（I1 计数 + 水位线前移 + 引用边形成，供 `cited()` 选人）；
+ * - 系统 / 事件消息（`roomNotice`、`wake:false` 的提醒投递）不占预算。
+ * DM 没有房间语义（`isRoomChannel` = false）⇒ `beginTurn` 只推进 epoch、不设预算，
+ * 既有 DM 路径行为逐字节不变。
+ */
+function recordRoomTurn(input: {
+  message: MessageRow;
+  channelId: string;
+  authorId: string;
+  roomContext?: { channelId: string; epoch?: number };
+  roomNotice?: boolean;
+  systemMessage: boolean;
+  replyToAuthorId: string | null;
+}): void {
+  if (input.roomNotice || input.systemMessage) return;
+  const store = getRoomTurnStore();
+  const author = getMember(input.authorId);
+  if (author?.type === "agent") {
+    store.noteReply({
+      channelId: input.channelId,
+      memberId: input.authorId,
+      seq: input.message.seq,
+      // 跨 target（任务线程）用全局插入序做房间水位线，thread 自己的 seq 空间不可比
+      order: input.message.rowid ?? input.message.seq,
+      text: input.message.content,
+      epoch: input.roomContext?.epoch,
+    });
+    return;
+  }
+  if (input.authorId === OWNER_MEMBER_ID) {
+    store.beginTurn({
+      channelId: input.channelId,
+      triggerSeq: input.message.seq,
+      text: input.message.content,
+      targetId: input.message.target_id,
+      authorId: input.authorId,
+      replyToAuthorId: input.replyToAuthorId,
+    });
   }
 }
 
