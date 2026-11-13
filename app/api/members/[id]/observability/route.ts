@@ -34,7 +34,12 @@ export async function GET(
         const state = (await wrapper.send({ type: "get_state" })) as {
           model?: { id: string; provider: string } | null;
           thinkingLevel?: string;
-          contextUsage?: { percent: number; contextWindow: number; tokens: number } | null;
+          // 与 SDK `ContextUsage` 同形：compaction 之后、下一次模型响应之前两格为 null。
+          contextUsage?: {
+            percent: number | null;
+            contextWindow: number;
+            tokens: number | null;
+          } | null;
         };
         live = {
           model: state.model

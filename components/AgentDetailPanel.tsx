@@ -6,6 +6,10 @@ import { useI18n } from "@/hooks/useI18n";
 import { isAgentAvatarTint } from "@/lib/data/types";
 import { needsRuntimeSave, runtimeOverrideFromDraft } from "@/lib/runtime-draft";
 import type { RuntimeOverride } from "@/lib/runtime-draft";
+import {
+  contextUsageMeterWidth,
+  formatContextUsageValue,
+} from "@/lib/context-usage-format";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import { BrutalModal } from "./BrutalModal";
@@ -401,10 +405,12 @@ interface ObservabilityData {
     live: {
       model: { provider: string; modelId: string } | null;
       thinkingLevel: string | null;
+      // 与 SDK `ContextUsage` 同形：compaction 之后、下一次模型响应之前
+      // `percent` / `tokens` 就是 null（展示判据见 lib/context-usage-format.ts）。
       contextUsage: {
-        percent: number;
+        percent: number | null;
         contextWindow: number;
-        tokens: number;
+        tokens: number | null;
       } | null;
     } | null;
   };
@@ -1767,12 +1773,14 @@ export function AgentDetailPanel({
                 <>
                   <Row
                     label={t("observability.contextUsage")}
-                    value={`${obs.session.live.contextUsage.percent}% (${formatNumber(obs.session.live.contextUsage.tokens)} / ${formatNumber(obs.session.live.contextUsage.contextWindow)})`}
+                    value={formatContextUsageValue(obs.session.live.contextUsage)}
                   />
                   <div className="meter">
                     <i
                       style={{
-                        width: `${obs.session.live.contextUsage.percent}%`,
+                        width: contextUsageMeterWidth(
+                          obs.session.live.contextUsage.percent,
+                        ),
                       }}
                     />
                   </div>
