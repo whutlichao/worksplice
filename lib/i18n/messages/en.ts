@@ -557,7 +557,7 @@ export const enLocale: LocalePlugin = {
     "agent.cancel": "Cancel",
     "agent.saved": "Agent created",
     "agent.reset": "Reset",
-    "agent.runtime": "Runtime",
+    "agent.runtime": "Model",
     "agent.observability": "Observability",
     "agent.pending":
       "Reset / runtime / observability arrive with the agent lifecycle",
@@ -704,9 +704,7 @@ export const enLocale: LocalePlugin = {
     "agent.descriptionSaveError": "Could not save description",
     "role.member": "Member",
     "agent.workspaceNotBound": "Not bound yet",
-    "agent.change": "Change",
-    "agent.workspaceHint":
-      "Workspace = the agent's home directory; you can bind a shared project directory for collaboration (changing it changes the session)",
+    "agent.changeWorkspace": "Change workspace",
     "agent.workspaceHomeHint":
       "Home directory — created automatically, unique to this agent, removed with the identity. Bind a shared project directory to collaborate.",
     "agent.homeHint":

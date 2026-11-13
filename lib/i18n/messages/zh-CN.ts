@@ -544,7 +544,7 @@ export const zhCNLocale: LocalePlugin = {
     "agent.cancel": "取消",
     "agent.saved": "Agent 已创建",
     "agent.reset": "重置",
-    "agent.runtime": "运行时",
+    "agent.runtime": "模型",
     "agent.observability": "可观测性",
     "agent.pending": "重置 / 运行时 / 可观测性随 agent 生命周期接入",
     "agent.restart": "重启",
@@ -681,9 +681,7 @@ export const zhCNLocale: LocalePlugin = {
     "agent.descriptionSaveError": "描述保存失败",
     "role.member": "Member",
     "agent.workspaceNotBound": "尚未绑定",
-    "agent.change": "更换",
-    "agent.workspaceHint":
-      "工作区 = 家目录；可绑定共享项目目录协作（换目录即换会话）",
+    "agent.changeWorkspace": "更换工作区",
     "agent.workspaceHomeHint":
       "家目录——创建时自动生成、唯一私有、随身份删除；可绑定共享项目目录协作。",
     "agent.homeHint":

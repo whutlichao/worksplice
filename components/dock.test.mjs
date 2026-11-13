@@ -469,7 +469,7 @@ test("agent 详情主体渲染 `.dock-scroll` + `.d-sec` / `.d-sec-title` 分节
   // 一个 `.d-sec` 并带自己的 `.d-sec-title`（“Tokens / cost”“Task history”“Rounds”
   // “Session export”），再留一层父标签会把同一批内容双重命名。i18n key 不删不改。
   assert.match(html, /Workspace/);
-  assert.match(html, /Runtime/);
+  assert.match(html, /Model/);
   assert.match(html, /Tokens \/ cost/);
   assert.match(html, /Task history/);
   assert.match(html, /Rounds/);

@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Eraser, MessageSquare, Pencil, X } from "lucide-react";
+import { Check, Eraser, FolderOpen, MessageSquare, Pencil, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { isAgentAvatarTint } from "@/lib/data/types";
+import { needsRuntimeSave, runtimeOverrideFromDraft } from "@/lib/runtime-draft";
+import type { RuntimeOverride } from "@/lib/runtime-draft";
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import { BrutalModal } from "./BrutalModal";
@@ -30,14 +32,23 @@ function Row({
   label,
   value,
   stack = false,
+  hint,
 }: {
   label: string;
   value: React.ReactNode;
   stack?: boolean;
+  /** 标签之后的说明行（界面反馈第 6 条）：家目录说明要从路径之后挪到 label 与 value 之间，
+   *  所以位置固定在这里；只在工作区节传，其他调用点的渲染不变。 */
+  hint?: React.ReactNode;
 }) {
   return (
     <div className={stack ? "kv stack" : "kv"}>
       <span className="k">{label}</span>
+      {hint ? (
+        <div style={{ fontSize: "var(--fs-caption)", color: "var(--faint)" }}>
+          {hint}
+        </div>
+      ) : null}
       <span className="v">{value}</span>
     </div>
   );
@@ -1227,37 +1238,98 @@ export function AgentDetailPanel({
     return () => fetch(`${base}/${suffix}`, { method: "POST" });
   };
 
-  /** §3.10 保存 per-agent runtime 覆盖：PATCH 持久化 + 存活会话立即生效。
-   *  出错状态点下服务端会对刚保存的模型做一次探测，结论随响应回来（决策 9）。 */
-  const saveRuntime = async () => {
-    setRuntimeMsg(null);
-    setRuntimeProbe(null);
-    const { ok, body } = await run("runtime", () =>
-      fetch(`/api/members/${encodeURIComponent(agent.id)}/runtime`, {
+  /** 已持久化的覆盖（三个字段的判据一侧）：runtime 未加载完时视作空覆盖。 */
+  const persistedRuntime = runtimeOverrideFromDraft(
+    runtime?.configured.provider && runtime.configured.modelId
+      ? {
+          provider: runtime.configured.provider,
+          modelId: runtime.configured.modelId,
+        }
+      : null,
+    runtime?.configured.thinkingLevel ?? null,
+  );
+  const draftRuntime = runtimeOverrideFromDraft(draftModel, draftThinking);
+  // 草稿 / 持久化面 / 归属 agent 存最新值：失焦判定发生在事件回调与卸载清理里，
+  // 读的必须是“此刻”的三者，而不是某次渲染的闭包快照。
+  const runtimeSnapshotRef = useRef({
+    agentId: agent.id,
+    persisted: persistedRuntime,
+    draft: draftRuntime,
+  });
+  runtimeSnapshotRef.current = {
+    agentId: agent.id,
+    persisted: persistedRuntime,
+    draft: draftRuntime,
+  };
+  /** 正在发送的那一份请求体：同一份草稿不并发发第二份（失焦连发 / 卸载兜底）。 */
+  const runtimeInFlightRef = useRef<RuntimeOverride | null>(null);
+
+  const patchRuntime = useCallback(
+    (memberId: string, body: RuntimeOverride) =>
+      fetch(`/api/members/${encodeURIComponent(memberId)}/runtime`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: draftModel?.provider ?? null,
-          modelId: draftModel?.modelId ?? null,
-          thinkingLevel: draftThinking ?? null,
-        }),
+        body: JSON.stringify(body),
       }),
-    );
-    if (!ok) return;
-    const probe = (body as SaveRuntimeResponse | null)?.probe ?? null;
-    if (probe?.attempted) {
-      setRuntimeProbe(probe);
-      return;
+    [],
+  );
+
+  /** §3.10 保存 per-agent runtime 覆盖：PATCH 持久化 + 存活会话立即生效。
+   *  出错状态点下服务端会对刚保存的模型做一次探测，结论随响应回来（决策 9）。
+   *  界面反馈第 7 条：保存不再是按钮，失焦时按「草稿 vs 已持久化覆盖」自动触发；
+   *  三字段全变 null（改回继承全局默认）也算变化——旧按钮在此处 disabled 的缺陷随之消失。 */
+  const saveRuntime = async () => {
+    const snapshot = runtimeSnapshotRef.current;
+    if (runtimeInFlightRef.current) return;
+    if (!needsRuntimeSave(snapshot.persisted, snapshot.draft)) return;
+    runtimeInFlightRef.current = snapshot.draft;
+    setRuntimeMsg(null);
+    setRuntimeProbe(null);
+    try {
+      const { ok, body } = await run("runtime", () =>
+        patchRuntime(snapshot.agentId, snapshot.draft),
+      );
+      if (!ok) return;
+      const probe = (body as SaveRuntimeResponse | null)?.probe ?? null;
+      if (probe?.attempted) {
+        setRuntimeProbe(probe);
+        return;
+      }
+      const cleared =
+        snapshot.draft.provider === null &&
+        snapshot.draft.modelId === null &&
+        snapshot.draft.thinkingLevel === null;
+      setRuntimeMsg(
+        cleared
+          ? t("runtime.cleared")
+          : runtime?.live
+            ? t("runtime.savedLive")
+            : t("runtime.saved"),
+      );
+    } finally {
+      runtimeInFlightRef.current = null;
     }
-    const cleared = draftModel === null && draftThinking === null;
-    setRuntimeMsg(
-      cleared
-        ? t("runtime.cleared")
-        : runtime?.live
-          ? t("runtime.savedLive")
-          : t("runtime.saved"),
-    );
   };
+
+  /** 焦点离开「模型」节（focusout）时判定是否保存。
+   *  `ModelPicker` 的两个 popover 面板在组件树内（不是 portal），焦点进出它们不算离开。 */
+  const handleRuntimeBlur = (event: React.FocusEvent<HTMLElement>) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget.contains(next)) return;
+    void saveRuntime();
+  };
+
+  // 面板卸载兜底（界面反馈第 7 条：关闭面板前补一次）：仍有未保存草稿就 fire-and-forget
+  // 补发一次——不阻塞卸载、不落状态；同一份草稿已在发送中则不重复发。
+  useEffect(() => {
+    return () => {
+      const snapshot = runtimeSnapshotRef.current;
+      if (!needsRuntimeSave(snapshot.persisted, snapshot.draft)) return;
+      const inFlight = runtimeInFlightRef.current;
+      if (inFlight && !needsRuntimeSave(inFlight, snapshot.draft)) return;
+      void patchRuntime(snapshot.agentId, snapshot.draft).catch(() => undefined);
+    };
+  }, [patchRuntime]);
 
   const exportUrl = obs?.session?.sessionId
     ? `/api/sessions/${encodeURIComponent(obs.session.sessionId)}/export?inline=1`
@@ -1311,17 +1383,6 @@ export function AgentDetailPanel({
             </div>
             <div className="dock-role">
               <StatusDot status={agent.status} translate={t} />
-              <span
-                style={{
-                  minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {t("status." + agent.status)}
-              </span>
-              <span aria-hidden="true">·</span>
               <AgentDescriptionEditor
                 agentId={agent.id}
                 description={agent.description}
@@ -1358,60 +1419,60 @@ export function AgentDetailPanel({
       {/* 主体：状态 / workspace / runtime / 可观测性 / 重置 */}
       <div className="dock-scroll">
         <section className="d-sec">
-          <SectionTitle>{t("status." + agent.status)}</SectionTitle>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-4)" }}>
             <StatusDot status={agent.status} translate={t} />
             <span style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-semi)" }}>
               {t("status." + agent.status)}
             </span>
           </div>
-          <div
-            style={{
-              fontSize: "var(--fs-caption)",
-              color: "var(--faint)",
-              marginTop: 6,
-            }}
-          >
-            {agent.status === "offline"
-              ? t("agent.stoppedHint")
-              : t("agent.workspaceHint")}
-          </div>
-        </section>
-
-        <section className="d-sec">
-          <SectionTitle>{t("agent.workspace")}</SectionTitle>
-          <Row
-            label={t("agent.workspace")}
-            value={agent.workspace_path ?? t("agent.workspaceNotBound")}
-            stack
-          />
-          {isHomeWorkspace && (
+          {agent.status === "offline" && (
             <div
-              style={{ marginTop: 6, fontSize: "var(--fs-caption)", color: "var(--faint)" }}
+              style={{
+                fontSize: "var(--fs-caption)",
+                color: "var(--faint)",
+                marginTop: 6,
+              }}
             >
-              {t("agent.workspaceHomeHint")}
+              {t("agent.stoppedHint")}
             </div>
           )}
-          <div
-            style={{
-              marginTop: "var(--sp-5)",
-              display: "flex",
-              justifyContent: "flex-end",
-            }}
-          >
-            <button
-              type="button"
-              className="btn btn-sm"
-              disabled={isBusy}
-              onClick={() => setPickerOpen(true)}
-            >
-              {t("agent.change")}
-            </button>
-          </div>
         </section>
 
-        {/* §3.10 runtime：per-agent 模型 / provider / thinking，覆盖全局默认 */}
         <section className="d-sec">
+          <Row
+            label={t("agent.workspace")}
+            stack
+            hint={isHomeWorkspace ? t("agent.workspaceHomeHint") : undefined}
+            value={
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--sp-3)",
+                  width: "100%",
+                }}
+              >
+                <span style={{ flex: "1 1 auto", minWidth: 0 }}>
+                  {agent.workspace_path ?? t("agent.workspaceNotBound")}
+                </span>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={t("agent.changeWorkspace")}
+                  title={t("agent.changeWorkspace")}
+                  disabled={isBusy}
+                  onClick={() => setPickerOpen(true)}
+                >
+                  <FolderOpen size={15} aria-hidden="true" style={{ display: "block" }} />
+                </button>
+              </span>
+            }
+          />
+        </section>
+
+        {/* §3.10 模型节：per-agent 模型 / provider / thinking，覆盖全局默认。
+            界面反馈第 7 条：保存不再是按钮，焦点离开本节时按草稿差异自动 PATCH。 */}
+        <section className="d-sec" onBlur={handleRuntimeBlur}>
           <SectionTitle>{t("agent.runtime")}</SectionTitle>
           <ModelPicker
             models={models}
@@ -1468,25 +1529,6 @@ export function AgentDetailPanel({
               {runtimeMsg}
             </div>
           ) : null}
-          <div
-            style={{
-              marginTop: "var(--sp-5)",
-              display: "flex",
-              gap: "var(--sp-3)",
-              justifyContent: "flex-end",
-            }}
-          >
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={
-                isBusy || (draftModel === null && draftThinking === null)
-              }
-              onClick={saveRuntime}
-            >
-              {busyOp === "runtime" ? t("runtime.saving") : t("runtime.save")}
-            </button>
-          </div>
         </section>
 
         {/* §6.5 可观测性：状态点（首节）/ token、成本 / 任务历史 + 时间线 / 轮次记录 / 会话导出 */}
