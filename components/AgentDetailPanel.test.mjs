@@ -9,6 +9,8 @@ const jiti = createJiti(import.meta.url, {
     jsx: { runtime: "automatic" },
     tsconfigPaths: true,
 });
+const { zhCNLocale } = await jiti.import("../lib/i18n/messages/zh-CN.ts");
+const { enLocale } = await jiti.import("../lib/i18n/messages/en.ts");
 const {
     AgentDetailPanel,
     AgentAvatarTintPicker,
@@ -118,14 +120,94 @@ test("AgentDetailPanel renders identity, status, workspace, reset and observabil
     assert.match(html, /Session export/);
 });
 
-test("runtime section renders the model picker and apply button", () => {
+test("runtime section is titled Model and no longer offers an Apply button", () => {
     const html = renderPanel(AGENT);
+    // 第 4 条：`agent.runtime` 的值改成「模型」/ Model，承担原「运行时」节标题
+    assert.match(html, /class="d-sec-title">Model</);
     // ModelPicker 默认显示"继承全局默认"（Inherit global default）
     assert.match(html, /Inherit global default/);
     assert.match(html, /pi default/);
-    assert.match(html, /Apply/);
-    // 初始无覆盖时 Apply 处于 disabled 状态（避免无意义空保存）
-    assert.match(html, /disabled/);
+    // 第 7 条：失焦自动保存——应用按钮与它的进行中文案一起消失
+    assert.doesNotMatch(html, /Apply/);
+    assert.doesNotMatch(html, /Applying/);
+});
+
+/** 身份头区域（`.dock-scroll` 之前）；第 1 条「状态文字只在正文出现一次」按区域取证。 */
+function headerOf(html) {
+    return html.slice(0, html.indexOf('class="dock-scroll"'));
+}
+
+test("the identity header keeps the status dot but drops the status label", () => {
+    const html = renderPanel({ ...AGENT, status: "online" });
+    const header = headerOf(html);
+    assert.match(header, /class="presence online"/);
+    // 圆点自带的可访问名（aria-label / title）是既有语义，不算重复文字
+    assert.match(header, /aria-label="Online"/);
+    assert.doesNotMatch(header, />Online</);
+    // 描述编辑器仍在身份头里
+    assert.match(header, /aria-label="Edit description"/);
+});
+
+test("the status section drops its heading and states the status once in the body", () => {
+    const html = renderPanel({ ...AGENT, status: "online" });
+    // 第 2 条：不再有 <SectionTitle>，正文保留「● 在线」
+    assert.doesNotMatch(html, /class="d-sec-title">Online</);
+    assert.equal((html.match(/>Online</g) ?? []).length, 1);
+});
+
+test("only an offline agent keeps the status hint; the generic workspace hint is gone", () => {
+    const offline = renderPanel(AGENT);
+    assert.match(offline, /Offline = stopped responding, identity kept/);
+    const online = renderPanel({ ...AGENT, status: "online" });
+    assert.doesNotMatch(online, /Offline = stopped responding/);
+    // 第 5 条：`agent.workspaceHint` 的专属句子（换目录即换会话）不再出现
+    assert.doesNotMatch(online, /changing it changes the session/);
+});
+
+test("workspace section drops its heading and puts the home hint between label and path", () => {
+    const html = renderPanel({ ...AGENT, home_path: "/tmp/ws/bob" });
+    // 第 3 条：不再有 <SectionTitle>，Row 的 label 承担标题职责
+    assert.doesNotMatch(html, /class="d-sec-title">Workspace</);
+    const label = '<span class="k">Workspace</span>';
+    const labelEnd = html.indexOf(label) + label.length;
+    assert.ok(labelEnd > label.length, "工作区行缺失");
+    const pathAt = html.indexOf("/tmp/ws/bob");
+    assert.ok(pathAt > labelEnd, "工作区路径应在 label 之后");
+    // 第 6 条：说明紧跟 label、独占一行、在路径之前，字号与颜色沿用既有提示档
+    const between = html.slice(labelEnd, pathAt);
+    assert.match(between, /Home directory — created automatically/);
+    assert.match(between, /font-size:var\(--fs-caption\)/);
+    assert.match(between, /color:var\(--faint\)/);
+});
+
+test("the change-workspace action is an icon button at the end of the path row", () => {
+    const html = renderPanel(AGENT);
+    // 第 8 条：文字按钮删除，换成路径行尾的 lucide 图标按钮
+    assert.doesNotMatch(html, />Change</);
+    assert.match(html, /aria-label="Change workspace"/);
+    assert.match(html, /title="Change workspace"/);
+    assert.match(html, /class="lucide lucide-folder-open/);
+    // 与路径同一行、在路径之后（`.kv .v` 内部顺序）
+    const pathAt = html.indexOf(">/tmp/ws/bob</span>");
+    const buttonAt = html.indexOf('aria-label="Change workspace"');
+    assert.ok(pathAt > 0 && buttonAt > pathAt, "更换按钮应在路径之后、同一行内");
+});
+
+test("i18n: Model heading, changeWorkspace key, and the retired keys", () => {
+    // 第 4 条：改值（两包同步）
+    assert.equal(zhCNLocale.messages["agent.runtime"], "模型");
+    assert.equal(enLocale.messages["agent.runtime"], "Model");
+    // 第 8 条：新增键（两包同步）
+    assert.equal(zhCNLocale.messages["agent.changeWorkspace"], "更换工作区");
+    assert.equal(enLocale.messages["agent.changeWorkspace"], "Change workspace");
+    for (const messages of [zhCNLocale.messages, enLocale.messages]) {
+        // 第 5 / 8 条：无消费者的旧键已删除
+        assert.equal(messages["agent.workspaceHint"], undefined);
+        assert.equal(messages["agent.change"], undefined);
+        // 仍在用：离线提示与家目录说明
+        assert.ok(messages["agent.stoppedHint"]);
+        assert.ok(messages["agent.workspaceHomeHint"]);
+    }
 });
 
 test("lifecycle buttons are enabled for ticket 05 (no longer placeholders)", () => {
