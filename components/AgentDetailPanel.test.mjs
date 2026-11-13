@@ -302,6 +302,40 @@ test("DM button click wires onOpenDM(agent.id)", async () => {
 });
 
 /**
+ * 上下文占用行（④ 会话导出与上下文状态）：value 与 meter 宽度都必须走
+ * `lib/context-usage-format.ts` 的纯函数，而不是裸模板字符串。
+ *
+ * 为什么只能源码级断言：这一行的数据来自 `fetch`（`obs`），SSR 首屏 `obs` 尚为 null，
+ * 渲染不出该行；仓内又没有 jsdom，`renderToStaticMarkup` 也验不了交互后的状态。
+ * 真实渲染由纯函数单测（`lib/context-usage-format.test.mjs`）+ 浏览器探针守（见 PR 证据）。
+ * 这里只钉住接线关系：删掉纯函数调用、退回复原模板串时，本用例必红。
+ */
+test("context usage row formats through the pure module, not a raw template string", async () => {
+    const source = await readFile(
+        new URL("../components/AgentDetailPanel.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.match(source, /from "@\/lib\/context-usage-format"/);
+    assert.match(
+        source,
+        /value=\{formatContextUsageValue\(obs\.session\.live\.contextUsage\)\}/,
+    );
+    assert.match(
+        source,
+        /width: contextUsageMeterWidth\(\s*obs\.session\.live\.contextUsage\.percent,?\s*\)/,
+    );
+    // 旧实现的两个形态：浮点百分比直出，以及总宽直出（null 时成 `null%`）
+    assert.doesNotMatch(
+        source,
+        /value=\{`\$\{obs\.session\.live\.contextUsage\.percent\}%/,
+    );
+    assert.doesNotMatch(
+        source,
+        /width: `\$\{obs\.session\.live\.contextUsage\.percent\}%`/,
+    );
+});
+
+/**
  * 同一 agent 在**两个 channel** 各有一个 #1 任务：listAgentTasks 聚合跨 channel 的
  * 任务，而 number 是 channel 内序号（§3.7），所以 obs.tasks 里会有两条 number 相同
  * 的不同任务。这正是浏览器报 “Encountered two children with the same key, `1`” 的输入形态。
