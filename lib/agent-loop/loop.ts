@@ -654,7 +654,7 @@ export function buildReplyPrompt(input: {
         ? shownCandidates
             .map((candidate) =>
               candidate.description
-                ? `@${candidate.name} — ${candidate.description.slice(0, 160)}`
+                ? `@${candidate.name} — ${candidate.description.replace(/\s+/g, " ").slice(0, 160)}`
                 : `@${candidate.name}`,
             )
             .join("; ")
