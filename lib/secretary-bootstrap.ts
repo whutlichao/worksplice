@@ -16,10 +16,12 @@
  *   settings 显式默认不一致时恒为 null）；完全无可用模型 → null → 引导打开模型配置。
  */
 
+import { SECRETARY_DEFAULT_NAME } from "./secretary-name.ts";
 import type { ModelsData } from "./models-cache";
 
-/** 秘书默认名字（与 lib/domain/collab/event-messages.ts SUSAN_MEMBER_NAME 同值；UI 侧避免引 协作服务层）。 */
-export const SUSAN_NAME = "Susan";
+/** 秘书默认名字：字面值来自零依赖的 `lib/secretary-name.ts`（UI 侧不能引协作服务层，
+ *  那会把 better-sqlite3 拖进浏览器包）。 */
+export const SUSAN_NAME = SECRETARY_DEFAULT_NAME;
 
 export interface BootstrapAgentLike {
   id?: string;

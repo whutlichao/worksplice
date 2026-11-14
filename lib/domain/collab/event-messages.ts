@@ -34,8 +34,8 @@ function mentionText(name: string): string {
  * （即便 `wake: false` 已经让预算跳过它，这里也显式标明语义，不依赖两个开关的巧合。）
  */
 function deliverEventMessage(channelId: string, content: string): void {
-  const susan = getGlobalChief();
-  if (!susan) return;
+  const globalChief = getGlobalChief();
+  if (!globalChief) return;
   const channel = getChannel(channelId);
   if (!channel || channel.archived === 1) return;
   if (!isChannelMember(channelId, OWNER_MEMBER_ID)) return;
@@ -49,7 +49,7 @@ function deliverEventMessage(channelId: string, content: string): void {
     });
     if (!sent.held) {
       emitWake({
-        agentId: susan.id,
+        agentId: globalChief.id,
         targetId: sent.message.target_id,
         seq: sent.message.seq,
         reason: "message",
@@ -70,12 +70,12 @@ export function notifyAgentJoinedChannel(channelId: string, joinerId: string): v
   if (!joiner || joiner.deleted === 1) return;
   if (joiner.id === OWNER_MEMBER_ID || joiner.type !== "agent") return;
   if (isSecretaryMember(joiner)) return;
-  const susan = getGlobalChief();
-  if (!susan) return;
-  const targetId = isChannelMember(channelId, susan.id) ? channelId : BUILTIN_CHANNEL_ID;
+  const globalChief = getGlobalChief();
+  if (!globalChief) return;
+  const targetId = isChannelMember(channelId, globalChief.id) ? channelId : BUILTIN_CHANNEL_ID;
   deliverEventMessage(
     targetId,
-    `${mentionText(susan.name)} New member ${mentionText(joiner.name)} joined the channel`,
+    `${mentionText(globalChief.name)} New member ${mentionText(joiner.name)} joined the channel`,
   );
 }
 
@@ -84,10 +84,10 @@ export function notifyAgentJoinedChannel(channelId: string, joinerId: string): v
  * 秘书未加入（如私有频道初始成员取消勾选）时投 `#all` 经 @mention 穿透送达。
  */
 export function notifyChannelCreated(channel: ChannelRow): void {
-  const susan = getGlobalChief();
-  if (!susan) return;
-  const targetId = isChannelMember(channel.id, susan.id) ? channel.id : BUILTIN_CHANNEL_ID;
-  deliverEventMessage(targetId, `${mentionText(susan.name)} New channel #${channel.name} created`);
+  const globalChief = getGlobalChief();
+  if (!globalChief) return;
+  const targetId = isChannelMember(channel.id, globalChief.id) ? channel.id : BUILTIN_CHANNEL_ID;
+  deliverEventMessage(targetId, `${mentionText(globalChief.name)} New channel #${channel.name} created`);
 }
 
 /**

@@ -4,10 +4,10 @@ import type { ChannelWithMeta } from "@/components/ChannelView";
  *  messageCount（DM 懒创建「有消息」信号）与 unreadTaskCount（独立 Task 未读数）纳入比较，
  *  使各自的侧栏信号随服务端刷新更新。
  *
- *  chief / chiefSource（票 #251，接 #250 的遗留）：生效首席是服务端现算的结论，绑定换人 /
- *  清空 / 频道首席失效回落全局时 `chief_member_id` 可能一字未变、只有结论变——不纳入比较
- *  就会复用旧行引用，composer 提示与成员视角继续显示过期结论。`undefined` 与 `null` 视作同值
- *  （旧行 / 测试构造器可能不带这两个字段）。 */
+ *  chief / chiefSource / chiefAvailable（票 #251，接 #250 的遗留）：生效首席是服务端现算的
+ *  结论，绑定换人 / 清空 / 频道首席失效回落全局时 `chief_member_id` 可能一字未变、只有结论变；
+ *  可达性（本频道成员 + 未静音）也会独立翻转——不纳入比较就会复用旧行引用，composer 提示与
+ *  成员视角继续显示过期结论。缺字段按「无 / 不可达」归一（旧行 / 测试构造器可能不带）。 */
 export function shallowEqualChannel(
   a: ChannelWithMeta,
   b: ChannelWithMeta,
@@ -28,12 +28,14 @@ export function shallowEqualChannel(
   );
 }
 
-/** 生效首席是同一结论（人 + 来源）：改名 / 换人 / 绑定失效回落 / 清空任一变化都算不同。 */
+/** 生效首席是同一结论（人 + 来源 + 对本频道是否可达）：改名 / 换人 / 绑定失效回落 /
+ *  清空 / 可达性翻转（成员离场、频道被静音）任一变化都算不同——提示文案跟着变。 */
 function sameChief(a: ChannelWithMeta, b: ChannelWithMeta): boolean {
   return (
     (a.chief?.id ?? null) === (b.chief?.id ?? null) &&
     (a.chief?.name ?? null) === (b.chief?.name ?? null) &&
-    (a.chiefSource ?? "none") === (b.chiefSource ?? "none")
+    (a.chiefSource ?? "none") === (b.chiefSource ?? "none") &&
+    (a.chiefAvailable === true) === (b.chiefAvailable === true)
   );
 }
 

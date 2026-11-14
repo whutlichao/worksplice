@@ -130,6 +130,9 @@ app/api/
   channels/[id]/archive/route.ts  POST { archived } — Owner only，冻结写入
   channels/[id]/stop/route.ts     POST — Owner 停当前房间波次（只调 stopTurn；不销毁会话/
                                   不写消费游标/不 ack 任务事件；DM 403、不存在 404）
+  channels/[id]/chief/route.ts    POST { memberId | null } — 设 / 换 / 清空频道首席（#250 薄封装：
+                                  ChannelChiefError 的 status + code；Owner only，目标须是本频道未软删
+                                  agent 成员）；回 chiefMemberId + 生效首席 + chiefSource
   channels/[id]/members/route.ts  GET member list
   messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）；
                                   multipart 形态：字段 + `files`（附件随消息一次原子提交，§3.5）
@@ -162,6 +165,9 @@ app/api/
   search/route.ts                 GET ?q=&limit= — FTS5 全文搜索（结果 = id + 命中上下文摘要 + 归属 channel/thread + 作者）
   secretary/init/route.ts         POST 启动助手入口（spec-bootstrap-agent §6.3）：薄封装 initSecretaryFlow（§6.2 五步初始化），
                                   provider/modelId/thinkingLevel 可选（缺省继承全局默认）
+  global-chief/route.ts           POST { memberId | null } — 设 / 换 / 清空全局首席（#251 薄封装：
+                                  GlobalChiefError 的 status + code，与频道首席同一组成员类码；
+                                  回 { chief }）
 
 lib/domain/collab/                协作服务层（app/api 仅薄封装；唯一导入面）
   index.ts                      协作域唯一对外导入面：`export *` 汇合全部子模块（channels/members/
@@ -170,6 +176,17 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                 互相用相对路径直引，不经索引回环（测试在一个 seam mock 整个 协作域）。
   channels.ts                     create/join/leave/archive/members + mute/unmute/getChannelMute（§3.2 mute）
                                   + CURRENT_MEMBER_ID（恒为 owner）
+  chief.ts                        首席身份的唯一解析口（#248–#252）：getGlobalChief / setGlobalChief
+                                  （GlobalChiefError）/ resolveEffectiveChief（频道 → 全局 → 无）
+                                  / setChannelChief（ChannelChiefError）/ canRouteToChief（对本频道是否
+                                  可达：成员 + 未静音，选人 · wake · 频道行共用）/ chiefRefOf（ChiefRef）
+  secretary-identity.ts           秘书身份判定源（#248 起是角色判定）：isSecretaryMember = 是不是当前
+                                  全局首席；SUSAN_MEMBER_NAME 只是引导期默认名（不参与判定）
+  task-reference.ts               「正文提到了哪些任务」的共享纯判定（parseTaskReferenceNumbers /
+                                  hasTaskReference）：handoff 触发与选人共用，断开 handoff-trigger ← invitations
+                                  的反向依赖；引用块 / 代码块里的 Task #N 不算
+  rounds.ts                       §07 轮次结果服务层：logRoundOutcome / listRoundLogs（camelCase 出线
+                                  RoundLogView）+ v19 `role`（这一轮怎么进来的：chief / 点名 / 任务 / 提醒 / DM）
   messages.ts                     sendMessage（freshness + thread 校验 + quote + 附件落盘 + 提交后发 wake）
                                   / listMessages / getThreadInfo / messageWithAuthor（附 reactions+attachments）
                                   / summarizeChanges（held 摘要，任务 claim/updateStatus 复用）
@@ -284,6 +301,12 @@ lib/
   file-access.ts       allowed file roots for /api/files and worktrees
   file-paths.ts        client/server path encoding helpers
   markdown.ts          shared markdown helpers
+  channel-list.ts      频道列表合并纯函数（AppShell.load）：mergeChannelRows 复用未变更行的对象引用
+                       + shallowEqualChannel（含 chief / chiefSource / chiefAvailable：结论变了行就换新引用）
+  chief-failure.ts     首席写入失败码 → i18n key 的唯一映射（client-safe）：chiefFailureText /
+                       isChiefFailureCode；频道设置与建频道弹窗共用，不再前缀猜码
+  secretary-name.ts    引导期默认秘书名字的唯一字面来源（零依赖、client-safe；数据层迁移常量 /
+                       协作域身份名 / UI 启动助手判定都从这儿取）
   npx.ts               npx runner used by skill install
   panel-state.ts       ticket 13 面板转移纯模块：openPanel（单槽替换）/ closePanel / onChannelSwitched（清空）
                        + memberPanel（mention → 面板映射）
@@ -544,6 +567,14 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **agent 回复轮询**：`ChannelView` 3s 一次轮询最新页增量合并（`mergeIncomingMessages` 按 id 去重 + seq 排序），后台 tab 暂停——agent-loop 的回复自然落入消息流（§5.4 demo）。右栏线程面板（`ThreadPanel`）另有同纪律 3s 轮询（`THREAD_POLL_MS`），任务线程回复自动冒出，与中央轮询并存为两套循环。
 - **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq &gt; read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/domain/collab/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
 - **房间轮次预算挂在消息漏斗上**（PR #218）：`sendMessage` 是房间预算的**唯一写入面**——提交成功后调 `recordRoomTurn`：Owner 消息 → `beginTurn`（开新房次 + 第一波选人），agent 消息 → `noteReply`（计发言 + 水位线 + 引用边），`roomNotice: true` 或 `wake: false` 的系统消息整个跳过。两个入参的语义：`roomContext: { channelId, epoch? }` 是「本轮在哪个房间回合里发言」的语境——解析出的频道不等于 `channelId` 时抛 `RoomPrivateChannelForbidden`（I6 房间内无隐身通道），`epoch` 让被取代场次的回复照常落库但按 `stale` 记账；`roomNotice: true` 声明「这是系统 / 事件消息，不是人类真的敲出来的」，不得开新房次、不得重置 `lateTurns`。不变量、陷阱与接入点见 Key Design Decisions 的「房间轮次预算」段。
+
+### 首席（Chief，#248–#252）
+
+- **身份 = 角色，不是名字**：频道首席（`channels.chief_member_id`）→ 全局首席（`members.global_chief`，同一时刻至多一位）→ 无，三档回落；解析口 `resolveEffectiveChief`（`lib/domain/collab/chief.ts`）不缓存、每次现算，绑定失效（离场 / 软删 / 非 agent）按「未设置」处理且**不改写**绑定。名字不参与任何判定——引导期默认名只有 `lib/secretary-name.ts` 一份字面来源。
+- **可达是另一件事（投递判定）**：`canRouteToChief(channelId, memberId)`（本频道未软删 agent 成员 + 未静音）是唯一结论，`selectChiefRecipient`（谁接这条消息）、wake 的定向唤醒、`listChannelsWithMeta` 的 `chiefAvailable` 三处共用；composer 提示只读 `chiefAvailable`（`false` ⇒ 说「没有默认收件人」），客户端不重新推导——否则提示会承诺一次不会发生的投递（可达反例：私有频道不自动加全局首席、频道首席被静音）。
+- **收件人只多一条分支**：既有四条路径（个人点名 / `@all` / 任务线程裁决 / 任务创建事件 handoff）全都不成立时，才把生效首席加入候选**一次**；静音优先于首席（静音 ⇒ 不可达，不回落、不换人）。「涉及任务」复用 `task-reference.ts` 的 `hasTaskReference`（单一来源，不再单独解析创建事件正文）。
+- **秘书 = 全局首席**：不是独立角色，是它在下沉 handoff 职责时的称呼（`isSecretaryMember`）；引导期默认名只用于 v19 迁移与「启动助手」入口。
+- **schema v19 三列 + 两档幂等迁移**：`members.global_chief`（补列时把存活同名 agent 标一次；用户事后清空后不在开库时复活）/ `channels.chief_member_id`（纯补列，存量 NULL = 回落全局）/ `round_logs.role`（准入角色，可空，历史行 = 未记录）。三列都靠 `PRAGMA table_info` 检查式 ALTER，重复开库幂等。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
 

@@ -15,6 +15,17 @@ import type { ChannelRow, MemberRow } from "../../data/types.ts";
  * （见 `secretary-identity.ts`）。名字不参与任何判定。
  */
 
+/** 首席的读面形态（id + 名字）：频道行与两条 chief 写面共用一份，不四处手抄同一个字面对象。 */
+export interface ChiefRef {
+  id: string;
+  name: string;
+}
+
+/** 成员行 → 读面首席引用；没有成员就是 `null`（「没有默认收件人」的线上形态）。 */
+export function chiefRefOf(member: MemberRow | null | undefined): ChiefRef | null {
+  return member ? { id: member.id, name: member.name } : null;
+}
+
 /** 全局首席（存活 agent；无则 undefined）。软删身份不算——它不是任何频道的可用首席。 */
 export function getGlobalChief(): MemberRow | undefined {
   return getDb()
@@ -23,20 +34,86 @@ export function getGlobalChief(): MemberRow | undefined {
 }
 
 /**
+ * 首席目标的成员面拒绝码：两条写面（全局 / 频道）共用同一组——同一类非法目标在两条路由上
+ * 同 code、同状态码（§1「同语义错误跨路由必须同状态码」）。
+ */
+export type ChiefMemberRejectionCode =
+  | "member_not_found"
+  | "human_member"
+  | "member_deleted";
+
+/**
+ * 首席目标的成员面判据（两条写面共用一份，判据顺序固定：不存在 → 已软删 → 人类成员）。
+ * 不成立时给出拒绝描述；调用方按自己的错误类型抛出（`null` = 目标可为首席）。
+ */
+function chiefMemberRejection(memberId: string): {
+  status: 400 | 404 | 409;
+  code: ChiefMemberRejectionCode;
+  message: string;
+} | null {
+  const member = getDb().getMember(memberId);
+  if (!member) {
+    return { status: 404, code: "member_not_found", message: `Member not found: ${memberId}` };
+  }
+  if (member.deleted === 1) {
+    return {
+      status: 409,
+      code: "member_deleted",
+      message: "Cannot set a deleted member as the chief",
+    };
+  }
+  if (member.type !== "agent") {
+    return { status: 400, code: "human_member", message: "The chief must be an agent member" };
+  }
+  return null;
+}
+
+/** 全局首席的拒绝语义：`status` + `code` 给路由映射稳定 4xx，路由不自己判原因。 */
+export class GlobalChiefError extends Error {
+  readonly status: 400 | 404 | 409;
+  readonly code: ChiefMemberRejectionCode;
+
+  constructor(status: 400 | 404 | 409, code: ChiefMemberRejectionCode, message: string) {
+    super(message);
+    this.name = "GlobalChiefError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
  * 设 / 换 / 清空全局首席：同一时刻至多一位（数据层先清空再置位，单事务）。
- * 目标必须是存活 agent——人类成员、软删身份、不存在的 id 一律拒绝，避免写进一条
- * 永远不生效的标记。`null` = 清空（频道回到「没有默认收件人」）。
+ * 目标必须是存活 agent——人类成员、软删身份、不存在的 id 一律拒绝并说明原因
+ * （`GlobalChiefError`，路由按 `status` + `code` 映射），避免写进一条永远不生效的标记。
+ * `null` = 清空（频道回到「没有默认收件人」）。
  */
 export function setGlobalChief(agentId: string | null): void {
   if (agentId === null) {
     getDb().setGlobalChief(null);
     return;
   }
-  const member = getDb().getMember(agentId);
-  if (!member || member.type !== "agent" || member.deleted === 1) {
-    throw new Error("Global chief must be a live agent");
+  const rejection = chiefMemberRejection(agentId);
+  if (rejection) {
+    throw new GlobalChiefError(rejection.status, rejection.code, rejection.message);
   }
   getDb().setGlobalChief(agentId);
+}
+
+/**
+ * 首席对本频道是否**此刻可达**（票 #251 的唯一结论）：生效首席必须是本频道未软删的 agent
+ * 成员，且没有静音该频道。
+ *
+ * 「可达」是**投递判定**，不是解析判定：`resolveEffectiveChief` 只回答「谁是首席」（绑定是否
+ * 有效），静音 / 非成员在这里才被过滤——所以「静音的首席」不回落全局、不换人（见模块头注释）。
+ * 三处共用这一份：`selectChiefRecipient`（谁接这条消息）、wake 的定向唤醒、频道列表行
+ * （`chiefAvailable`，composer 提示只读它，不在客户端重新推导）。
+ */
+export function canRouteToChief(channelId: string, memberId: string): boolean {
+  const member = getDb().getMember(memberId);
+  if (!member || member.type !== "agent" || member.deleted === 1) return false;
+  if (!getDb().isChannelMember(channelId, memberId)) return false;
+  if (getDb().getChannelMute(channelId, memberId)) return false;
+  return true;
 }
 
 /** 生效首席的来源：频道指定 / 全局回落 / 没有。 */
@@ -75,10 +152,8 @@ export function resolveEffectiveChief(channelId: string): EffectiveChief {
 export type ChannelChiefErrorCode =
   | "channel_not_found"
   | "owner_only"
-  | "member_not_found"
-  | "human_member"
-  | "member_deleted"
-  | "not_channel_member";
+  | "not_channel_member"
+  | ChiefMemberRejectionCode;
 
 export class ChannelChiefError extends Error {
   readonly status: 400 | 403 | 404 | 409;
@@ -117,23 +192,9 @@ export function setChannelChief(
     );
   }
   if (memberId !== null) {
-    const member = db.getMember(memberId);
-    if (!member) {
-      throw new ChannelChiefError(404, "member_not_found", `Member not found: ${memberId}`);
-    }
-    if (member.deleted === 1) {
-      throw new ChannelChiefError(
-        409,
-        "member_deleted",
-        "Cannot set a deleted member as the channel chief",
-      );
-    }
-    if (member.type !== "agent") {
-      throw new ChannelChiefError(
-        400,
-        "human_member",
-        "Channel chief must be an agent member",
-      );
+    const rejection = chiefMemberRejection(memberId);
+    if (rejection) {
+      throw new ChannelChiefError(rejection.status, rejection.code, rejection.message);
     }
     if (!db.isChannelMember(channelId, memberId)) {
       throw new ChannelChiefError(
