@@ -1,6 +1,10 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { getMember } from "./members.ts";
-import type { RoundLogRow, RoundUsageAggregate } from "../../data/types.ts";
+import type {
+  AdmissionRole,
+  RoundLogRow,
+  RoundUsageAggregate,
+} from "../../data/types.ts";
 
 /**
  * §07 轮次结果（Round Outcome）服务层：区分「自判 ignore」与「处理失败」的事实来源。
@@ -34,6 +38,8 @@ export interface RoundLogView {
   promptTokens: number | null;
   completionTokens: number | null;
   cost: number | null;
+  /** #249 本轮准入角色；null = 没有准入结论（历史行）——面板展示「未记录」。 */
+  role: AdmissionRole | null;
 }
 
 function toRoundLogView(row: RoundLogRow): RoundLogView {
@@ -47,6 +53,7 @@ function toRoundLogView(row: RoundLogRow): RoundLogView {
     promptTokens: row.prompt_tokens,
     completionTokens: row.completion_tokens,
     cost: row.cost,
+    role: row.role,
   };
 }
 
@@ -55,6 +62,11 @@ export interface RoundOutcomeLike {
   reason?: string;
   baseSeq?: number;
   usage?: RoundUsage;
+  /**
+   * #249 本轮**怎么进来的**（准入阶段已有的结论，只做标注）：省略/null = 这一轮没有
+   * 准入结论，落盘写 NULL，不编造。
+   */
+  role?: AdmissionRole | null;
 }
 
 /** 单轮用量（agent-loop 从 SDK 会话统计的前后差值取，取不到整段 null）。 */
@@ -91,6 +103,7 @@ export function logRoundOutcome(
       promptTokens: outcome.usage?.promptTokens ?? null,
       completionTokens: outcome.usage?.completionTokens ?? null,
       cost: outcome.usage?.cost ?? null,
+      role: outcome.role ?? null,
     });
     getDb().pruneRoundLogs(agentId, ROUND_LOG_RETAIN);
     return row;

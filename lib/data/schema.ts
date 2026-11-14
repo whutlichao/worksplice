@@ -265,6 +265,7 @@ export function runMigrations(db: Database.Database): void {
     migrateTasksHandoffOwnerColumn(db);
     migrateTaskThreadReads(db);
     migrateRoundLogsCostColumns(db);
+    migrateRoundLogsRoleColumn(db);
     seed(db);
     cleanupEmptyDms(db);
     resumeDirectChannels(db);
@@ -412,6 +413,26 @@ function migrateRoundLogsCostColumns(db: Database.Database): void {
   if (!columns.some((c) => c.name === "cost")) {
     db.exec("ALTER TABLE round_logs ADD COLUMN cost REAL");
   }
+}
+
+/**
+ * v19（#249）：round_logs 增加准入角色 `role`（可空）。记录这一轮**怎么进来的**——
+ * 首席接的 / 被人点名 / `@all` / 任务线程裁决 / 提醒 / DM。
+ * 不 bump `SCHEMA_VERSION`：#250 在同一个 v19 里加频道首席列，两票共享版本落点。
+ * 可空且不写默认值：本票之前的历史行与没有准入结论的轮次都是 NULL（展示为「未记录」）。
+ * PRAGMA 逐列检测保证重复开库幂等。
+ */
+function migrateRoundLogsRoleColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(round_logs)").all() as Array<{
+    name: string;
+  }>;
+  if (columns.some((c) => c.name === "role")) return;
+  db.exec(
+    `ALTER TABLE round_logs ADD COLUMN role TEXT CHECK (role IS NULL OR role IN (
+       'dm', 'reminder', 'human-mention', 'all-mention', 'chief',
+       'task-owner', 'task-reviewer', 'task-event', 'secretary-handoff'
+     ))`,
+  );
 }
 
 /** v13: 既有 Task thread 的最新非 Owner 回复作为首个已读基线；后续开库不覆盖已推进游标。 */

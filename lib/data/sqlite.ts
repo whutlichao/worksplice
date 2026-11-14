@@ -17,6 +17,7 @@ import {
 } from "./types.ts";
 import type { Store } from "./store.ts";
 import type {
+  AdmissionRole,
   AppendMessageInput,
   AgentAvatarTint,
   AttachmentRow,
@@ -887,6 +888,7 @@ export class SQLiteAdapter implements Store {
     promptTokens?: number | null;
     completionTokens?: number | null;
     cost?: number | null;
+    role?: AdmissionRole | null;
   }): RoundLogRow {
     const row: RoundLogRow = {
       id: input.id ?? randomUUID(),
@@ -899,10 +901,11 @@ export class SQLiteAdapter implements Store {
       prompt_tokens: input.promptTokens ?? null,
       completion_tokens: input.completionTokens ?? null,
       cost: input.cost ?? null,
+      role: input.role ?? null,
     };
     this.db
       .prepare(
-        "INSERT INTO round_logs (id, agent_id, target_id, status, reason, base_seq, created_at, prompt_tokens, completion_tokens, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO round_logs (id, agent_id, target_id, status, reason, base_seq, created_at, prompt_tokens, completion_tokens, cost, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         row.id,
@@ -915,6 +918,7 @@ export class SQLiteAdapter implements Store {
         row.prompt_tokens,
         row.completion_tokens,
         row.cost,
+        row.role,
       );
     return row;
   }

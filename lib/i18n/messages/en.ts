@@ -812,6 +812,18 @@ export const enLocale: LocalePlugin = {
     "observability.roundStatus.yielded": "Yielded",
     "observability.roundStatus.error": "Error",
     "observability.roundStatus.busy-cwd": "Waiting on busy cwd",
+    // #249 round observability: how this round came in (the admission role).
+    "observability.roundRoleTitle": "Entry role",
+    "observability.roundRole.dm": "Direct message",
+    "observability.roundRole.reminder": "Reminder",
+    "observability.roundRole.human-mention": "Human mention",
+    "observability.roundRole.all-mention": "@all",
+    "observability.roundRole.chief": "Chief",
+    "observability.roundRole.task-owner": "Task owner",
+    "observability.roundRole.task-reviewer": "Task reviewer",
+    "observability.roundRole.task-event": "Task event",
+    "observability.roundRole.secretary-handoff": "Secretary handoff",
+    "observability.roundRole.none": "Not recorded",
     "detail.back": "Back to channels",
   },
 };
