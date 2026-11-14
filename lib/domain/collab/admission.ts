@@ -15,6 +15,10 @@ export const ROUND_SKIP_REASONS = {
   taskUnclaimed: "task is unclaimed — no automatic round",
   taskDoneOrClosed: "task is done or closed — no automatic round",
   taskReopened: "task was reopened — awaiting the human owner",
+  taskEventHandoffOnly:
+    "task event — only the secretary handles unclaimed tasks",
+  handoffNotTriggered:
+    "no unique unclaimed task is associated with this round",
 } as const;
 
 export type RoundSkipReason =
@@ -27,7 +31,8 @@ export type AdmissionRole =
   | "all-mention"
   | "task-owner"
   | "task-reviewer"
-  | "task-event";
+  | "task-event"
+  | "secretary-handoff";
 
 export type RoundAdmission =
   | { admit: true; role: AdmissionRole; useRoomGate: boolean }
@@ -53,6 +58,15 @@ export interface RoundAdmissionInput {
   humanAllMentioned: boolean;
   /** 当轮 incoming 里是否有仍开放的 Owner `Task #N created` 事件。 */
   hasOpenTaskEvent: boolean;
+  /** 本成员是否就是当前存活的秘书。 */
+  isSecretary: boolean;
+  /** 秘书本轮是否被一个唯一的未认领任务明确关联（创建事件 / 任务线程 / 唯一引用）。 */
+  secretaryHandoff: boolean;
+  /**
+   * 任务创建事件旁边的人类任务锚点是否明确点名了本 agent / @all。
+   * 这是「人类已经直接叫人」的信号，不是事件预览里的 @；用于保留显式邀请。
+   */
+  taskEventAnchorInvited: boolean;
 }
 
 export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission {
@@ -85,6 +99,9 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
           ? { admit: true, role: "human-mention", useRoomGate: false }
           : { admit: false, reason: ROUND_SKIP_REASONS.taskDoneOrClosed };
       case "todo":
+        if (input.isSecretary && input.secretaryHandoff) {
+          return { admit: true, role: "secretary-handoff", useRoomGate: false };
+        }
         return input.humanMentioned || input.humanAllMentioned
           ? { admit: true, role: "human-mention", useRoomGate: false }
           : { admit: false, reason: ROUND_SKIP_REASONS.taskUnclaimed };
@@ -99,14 +116,25 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
       ? { admit: true, role: "human-mention", useRoomGate: true }
       : { admit: false, reason: ROUND_SKIP_REASONS.notMember };
   }
-  if (input.hasOpenTaskEvent) {
-    return { admit: true, role: "task-event", useRoomGate: false };
-  }
   if (input.humanAllMentioned) {
     return { admit: true, role: "all-mention", useRoomGate: true };
   }
   if (input.humanMentioned) {
     return { admit: true, role: "human-mention", useRoomGate: true };
+  }
+  if (input.isSecretary && input.secretaryHandoff) {
+    return { admit: true, role: "secretary-handoff", useRoomGate: false };
+  }
+  if (input.hasOpenTaskEvent) {
+    if (input.taskEventAnchorInvited) {
+      return { admit: true, role: "task-event", useRoomGate: false };
+    }
+    return {
+      admit: false,
+      reason: input.isSecretary
+        ? ROUND_SKIP_REASONS.handoffNotTriggered
+        : ROUND_SKIP_REASONS.taskEventHandoffOnly,
+    };
   }
   return { admit: false, reason: ROUND_SKIP_REASONS.noInvitation };
 }
