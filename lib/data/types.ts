@@ -28,7 +28,8 @@ export type TaskStatus = "todo" | "in_progress" | "in_review" | "done" | "closed
  * - null = 从未自动分流；
  * - handed_off = 已把 owner 交给唯一合适成员（handoff_seq = 任务线程通知 seq）；
  * - blocked = 无唯一合适人，已在任务线程写 blocked 通知（handoff_seq = 通知 seq）。
- * handoff_seq 是丢失唤醒时的可恢复定位点（T3 用）。
+ * handoff_seq 是丢失唤醒时的可恢复定位点；handoff_owner_id 记录当初选中的 owner，
+ * 恢复扫描据此拒绝「owner 已变」的补发（票 #242）。
  */
 export type TaskHandoffState = "handed_off" | "blocked";
 export type ReminderStatus = "scheduled" | "fired" | "canceled";
@@ -95,6 +96,8 @@ export interface TaskRow {
   handoff_state: TaskHandoffState | null;
   /** 任务线程内通知消息的 seq；null = 尚未发生自动分流。 */
   handoff_seq: number | null;
+  /** 自动 handoff 选中的 owner（票 #242）；恢复扫描只在它仍等于当前 owner 时补发。 */
+  handoff_owner_id: string | null;
   updated_at: string;
 }
 
