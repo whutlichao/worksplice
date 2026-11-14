@@ -25,6 +25,12 @@ export function isAgentAvatarTint(value: unknown): value is AgentAvatarTint {
 export type TaskStatus = "todo" | "in_progress" | "in_review" | "done" | "closed";
 export type ReminderStatus = "scheduled" | "fired" | "canceled";
 
+/**
+ * 增量消息窗口硬上限（票 #243）：与注入窗口同量级。
+ * `listMessagesAfter` 无论调用方传多大，都不得一次返回超过这个条数。
+ */
+export const MESSAGE_WINDOW_LIMIT = 20;
+
 export interface ChannelRow {
   id: string;
   name: string;

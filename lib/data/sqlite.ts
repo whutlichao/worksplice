@@ -12,6 +12,7 @@ import {
   buildSearchSnippet,
   escapeLike,
   isAgentAvatarTint,
+  MESSAGE_WINDOW_LIMIT,
   toFtsQuery,
 } from "./types.ts";
 import type { Store } from "./store.ts";
@@ -196,13 +197,31 @@ export class SQLiteAdapter implements Store {
     return map;
   }
 
-  /** seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。附 rowid 供 mute 判定。 */
-  listMessagesAfter(targetId: string, afterSeq: number): MessageRow[] {
+  /**
+   * seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。附 rowid 供 mute 判定。
+   * 票 #243：硬上限 MESSAGE_WINDOW_LIMIT——传更大的 limit 也会被压回窗口上限。
+   */
+  listMessagesAfter(
+    targetId: string,
+    afterSeq: number,
+    limit: number = MESSAGE_WINDOW_LIMIT,
+  ): MessageRow[] {
+    const bounded = Math.max(0, Math.min(Math.floor(limit), MESSAGE_WINDOW_LIMIT));
+    if (bounded === 0) return [];
     return this.db
       .prepare(
-        "SELECT m.*, m.rowid AS rowid FROM messages m WHERE m.target_id = ? AND m.seq > ? ORDER BY m.seq",
+        "SELECT m.*, m.rowid AS rowid FROM messages m WHERE m.target_id = ? AND m.seq > ? ORDER BY m.seq LIMIT ?",
       )
-      .all(targetId, afterSeq) as MessageRow[];
+      .all(targetId, afterSeq, bounded) as MessageRow[];
+  }
+
+  hasMessagesAfter(targetId: string, afterSeq: number): boolean {
+    const row = this.db
+      .prepare(
+        "SELECT 1 AS hit FROM messages WHERE target_id = ? AND seq > ? LIMIT 1",
+      )
+      .get(targetId, afterSeq) as { hit: number } | undefined;
+    return row !== undefined;
   }
 
   /**

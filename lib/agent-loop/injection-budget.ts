@@ -36,6 +36,9 @@ export const INJECTION_CONTEXT_CHARS = 2_400;
 /** 待发草稿（revise 的原稿）的字符上界：它是本轮要发的内容，给比普通正文更宽的额度。 */
 export const INJECTION_DRAFT_CHARS = 12_000;
 
+/** 首轮频道简报（频道名 / 描述 / 开放任务短预览 / 水位）的整块字符上界。 */
+export const INJECTION_BRIEFING_CHARS = 2_400;
+
 /** 单条消息正文上限（ADR-0005 决策一保留的 4000）。 */
 const MESSAGE_CONTENT_CAP = 4_000;
 
