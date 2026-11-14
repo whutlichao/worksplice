@@ -527,6 +527,7 @@ export class SQLiteAdapter implements Store {
     reopened?: number;
     handoffState?: TaskHandoffState | null;
     handoffSeq?: number | null;
+    handoffOwnerId?: string | null;
     updatedAt?: string;
   }): TaskRow {
     const row: TaskRow = {
@@ -538,12 +539,13 @@ export class SQLiteAdapter implements Store {
       reopened: input.reopened ?? 0,
       handoff_state: input.handoffState ?? null,
       handoff_seq: input.handoffSeq ?? null,
+      handoff_owner_id: input.handoffOwnerId ?? null,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db.transaction(() => {
       this.db
         .prepare(
-          "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, handoff_state, handoff_seq, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, handoff_state, handoff_seq, handoff_owner_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           row.id,
@@ -554,6 +556,7 @@ export class SQLiteAdapter implements Store {
           row.reopened,
           row.handoff_state,
           row.handoff_seq,
+          row.handoff_owner_id,
           row.updated_at,
         );
       this.db
@@ -624,6 +627,7 @@ export class SQLiteAdapter implements Store {
       reopened?: number;
       handoffState?: TaskHandoffState | null;
       handoffSeq?: number | null;
+      handoffOwnerId?: string | null;
       updatedAt?: string;
     },
   ): TaskRow | undefined {
@@ -640,11 +644,15 @@ export class SQLiteAdapter implements Store {
           : existing.handoff_state,
       handoff_seq:
         input.handoffSeq !== undefined ? input.handoffSeq : existing.handoff_seq,
+      handoff_owner_id:
+        input.handoffOwnerId !== undefined
+          ? input.handoffOwnerId
+          : existing.handoff_owner_id,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db
       .prepare(
-        "UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, handoff_state = ?, handoff_seq = ?, updated_at = ? WHERE id = ?",
+        "UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, handoff_state = ?, handoff_seq = ?, handoff_owner_id = ?, updated_at = ? WHERE id = ?",
       )
       .run(
         row.status,
@@ -652,6 +660,7 @@ export class SQLiteAdapter implements Store {
         row.reopened,
         row.handoff_state,
         row.handoff_seq,
+        row.handoff_owner_id,
         row.updated_at,
         id,
       );

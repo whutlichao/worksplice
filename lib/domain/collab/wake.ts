@@ -21,6 +21,8 @@ export interface WakeHint {
   targetId: string;
   seq: number;
   reason: "message" | "reminder";
+  /** 票 #242：handoff 定向唤醒的恢复补发；driver 用 seq 做队列/执行去重。 */
+  recovery?: boolean;
 }
 
 export type WakeReason = WakeHint["reason"];

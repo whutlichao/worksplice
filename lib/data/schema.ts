@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -57,6 +57,7 @@ const SCHEMA_STATEMENTS: string[] = [
     reopened INTEGER NOT NULL DEFAULT 0,
     handoff_state TEXT CHECK (handoff_state IS NULL OR handoff_state IN ('handed_off', 'blocked')),
     handoff_seq INTEGER,
+    handoff_owner_id TEXT REFERENCES members(id),
     updated_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS task_thread_reads (
@@ -252,6 +253,7 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersAvatarTintColumn(db);
     migrateTasksReopenedColumn(db);
     migrateTasksHandoffColumns(db);
+    migrateTasksHandoffOwnerColumn(db);
     migrateTaskThreadReads(db);
     migrateRoundLogsCostColumns(db);
     seed(db);
@@ -338,6 +340,23 @@ function migrateTasksHandoffColumns(db: Database.Database): void {
   }
   if (!columns.some((column) => column.name === "handoff_seq")) {
     db.exec("ALTER TABLE tasks ADD COLUMN handoff_seq INTEGER");
+  }
+}
+
+/**
+ * v18（票 #242）：tasks 增加 handoff_owner_id，记录自动分流选中的 owner。
+ * 恢复扫描据此区分「仍是当初 selected 的 owner」与「owner 已被改过」。
+ * 存量 handed_off 行无法可靠推断当初选中者（owner 可能已变），一律保持 NULL：
+ * 宁可不补唤醒，也不把恢复 wake 发给错误成员。
+ */
+function migrateTasksHandoffOwnerColumn(db: Database.Database): void {
+  const columns = db
+    .prepare("PRAGMA table_info(tasks)")
+    .all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "handoff_owner_id")) {
+    db.exec(
+      "ALTER TABLE tasks ADD COLUMN handoff_owner_id TEXT REFERENCES members(id)",
+    );
   }
 }
 

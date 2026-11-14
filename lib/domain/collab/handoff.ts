@@ -10,7 +10,7 @@ import { sendMessage } from "./messages.ts";
 import { getMember } from "./members.ts";
 import { isSecretaryMember } from "./secretary-identity.ts";
 import { claimTask, getTaskView, type TaskView } from "./tasks.ts";
-import { emitWake } from "./wake.ts";
+import { emitWake, type WakeHint } from "./wake.ts";
 import type {
   MemberRow,
   MessageRow,
@@ -20,7 +20,7 @@ import type {
 /**
  * 秘书自动 handoff 的写路径（票 #240）：
  * - 成功：同一事务里由 `claimTask` 写 owner + 任务线程通知 + `handoff_state='handed_off'`
- *   + `handoff_seq=通知 seq`；提交后只定向唤醒 chosen。
+ *   + `handoff_seq=通知 seq` + `handoff_owner_id=chosen`；提交后只定向唤醒 chosen。
  * - blocked：无唯一合适人时不 claim、不广播；任务线程写短通知（候选 / 边界 / 必须回答的问题）
  *   与 `handoff_state='blocked'` 同事务提交，任务保持 todo、owner 空。
  * - 重复触发看到 handoff_state 即 no-op；并发 claim 由 claimTask 的 owner 唯一性裁决。
@@ -48,6 +48,9 @@ export type HandoffResult =
   | { status: "noop"; reason: "already_handled" | "task_not_open" | "not_found" }
   | { status: "held"; roomSeq: number; whatHappened: string }
   | { status: "denied"; reason: string };
+
+/** 定向唤醒接缝：正常提交后与恢复扫描共用；测试注入以模拟「提交后、唤醒前崩溃」。 */
+export type HandoffWakeEmitter = (hint: WakeHint) => void;
 
 export interface HandoffNoticeInput {
   task: TaskRow;
@@ -177,6 +180,7 @@ export function handoffTask(input: {
   question?: string | null;
   baseSeq?: number;
   deliverNotice?: HandoffNoticeDelivery;
+  emitWake?: HandoffWakeEmitter;
 }): HandoffResult {
   const channel = getChannel(input.channelId);
   if (!channel) return { status: "noop", reason: "not_found" };
@@ -259,6 +263,7 @@ export function handoffTask(input: {
       const updated = getDb().updateTask(task.id, {
         handoffState: "handed_off",
         handoffSeq: notice.seq,
+        handoffOwnerId: chosen.id,
       });
       if (!updated) throw new Error("Task disappeared during handoff");
       return {
@@ -294,13 +299,14 @@ export function handoffTask(input: {
     };
   });
 
+  const wake = input.emitWake ?? emitWake;
   // 提交后只定向唤醒 chosen；blocked 不广播。
   if (
     result.status === "handed_off" &&
     getDb().getConsumedSeq(result.chosen.id, result.task.message_id) <
       result.notice.seq
   ) {
-    emitWake({
+    wake({
       agentId: result.chosen.id,
       targetId: result.task.message_id,
       seq: result.notice.seq,
@@ -308,4 +314,45 @@ export function handoffTask(input: {
     });
   }
   return result;
+}
+
+/**
+ * 票 #242：补发「claim 事务已提交、定向唤醒尚未发出」的成功 handoff。
+ * 只读任务与游标并重发 wake；不重复 claim、不改 owner、不写第二条通知。
+ * 只在任务仍为 in_progress、当前 owner 仍是当初选中的 handoff_owner_id、
+ * 通知消息仍存在且游标尚未到达 handoff_seq 时补发。
+ */
+export function recoverHandoffWakes(
+  input: { emitWake?: HandoffWakeEmitter } = {},
+): number {
+  const wake = input.emitWake ?? emitWake;
+  let emitted = 0;
+  for (const task of getDb().listTasks()) {
+    if (
+      task.handoff_state !== "handed_off" ||
+      task.handoff_seq === null ||
+      task.status !== "in_progress" ||
+      task.owner_id === null ||
+      task.handoff_owner_id !== task.owner_id
+    ) {
+      continue;
+    }
+    const owner = getMember(task.owner_id);
+    if (!owner || owner.type !== "agent" || owner.deleted === 1) continue;
+    if (!getDb().getMessageBySeq(task.message_id, task.handoff_seq)) continue;
+    if (
+      getDb().getConsumedSeq(owner.id, task.message_id) >= task.handoff_seq
+    ) {
+      continue;
+    }
+    wake({
+      agentId: owner.id,
+      targetId: task.message_id,
+      seq: task.handoff_seq,
+      reason: "message",
+      recovery: true,
+    });
+    emitted += 1;
+  }
+  return emitted;
 }

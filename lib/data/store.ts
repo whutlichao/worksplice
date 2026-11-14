@@ -157,6 +157,7 @@ export interface Store {
     reopened?: number;
     handoffState?: TaskHandoffState | null;
     handoffSeq?: number | null;
+    handoffOwnerId?: string | null;
     updatedAt?: string;
   }): TaskRow;
   listTasks(): TaskRow[];
@@ -173,6 +174,7 @@ export interface Store {
       reopened?: number;
       handoffState?: TaskHandoffState | null;
       handoffSeq?: number | null;
+      handoffOwnerId?: string | null;
       updatedAt?: string;
     },
   ): TaskRow | undefined;

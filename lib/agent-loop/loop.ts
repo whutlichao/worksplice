@@ -38,12 +38,14 @@ import {
   normalizeWorkspacePath,
   parseTaskCreationEventNumber,
   readDefaultModelFromSettings,
+  recoverHandoffWakes,
   resolveTargetChannel,
   selectSecretaryHandoffTask,
   sendMessage,
   subscribeWake,
   updateTaskStatus,
   type RoundUsage,
+  type HandoffWakeEmitter,
 } from "../domain/collab/index.ts";
 import { hasAllMention } from "../mention.ts";
 import {
@@ -2229,6 +2231,23 @@ export async function runAgentRound(
         messages: incoming,
       })
     : null;
+  // 票 #242：blocked / handed_off 的通知与标记已在同一事务提交，但进程可能在 ack 前退出。
+  // 重启后同一触发仍在 drain 里时，重入 handoff 只会得到 already-handled；这里只推进游标，
+  // 不起会话、不写第二条通知、不改 owner / 状态。人类指名秘书时不走这条捷径。
+  if (
+    isSecretary &&
+    handoffSelection?.kind === "none" &&
+    handoffSelection.reason === "already-handled" &&
+    !humanMentioned &&
+    !humanAllMentioned
+  ) {
+    ack(agentId, targetId, drained.maxSeq);
+    return {
+      status: "noop",
+      reason: "handoff already handled — acknowledged",
+      baseSeq: drained.maxSeq,
+    };
+  }
   const handoffTargetTask =
     handoffSelection?.kind === "handoff" ? handoffSelection.task : null;
   const handoffCandidates = handoffTargetTask
@@ -2714,6 +2733,10 @@ export async function runAgentRound(
 interface QueuedTarget {
   targetId: string;
   reason: WakeReason;
+  /** 该 hint 的水位；恢复补发用它判断是否已消费。 */
+  seq: number;
+  /** 只有恢复补发需要执行层去重（普通 wake 可能携带 seq 之后的新消息）。 */
+  recovery: boolean;
 }
 
 interface BackfillQuarantine {
@@ -2862,6 +2885,14 @@ export function peekAgentLoopBackfillQuarantine(): Array<{
 function enqueueWake(hint: WakeHint): void {
   const state = getDriverState();
   if (!state.started) return;
+  // 票 #242：恢复补发是至少一次投递，但 stale 的补发不得进队列。
+  // 游标已到 hint.seq 说明这一轮已被消费；再排一轮只会白跑。
+  if (
+    hint.recovery &&
+    getDb().getConsumedSeq(hint.agentId, hint.targetId) >= hint.seq
+  ) {
+    return;
+  }
   let queue = state.queues.get(hint.agentId);
   if (!queue) {
     queue = [];
@@ -2872,9 +2903,16 @@ function enqueueWake(hint: WakeHint): void {
     // 同 (agent, target) 合并：reminder 是更宽松的处理模式（不跳过自己的消息），
     // 已排队的 message 轮升级为 reminder 轮也不损失什么；反之会丢自提醒
     if (hint.reason === "reminder") existing.reason = "reminder";
+    existing.seq = Math.max(existing.seq, hint.seq);
+    existing.recovery = existing.recovery && Boolean(hint.recovery);
     return;
   }
-  queue.push({ targetId: hint.targetId, reason: hint.reason });
+  queue.push({
+    targetId: hint.targetId,
+    reason: hint.reason,
+    seq: hint.seq,
+    recovery: Boolean(hint.recovery),
+  });
   const scanFailure = state.backfillScanFailures.get(hint.agentId);
   if (scanFailure) {
     const key = backfillTargetKey(hint.agentId, hint.targetId);
@@ -2925,6 +2963,13 @@ async function processAgent(agentId: string): Promise<void> {
       ) ?? -1;
       if (!queue || readyIndex < 0) break;
       const [queued] = queue.splice(readyIndex, 1);
+      // 执行层去重：排队期间游标已被另一轮推进到 hint 水位，恢复补发不再起一轮。
+      if (
+        queued.recovery &&
+        getDb().getConsumedSeq(agentId, queued.targetId) >= queued.seq
+      ) {
+        continue;
+      }
 
       // v16 每轮用量：轮前快照会话累计统计（会话不存在/统计读取失败 → 本轮记 null）。
       let usageSession: LoopSession | undefined;
@@ -2984,11 +3029,17 @@ async function processAgent(agentId: string): Promise<void> {
           pendingQueue &&
           !pendingQueue.some((entry) => entry.targetId === queued.targetId)
         ) {
-          pendingQueue.push({ targetId: queued.targetId, reason: queued.reason });
+          // 这是游标之后的真实积压，不是恢复补发：标记成普通轮，避免被恢复去重跳过。
+          pendingQueue.push({
+            targetId: queued.targetId,
+            reason: queued.reason,
+            seq: consumedAfter,
+            recovery: false,
+          });
         }
       }
       if (outcome.status === "busy" || outcome.status === "busy-cwd") {
-        waitForSettle(agentId, queued.targetId, queued.reason);
+        waitForSettle(agentId, queued);
         break;
       }
     }
@@ -3014,8 +3065,7 @@ async function processAgent(agentId: string): Promise<void> {
 // 11-收敛：busy-cwd 重试改用 cwd-mutex 原语（waitForCwdSettle + scheduleBusyRetry），行为不变。
 async function waitForSettle(
   agentId: string,
-  targetId: string,
-  reason: WakeReason,
+  queued: QueuedTarget,
 ): Promise<void> {
   const state = getDriverState();
   if (state.waitingForSettle.has(agentId)) return;
@@ -3028,8 +3078,11 @@ async function waitForSettle(
       state.settleUnsubs.delete(agentId);
     }
     const queue = state.queues.get(agentId);
-    if (queue && !queue.some((entry) => entry.targetId === targetId)) {
-      queue.push({ targetId, reason });
+    if (
+      queue &&
+      !queue.some((entry) => entry.targetId === queued.targetId)
+    ) {
+      queue.push(queued);
     }
     void processAgent(agentId);
   };
@@ -4026,6 +4079,7 @@ interface CronState {
   timer: NodeJS.Timeout | null;
   pollMs: number;
   now: () => Date;
+  emitWake: HandoffWakeEmitter | undefined;
 }
 
 declare global {
@@ -4042,25 +4096,31 @@ function getCronState(): CronState {
       timer: null,
       pollMs: REMINDER_POLL_MS,
       now: () => new Date(),
+      emitWake: undefined,
     };
   }
   return globalThis.__workspliceReminderCron;
 }
 
 export function startReminderCron(
-  deps: { pollMs?: number; now?: () => Date } = {},
+  deps: {
+    pollMs?: number;
+    now?: () => Date;
+    emitWake?: HandoffWakeEmitter;
+  } = {},
 ): () => void {
   const state = getCronState();
   if (state.started) return stopReminderCron;
   state.started = true;
   state.pollMs = deps.pollMs ?? REMINDER_POLL_MS;
   state.now = deps.now ?? (() => new Date());
+  state.emitWake = deps.emitWake;
   state.timer = setInterval(() => {
     try {
-      tickReminderCron(state.now());
+      tickAgentLoopMaintenance(state.now(), { emitWake: state.emitWake });
     } catch (error) {
       console.error(
-        "[worksplice] reminder cron tick failed:",
+        "[worksplice] agent loop maintenance tick failed:",
         error instanceof Error ? error.message : String(error),
       );
     }
@@ -4082,6 +4142,27 @@ export function stopReminderCron(): void {
 export function tickReminderCron(now: Date = new Date()): number {
   const outcomes = fireDueReminders(now);
   return outcomes.filter((outcome) => outcome.status === "fired").length;
+}
+
+/**
+ * 低频维护 tick（票 #242）：提醒 cron + handoff 恢复扫描共用同一个低频节拍。
+ * 恢复扫描只读任务与游标；补发本身不 claim、不改 owner、不写通知。
+ */
+export function tickAgentLoopMaintenance(
+  now: Date = new Date(),
+  deps: { emitWake?: HandoffWakeEmitter } = {},
+): { reminders: number; recoveryWakes: number } {
+  const reminders = tickReminderCron(now);
+  let recoveryWakes = 0;
+  try {
+    recoveryWakes = recoverHandoffWakes({ emitWake: deps.emitWake });
+  } catch (error) {
+    console.error(
+      "[worksplice] handoff recovery tick failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  return { reminders, recoveryWakes };
 }
 
 // ----------------------------------------------------------------------------
@@ -4113,6 +4194,7 @@ export function createAgentLoop(
     pollMs?: number;
     now?: () => Date;
     backfill?: BackfillOptions;
+    emitWake?: HandoffWakeEmitter;
   } = {},
 ): AgentLoop {
   let started = false;
@@ -4125,7 +4207,19 @@ export function createAgentLoop(
       // 留到后续事件循环轮次执行。
       startAgentBackfill(deps.backfill);
       startAgentLoopDriver({ runtime: deps.runtime });
-      startReminderCron({ pollMs: deps.pollMs, now: deps.now });
+      try {
+        recoverHandoffWakes({ emitWake: deps.emitWake });
+      } catch (error) {
+        console.error(
+          "[worksplice] handoff recovery at startup failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      startReminderCron({
+        pollMs: deps.pollMs,
+        now: deps.now,
+        emitWake: deps.emitWake,
+      });
     },
     stop(): void {
       started = false;
@@ -4134,7 +4228,9 @@ export function createAgentLoop(
       stopReminderCron();
     },
     tick(): void {
-      tickReminderCron(deps.now ? deps.now() : new Date());
+      tickAgentLoopMaintenance(deps.now ? deps.now() : new Date(), {
+        emitWake: deps.emitWake,
+      });
     },
   };
 }
