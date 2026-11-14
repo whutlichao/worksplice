@@ -1173,6 +1173,13 @@ export class SQLiteAdapter implements Store {
     return row?.seq ?? 0;
   }
 
+  hasConsumedSeq(agentId: string, targetId: string): boolean {
+    const row = this.db
+      .prepare("SELECT 1 AS hit FROM consumed_seqs WHERE agent_id = ? AND target_id = ?")
+      .get(agentId, targetId) as { hit: number } | undefined;
+    return row !== undefined;
+  }
+
   setConsumedSeq(agentId: string, targetId: string, seq: number): void {
     this.db
       .prepare(

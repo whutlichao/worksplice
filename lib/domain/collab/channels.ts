@@ -45,6 +45,20 @@ function assertMember(memberId: string): MemberRow {
   return member;
 }
 
+/**
+ * 非 DM 加入的唯一写入路径：成员关系与入群游标一起落库。
+ * 游标只在缺失时钉到当前 max(seq)——已有游标（含显式 0）是成员自己的进度，不得覆盖。
+ */
+export function addMemberWithJoinCursor(channelId: string, memberId: string): void {
+  const db = getDb();
+  db.withTransaction(() => {
+    db.addChannelMember(channelId, memberId);
+    if (!db.hasConsumedSeq(memberId, channelId)) {
+      db.setConsumedSeq(memberId, channelId, db.maxSeq(channelId));
+    }
+  });
+}
+
 /** DM 频道确定性 id：`dm:owner↔<agent名>`（spec R7，天然幂等）。 */
 function directChannelId(agentName: string): string {
   return `${DM_ID_PREFIX}${agentName}`;
@@ -135,15 +149,15 @@ export function createChannel(input: {
     type: input.type ?? "public",
     description: (input.description ?? "").trim(),
   });
-  getDb().addChannelMember(channel.id, OWNER_MEMBER_ID);
+  addMemberWithJoinCursor(channel.id, OWNER_MEMBER_ID);
   for (const memberId of input.memberIds ?? []) {
     assertMember(memberId);
-    getDb().addChannelMember(channel.id, memberId);
+    addMemberWithJoinCursor(channel.id, memberId);
   }
   // §7 新建公开频道必加：秘书静默加入（不触发欢迎事件；私有频道由创建者预勾选决定）。
   if (channel.type === "public") {
     const susan = findSusanMember();
-    if (susan) getDb().addChannelMember(channel.id, susan.id);
+    if (susan) addMemberWithJoinCursor(channel.id, susan.id);
   }
   notifyChannelCreated(channel);
   return channel;
@@ -168,7 +182,7 @@ export function joinChannel(
     throw new Error("Only the owner can add members to a private channel");
   }
   const isNewMember = !getDb().isChannelMember(channelId, memberId);
-  getDb().addChannelMember(channelId, memberId);
+  addMemberWithJoinCursor(channelId, memberId);
   if (isNewMember) notifyAgentJoinedChannel(channelId, memberId);
 }
 
