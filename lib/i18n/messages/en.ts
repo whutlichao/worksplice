@@ -488,6 +488,29 @@ export const enLocale: LocalePlugin = {
     "channel.stopIdle": "No active room wave",
     "channel.stopFailed": "Could not stop the current room wave",
     "channel.initialMembers": "Initial members",
+    "chief.setting": "Channel chief",
+    "chief.detailHint":
+      "Who picks up unaddressed messages here: channel chief, else the global chief, else nobody",
+    "chief.detailChannel": "Chief: {name} (this channel)",
+    "chief.detailGlobal": "Chief: {name} (global fallback)",
+    "chief.detailNone": "Chief: none (no default recipient)",
+    "chief.fallbackOption": "Global chief (not set)",
+    "chief.settingHint":
+      "The chief answers messages here that mention nobody; picking the global chief clears it",
+    "chief.updated": "Chief set to {name}",
+    "chief.cleared": "Channel chief cleared — falling back to the global chief",
+    "chief.failed": "Could not change the channel chief",
+    "chief.failChannelNotFound": "Channel not found",
+    "chief.failOwnerOnly": "Only the owner can set the channel chief",
+    "chief.failMemberNotFound": "Member not found",
+    "chief.failHumanMember": "The channel chief must be an agent member, not a human",
+    "chief.failMemberDeleted":
+      "That member was deleted and cannot be the channel chief",
+    "chief.failNotChannelMember": "The channel chief must be a member of this channel",
+    "chief.createLabel": "Channel chief (optional)",
+    "chief.createHint":
+      "Only agents joining this channel can be picked; leave it unset to fall back to the global chief",
+    "chief.selectionRejected": "Invalid chief selection: {reason}",
     "message.send": "Send",
     "message.composerPlaceholder":
       "Message… (Enter to send, Shift+Enter for newline)",
