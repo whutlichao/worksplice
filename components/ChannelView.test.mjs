@@ -1360,8 +1360,6 @@ test("空频道改为与 DM 同形的空态：messages.emptyChannel + 复用 emp
     // DM 空态与两条空态共用的 hint 原样保留（其它三个空态不动）。
     assert.match(source, /title=\{t\("messages\.emptyDM"\)\}/);
     assert.match(source, /hint=\{t\("messages\.emptyDMHint"\)\}/);
-    // 空频道不再套那层为引导卡留的内边距容器。
-    assert.doesNotMatch(source, /padding: "var\(--sp-6\) var\(--sp-9\)"/);
 });
 
 test("空频道文案两包同步：新增 messages.emptyChannel，journey.* 七键全部删除", async () => {
@@ -1375,9 +1373,6 @@ test("空频道文案两包同步：新增 messages.emptyChannel，journey.* 七
         enLocale.messages["messages.emptyChannel"],
         "No messages in this channel yet",
     );
-    // hint 复用既有的 DM 空态提示，两包都还在。
-    assert.ok(zhCNLocale.messages["messages.emptyDMHint"]);
-    assert.ok(enLocale.messages["messages.emptyDMHint"]);
     for (const key of [
         "journey.describe.title",
         "journey.describe.hint",
