@@ -17,6 +17,7 @@ import {
 } from "./types.ts";
 import type { Store } from "./store.ts";
 import type {
+  AdmissionRole,
   AppendMessageInput,
   AgentAvatarTint,
   AttachmentRow,
@@ -112,12 +113,21 @@ export class SQLiteAdapter implements Store {
       description: input.description ?? "",
       archived: 0,
       created_at: input.createdAt ?? new Date().toISOString(),
+      chief_member_id: null,
     };
     this.db
       .prepare(
-        "INSERT INTO channels (id, name, type, description, archived, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO channels (id, name, type, description, archived, created_at, chief_member_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(row.id, row.name, row.type, row.description, row.archived, row.created_at);
+      .run(
+        row.id,
+        row.name,
+        row.type,
+        row.description,
+        row.archived,
+        row.created_at,
+        row.chief_member_id,
+      );
     return row;
   }
 
@@ -133,6 +143,13 @@ export class SQLiteAdapter implements Store {
 
   setChannelArchived(id: string, archived: number): void {
     this.db.prepare("UPDATE channels SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
+  }
+
+  /** #250 频道首席：单条 UPDATE（先校验后写由协作域负责），`null` = 清除绑定。 */
+  setChannelChief(channelId: string, memberId: string | null): void {
+    this.db
+      .prepare("UPDATE channels SET chief_member_id = ? WHERE id = ?")
+      .run(memberId, channelId);
   }
 
   listChannelMembers(channelId: string): ChannelMemberRow[] {
@@ -300,11 +317,12 @@ export class SQLiteAdapter implements Store {
       thinking_level: input.thinkingLevel ?? null,
       created_at: input.createdAt ?? new Date().toISOString(),
       avatar_tint: null,
+      global_chief: 0,
     };
     this.db
       .prepare(
-        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at, avatar_tint)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at, avatar_tint, global_chief)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -321,6 +339,7 @@ export class SQLiteAdapter implements Store {
         row.thinking_level,
         row.created_at,
         row.avatar_tint,
+        row.global_chief,
       );
     return this.withEffectiveWorkspace(row);
   }
@@ -390,6 +409,16 @@ export class SQLiteAdapter implements Store {
 
   setMemberDeleted(id: string, deleted: number): void {
     this.db.prepare("UPDATE members SET deleted = ? WHERE id = ?").run(deleted ? 1 : 0, id);
+  }
+
+  /** #248 全局首席：先清空再置位（同一事务），保证「同一时刻至多一位」。 */
+  setGlobalChief(memberId: string | null): void {
+    this.withTransaction(() => {
+      this.db.prepare("UPDATE members SET global_chief = 0 WHERE global_chief = 1").run();
+      if (memberId !== null) {
+        this.db.prepare("UPDATE members SET global_chief = 1 WHERE id = ?").run(memberId);
+      }
+    });
   }
 
   /** 删除身份：认领消失（§3.6），任务回到未认领池。 */
@@ -875,6 +904,7 @@ export class SQLiteAdapter implements Store {
     promptTokens?: number | null;
     completionTokens?: number | null;
     cost?: number | null;
+    role?: AdmissionRole | null;
   }): RoundLogRow {
     const row: RoundLogRow = {
       id: input.id ?? randomUUID(),
@@ -887,10 +917,11 @@ export class SQLiteAdapter implements Store {
       prompt_tokens: input.promptTokens ?? null,
       completion_tokens: input.completionTokens ?? null,
       cost: input.cost ?? null,
+      role: input.role ?? null,
     };
     this.db
       .prepare(
-        "INSERT INTO round_logs (id, agent_id, target_id, status, reason, base_seq, created_at, prompt_tokens, completion_tokens, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO round_logs (id, agent_id, target_id, status, reason, base_seq, created_at, prompt_tokens, completion_tokens, cost, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         row.id,
@@ -903,6 +934,7 @@ export class SQLiteAdapter implements Store {
         row.prompt_tokens,
         row.completion_tokens,
         row.cost,
+        row.role,
       );
     return row;
   }

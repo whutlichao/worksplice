@@ -1,7 +1,10 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { hasAllMention } from "../../mention.ts";
 import { listChannelMembers, resolveChannelForTarget } from "./channels.ts";
+import { canRouteToChief, resolveEffectiveChief } from "./chief.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
+import { hasTaskReference } from "./task-reference.ts";
+import type { ChannelRow } from "../../data/types.ts";
 
 /**
  * 一条消息产生的新邀请（Ticket #237）：
@@ -17,11 +20,18 @@ export interface MessageInvitations {
   all: boolean;
   /** 正文点名的 agent（含未加入频道者——人类点名可穿透）。 */
   mentioned: string[];
-  /** 本条消息实际邀请的 agent（去重；任务 owner 续工也在这里）。 */
+  /** 本条消息实际邀请的 agent（去重；任务 owner 续工与默认首席也在这里）。 */
   candidates: string[];
+  /** 本条消息接住它的生效首席（#248）；不是首席轮时为 null。 */
+  chief: string | null;
 }
 
-const EMPTY: MessageInvitations = { all: false, mentioned: [], candidates: [] };
+const EMPTY: MessageInvitations = {
+  all: false,
+  mentioned: [],
+  candidates: [],
+  chief: null,
+};
 
 /** Owner 任务创建事件正文（与 loop 的自动路由同一格式）。 */
 export function parseTaskCreationEventNumber(content: string): number | null {
@@ -29,6 +39,45 @@ export function parseTaskCreationEventNumber(content: string): number | null {
   if (!match) return null;
   const number = Number(match[1]);
   return Number.isSafeInteger(number) ? number : null;
+}
+
+/**
+ * 一条人类消息是否由生效首席默认接住（#248 / #250）：只在那四条已有路径全部不成立时成立——
+ * 非 DM、无个人点名、无 `@all`、不涉及任务（不是任务线程、不是任务锚点、不引用任何 `Task #N`）。
+ *
+ * 「涉及任务」的判定与 handoff 触发共用 `task-reference.ts` 的同一份解析：任务相关的人类消息
+ * **只**由全局首席以 secretary-handoff 准入（#240），不得被频道首席的 chief 分支抢走——
+ * 否则频道首席≠全局首席时，一条唯一 `Task #N` 引用会叫错人、或把两轮都叫起来。
+ *
+ * 首席在本频道不可用（已软删 / 不是该频道 agent 成员 / 静音了该频道）⇒ null
+ * （「没有可用首席」与「没有首席」同义：不换人、不兜底广播）。
+ * 注：解析（`resolveEffectiveChief`）只判绑定是否有效；静音 / 成员身份在
+ * `chief.ts` 的 `canRouteToChief` 里判（唯一结论，频道行的 `chiefAvailable` 也读它）。
+ *
+ * 判定住在这里，是因为它复用与邀请候选同一份点名 / 任务解析；`beginTurn`、wake
+ * 与 agent-loop 的准入都调它，不另开第二条选人路径。
+ */
+export function selectChiefRecipient(input: {
+  channel: ChannelRow;
+  targetId: string;
+  content: string;
+}): string | null {
+  if (input.channel.type === "dm") return null;
+  if (hasAllMention(input.content)) return null;
+  const namesAnAgent = extractMentionedMemberIds(input.content).some(
+    (memberId) => getMember(memberId)?.type === "agent",
+  );
+  if (namesAnAgent) return null;
+  if (getDb().getTaskByMessageId(input.targetId)) return null;
+  // 任务创建事件的正文形如 `Task #N created — …`：它已经被下面这一条覆盖（`Task #N` 就是
+  // 一条引用），所以这里只留一份解析——`hasTaskReference` 是「涉及任务」的单一来源，
+  // 不再单独解析创建事件（两条判据并存只会让人以为它们覆盖不同的面）。
+  if (hasTaskReference(input.content)) return null;
+
+  const { chief } = resolveEffectiveChief(input.channel.id);
+  if (!chief) return null;
+  if (!canRouteToChief(input.channel.id, chief.id)) return null;
+  return chief.id;
 }
 
 export function selectMessageInvitations(input: {
@@ -88,5 +137,13 @@ export function selectMessageInvitations(input: {
     for (const memberId of mentionedCandidates) candidates.add(memberId);
   }
 
-  return { all, mentioned, candidates: [...candidates] };
+  // #248：四条已有路径都不成立时，生效首席接住这条消息（点名轮不额外追加首席）。
+  const chief = selectChiefRecipient({
+    channel,
+    targetId: input.targetId,
+    content: input.content,
+  });
+  if (chief) candidates.add(chief);
+
+  return { all, mentioned, candidates: [...candidates], chief };
 }

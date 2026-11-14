@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Eraser, FolderOpen, MessageSquare, Pencil, X } from "lucide-react";
+import { Check, Crown, Eraser, FolderOpen, MessageSquare, Pencil, X } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { isAgentAvatarTint } from "@/lib/data/types";
+import { OWNER_MEMBER_ID } from "@/lib/data/schema";
 import { needsRuntimeSave, runtimeOverrideFromDraft } from "@/lib/runtime-draft";
 import type { RuntimeOverride } from "@/lib/runtime-draft";
 import {
@@ -13,10 +14,12 @@ import {
 import { Avatar } from "./Avatar";
 import { StatusDot } from "./StatusDot";
 import { BrutalModal } from "./BrutalModal";
+import type { ChannelWithMeta } from "./ChannelView";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { ModelPicker } from "./ModelPicker";
 import { AgentTranscriptToggle, AgentTranscriptViewer } from "./AgentTranscriptViewer";
 import type {
+  AdmissionRole,
   AgentAvatarTint,
   MemberRow,
   MemberStatus,
@@ -56,6 +59,201 @@ function Row({
       <span className="v">{value}</span>
     </div>
   );
+}
+
+/**
+ * 首席视角（票 #251）：这个 agent 此刻是不是全局首席、在哪些频道当频道首席。
+ * 全部来自**服务端现算**的结论（`/api/members` 的 `global_chief`、`/api/channels` 的
+ * `chief` / `chiefSource`）——客户端不按绑定重新推导，也不缓存。
+ */
+export interface AgentChiefView {
+  /** 全局首席的成员 id（无人时 null）。 */
+  globalChiefId: string | null;
+  /** 该 agent 当**频道**首席的频道名（回落全局不算「在哪个频道当首席」）。 */
+  channelNames: string[];
+}
+
+/** 首席视角用到的频道列（`/api/channels` 的 `ChannelWithMeta` 切片）。 */
+export type ChiefChannelRow = Pick<
+  ChannelWithMeta,
+  "id" | "name" | "chief" | "chiefSource"
+>;
+
+/**
+ * 从服务端行推出某个 agent 的首席视角（纯函数：面板生产路径与 SSR 渲染断言跑同一份）。
+ *
+ * 只陈述**此刻成立**的事实：失效绑定（软删 / 离场 / 非 agent）在服务端已按「未设置」
+ * 解析过，行里不会留着旧名字；软删身份也不在 `/api/members` 列表里——因此不可能显示
+ * 过期条目。
+ */
+export function deriveAgentChiefView(input: {
+  agentId: string;
+  agents: Array<Pick<MemberRow, "id" | "global_chief">>;
+  channels: ChiefChannelRow[];
+}): AgentChiefView {
+  return {
+    globalChiefId:
+      input.agents.find((member) => member.global_chief === 1)?.id ?? null,
+    channelNames: input.channels
+      .filter(
+        (channel) =>
+          channel.chiefSource === "channel" && channel.chief?.id === input.agentId,
+      )
+      .map((channel) => channel.name),
+  };
+}
+
+/**
+ * 首席节（票 #251）：只读结论 + Owner 的设 / 清空入口。
+ * 入口只在 `canManage`（Owner）时出现；提交由调用方的保存处理器负责——等服务器响应，
+ * 不做乐观提交（失败原地给原因，见 `createGlobalChiefSaveHandler`）。
+ */
+export function AgentChiefSection({
+  isGlobalChief,
+  channelNames,
+  canManage,
+  saving,
+  error,
+  onSave,
+}: {
+  isGlobalChief: boolean;
+  channelNames: string[];
+  canManage: boolean;
+  saving: boolean;
+  error: string | null;
+  /** `true` = 把这个 agent 设为全局首席；`false` = 清空（回到「没有默认收件人」）。 */
+  onSave: (makeChief: boolean) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <>
+      <SectionTitle>{t("agent.chiefSection")}</SectionTitle>
+      <Row
+        label={t("agent.chiefGlobal")}
+        value={
+          isGlobalChief ? (
+            <span
+              data-chief-badge="global"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                color: "var(--accent-graphic)",
+                fontFamily: "var(--mono)",
+              }}
+            >
+              <Crown size={12} aria-hidden="true" />
+              {t("agent.chiefYes")}
+            </span>
+          ) : (
+            t("agent.chiefNo")
+          )
+        }
+      />
+      <Row
+        label={t("agent.chiefChannels")}
+        value={
+          channelNames.length === 0 ? (
+            t("agent.chiefNoChannels")
+          ) : (
+            <span>
+              {channelNames.map((name) => (
+                <span key={name} data-chief-channel={name} style={{ marginRight: 6 }}>
+                  #{name}
+                </span>
+              ))}
+            </span>
+          )
+        }
+      />
+      {canManage && (
+        <button
+          type="button"
+          data-chief-action={isGlobalChief ? "clear" : "set"}
+          disabled={saving}
+          onClick={() => onSave(!isGlobalChief)}
+          style={{
+            marginTop: "var(--sp-4)",
+            padding: "5px 10px",
+            background: "var(--panel-2)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-sm)",
+            color: "var(--fg)",
+            fontFamily: "var(--mono)",
+            fontSize: "var(--fs-caption)",
+            cursor: saving ? "default" : "pointer",
+          }}
+        >
+          {isGlobalChief ? t("agent.clearGlobalChief") : t("agent.setGlobalChief")}
+        </button>
+      )}
+      {error && (
+        <div
+          role="alert"
+          data-chief-error="true"
+          style={{
+            marginTop: "var(--sp-4)",
+            fontSize: "var(--fs-caption)",
+            color: "var(--error)",
+          }}
+        >
+          {t("agent.chiefSaveFailed", { reason: error })}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** 全局首席保存的接缝（`request` 可注入）：等服务器响应，不乐观提交。 */
+interface GlobalChiefSaveHandlerInput {
+  /** 要设为全局首席的成员 id；`null` = 清空。 */
+  memberId: string | null;
+  request?: typeof fetch;
+  setSaving: (saving: boolean) => void;
+  setError: (error: string | null) => void;
+  /** 回读服务端真实结论（成功与失败都回读：界面不停在本地猜的状态）。 */
+  reload: () => Promise<void>;
+  onChanged: () => void;
+}
+
+/**
+ * 保存全局首席（票 #251）：**不做乐观提交**——响应回来前不改任何结论；失败把可读原因
+ * 就地交给界面，并回读服务端，最终显示的一定是真实状态。
+ */
+export function createGlobalChiefSaveHandler({
+  memberId,
+  request = fetch,
+  setSaving,
+  setError,
+  reload,
+  onChanged,
+}: GlobalChiefSaveHandlerInput) {
+  return async (): Promise<boolean> => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await request("/api/global-chief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: unknown };
+      if (!response.ok || body.error) {
+        throw new Error(
+          typeof body.error === "string" ? body.error : `HTTP ${response.status}`,
+        );
+      }
+      await reload();
+      onChanged();
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+      await reload();
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
 }
 
 /** Agent 资料描述的行内编辑器；保存只经成员资料 PATCH，不触碰会话或家目录。 */
@@ -393,6 +591,8 @@ interface ObservabilityData {
     promptTokens: number | null;
     completionTokens: number | null;
     cost: number | null;
+    /** #249 这一轮怎么进来的；null = 历史行 / 没有准入结论（展示「未记录」）。 */
+    role: AdmissionRole | null;
   }>;
   /** v16 成本双视图（round_logs 用量聚合）：全量 + 最近 50 轮。 */
   roundUsage: {
@@ -590,6 +790,11 @@ export function RoundLogsList({
               style={{ maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis" }}
             >
               {round.targetId}
+            </span>
+            <span className="ts" title={t("observability.roundRoleTitle")}>
+              {round.role
+                ? t("observability.roundRole." + round.role)
+                : t("observability.roundRole.none")}
             </span>
             <span className={`lv ${ROUND_LEVEL[round.status] ?? "info"}`}>
               {t("observability.roundStatus." + round.status)}
@@ -1013,6 +1218,8 @@ export function AgentDetailPanel({
   onDeleteFailed,
   onOpenDM,
   hasMessages = false,
+  chiefView: injectedChiefView,
+  viewerId = OWNER_MEMBER_ID,
 }: {
   agent: MemberRow & { home_path?: string };
   onClose: () => void;
@@ -1025,6 +1232,13 @@ export function AgentDetailPanel({
   onOpenDM: (agentId: string) => void;
   /** 该 agent 的 DM 是否已有消息：无消息 →「发送消息」，有消息 →「打开私信」。 */
   hasMessages?: boolean;
+  /**
+   * 首席视角（票 #251）：省略 = 面板挂载后自己拉 `/api/members` + `/api/channels` 现算
+   * （生产路径）；注入形态让 SSR 渲染断言跑同一个派生函数，不必在测试里另造结论。
+   */
+  chiefView?: AgentChiefView;
+  /** 当前查看者（省略 = Owner，本机人类形态）：非 Owner 只见只读结论、没有设置入口。 */
+  viewerId?: string;
 }) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
@@ -1040,6 +1254,13 @@ export function AgentDetailPanel({
   const [avatarTintSaving, setAvatarTintSaving] = useState(false);
   const [avatarTintError, setAvatarTintError] = useState<string | null>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+
+  // 票 #251 首席视角：服务端现算的结论，面板自己拉（不读 AppShell 的 agent 行——
+  // 那里没有频道结论，且行的浅比较不感知 `global_chief`，会把换人/清空冻在旧值）。
+  const [loadedChiefView, setLoadedChiefView] = useState<AgentChiefView | null>(null);
+  const chiefView = injectedChiefView ?? loadedChiefView;
+  const [chiefSaving, setChiefSaving] = useState(false);
+  const [chiefError, setChiefError] = useState<string | null>(null);
 
   // §6.5 可观测性数据
   const [obs, setObs] = useState<ObservabilityData | null>(null);
@@ -1175,6 +1396,35 @@ export function AgentDetailPanel({
       disposed = true;
     };
   }, [agent.workspace_path]);
+
+  /** 回读首席视角（票 #251）：两个现算接口并行拉，派生与应用同一份纯函数。 */
+  const loadChiefView = useCallback(async (memberId: string) => {
+    const [agentsResponse, channelsResponse] = await Promise.all([
+      fetch("/api/members"),
+      fetch("/api/channels"),
+    ]);
+    const agentsBody = (await agentsResponse.json().catch(() => ({}))) as {
+      agents?: MemberRow[];
+    };
+    const channelsBody = (await channelsResponse.json().catch(() => ({}))) as {
+      channels?: ChiefChannelRow[];
+    };
+    setLoadedChiefView(
+      deriveAgentChiefView({
+        agentId: memberId,
+        agents: agentsBody.agents ?? [],
+        channels: channelsBody.channels ?? [],
+      }),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (injectedChiefView) return;
+    setLoadedChiefView(null);
+    setChiefError(null);
+    // 拉不到就整节不渲染（宁可不说，也不显示可能过期的「不是首席」）。
+    void loadChiefView(agent.id).catch(() => setLoadedChiefView(null));
+  }, [agent.id, injectedChiefView, loadChiefView]);
 
   useEffect(() => {
     setObsLoading(true);
@@ -1475,6 +1725,29 @@ export function AgentDetailPanel({
             }
           />
         </section>
+
+        {/* 票 #251 首席节：这个 agent 是不是全局首席 / 在哪些频道当首席（只说此刻成立的事实）+ Owner 的设 / 清空入口。
+            拉不到结论时整节不渲染——宁可不说，也不显示可能过期的「不是首席」。 */}
+        {chiefView && (
+          <section className="d-sec">
+            <AgentChiefSection
+              isGlobalChief={chiefView.globalChiefId === agent.id}
+              channelNames={chiefView.channelNames}
+              canManage={viewerId === OWNER_MEMBER_ID}
+              saving={chiefSaving}
+              error={chiefError}
+              onSave={(makeChief) => {
+                void createGlobalChiefSaveHandler({
+                  memberId: makeChief ? agent.id : null,
+                  setSaving: setChiefSaving,
+                  setError: setChiefError,
+                  reload: () => loadChiefView(agent.id),
+                  onChanged,
+                })();
+              }}
+            />
+          </section>
+        )}
 
         {/* §3.10 模型节：per-agent 模型 / provider / thinking，覆盖全局默认。
             界面反馈第 7 条：保存不再是按钮，焦点离开本节时按草稿差异自动 PATCH。 */}

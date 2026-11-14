@@ -26,6 +26,9 @@ const {
     completeJourneyGuideExitState,
     CenterTabs,
     MessageMoreMenu,
+    chiefHintFor,
+    chiefRecipientOf,
+    ComposerChiefHint,
 } = await jiti.import("./ChannelView.tsx");
 const { mergeIncomingMessages } = await jiti.import(
     "../hooks/useChannelData.ts",
@@ -2039,4 +2042,285 @@ test("A5：@ 补全没有候选时 aria-activedescendant 不指向不存在的 o
             /atMenuOpen && atQuery !== null && atMatches\.length > 0\s*\n?\s*\?\s*`composer-at-option-\$\{atActiveIndex\}`/,
         );
     });
+});
+
+// ── 票 #251：composer「谁会接这条消息」轻提示 ────────────────────────────────
+// 判据来源：票面「没有点名任何 agent 时显示轻提示 / 出现个人点名或 @all 时改为说明按
+// 点名送达 / 没有可用首席时明确说明没有默认收件人」。提示只说明——不拦截发送、
+// 不改写正文、不发额外请求（数据全部来自频道行已带出的 `chief` / `chiefSource`）。
+
+const CHIEF_SUSAN = { id: "agent-susan", name: "susan" };
+const AGENT_BOB = { id: "agent-bob", name: "bob" };
+
+function chiefInput(overrides = {}) {
+    return {
+        draft: "",
+        mentionMembers: [AGENT_BOB],
+        chief: CHIEF_SUSAN,
+        chiefSource: "channel",
+        chiefAvailable: true,
+        enabled: true,
+        ...overrides,
+    };
+}
+
+test("chiefHintFor：无点名时按生效首席分三态（频道首席 / 回落全局 / 没有）", () => {
+    assert.deepEqual(chiefHintFor(chiefInput()), {
+        kind: "channel",
+        chiefName: "susan",
+    });
+    assert.deepEqual(chiefHintFor(chiefInput({ chiefSource: "global" })), {
+        kind: "global",
+        chiefName: "susan",
+    });
+    assert.deepEqual(chiefHintFor(chiefInput({ chief: null, chiefSource: "none" })), {
+        kind: "none",
+        chiefName: null,
+    });
+});
+
+test("chiefHintFor：首席对本频道不可达时降为「没有默认收件人」（不承诺不发生的投递）", () => {
+    // 服务端已判不可达（非本频道成员 / 静音）：行上仍解析出同一位首席，但提示不得说他会接。
+    for (const chiefSource of ["channel", "global"]) {
+        assert.deepEqual(
+            chiefHintFor(chiefInput({ chiefSource, chiefAvailable: false })),
+            { kind: "none", chiefName: null },
+            chiefSource,
+        );
+    }
+    // 通知类文案仍然只看「有没有点名」：点名轮照旧说按点名送达
+    assert.equal(
+        chiefHintFor(chiefInput({ draft: "@bob 你看下", chiefAvailable: false })).kind,
+        "named",
+    );
+});
+
+test("chiefHintFor：点名人类成员不算点名（不会因此说「按点名送达」）", () => {
+    const OWNER_MENTION = { id: "owner", name: "Owner", type: "human" };
+    const members = [AGENT_BOB, OWNER_MENTION];
+    // 人类成员叫不起任何 agent：提示仍按生效首席说（这里正是 `type` 必须真实的理由）
+    assert.equal(
+        chiefHintFor(chiefInput({ draft: "@Owner 你看下", mentionMembers: members })).kind,
+        "channel",
+    );
+    assert.equal(
+        chiefHintFor(
+            chiefInput({
+                draft: "@Owner 你看下",
+                mentionMembers: members,
+                chief: null,
+                chiefSource: "none",
+            }),
+        ).kind,
+        "none",
+        "没有首席 + 只点名人类 ⇒ 仍是「没有默认收件人」，不是「按点名送达」",
+    );
+    // 同一句里点名了 agent 才算点名轮
+    assert.equal(
+        chiefHintFor(chiefInput({ draft: "@Owner @bob 你看下", mentionMembers: members })).kind,
+        "named",
+    );
+});
+
+test("chiefHintFor：正文有普通文字仍按首席提示（提示与是否打字无关）", () => {
+    for (const draft of ["", "hello", "这条谁看？", "> 引用旧话\n我补一句"]) {
+        assert.equal(chiefHintFor(chiefInput({ draft })).kind, "channel", draft);
+    }
+});
+
+test("chiefHintFor：个人点名 / @all 改为「按点名送达」，不重复误导", () => {
+    assert.equal(chiefHintFor(chiefInput({ draft: "@bob 你看下" })).kind, "named");
+    assert.equal(chiefHintFor(chiefInput({ draft: "@all 开会" })).kind, "named");
+    assert.equal(chiefHintFor(chiefInput({ draft: "@everyone 开会" })).kind, "named");
+    // 点名后即使是「没有默认收件人」的频道也不该说没人接
+    assert.equal(
+        chiefHintFor(chiefInput({ draft: "@bob 在吗", chief: null, chiefSource: "none" })).kind,
+        "named",
+    );
+});
+
+test("chiefHintFor：引用块 / 代码块里的 @ 不算点名（与邀请判定同口径）", () => {
+    assert.equal(chiefHintFor(chiefInput({ draft: "> @bob 说过的话\n好" })).kind, "channel");
+    assert.equal(chiefHintFor(chiefInput({ draft: "```\n@bob 示例\n```" })).kind, "channel");
+    assert.equal(chiefHintFor(chiefInput({ draft: "`@bob` 这个写法" })).kind, "channel");
+    // 未知 @token（没有对应成员）也不是点名
+    assert.equal(chiefHintFor(chiefInput({ draft: "@nobody 你好" })).kind, "channel");
+});
+
+test("chiefHintFor：DM / 禁用态不显示提示", () => {
+    assert.equal(chiefHintFor(chiefInput({ enabled: false })), null);
+});
+
+test("ComposerChiefHint 真实渲染三态与点名态（lucide 图标 + 角色族配色，无 emoji）", () => {
+    const channel = renderI18n(
+        React.createElement(ComposerChiefHint, {
+            hint: { kind: "channel", chiefName: "susan" },
+        }),
+    );
+    assert.match(channel, /data-chief-hint="channel"/);
+    assert.match(channel, /Channel chief susan will take this message/);
+    assert.match(channel, /<svg/, "要用 lucide 图标而不是 emoji");
+    assert.doesNotMatch(channel, /\p{Extended_Pictographic}/u, "不新增 emoji");
+
+    const global = renderI18n(
+        React.createElement(ComposerChiefHint, {
+            hint: { kind: "global", chiefName: "susan" },
+        }),
+    );
+    assert.match(global, /data-chief-hint="global"/);
+    assert.match(global, /Global chief susan will take this message/);
+
+    const none = renderI18n(
+        React.createElement(ComposerChiefHint, {
+            hint: { kind: "none", chiefName: null },
+        }),
+    );
+    assert.match(none, /data-chief-hint="none"/);
+    assert.match(none, /No default recipient/);
+
+    const named = renderI18n(
+        React.createElement(ComposerChiefHint, {
+            hint: { kind: "named", chiefName: null },
+        }),
+    );
+    assert.match(named, /data-chief-hint="named"/);
+    assert.match(named, /Named agents only/);
+
+    // 无提示时整条不渲染（不留空壳占位）
+    assert.equal(
+        renderI18n(React.createElement(ComposerChiefHint, { hint: null })),
+        "",
+    );
+});
+
+test("Composer 把首席数据接进提示（频道首席 / 回落全局 / 无收件人 / DM 不显示）", () => {
+    const render = (chiefRecipient) =>
+        renderI18n(
+            React.createElement(Composer, {
+                targetId: "#all",
+                disabled: false,
+                disabledHint: "",
+                quoting: null,
+                onClearQuote: () => undefined,
+                onSend: async () => undefined,
+                mentionMembers: [AGENT_BOB],
+                chiefRecipient,
+            }),
+        );
+
+    assert.match(
+        render({ chief: CHIEF_SUSAN, chiefSource: "channel", chiefAvailable: true }),
+        /Channel chief susan will take this message/,
+    );
+    assert.match(
+        render({ chief: CHIEF_SUSAN, chiefSource: "global", chiefAvailable: true }),
+        /Global chief susan will take this message/,
+    );
+    // 服务端判「不可达」（非本频道成员 / 静音）⇒ 与「没有首席」同一句话
+    assert.match(
+        render({ chief: CHIEF_SUSAN, chiefSource: "channel", chiefAvailable: false }),
+        /No default recipient/,
+    );
+    assert.match(
+        render({ chief: null, chiefSource: "none" }),
+        /No default recipient/,
+    );
+    // DM（chiefRecipient 省略）不显示首席提示
+    assert.doesNotMatch(render(undefined), /data-chief-hint/);
+});
+
+test("Composer 禁用态（归档 / 未加入）不显示首席提示：说得出「谁会接」却发不出去是误导", () => {
+    const html = renderI18n(
+        React.createElement(Composer, {
+            targetId: "#all",
+            disabled: true,
+            disabledHint: "This channel is archived and is read-only",
+            quoting: null,
+            onClearQuote: () => undefined,
+            onSend: async () => undefined,
+            chiefRecipient: {
+                chief: CHIEF_SUSAN,
+                chiefSource: "channel",
+                chiefAvailable: true,
+            },
+        }),
+    );
+    assert.doesNotMatch(html, /data-chief-hint/);
+});
+
+test("chiefRecipientOf：频道行 → 提示输入（DM 不显示；行缺结论时不冒认可达）", () => {
+    const row = (overrides = {}) => ({
+        id: "c1",
+        name: "general",
+        type: "public",
+        description: "",
+        archived: 0,
+        created_at: "2026-08-03T00:00:00.000Z",
+        joined: true,
+        memberCount: 2,
+        unread: 0,
+        unreadTaskCount: 0,
+        messageCount: 0,
+        chief: CHIEF_SUSAN,
+        chiefSource: "channel",
+        chiefAvailable: true,
+        ...overrides,
+    });
+
+    assert.deepEqual(chiefRecipientOf(row()), {
+        chief: CHIEF_SUSAN,
+        chiefSource: "channel",
+        chiefAvailable: true,
+    });
+    // 服务端判不可达：结论一路带到提示层（提示据此降为「没有默认收件人」）
+    assert.equal(chiefRecipientOf(row({ chiefAvailable: false })).chiefAvailable, false);
+    // 旧行 / 残缺行没有这条结论 ⇒ 不冒认可达（fail-safe，不承诺投递）
+    const legacy = { ...row() };
+    delete legacy.chiefAvailable;
+    assert.equal(chiefRecipientOf(legacy).chiefAvailable, false);
+    // DM 没有首席语义：整条提示不渲染
+    assert.equal(chiefRecipientOf(row({ type: "dm" })), null);
+    assert.equal(chiefRecipientOf(null), null);
+});
+
+test("点名成员表由调用方显式给出（不再把成员强转成 agent，不会把人类点名当 agent 点名）", async () => {
+    for (const file of ["./ChannelView.tsx", "./ThreadPanel.tsx"]) {
+        const source = await readFile(new URL(file, import.meta.url), "utf-8");
+        assert.doesNotMatch(
+            source,
+            /type: "agent" as const/,
+            `${file} 不得把成员强转成 agent：Type 必须保留真实值（人类点名不叫起 agent）`,
+        );
+    }
+    const source = await readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    // Composer 的 mentionMembers 是必填（省略即编译期报错，不再悄悄兜底成全 agent）
+    assert.match(source, /\n {2}mentionMembers: MentionMember\[\];/);
+    const thread = await readFile(
+        new URL("./ThreadPanel.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.match(thread, /<Composer[\s\S]*?mentionMembers=\{mentionMembers\}/);
+});
+
+test("首席提示是纯呈现：发送体与正文完全来自草稿，提示不参与收发", async () => {
+    const source = await readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    const start = source.indexOf("const submit = async () => {");
+    const end = source.indexOf("const recipientHint = chiefHintFor({", start);
+    assert.ok(start !== -1 && end > start, "找不到 composer 的 submit");
+    const submit = source.slice(start, end);
+    // 发送只经 onSend(targetId, content, quoteId, files) —— 提示不在其中
+    assert.match(submit, /await onSend\(\s*targetId,\s*content,/);
+    assert.doesNotMatch(submit, /recipientHint|chiefHintFor|chiefRecipient/);
+    // 提示层本身没有交互 / 副作用（不是确认框、不阻止发送）
+    const hintStart = source.indexOf("export function ComposerChiefHint(");
+    const hintEnd = source.indexOf("/** 消息输入条", hintStart);
+    assert.ok(hintStart !== -1 && hintEnd > hintStart);
+    const hint = source.slice(hintStart, hintEnd);
+    assert.doesNotMatch(hint, /<button|<form|onClick|onSubmit|preventDefault/);
 });

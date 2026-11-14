@@ -8,6 +8,7 @@
  */
 import type { DataPaths } from "./dirs.ts";
 import type {
+  AdmissionRole,
   AppendMessageInput,
   AttachmentRow,
   AgentAvatarTint,
@@ -66,6 +67,11 @@ export interface Store {
   /** 频道描述更新（同上，只改 description；迁移脚本专用，不改变名/成员/归档态）。 */
   updateChannelDescription(id: string, description: string): void;
   setChannelArchived(id: string, archived: number): void;
+  /**
+   * #250 频道首席绑定：`null` = 清除（频道回落到全局首席）。
+   * 合法性与存活校验在协作域（chief.ts）——这里只写单条绑定，不碰成员表。
+   */
+  setChannelChief(channelId: string, memberId: string | null): void;
   listChannelMembers(channelId: string): ChannelMemberRow[];
   isChannelMember(channelId: string, memberId: string): boolean;
   addChannelMember(channelId: string, memberId: string): void;
@@ -143,6 +149,11 @@ export interface Store {
     },
   ): void;
   setMemberDeleted(id: string, deleted: number): void;
+  /**
+   * #248 全局首席：先清空现有标记，再置一位（同一事务）——「同一时刻至多一位」由这一写入面保证。
+   * `null` = 清空（频道回到「没有默认收件人」）。合法性与存活校验在协作域（chief.ts）。
+   */
+  setGlobalChief(memberId: string | null): void;
   clearTaskOwners(memberId: string): void;
   clearConsumedSeqsForAgent(agentId: string): void;
   removeMemberFromAllChannels(memberId: string): void;
@@ -234,6 +245,8 @@ export interface Store {
     promptTokens?: number | null;
     completionTokens?: number | null;
     cost?: number | null;
+    /** #249 本轮准入角色；省略 = 没有准入结论（写 NULL，不编造）。 */
+    role?: AdmissionRole | null;
   }): RoundLogRow;
   listRoundLogs(agentId: string, limit?: number): RoundLogRow[];
   listRoundLogsByTarget(targetId: string): RoundLogRow[];

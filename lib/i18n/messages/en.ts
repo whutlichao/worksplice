@@ -488,9 +488,40 @@ export const enLocale: LocalePlugin = {
     "channel.stopIdle": "No active room wave",
     "channel.stopFailed": "Could not stop the current room wave",
     "channel.initialMembers": "Initial members",
+    "chief.setting": "Channel chief",
+    "chief.detailHint":
+      "Who picks up unaddressed messages here: channel chief, else the global chief, else nobody",
+    "chief.detailChannel": "Chief: {name} (this channel)",
+    "chief.detailGlobal": "Chief: {name} (global fallback)",
+    "chief.detailNone": "Chief: none (no default recipient)",
+    "chief.fallbackOption": "Global chief (not set)",
+    "chief.settingHint":
+      "The chief answers messages here that mention nobody; picking the global chief clears it",
+    "chief.updated": "Chief set to {name}",
+    "chief.cleared": "Channel chief cleared — falling back to the global chief",
+    "chief.failed": "Could not change the channel chief",
+    "chief.failChannelNotFound": "Channel not found",
+    "chief.failOwnerOnly": "Only the owner can set the channel chief",
+    "chief.failMemberNotFound": "Member not found",
+    "chief.failHumanMember": "The channel chief must be an agent member, not a human",
+    "chief.failMemberDeleted":
+      "That member was deleted and cannot be the channel chief",
+    "chief.failNotChannelMember": "The channel chief must be a member of this channel",
+    "chief.createLabel": "Channel chief (optional)",
+    "chief.createHint":
+      "Only agents joining this channel can be picked; leave it unset to fall back to the global chief",
+    "chief.selectionRejected": "Invalid chief selection: {reason}",
     "message.send": "Send",
     "message.composerPlaceholder":
       "Message… (Enter to send, Shift+Enter for newline)",
+    "message.chiefHint.channel":
+      "Channel chief {name} will take this message (no agent named)",
+    "message.chiefHint.global":
+      "Global chief {name} will take this message (no channel chief set)",
+    "message.chiefHint.none":
+      "No default recipient — without naming an agent, nobody picks this up",
+    "message.chiefHint.named":
+      "Named agents only — this message reaches those you named, the chief is not added",
     "message.loadEarlier": "Load earlier messages",
     "message.held": "Send blocked — the room changed, send again",
     "message.heldNoticeAction": "The room changed while you were writing — review and send again",
@@ -702,6 +733,15 @@ export const enLocale: LocalePlugin = {
     "agent.descriptionSaveError": "Could not save description",
     "role.member": "Member",
     "agent.workspaceNotBound": "Not bound yet",
+    "agent.chiefSection": "Chief",
+    "agent.chiefGlobal": "Global chief",
+    "agent.chiefYes": "Yes",
+    "agent.chiefNo": "No",
+    "agent.chiefChannels": "Chief of",
+    "agent.chiefNoChannels": "Not the chief of any channel",
+    "agent.setGlobalChief": "Set as global chief",
+    "agent.clearGlobalChief": "Clear global chief",
+    "agent.chiefSaveFailed": "Could not save: {reason}",
     "agent.changeWorkspace": "Change workspace",
     "agent.workspaceHomeHint":
       "Home directory — created automatically, unique to this agent, removed with the identity. Bind a shared project directory to collaborate.",
@@ -812,6 +852,18 @@ export const enLocale: LocalePlugin = {
     "observability.roundStatus.yielded": "Yielded",
     "observability.roundStatus.error": "Error",
     "observability.roundStatus.busy-cwd": "Waiting on busy cwd",
+    // #249 round observability: how this round came in (the admission role).
+    "observability.roundRoleTitle": "Entry role",
+    "observability.roundRole.dm": "Direct message",
+    "observability.roundRole.reminder": "Reminder",
+    "observability.roundRole.human-mention": "Human mention",
+    "observability.roundRole.all-mention": "@all",
+    "observability.roundRole.chief": "Chief",
+    "observability.roundRole.task-owner": "Task owner",
+    "observability.roundRole.task-reviewer": "Task reviewer",
+    "observability.roundRole.task-event": "Task event",
+    "observability.roundRole.secretary-handoff": "Secretary handoff",
+    "observability.roundRole.none": "Not recorded",
     "detail.back": "Back to channels",
   },
 };

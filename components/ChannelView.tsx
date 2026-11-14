@@ -19,6 +19,7 @@ import {
   ChevronUp,
   CircleSlash,
   CornerDownRight,
+  Crown,
   FileText,
   Kanban,
   Link,
@@ -70,7 +71,13 @@ import {
   buildAtInsertText,
   type AtQueryMatch,
 } from "@/lib/file-fuzzy";
-import { composerMentionCandidates } from "@/lib/mention";
+import {
+  bodyMentionText,
+  composerMentionCandidates,
+  hasAllMention,
+  parseMentionTokens,
+  type MentionMember,
+} from "@/lib/mention";
 import { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";
 import { indexCurrentMembersById } from "@/lib/member-index";
 import {
@@ -78,6 +85,8 @@ import {
   type JourneyGuideKind,
 } from "@/lib/journey-state";
 import { useChannelData } from "@/hooks/useChannelData";
+import { chiefFailureText } from "@/lib/chief-failure";
+import type { ChiefRef, ChiefSource } from "@/lib/domain/collab";
 
 export type CenterTab = "messages" | "tasks";
 
@@ -160,6 +169,67 @@ export interface ChannelWithMeta extends ChannelRow {
   unreadTaskCount: number;
   /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */
   messageCount: number;
+  /** #252 / #251 此刻生效的首席（频道指定 → 全局回落 → 无）与其来源，服务端现算。
+   *  与 `chief_member_id` 分开：绑定失效时两者会不一致，UI 只读这两个字段——
+   *  `shallowEqualChannel` 也纳入它们，否则轮询复用旧行，composer 提示与成员视角显示过期结论。
+   *  可选：旧响应 / 测试构造的行可能不带（`channelChiefView` 把缺失按「无」处理）。 */
+  chief?: ChiefRef | null;
+  chiefSource?: ChiefSource;
+  /** #251 生效首席对**本频道**是否可达（服务端 `canRouteToChief` 的结论）。
+   *  `false` / 缺字段 ⇒「没有默认收件人」：提示只读结论，不在客户端按绑定重新推导。 */
+  chiefAvailable?: boolean;
+}
+
+/** #252 频道此刻生效的首席 + 来源（来源三态固定：频道指定 / 回落全局 / 无）。 */
+export interface ChannelChiefMeta {
+  chief: ChiefRef | null;
+  chiefSource: ChiefSource;
+}
+
+/** #252 频道行上的生效首席；行上缺字段（旧响应）按「无」处理，不渲染凭空的默认收件人。 */
+export function channelChiefView(channel: ChannelWithMeta | null): ChannelChiefMeta {
+  return {
+    chief: channel?.chief ?? null,
+    chiefSource: channel?.chiefSource ?? "none",
+  };
+}
+
+/**
+ * composer「谁会接这条消息」的依据（票 #251）：生效首席 + 来源 + 它对**本频道**是否可达。
+ *
+ * `chiefAvailable` 是服务端 `canRouteToChief` 的结论（本频道成员 + 未静音），这里只转手，
+ * 不在客户端重新推导——否则「解析出谁是首席」与「他会不会真的收到」会各说各话（票面 AC 的
+ * 反例：私有频道不自动加全局首席、频道首席被静音）。
+ */
+export interface ChiefRecipient {
+  chief: ChiefRef | null;
+  chiefSource: ChiefSource;
+  chiefAvailable: boolean;
+}
+
+/** 频道行 → composer 提示依据；DM 没有首席语义 ⇒ null（整条提示不渲染）。 */
+export function chiefRecipientOf(
+  channel: ChannelWithMeta | null,
+): ChiefRecipient | null {
+  if (!channel || channel.type === "dm") return null;
+  return {
+    chief: channel.chief ?? null,
+    chiefSource: channel.chiefSource ?? "none",
+    // 残缺行（旧响应 / 测试构造）没有这条结论 ⇒ 不冒认可达（fail-safe：不承诺投递）。
+    chiefAvailable: channel.chiefAvailable === true,
+  };
+}
+
+/** #252 三态来源文案（没有可用首席时明确写「无」）。 */
+export function chiefDetailText(
+  t: (key: string, params?: TranslationParams) => string,
+  view: ChannelChiefMeta,
+): string {
+  if (!view.chief) return t("chief.detailNone");
+  return t(
+    view.chiefSource === "channel" ? "chief.detailChannel" : "chief.detailGlobal",
+    { name: view.chief.name },
+  );
 }
 
 /** §3.4 reaction 聚合（与 lib/domain/collab/reactions.ts 同形）。 */
@@ -3087,6 +3157,116 @@ export function TaskViews({
   );
 }
 
+/** composer 首席提示的形态（票 #251）。`named` = 正文点名 / `@all`，提示改为说明按点名送达。 */
+export type ChiefHintKind = "channel" | "global" | "none" | "named";
+
+export interface ChiefHint {
+  kind: ChiefHintKind;
+  /** 生效首席名（仅 channel / global 有；`none` / `named` 为 null）。 */
+  chiefName: string | null;
+}
+
+/**
+ * 无人点名时「这条消息会由谁接」的判定（纯函数，票 #251）：只读频道行已带出的
+ * `chief` / `chiefSource` 结论，**不发请求、不改写正文、不拦截发送**。
+ *
+ * 点名优先：正文出现个人点名或 `@all` 时首席不参与这一轮（#237 准入矩阵的优先级），
+ * 提示改说「按点名送达」，避免同时承诺首席会接。`@` 的判定口径直接复用邀请判定那两个
+ * helper —— 引用块 / 代码块 / 行内代码里的 `@` 不算点名。
+ *
+ * `chiefAvailable` 是服务端给的**投递判定**（本频道成员 + 未静音）。它不成立时与「没有首席」
+ * 同一句话——提示不得承诺一次不会发生的投递（这是票 #251 AC 的「没有默认收件人」）。
+ */
+export function chiefHintFor(input: {
+  draft: string;
+  /** 点名判定用的成员集合（全量：非频道成员的正文点名也会穿透）。
+   *  `type` 必须保留：点名人类成员不会叫起任何 agent，不能当成「按点名送达」。 */
+  mentionMembers: MentionMember[];
+  chief: ChiefRef | null;
+  chiefSource: ChiefSource;
+  /** 生效首席对本频道是否可达（服务端结论）。 */
+  chiefAvailable: boolean;
+  /** `false` = 不显示提示（DM；归档 / 未加入等禁用态）。 */
+  enabled: boolean;
+}): ChiefHint | null {
+  if (!input.enabled) return null;
+  if (mentionsAnyAgent(input.draft, input.mentionMembers)) {
+    return { kind: "named", chiefName: null };
+  }
+  if (!input.chief || !input.chiefAvailable) return { kind: "none", chiefName: null };
+  return {
+    kind: input.chiefSource === "channel" ? "channel" : "global",
+    chiefName: input.chief.name,
+  };
+}
+
+/** 正文是否点名了某个 agent（个人点名或 `@all`）。与邀请判定同口径：引用块 / 代码里的 `@` 不算。 */
+function mentionsAnyAgent(
+  draft: string,
+  mentionMembers: MentionMember[],
+): boolean {
+  if (draft.length === 0) return false;
+  if (hasAllMention(draft)) return true;
+  return parseMentionTokens(bodyMentionText(draft), mentionMembers).some(
+    (token) => !token.isHuman,
+  );
+}
+
+/**
+ * composer 上方的窄提示（票 #251）：说明这条没人点名的消息会由谁接。
+ * 纯呈现层——`null` 时整条不渲染；语气用角色族配色（首席 = `--accent-graphic`，
+ * 没有默认收件人 = `--warn-graphic`），图标走 lucide，不新增 emoji。
+ */
+export function ComposerChiefHint({ hint }: { hint: ChiefHint | null }) {
+  const { t } = useI18n();
+  if (!hint) return null;
+  const text =
+    hint.kind === "channel"
+      ? t("message.chiefHint.channel", { name: hint.chiefName ?? "" })
+      : hint.kind === "global"
+        ? t("message.chiefHint.global", { name: hint.chiefName ?? "" })
+        : hint.kind === "named"
+          ? t("message.chiefHint.named")
+          : t("message.chiefHint.none");
+  const Icon =
+    hint.kind === "named" ? Send : hint.kind === "none" ? CircleSlash : Crown;
+  const tone =
+    hint.kind === "none"
+      ? "var(--warn-graphic)"
+      : hint.kind === "named"
+        ? "var(--muted)"
+        : "var(--accent-graphic)";
+  return (
+    <div
+      data-chief-hint={hint.kind}
+      className="composer-chief-hint"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 6,
+        padding: "3px 10px",
+        color: tone,
+        fontFamily: "var(--mono)",
+        fontSize: 11,
+        lineHeight: "var(--lh-snug)",
+      }}
+    >
+      <Icon size={12} aria-hidden="true" style={{ flex: "0 0 12px" }} />
+      <span
+        style={{
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
 /** 消息输入条：Enter 发送 / Shift+Enter 换行；引用 chip（§3.2 引用动作）；As Task 勾选（§3.7 创建途径 2）；附件（§3.5）。 */
 export function Composer({
   targetId,
@@ -3098,6 +3278,8 @@ export function Composer({
   onClearQuote,
   onSend,
   members,
+  chiefRecipient,
+  mentionMembers,
   focusSignal,
 }: {
   targetId: string;
@@ -3119,6 +3301,14 @@ export function Composer({
     status: MemberRow["status"];
     joined: boolean;
   }>;
+  /**
+   * 无人点名时「这条消息会由谁接」（票 #251）。频道行已带出结论，这里只转给提示层：
+   * **不发额外请求、不改写正文、不拦发送**。`undefined` / `null` = 不显示（DM、未选中频道）。
+   */
+  chiefRecipient?: ChiefRecipient | null;
+  /** 点名判定用的成员集合：传全量成员（含人类，`type` 必须真实——点名人类不叫起 agent），
+   *  非频道成员的正文点名也会穿透，因此不能只递 @ 补全候选（那只有频道成员）。 */
+  mentionMembers: MentionMember[];
   /** 一次性聚焦信号（DM 懒创建入口导航后聚焦输入框）：变化时 focus textarea。 */
   focusSignal?: number;
 }) {
@@ -3256,6 +3446,16 @@ export function Composer({
     }
   };
 
+  // 票 #251：没人点名时「谁会接这条消息」——只读已带出的首席结论，随草稿里的点名即时切换。
+  const recipientHint = chiefHintFor({
+    draft: value,
+    mentionMembers,
+    chief: chiefRecipient?.chief ?? null,
+    chiefSource: chiefRecipient?.chiefSource ?? "none",
+    chiefAvailable: chiefRecipient?.chiefAvailable === true,
+    enabled: Boolean(chiefRecipient) && !disabled,
+  });
+
   return (
     <div className="composer" style={{ flexShrink: 0 }}>
       <div className="composer-inner">
@@ -3347,6 +3547,7 @@ export function Composer({
             ))}
           </div>
         )}
+        <ComposerChiefHint hint={recipientHint} />
         {/* 常驻输入框形态（`globals.css` 的 `.composer-box` 块）：surface + border-strong + r-lg，
             形状、焦点环与 `--shadow-composer` 全在 class 上。 */}
         <div className="composer-box">
@@ -3607,6 +3808,123 @@ export function Composer({
   );
 }
 
+/** #252 一次 chief 写入的服务端答案：此刻生效的首席 + 来源 + 绑定。
+ *  `channel` 是收到答案时的那条频道行——行对象一换新引用（服务端刷新后的新行），
+ *  答案自动失效，详情回到新行的现算值（不缓存旧值）。 */
+export interface ChiefAnswer {
+  channel: ChannelWithMeta;
+  chief: { id: string; name: string } | null;
+  chiefSource: ChiefSource;
+  chiefMemberId: string | null;
+}
+
+/** #252 详情 / 设置共用的数据源：同一条行上的服务端答案优先，否则取行上的现算值。 */
+export function resolveChiefView(
+  channel: ChannelWithMeta | null,
+  answer: ChiefAnswer | null,
+): ChannelChiefMeta & { bindingId: string | null } {
+  if (channel && answer && answer.channel === channel) {
+    return {
+      chief: answer.chief,
+      chiefSource: answer.chiefSource,
+      bindingId: answer.chiefMemberId,
+    };
+  }
+  return {
+    ...channelChiefView(channel),
+    bindingId: channel?.chief_member_id ?? null,
+  };
+}
+
+/**
+ * #252 频道首席设置项（频道设置的「成员」面板里的一项，不重做布局）：
+ * 顶部是此刻生效的首席与来源；下面是 Owner 的选择器（选中「回落全局」即清除绑定）。
+ *
+ * 不做乐观提交：选择器的值只来自服务端绑定，写入失败只多一条错误文案，取值不回写。
+ */
+export function ChannelChiefSetting({
+  view,
+  candidates,
+  bindingId,
+  busy,
+  status,
+  onChange,
+}: {
+  view: ChannelChiefMeta;
+  /** 可选目标 = 本频道的 agent 成员（服务端对同一集合再校一次）。 */
+  candidates: Array<{ id: string; name: string }>;
+  bindingId: string | null;
+  busy: boolean;
+  status: { ok: boolean; text: string } | null;
+  onChange: (memberId: string | null) => void;
+}) {
+  const { t } = useI18n();
+  // 绑定指向已离场成员时选择器落在「回落全局」：那正是此刻生效的事实，不让控件停在一个失效 id 上。
+  const selected =
+    bindingId && candidates.some((candidate) => candidate.id === bindingId)
+      ? bindingId
+      : "";
+  return (
+    <div
+      data-testid="channel-chief-setting"
+      style={{
+        marginTop: 10,
+        paddingTop: 8,
+        borderTop: `1px dashed var(--border-strong)`,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: "var(--font)", fontWeight: 700, fontSize: 12 }}>
+          <Crown size={12} aria-hidden="true" style={{ verticalAlign: "-2px", marginRight: 4 }} />
+          {t("chief.setting")}
+        </span>
+        <span
+          data-testid="channel-chief-detail"
+          data-chief-source={view.chiefSource}
+          className="mono"
+          style={{ fontSize: 11, color: "var(--muted)" }}
+        >
+          {chiefDetailText(t, view)}
+        </span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+        <select
+          data-testid="channel-chief-select"
+          className="select"
+          aria-label={t("chief.setting")}
+          value={selected}
+          disabled={busy}
+          style={{ width: "auto", height: "var(--control-h-sm)", padding: "0 var(--sp-2)" }}
+          onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+        >
+          <option value="">{t("chief.fallbackOption")}</option>
+          {candidates.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.name}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+          {t("chief.settingHint")}
+        </span>
+      </div>
+      {status && (
+        <div
+          role="status"
+          data-chief-status={status.ok ? "ok" : "error"}
+          style={{
+            marginTop: 8,
+            fontSize: 12,
+            color: status.ok ? "var(--muted)" : "var(--error)",
+          }}
+        >
+          {status.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** 中央：channel 消息流 / Tasks tab（§3.1）。ticket 04 起承载消息闭环：发送/分页/引用/复制链接。ticket 13 起线程迁出至右栏面板（onOpenPanel）。 */
 export function ChannelView({
   channel,
@@ -3736,6 +4054,17 @@ export function ChannelView({
     text: string;
   } | null>(null);
 
+  // 票 #252：频道首席的提交态 / 服务端答案 / 结果文案。显示用的结论只来自服务端
+  // （`POST /chief` 响应或频道行现算值），提交中与失败时都不先改值。
+  const [chiefBusy, setChiefBusy] = useState(false);
+  const [chiefAnswer, setChiefAnswer] = useState<ChiefAnswer | null>(null);
+  const [chiefStatus, setChiefStatus] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
+  /** 只有 Owner 能改 / 清除频道首席（与 `setChannelChief` 的权限面同一判定）。 */
+  const maySetChief = currentMemberId === OWNER_MEMBER_ID;
+
   // 头部三个可展开面板互斥（手风琴）：同一时刻最多展开一个；再次点击当前按钮正常收起。
   const togglePinnedPanel = () => {
     const next = !pinnedOpen;
@@ -3772,6 +4101,13 @@ export function ChannelView({
     () => agents.filter((a) => channelMemberIds.has(a.id)),
     [agents, channelMemberIds],
   );
+  /** #252 频道首席候选 = 本频道的 agent 成员（与 `setChannelChief` 的合法面同一集合）。 */
+  const chiefCandidates = useMemo(
+    () => channelAgents.map((a) => ({ id: a.id, name: a.name })),
+    [channelAgents],
+  );
+  /** #252 详情与设置共用的一份结论：服务端答案（同一行）优先，否则频道行现算值。 */
+  const chiefView = resolveChiefView(channel, chiefAnswer);
   /** 频道内全部成员（agent + 人类）：数量与成员面板共用——agent 删除后随 agents prop 刷新即更新，人类始终可见。 */
   const channelMembers = useMemo(() => {
     const members = agents.filter((a) => channelMemberIds.has(a.id));
@@ -4464,6 +4800,58 @@ export function ChannelView({
     }
   };
 
+  /** #252 设 / 换 / 清除频道首席：走 `POST /api/channels/[id]/chief`（绑定校验在协作域）。
+   *  不做乐观提交：成功才用服务端答案驱动详情；失败只多一条可读原因，控件仍停在真实状态。 */
+  const setChannelChiefTo = async (memberId: string | null) => {
+    if (!channel || chiefBusy) return;
+    const requestChannel = channel;
+    setChiefBusy(true);
+    setChiefStatus(null);
+    try {
+      const res = await fetch(
+        `/api/channels/${encodeURIComponent(requestChannel.id)}/chief`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ memberId }),
+        },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        chief?: { id: string; name: string } | null;
+        chiefSource?: ChiefSource;
+        chiefMemberId?: string | null;
+        error?: string;
+        code?: string;
+      };
+      if (!res.ok) {
+        throw new Error(
+          chiefFailureText(t, body.code, body.error ?? t("chief.failed")),
+        );
+      }
+      setChiefAnswer({
+        channel: requestChannel,
+        chief: body.chief ?? null,
+        chiefSource: body.chiefSource ?? "none",
+        chiefMemberId: body.chiefMemberId ?? null,
+      });
+      setChiefStatus({
+        ok: true,
+        text: body.chief
+          ? t("chief.updated", { name: body.chief.name })
+          : t("chief.cleared"),
+      });
+      // 列表侧（侧栏等）跟着刷新；本屏的新结果已由上面的答案落位，不等下一次拉取。
+      onChannelChanged();
+    } catch (e) {
+      setChiefStatus({
+        ok: false,
+        text: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setChiefBusy(false);
+    }
+  };
+
   /** 提醒弹窗（§5.6 UI 入口）：目标 = channel（头部 ⏰）或消息（消息动作栏 ⏰）。 */
   const [reminderTarget, setReminderTarget] = useState<{
     targetId: string;
@@ -4524,6 +4912,22 @@ export function ChannelView({
                 <span className="badge soft">{t("channel.archived")}</span>
               )}
             </>
+          )}
+          {/* #252 频道详情：此刻生效的首席与来源（频道指定 / 回落全局 / 无）；DM 不显示。 */}
+          {channel && !isDM && (
+            <span
+              className="badge soft"
+              data-testid="channel-chief"
+              data-chief-source={chiefView.chiefSource}
+              title={t("chief.detailHint")}
+            >
+              <Crown
+                size={11}
+                aria-hidden="true"
+                style={{ verticalAlign: "-2px", marginRight: 4 }}
+              />
+              {chiefDetailText(t, chiefView)}
+            </span>
           )}
           {channel && (
             <div className="chan-tools">
@@ -4927,6 +5331,17 @@ export function ChannelView({
                 )}
               </>
             )}
+            {/* #252 首席设置：频道设置里的一项（Owner 才能改 / 清除；非 Owner 无入口，只从头部看结果）。 */}
+            {maySetChief && (
+              <ChannelChiefSetting
+                view={chiefView}
+                candidates={chiefCandidates}
+                bindingId={chiefView.bindingId}
+                busy={chiefBusy}
+                status={chiefStatus}
+                onChange={(memberId) => void setChannelChiefTo(memberId)}
+              />
+            )}
           </div>
         </div>
       )}
@@ -5263,6 +5678,8 @@ export function ChannelView({
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
           members={composerMembers}
+          chiefRecipient={chiefRecipientOf(channel)}
+          mentionMembers={mentionMembers}
           focusSignal={(composerFocusSignal ?? 0) + composerFocusTick}
         />
       )}

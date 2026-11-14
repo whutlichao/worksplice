@@ -524,6 +524,7 @@ export function ThreadPanel({
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
           members={mentionable}
+          mentionMembers={mentionMembers}
         />
       </div>
       {reminderTarget && (

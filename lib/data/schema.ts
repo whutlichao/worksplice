@@ -1,9 +1,18 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 18;
+import { SECRETARY_DEFAULT_NAME } from "../secretary-name.ts";
+
+export const SCHEMA_VERSION = 19;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
+
+/**
+ * 升级期引导用的默认首席名字（票 #248）：v19 迁移把现存存活的同名 agent 标为全局首席。
+ * 字面值来自零依赖的 `lib/secretary-name.ts`（数据层不得 import 协作域，所以来源必须
+ * 在两者之下）；它只是迁移 / 引导期常量，不参与任何身份判定。
+ */
+export const LEGACY_CHIEF_MEMBER_NAME = SECRETARY_DEFAULT_NAME;
 
 /** DM 频道 id 前缀（§R7 命名固定 `dm:owner↔<agent名>`，确定性 id 天然幂等）。 */
 export const DM_ID_PREFIX = "dm:owner↔";
@@ -15,7 +24,8 @@ const SCHEMA_STATEMENTS: string[] = [
     type TEXT NOT NULL DEFAULT 'public' CHECK (type IN ('public', 'private', 'dm')),
     description TEXT NOT NULL DEFAULT '',
     archived INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    chief_member_id TEXT REFERENCES members(id)
   )`,
   `CREATE TABLE IF NOT EXISTS channel_members (
     channel_id TEXT NOT NULL REFERENCES channels(id),
@@ -37,7 +47,8 @@ const SCHEMA_STATEMENTS: string[] = [
     model_id TEXT,
     thinking_level TEXT,
     created_at TEXT NOT NULL,
-    avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3))
+    avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3)),
+    global_chief INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
@@ -251,11 +262,14 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersDeletedColumn(db);
     migrateMembersModelColumns(db);
     migrateMembersAvatarTintColumn(db);
+    migrateMembersGlobalChiefColumn(db);
+    migrateChannelsChiefMemberColumn(db);
     migrateTasksReopenedColumn(db);
     migrateTasksHandoffColumns(db);
     migrateTasksHandoffOwnerColumn(db);
     migrateTaskThreadReads(db);
     migrateRoundLogsCostColumns(db);
+    migrateRoundLogsRoleColumn(db);
     seed(db);
     cleanupEmptyDms(db);
     resumeDirectChannels(db);
@@ -273,6 +287,45 @@ function migrateMembersAvatarTintColumn(db: Database.Database): void {
       "ALTER TABLE members ADD COLUMN avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3))",
     );
   }
+}
+
+/**
+ * v19（票 #248）：members.global_chief —— 全局首席的显式标记（1 / 0，默认 0）。
+ * 列刚补上时做一次引导：把现存**存活的**同名（LEGACY_CHIEF_MEMBER_NAME）agent 标为全局首席，
+ * 升级后无需手工配置。确定性：多条同名存活行按 `created_at, id` 取第一条（至多标一位）。
+ * 幂等：引导只随列补上跑一次——用户事后显式清空首席后，不会在下次开库时被重新标回去。
+ * 库里没有同名存活成员 = 不标、不报错（行为与升级前一致）。
+ */
+function migrateMembersGlobalChiefColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
+  if (columns.some((column) => column.name === "global_chief")) return;
+  db.exec("ALTER TABLE members ADD COLUMN global_chief INTEGER NOT NULL DEFAULT 0");
+  db.prepare(
+    `UPDATE members SET global_chief = 1
+     WHERE id = (
+       SELECT id FROM members
+       WHERE type = 'agent' AND deleted = 0 AND name = ?
+       ORDER BY created_at, id
+       LIMIT 1
+     )`,
+  ).run(LEGACY_CHIEF_MEMBER_NAME);
+}
+
+/**
+ * v19（票 #250）：channels.chief_member_id —— 频道首席的显式绑定（nullable）。
+ * 与 #249 并行落在同一个 v19 里，故本票不 bump SCHEMA_VERSION：老库靠 PRAGMA 检查式 ALTER 补列，
+ * 新库由 CREATE TABLE 直接带上，重复开库幂等。存量频道一律 NULL（= 回落全局首席）。
+ * 失效绑定（离场 / 软删 / 非 agent）**不改写**这一列——读侧按「未设置」处理：
+ * 改写会静默换人，清回 NULL 又抹掉用户当初的选择。
+ */
+function migrateChannelsChiefMemberColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(channels)").all() as Array<{
+    name: string;
+  }>;
+  if (columns.some((column) => column.name === "chief_member_id")) return;
+  db.exec("ALTER TABLE channels ADD COLUMN chief_member_id TEXT REFERENCES members(id)");
 }
 
 /**
@@ -379,6 +432,26 @@ function migrateRoundLogsCostColumns(db: Database.Database): void {
   if (!columns.some((c) => c.name === "cost")) {
     db.exec("ALTER TABLE round_logs ADD COLUMN cost REAL");
   }
+}
+
+/**
+ * v19（#249）：round_logs 增加准入角色 `role`（可空）。记录这一轮**怎么进来的**——
+ * 首席接的 / 被人点名 / `@all` / 任务线程裁决 / 提醒 / DM。
+ * 不 bump `SCHEMA_VERSION`：#250 在同一个 v19 里加频道首席列，两票共享版本落点。
+ * 可空且不写默认值：本票之前的历史行与没有准入结论的轮次都是 NULL（展示为「未记录」）。
+ * PRAGMA 逐列检测保证重复开库幂等。
+ */
+function migrateRoundLogsRoleColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(round_logs)").all() as Array<{
+    name: string;
+  }>;
+  if (columns.some((c) => c.name === "role")) return;
+  db.exec(
+    `ALTER TABLE round_logs ADD COLUMN role TEXT CHECK (role IS NULL OR role IN (
+       'dm', 'reminder', 'human-mention', 'all-mention', 'chief',
+       'task-owner', 'task-reviewer', 'task-event', 'secretary-handoff'
+     ))`,
+  );
 }
 
 /** v13: 既有 Task thread 的最新非 Owner 回复作为首个已读基线；后续开库不覆盖已推进游标。 */

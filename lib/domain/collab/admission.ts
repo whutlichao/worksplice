@@ -1,4 +1,11 @@
-import type { TaskStatus } from "../../data/types.ts";
+import type { AdmissionRole, TaskStatus } from "../../data/types.ts";
+
+/**
+ * `AdmissionRole`（本轮**怎么进来的**）的取值定义在数据层词表（`lib/data/types.ts`）：
+ * 它同时是 `round_logs.role` 的持久化取值（#249）。这里只转出具名类型，判定层与
+ * 可观测面用的是同一个名字、同一份取值。
+ */
+export type { AdmissionRole };
 
 /**
  * 模型调用前的轮次准入（Ticket #237）：纯判定层。
@@ -24,16 +31,6 @@ export const ROUND_SKIP_REASONS = {
 export type RoundSkipReason =
   (typeof ROUND_SKIP_REASONS)[keyof typeof ROUND_SKIP_REASONS];
 
-export type AdmissionRole =
-  | "dm"
-  | "reminder"
-  | "human-mention"
-  | "all-mention"
-  | "task-owner"
-  | "task-reviewer"
-  | "task-event"
-  | "secretary-handoff";
-
 export type RoundAdmission =
   | { admit: true; role: AdmissionRole; useRoomGate: boolean }
   | { admit: false; reason: RoundSkipReason };
@@ -58,6 +55,12 @@ export interface RoundAdmissionInput {
   humanAllMentioned: boolean;
   /** 当轮 incoming 里是否有仍开放的 Owner `Task #N created` 事件。 */
   hasOpenTaskEvent: boolean;
+  /**
+   * 本成员是否就是接住本轮人类消息的生效首席（#248）：人类正文无个人点名、无 `@all`、
+   * 不涉及任务（含不涉及任务 handoff）且首席在本频道可用时才为 true。
+   * 它把「以首席身份进来」与「被人点名」分开——涉及任务的消息仍走 secretary-handoff。
+   */
+  chiefInvited: boolean;
   /** 本成员是否就是当前存活的秘书。 */
   isSecretary: boolean;
   /** 秘书本轮是否被一个唯一的未认领任务明确关联（创建事件 / 任务线程 / 唯一引用）。 */
@@ -121,6 +124,11 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
   }
   if (input.humanMentioned) {
     return { admit: true, role: "human-mention", useRoomGate: true };
+  }
+  // #248：没点名、没 @all、不涉及任务时，生效首席接住这条消息——优先级低于人类直接点名，
+  // 高于秘书 handoff / 任务事件；首席同样走房间门（受预算与 Stop 约束）。
+  if (input.chiefInvited) {
+    return { admit: true, role: "chief", useRoomGate: true };
   }
   if (input.isSecretary && input.secretaryHandoff) {
     return { admit: true, role: "secretary-handoff", useRoomGate: false };
