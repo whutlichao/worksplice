@@ -1,5 +1,7 @@
 import type Database from "better-sqlite3";
 
+import { SECRETARY_DEFAULT_NAME } from "../secretary-name.ts";
+
 export const SCHEMA_VERSION = 19;
 
 export const BUILTIN_CHANNEL_ID = "#all";
@@ -7,10 +9,10 @@ export const OWNER_MEMBER_ID = "owner";
 
 /**
  * 升级期引导用的默认首席名字（票 #248）：v19 迁移把现存存活的同名 agent 标为全局首席。
- * 数据层不得 import 协作域，故此处重复一份字面值（与 `secretary-identity.ts` 的
- * `SUSAN_MEMBER_NAME` 同值）；它只是迁移 / 引导期常量，不参与任何身份判定。
+ * 字面值来自零依赖的 `lib/secretary-name.ts`（数据层不得 import 协作域，所以来源必须
+ * 在两者之下）；它只是迁移 / 引导期常量，不参与任何身份判定。
  */
-export const LEGACY_CHIEF_MEMBER_NAME = "Susan";
+export const LEGACY_CHIEF_MEMBER_NAME = SECRETARY_DEFAULT_NAME;
 
 /** DM 频道 id 前缀（§R7 命名固定 `dm:owner↔<agent名>`，确定性 id 天然幂等）。 */
 export const DM_ID_PREFIX = "dm:owner↔";

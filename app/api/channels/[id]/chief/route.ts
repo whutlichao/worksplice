@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   ChannelChiefError,
   CURRENT_MEMBER_ID,
+  chiefRefOf,
   resolveEffectiveChief,
   setChannelChief,
 } from "@/lib/domain/collab";
@@ -37,7 +38,7 @@ export async function POST(
     return NextResponse.json({
       channelId: channel.id,
       chiefMemberId: channel.chief_member_id,
-      chief: chief ? { id: chief.id, name: chief.name } : null,
+      chief: chiefRefOf(chief),
       chiefSource: source,
     });
   } catch (error) {

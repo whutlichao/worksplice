@@ -1,7 +1,7 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { hasAllMention } from "../../mention.ts";
 import { listChannelMembers, resolveChannelForTarget } from "./channels.ts";
-import { resolveEffectiveChief } from "./chief.ts";
+import { canRouteToChief, resolveEffectiveChief } from "./chief.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
 import { hasTaskReference } from "./task-reference.ts";
 import type { ChannelRow } from "../../data/types.ts";
@@ -51,8 +51,8 @@ export function parseTaskCreationEventNumber(content: string): number | null {
  *
  * 首席在本频道不可用（已软删 / 不是该频道 agent 成员 / 静音了该频道）⇒ null
  * （「没有可用首席」与「没有首席」同义：不换人、不兜底广播）。
- * 注：解析（`resolveEffectiveChief`）只判绑定是否有效；静音在这一层过滤，
- * 即「静音的首席」不回落全局首席。
+ * 注：解析（`resolveEffectiveChief`）只判绑定是否有效；静音 / 成员身份在
+ * `chief.ts` 的 `canRouteToChief` 里判（唯一结论，频道行的 `chiefAvailable` 也读它）。
  *
  * 判定住在这里，是因为它复用与邀请候选同一份点名 / 任务解析；`beginTurn`、wake
  * 与 agent-loop 的准入都调它，不另开第二条选人路径。
@@ -69,14 +69,14 @@ export function selectChiefRecipient(input: {
   );
   if (namesAnAgent) return null;
   if (getDb().getTaskByMessageId(input.targetId)) return null;
-  // 任务创建事件的正文形如 `Task #N created — …`，也落在同一份引用解析里。
-  if (parseTaskCreationEventNumber(input.content) !== null) return null;
+  // 任务创建事件的正文形如 `Task #N created — …`：它已经被下面这一条覆盖（`Task #N` 就是
+  // 一条引用），所以这里只留一份解析——`hasTaskReference` 是「涉及任务」的单一来源，
+  // 不再单独解析创建事件（两条判据并存只会让人以为它们覆盖不同的面）。
   if (hasTaskReference(input.content)) return null;
 
   const { chief } = resolveEffectiveChief(input.channel.id);
-  if (!chief || chief.type !== "agent") return null;
-  if (!getDb().isChannelMember(input.channel.id, chief.id)) return null;
-  if (getDb().getChannelMute(input.channel.id, chief.id)) return null;
+  if (!chief) return null;
+  if (!canRouteToChief(input.channel.id, chief.id)) return null;
   return chief.id;
 }
 

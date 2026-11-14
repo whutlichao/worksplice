@@ -5,6 +5,10 @@ import { Check } from "lucide-react";
 import { useI18n } from "@/hooks/useI18n";
 import { BrutalModal } from "./BrutalModal";
 import { Avatar } from "./Avatar";
+import {
+  chiefFailureText,
+  isChiefFailureCode,
+} from "@/lib/chief-failure";
 import { liveSusanMemberId, precheckSusanForPrivateChannel } from "@/lib/secretary-bootstrap";
 import type { MemberRow } from "@/lib/data/types";
 
@@ -106,10 +110,12 @@ export function CreateChannelModal({
       };
       if (!res.ok) {
         // 首席被拒绝时把服务端原因拼进可读文案（原因不吞）；其余失败沿用既有提示。
-        if (body.code?.startsWith("member") || body.code === "human_member") {
+        // 判据是**完整码表**（与频道设置同一份），不是前缀猜——`not_channel_member`
+        // 与 `channel_not_found` 也要本地化。
+        if (isChiefFailureCode(body.code)) {
           throw new Error(
             t("chief.selectionRejected", {
-              reason: body.error ?? t("chief.failed"),
+              reason: chiefFailureText(t, body.code, body.error ?? t("chief.failed")),
             }),
           );
         }

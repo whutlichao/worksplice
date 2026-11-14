@@ -180,12 +180,17 @@ export function AppShell() {
               if (c.unread === fresh.unread && shallowEqualChannel(c, fresh))
                 return c;
               changed = true;
-              // 同步两种未读计数与 messageCount（DM 懒创建「有消息」信号随新消息入流更新）。
+              // 同步两种未读计数与 messageCount（DM 懒创建「有消息」信号随新消息入流更新），
+              // 以及首席结论：可达性（成员离场 / 频道被静音）会独立翻转，只留旧值会让
+              // composer 提示继续承诺一个不会发生的投递（#251 AC）。
               return {
                 ...c,
                 unread: fresh.unread,
                 unreadTaskCount: fresh.unreadTaskCount,
                 messageCount: fresh.messageCount,
+                chief: fresh.chief,
+                chiefSource: fresh.chiefSource,
+                chiefAvailable: fresh.chiefAvailable,
               };
             });
             return changed ? next : prev;

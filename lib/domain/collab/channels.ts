@@ -1,9 +1,12 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel, notifyChannelCreated } from "./event-messages.ts";
 import {
+  canRouteToChief,
+  chiefRefOf,
   getGlobalChief,
   resolveEffectiveChief,
   setChannelChief,
+  type ChiefRef,
   type ChiefSource,
 } from "./chief.ts";
 import { assertActorMayPerform } from "./member-capabilities.ts";
@@ -169,8 +172,8 @@ export function createChannel(input: {
     }
     // §7 新建公开频道必加：秘书静默加入（不触发欢迎事件；私有频道由创建者预勾选决定）。
     if (created.type === "public") {
-      const susan = getGlobalChief();
-      if (susan) addMemberWithJoinCursor(created.id, susan.id);
+      const globalChief = getGlobalChief();
+      if (globalChief) addMemberWithJoinCursor(created.id, globalChief.id);
     }
     // 成员关系写完之后才校验：频道首席的合法面就是「本频道的 agent 成员」。
     if (chiefMemberId !== null) setChannelChief(created.id, chiefMemberId);
@@ -395,8 +398,13 @@ export function listChannelsWithMeta(
      * #250 此刻生效的首席（频道指定 → 全局回落 → 无）与其来源。
      * 一次给全：UI 不得在客户端按 `chief_member_id` 重新推导（绑定失效时两者会不一致）。
      */
-    chief: { id: string; name: string } | null;
+    chief: ChiefRef | null;
     chiefSource: ChiefSource;
+    /**
+     * #251 生效首席对**本频道**是否可达（本频道未软删 agent 成员 + 未静音）。
+     * `false` 时「没有默认收件人」——composer 提示只说这一条结论，不承诺不会发生的投递。
+     */
+    chiefAvailable: boolean;
   }
 > {
   return listChannels().map((channel) => {
@@ -408,8 +416,9 @@ export function listChannelsWithMeta(
       unread: getDb().countUnreadChannelMessages(memberId, channel.id),
       unreadTaskCount: getDb().countUnreadTaskThreads(channel.id, memberId),
       messageCount: getDb().maxSeq(channel.id),
-      chief: chief ? { id: chief.id, name: chief.name } : null,
+      chief: chiefRefOf(chief),
       chiefSource: source,
+      chiefAvailable: chief ? canRouteToChief(channel.id, chief.id) : false,
     };
   });
 }

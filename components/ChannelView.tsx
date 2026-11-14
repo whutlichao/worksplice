@@ -85,7 +85,8 @@ import {
   type JourneyGuideKind,
 } from "@/lib/journey-state";
 import { useChannelData } from "@/hooks/useChannelData";
-import type { ChiefSource } from "@/lib/domain/collab/chief";
+import { chiefFailureText } from "@/lib/chief-failure";
+import type { ChiefRef, ChiefSource } from "@/lib/domain/collab";
 
 export type CenterTab = "messages" | "tasks";
 
@@ -172,13 +173,16 @@ export interface ChannelWithMeta extends ChannelRow {
    *  与 `chief_member_id` 分开：绑定失效时两者会不一致，UI 只读这两个字段——
    *  `shallowEqualChannel` 也纳入它们，否则轮询复用旧行，composer 提示与成员视角显示过期结论。
    *  可选：旧响应 / 测试构造的行可能不带（`channelChiefView` 把缺失按「无」处理）。 */
-  chief?: { id: string; name: string } | null;
+  chief?: ChiefRef | null;
   chiefSource?: ChiefSource;
+  /** #251 生效首席对**本频道**是否可达（服务端 `canRouteToChief` 的结论）。
+   *  `false` / 缺字段 ⇒「没有默认收件人」：提示只读结论，不在客户端按绑定重新推导。 */
+  chiefAvailable?: boolean;
 }
 
 /** #252 频道此刻生效的首席 + 来源（来源三态固定：频道指定 / 回落全局 / 无）。 */
 export interface ChannelChiefMeta {
-  chief: { id: string; name: string } | null;
+  chief: ChiefRef | null;
   chiefSource: ChiefSource;
 }
 
@@ -187,6 +191,32 @@ export function channelChiefView(channel: ChannelWithMeta | null): ChannelChiefM
   return {
     chief: channel?.chief ?? null,
     chiefSource: channel?.chiefSource ?? "none",
+  };
+}
+
+/**
+ * composer「谁会接这条消息」的依据（票 #251）：生效首席 + 来源 + 它对**本频道**是否可达。
+ *
+ * `chiefAvailable` 是服务端 `canRouteToChief` 的结论（本频道成员 + 未静音），这里只转手，
+ * 不在客户端重新推导——否则「解析出谁是首席」与「他会不会真的收到」会各说各话（票面 AC 的
+ * 反例：私有频道不自动加全局首席、频道首席被静音）。
+ */
+export interface ChiefRecipient {
+  chief: ChiefRef | null;
+  chiefSource: ChiefSource;
+  chiefAvailable: boolean;
+}
+
+/** 频道行 → composer 提示依据；DM 没有首席语义 ⇒ null（整条提示不渲染）。 */
+export function chiefRecipientOf(
+  channel: ChannelWithMeta | null,
+): ChiefRecipient | null {
+  if (!channel || channel.type === "dm") return null;
+  return {
+    chief: channel.chief ?? null,
+    chiefSource: channel.chiefSource ?? "none",
+    // 残缺行（旧响应 / 测试构造）没有这条结论 ⇒ 不冒认可达（fail-safe：不承诺投递）。
+    chiefAvailable: channel.chiefAvailable === true,
   };
 }
 
@@ -3143,14 +3173,19 @@ export interface ChiefHint {
  * 点名优先：正文出现个人点名或 `@all` 时首席不参与这一轮（#237 准入矩阵的优先级），
  * 提示改说「按点名送达」，避免同时承诺首席会接。`@` 的判定口径直接复用邀请判定那两个
  * helper —— 引用块 / 代码块 / 行内代码里的 `@` 不算点名。
+ *
+ * `chiefAvailable` 是服务端给的**投递判定**（本频道成员 + 未静音）。它不成立时与「没有首席」
+ * 同一句话——提示不得承诺一次不会发生的投递（这是票 #251 AC 的「没有默认收件人」）。
  */
 export function chiefHintFor(input: {
   draft: string;
   /** 点名判定用的成员集合（全量：非频道成员的正文点名也会穿透）。
    *  `type` 必须保留：点名人类成员不会叫起任何 agent，不能当成「按点名送达」。 */
   mentionMembers: MentionMember[];
-  chief: { id: string; name: string } | null;
+  chief: ChiefRef | null;
   chiefSource: ChiefSource;
+  /** 生效首席对本频道是否可达（服务端结论）。 */
+  chiefAvailable: boolean;
   /** `false` = 不显示提示（DM；归档 / 未加入等禁用态）。 */
   enabled: boolean;
 }): ChiefHint | null {
@@ -3158,7 +3193,7 @@ export function chiefHintFor(input: {
   if (mentionsAnyAgent(input.draft, input.mentionMembers)) {
     return { kind: "named", chiefName: null };
   }
-  if (!input.chief) return { kind: "none", chiefName: null };
+  if (!input.chief || !input.chiefAvailable) return { kind: "none", chiefName: null };
   return {
     kind: input.chiefSource === "channel" ? "channel" : "global",
     chiefName: input.chief.name,
@@ -3270,13 +3305,10 @@ export function Composer({
    * 无人点名时「这条消息会由谁接」（票 #251）。频道行已带出结论，这里只转给提示层：
    * **不发额外请求、不改写正文、不拦发送**。`undefined` / `null` = 不显示（DM、未选中频道）。
    */
-  chiefRecipient?: {
-    chief: { id: string; name: string } | null;
-    chiefSource: ChiefSource;
-  } | null;
-  /** 点名判定用的成员集合（省略 → 取 `members`）：传全量成员，非频道成员的
-   *  正文点名也会穿透，因此不能只递@ 补全候选（那只有频道成员）。 */
-  mentionMembers?: MentionMember[];
+  chiefRecipient?: ChiefRecipient | null;
+  /** 点名判定用的成员集合：传全量成员（含人类，`type` 必须真实——点名人类不叫起 agent），
+   *  非频道成员的正文点名也会穿透，因此不能只递 @ 补全候选（那只有频道成员）。 */
+  mentionMembers: MentionMember[];
   /** 一次性聚焦信号（DM 懒创建入口导航后聚焦输入框）：变化时 focus textarea。 */
   focusSignal?: number;
 }) {
@@ -3417,11 +3449,10 @@ export function Composer({
   // 票 #251：没人点名时「谁会接这条消息」——只读已带出的首席结论，随草稿里的点名即时切换。
   const recipientHint = chiefHintFor({
     draft: value,
-    mentionMembers:
-      mentionMembers ??
-      (members ?? []).map((member) => ({ ...member, type: "agent" as const })),
+    mentionMembers,
     chief: chiefRecipient?.chief ?? null,
     chiefSource: chiefRecipient?.chiefSource ?? "none",
+    chiefAvailable: chiefRecipient?.chiefAvailable === true,
     enabled: Boolean(chiefRecipient) && !disabled,
   });
 
@@ -3775,25 +3806,6 @@ export function Composer({
       </div>
     </div>
   );
-}
-
-/** #252 服务端拒绝码 → 可读文案；未知码 / 缺码时退回服务端消息（不吞原因）。 */
-const CHIEF_FAILURE_KEYS: Record<string, string> = {
-  channel_not_found: "chief.failChannelNotFound",
-  owner_only: "chief.failOwnerOnly",
-  member_not_found: "chief.failMemberNotFound",
-  human_member: "chief.failHumanMember",
-  member_deleted: "chief.failMemberDeleted",
-  not_channel_member: "chief.failNotChannelMember",
-};
-
-export function chiefFailureText(
-  t: (key: string, params?: TranslationParams) => string,
-  code: string | undefined,
-  fallback: string,
-): string {
-  const key = code ? CHIEF_FAILURE_KEYS[code] : undefined;
-  return key ? t(key) : fallback;
 }
 
 /** #252 一次 chief 写入的服务端答案：此刻生效的首席 + 来源 + 绑定。
@@ -5666,9 +5678,7 @@ export function ChannelView({
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
           members={composerMembers}
-          chiefRecipient={
-            channel.type === "dm" ? null : channelChiefView(channel)
-          }
+          chiefRecipient={chiefRecipientOf(channel)}
           mentionMembers={mentionMembers}
           focusSignal={(composerFocusSignal ?? 0) + composerFocusTick}
         />

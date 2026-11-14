@@ -1,3 +1,4 @@
+import { SECRETARY_DEFAULT_NAME } from "../../secretary-name.ts";
 import { getGlobalChief } from "./chief.ts";
 import type { MemberRow } from "../../data/types.ts";
 
@@ -8,8 +9,9 @@ import type { MemberRow } from "../../data/types.ts";
  * `wake ↔ event-messages` 的循环导入。
  */
 
-/** 引导 / 迁移期的默认名字（创建「启动助手」身份时用）：**不参与任何身份判定**。 */
-export const SUSAN_MEMBER_NAME = "Susan";
+/** 引导 / 迁移期的默认名字（创建「启动助手」身份时用）：**不参与任何身份判定**。
+ *  字面值来自 `lib/secretary-name.ts`（与数据层迁移常量、UI 侧启动助手判定同源）。 */
+export const SUSAN_MEMBER_NAME = SECRETARY_DEFAULT_NAME;
 
 /** 严格判定：传入成员是否就是当前全局首席（= 秘书）。 */
 export function isSecretaryMember(
