@@ -12,7 +12,7 @@ import {
   buildMemoryTemplate,
   MEMORY_FILE_NAME,
 } from "../../data/dirs.ts";
-import { parseMentionTokens } from "../../mention.ts";
+import { bodyMentionText, parseMentionTokens } from "../../mention.ts";
 
 /**
  * workspace 路径归一化（§5.2 隔离单位是 cwd）：绝对路径化，
@@ -132,7 +132,7 @@ export function updateAgentDescription(
 export function extractMentionedMemberIds(content: string): string[] {
   const members = getDb().listMembers();
   const tokens = parseMentionTokens(
-    content,
+    bodyMentionText(content),
     members.map((m) => ({ id: m.id, name: m.name, type: m.type })),
   );
   // 名字全等匹配即算（重名已被创建期禁止，按名字匹配至多命中一个成员）；去重保序。

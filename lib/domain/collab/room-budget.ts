@@ -208,6 +208,12 @@ export interface RoomTurnStore {
     targetId?: string;
     authorId?: string;
     replyToAuthorId?: string | null;
+    /**
+     * 显式候选（Ticket #237）：生产路径由 `selectMessageInvitations` 在 beginTurn 之前算好。
+     * 传空数组 = 人类没点名且无可归属任务：仍推进 epoch / 取代旧场次，但不选人、不等超时。
+     * 缺省保留旧 responders() 行为（纯状态机单测的兼容口）。
+     */
+    candidates?: string[];
   }): number;
   /** 选人门（`runAgentRound` 入场 CP0）。 */
   gate(input: {
@@ -224,6 +230,8 @@ export interface RoomTurnStore {
     text: string;
     order?: number;
     epoch?: number;
+    /** 显式引用边（Ticket #237：agent 正文不邀人 ⇒ 生产路径传空数组）。缺省按正文解析。 */
+    mentions?: string[];
   }): RoomReplyNote;
   /** pass 协议：`(pass)` / 空内容 / `{"action":"ignore"}` / silent 让路——只释放槽位。 */
   notePass(input: { channelId: string; memberId: string; epoch?: number }): void;
@@ -538,6 +546,7 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     text: string;
     order?: number;
     epoch?: number;
+    mentions?: string[];
   }): RoomReplyNote {
     const room = getRoom(input.channelId);
     const turn = room.turn;
@@ -563,7 +572,7 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
       order,
       author: input.memberId,
       kind: substantive ? "speech" : "pass",
-      mentions: substantive ? mentions(trimmed) : [],
+      mentions: substantive ? (input.mentions ?? mentions(trimmed)) : [],
       text: trimmed,
     };
     // I7：忙碌/超时被释放的成员，或场次已收口之后的发言 = 迟到回答
@@ -670,6 +679,7 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     targetId?: string;
     authorId?: string;
     replyToAuthorId?: string | null;
+    candidates?: string[];
   }): number {
     const room = getRoom(input.channelId);
     // I5：用户新消息使 epoch 递增，在跑场次在第一个检查点退出
@@ -716,11 +726,12 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     };
     room.turn = turn;
     room.running = epoch;
-    // 第一波 = responders()（点名优先 / 无点名则全体 agent 成员）；唤醒由 sendMessage 的
-    // 扇出自己完成，这里不重复 announce。
-    openWave(turn, { members: responders(input.channelId, input.text, authorId, input.replyToAuthorId ?? null) }, {
-      announce: false,
-    });
+    // 第一波 = 调用方显式传入的候选（Ticket #237：wake 与选人共用同一份邀请判定）。
+    // 缺省才回落在旧 responders()（点名优先 / 无点名则全体 agent 成员）——纯状态机单测的兼容口。
+    const members =
+      input.candidates ??
+      responders(input.channelId, input.text, authorId, input.replyToAuthorId ?? null);
+    openWave(turn, { members }, { announce: false });
     return epoch;
   }
 
