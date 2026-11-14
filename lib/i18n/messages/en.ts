@@ -607,15 +607,7 @@ export const enLocale: LocalePlugin = {
     "center.messages": "Messages",
     "center.tasks": "Tasks",
     "center.tasksBadge": "Tasks, {count} open",
-    "journey.describe.title": "Hand the idea to a member and let it run",
-    "journey.describe.hint":
-      "Describe the task in the composer. An agent picks it up after you hand it off with @mention.",
-    "journey.describe.cta": "Describe the task",
-    "journey.describe.secretary": "Let the secretary set up the first room",
-    "journey.review.title": "Go review",
-    "journey.review.hint":
-      "Tasks are waiting for your review on the task board.",
-    "journey.review.cta": "Open the task board",
+    "messages.emptyChannel": "No messages in this channel yet",
     "messages.emptyDM": "No messages in this DM yet",
     "messages.loading": "Loading messages…",
     "messages.loadingHint": "Fetching this channel's messages.",

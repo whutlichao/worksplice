@@ -974,9 +974,9 @@ test("mergeTaskPollRows adopts the reopened marker and the cleared owner from th
   assert.deepEqual(refreshed[0].reachable, ["in_progress"]);
 });
 
-test("mergeTaskPollRows drives the journey guide card from the polled task status", async () => {
+test("mergeTaskPollRows feeds the Tasks badge count from the polled task status", async () => {
   const { mergeTaskPollRows } = await jiti.import("./useChannelData.ts");
-  const { deriveJourneyState } = await jiti.import("../lib/journey-state.ts");
+  const { countOpenTasks } = await jiti.import("../lib/journey-state.ts");
   const task = {
     id: "task-a",
     number: 1,
@@ -991,18 +991,16 @@ test("mergeTaskPollRows drives the journey guide card from the polled task statu
     taskThreadReadSeq: 0,
     totalReplyCount: 0,
   };
-  // 用户报告的症状：消息页那张引导卡的形态只由 hook 的 tasks 推导（ChannelView 的
-  // deriveJourneyState 调用点）。轮询把 in_review 带进来，卡面就必须是「去复核」——
-  // 这是本票的核心回归。
-  // 本票：只有 in_progress 不再出卡（null）——「让它跑」引导卡已删除。
+  // 回归：Tasks badge 只由 hook 的 tasks 推导（ChannelView 的 countOpenTasks 调用点）。
+  // 轮询把状态带进来，角标计数必须跟着变（原先同一条数据路径驱动引导卡）。
   const cases = [
-    ["in_review", "review"],
-    ["in_progress", null],
-    ["todo", null],
-    ["done", null],
-    ["closed", null],
+    ["in_review", 1],
+    ["in_progress", 1],
+    ["todo", 1],
+    ["done", 0],
+    ["closed", 0],
   ];
-  for (const [status, guideKind] of cases) {
+  for (const [status, openCount] of cases) {
     const current = [{ ...task }];
     const merged = mergeTaskPollRows(current, [{ ...task, status }]);
     assert.deepEqual(
@@ -1011,9 +1009,9 @@ test("mergeTaskPollRows drives the journey guide card from the polled task statu
       `轮询行必须把 status=${status} 带进任务视图`,
     );
     assert.equal(
-      deriveJourneyState({ messageCount: 1, tasks: merged }).guideKind,
-      guideKind,
-      `status=${status} 时引导卡应为 ${JSON.stringify(guideKind)}`,
+      countOpenTasks(merged),
+      openCount,
+      `status=${status} 时角标计数应为 ${openCount}`,
     );
   }
 });
