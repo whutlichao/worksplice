@@ -17,13 +17,6 @@ const {
     ChannelView,
     getPinnedNavigationStep,
     hasPinnedNavigationError,
-    JourneyGuideCard,
-    nextJourneyGuideView,
-    completeJourneyGuideExit,
-    initialJourneyGuideState,
-    syncJourneyGuideState,
-    advanceJourneyGuideState,
-    completeJourneyGuideExitState,
     CenterTabs,
     MessageMoreMenu,
     chiefHintFor,
@@ -33,11 +26,6 @@ const {
 const { mergeIncomingMessages } = await jiti.import(
     "../hooks/useChannelData.ts",
 );
-const {
-    groupJourneyGuideTextLines,
-    sampleJourneyGuideParticles,
-    JOURNEY_GUIDE_PARTICLE_STEP_PX,
-} = await jiti.import("../lib/journey-guide-particles.ts");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 function renderI18n(children) {
@@ -1340,76 +1328,72 @@ test("切换频道后，已知频道中新到达的任务事件仍会播报", ()
     );
 });
 
-// —— 票 16：B·Guided Journey（引导卡 / Tasks badge / ··· 二级菜单） ——
+// —— 票 16：Tasks badge / ··· 二级菜单（引导卡已由 journey-guide-removal 整体删除） ——
 
-test("旅程条已从消息页移除：没有 JourneyBar 导出，也没有它的渲染点", async () => {
+test("引导卡机制已整体删除：消息页不再渲染任何引导卡或粒子层", async () => {
     const source = await readFile(
         new URL("../components/ChannelView.tsx", import.meta.url),
         "utf-8",
     );
-    // 旅程条在 `!messagesLoading` 门控后才渲染，SSR 永远停在加载态，渲染断言读不到它；
-    // 这里只能扫源码（与仓库既有的「路由源码级断言」同一形态）。
-    assert.doesNotMatch(source, /JourneyBar/);
-    assert.doesNotMatch(source, /JOURNEY_STEPS/);
-    assert.doesNotMatch(source, /journey\.label/);
+    // 消息页的引导卡在 `!messagesLoading` 门控后才渲染，SSR 永远停在加载态，渲染断言读不到它；
+    // 这里扫源码（与仓库既有的「路由源码级断言」同一形态），产品面证据由浏览器探针承担。
+    for (const pattern of [
+        /JourneyGuideCard/,
+        /JourneyGuideContentLayer/,
+        /resolveJourneyGuideContent/,
+        /useJourneyGuideView/,
+        /JOURNEY_GUIDE_/,
+        /journey-guide/,
+        /deriveJourneyState/,
+        /journey\.(describe|review)/,
+    ]) {
+        assert.doesNotMatch(source, pattern, `ChannelView 仍残留 ${pattern}`);
+    }
 });
 
-test("无消息引导卡：描述 CTA 聚焦输入，秘书入口可打开现有创建流程", () => {
-    const html = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "describe",
-            onDescribe: () => undefined,
-            onOpenSecretary: () => undefined,
-        }),
-    );
-
-    assert.match(html, /Hand the idea to a member and let it run/);
-    assert.match(html, /Describe the task in the composer/);
-    assert.match(html, /Describe the task/);
-    assert.match(html, /Let the secretary set up the first room/);
-    // 首屏只给两个入口，不铺开任务/提醒等概念。
-    assert.equal(html.split("<button").length - 1, 2);
-});
-
-test("无消息引导卡在未接线秘书入口时不渲染该按钮", () => {
-    const html = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "describe",
-            onDescribe: () => undefined,
-        }),
-    );
-
-    assert.match(html, /Describe the task/);
-    assert.doesNotMatch(html, /Let the secretary set up the first room/);
-});
-
-test("待审核引导卡提示去复核；JourneyGuideKind 只保留 describe / review", async () => {
-    const review = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "review",
-            onOpenTasks: () => undefined,
-        }),
-    );
-    assert.match(review, /Go review/);
-    assert.match(review, /waiting for your review/);
-    assert.match(review, /Open the task board/);
-
-    // 联合类型只留 describe / review（handoff 已移除），源码里不再有 running 分支。
-    const stateSource = await readFile(
-        new URL("../lib/journey-state.ts", import.meta.url),
-        "utf-8",
-    );
-    const union = stateSource.match(
-        /export type JourneyGuideKind =([^;]+);/,
-    )?.[1];
-    assert.ok(union, "JourneyGuideKind 联合类型应保留");
-    assert.doesNotMatch(union, /"handoff"/);
-    assert.doesNotMatch(union, /"running"/);
-    const viewSource = await readFile(
+test("空频道改为与 DM 同形的空态：messages.emptyChannel + 复用 emptyDMHint", async () => {
+    const source = await readFile(
         new URL("../components/ChannelView.tsx", import.meta.url),
         "utf-8",
     );
-    assert.doesNotMatch(viewSource, /journey\.running/);
+    assert.match(source, /title=\{t\("messages\.emptyChannel"\)\}/);
+    // DM 空态与两条空态共用的 hint 原样保留（其它三个空态不动）。
+    assert.match(source, /title=\{t\("messages\.emptyDM"\)\}/);
+    assert.match(source, /hint=\{t\("messages\.emptyDMHint"\)\}/);
+    // 空频道不再套那层为引导卡留的内边距容器。
+    assert.doesNotMatch(source, /padding: "var\(--sp-6\) var\(--sp-9\)"/);
+});
+
+test("空频道文案两包同步：新增 messages.emptyChannel，journey.* 七键全部删除", async () => {
+    const { enLocale } = await import("../lib/i18n/messages/en.ts");
+    const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
+    assert.equal(
+        zhCNLocale.messages["messages.emptyChannel"],
+        "该频道还没有消息",
+    );
+    assert.equal(
+        enLocale.messages["messages.emptyChannel"],
+        "No messages in this channel yet",
+    );
+    // hint 复用既有的 DM 空态提示，两包都还在。
+    assert.ok(zhCNLocale.messages["messages.emptyDMHint"]);
+    assert.ok(enLocale.messages["messages.emptyDMHint"]);
+    for (const key of [
+        "journey.describe.title",
+        "journey.describe.hint",
+        "journey.describe.cta",
+        "journey.describe.secretary",
+        "journey.review.title",
+        "journey.review.hint",
+        "journey.review.cta",
+    ]) {
+        assert.equal(enLocale.messages[key], undefined, `en 仍残留 ${key}`);
+        assert.equal(
+            zhCNLocale.messages[key],
+            undefined,
+            `zh-CN 仍残留 ${key}`,
+        );
+    }
 });
 
 test("Central Tabs 保留 Messages/Tasks 切换，并为未完成任务显示数量 badge", () => {
@@ -1465,276 +1449,6 @@ test("Central Tabs 没有未完成任务时不显示 badge，未读讨论入口�
 
     assert.doesNotMatch(html, /aria-label="Tasks, 0 open"/);
     assert.match(html, /Unread Task discussions \(2\)/);
-});
-
-// —— 引导卡内容过渡：粒子燃尽 → 重聚（最终设计） ——
-
-const GUIDE_KINDS = ["describe", "review"];
-
-test("引导卡 SSR 只渲染空粒子层，粒子坐标只在客户端生成", () => {
-    for (const kind of GUIDE_KINDS) {
-        const html = renderI18n(
-            React.createElement(JourneyGuideCard, { kind }),
-        );
-        const layerTag = html.match(
-            /<span class="journey-guide-particles"[^>]*>/,
-        )?.[0];
-        assert.ok(layerTag, `${kind}: 缺少粒子层`);
-        assert.match(layerTag, /aria-hidden="true"/);
-        assert.match(layerTag, new RegExp(`data-guide-particles="${kind}"`));
-        // 粒子依赖 getBoundingClientRect，SSR 不得输出具体粒子/坐标。
-        assert.doesNotMatch(html, /class="journey-guide-particle\s/);
-        assert.doesNotMatch(html, /left:\s*-?\d+(\.\d+)?px/);
-        // 旧内容副本只在客户端切换时生成。
-        assert.doesNotMatch(html, /journey-guide-content-outgoing/);
-        // 同一输入两次 SSR 渲染必须逐字一致。
-        const again = renderI18n(
-            React.createElement(JourneyGuideCard, { kind }),
-        );
-        assert.equal(html, again);
-    }
-});
-
-test("卡壳静止：阶段只进 data 属性，不挂整卡动画类", () => {
-    const entering = renderI18n(
-        React.createElement(JourneyGuideCard, { kind: "review" }),
-    );
-    const enteringTag = entering.match(/<section[^>]*>/)?.[0] ?? "";
-    assert.match(enteringTag, /class="journey-guide-card"/);
-    assert.doesNotMatch(enteringTag, /is-(entering|switching|exiting)/);
-    assert.match(enteringTag, /data-guide-phase="enter"/);
-    // 卡壳上不得出现 animation / transform / opacity。
-    assert.doesNotMatch(enteringTag, /animation/i);
-    assert.doesNotMatch(enteringTag, /transform/i);
-    assert.doesNotMatch(enteringTag, /opacity/i);
-    // 内容层仍在（排版与文案保持）。
-    assert.match(entering, /class="journey-guide-content"/);
-    assert.match(entering, /data-guide-sample="text"/);
-
-    const switching = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "review",
-            phase: "switch",
-        }),
-    );
-    assert.match(
-        switching.match(/<section[^>]*>/)?.[0] ?? "",
-        /data-guide-phase="switch"/,
-    );
-
-    const exiting = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "review",
-            phase: "exit",
-        }),
-    );
-    const exitingTag = exiting.match(/<section[^>]*>/)?.[0] ?? "";
-    assert.match(exitingTag, /data-guide-phase="exit"/);
-    assert.match(exitingTag, /inert/);
-    // 既有契约不变：aria-label 仍是当前形态标题。
-    assert.match(
-        exiting,
-        /<section[^>]*aria-label="Go review"/,
-    );
-});
-
-test("引导卡粒子几何：逐字符行盒归并（折行/居中交给浏览器）", () => {
-    const rects = [
-        { char: "a", left: 12, top: 10, width: 6, height: 14 },
-        { char: "b", left: 18, top: 10.3, width: 6, height: 14 },
-        { char: "c", left: 12, top: 30, width: 6, height: 14 },
-        // 零尺寸字符（如被折叠的空白）不产生行。
-        { char: " ", left: 0, top: 0, width: 0, height: 0 },
-    ];
-    assert.deepEqual(groupJourneyGuideTextLines(rects), [
-        { text: "ab", left: 12, top: 10, height: 14 },
-        { text: "c", left: 12, top: 30, height: 14 },
-    ]);
-});
-
-test("引导卡粒子采样：2.6px 网格落在行盒墨迹内，行间不串行", () => {
-    const width = 100;
-    const height = 60;
-    const data = new Uint8ClampedArray(width * height * 4);
-    const fill = (x0, y0, x1, y1, [r, g, b]) => {
-        for (let y = y0; y < y1; y += 1) {
-            for (let x = x0; x < x1; x += 1) {
-                const index = (y * width + x) * 4;
-                data[index] = r;
-                data[index + 1] = g;
-                data[index + 2] = b;
-                data[index + 3] = 255;
-            }
-        }
-    };
-    // 两行文字墨迹：标题行 y 5–20，按钮行 y 38–55。
-    fill(10, 5, 90, 20, [200, 10, 10]);
-    fill(20, 38, 80, 55, [10, 10, 200]);
-
-    const points = sampleJourneyGuideParticles(data, width, height, 1);
-    assert.ok(points.length > 0, "应采到粒子");
-    // 四象限采样取整到设备像素，边缘格子的重心可能越出墨迹 <1px（与 1.5px 对齐
-    // 容差同口径）。
-    const tolerance = 1.5;
-    for (const point of points) {
-        const inTitle =
-            point.y >= 5 - tolerance && point.y <= 20 + tolerance;
-        const inButton =
-            point.y >= 38 - tolerance && point.y <= 55 + tolerance;
-        assert.ok(
-            inTitle || inButton,
-            `粒子 y=${point.y.toFixed(2)} 落在行盒之外`,
-        );
-        assert.ok(
-            point.x >= 10 - tolerance && point.x <= 90 + tolerance,
-            "粒子 x 超出墨迹范围",
-        );
-        assert.ok(
-            Math.abs(point.size - JOURNEY_GUIDE_PARTICLE_STEP_PX * 0.98) <
-                1e-6,
-        );
-        if (inTitle) assert.match(point.color, /^rgba\(200,10,10,/);
-        if (inButton) assert.match(point.color, /^rgba\(10,10,200,/);
-    }
-    // 行间空白不得有粒子（扣除边缘格子的取整容差）。
-    assert.equal(
-        points.filter(
-            (point) =>
-                point.y > 20 + tolerance && point.y < 38 - tolerance,
-        ).length,
-        0,
-    );
-    // 加权重心不是格子右下角：标题行粒子的横向均值接近行盒中心。
-    const titleXs = points
-        .filter(
-            (point) => point.y >= 5 - tolerance && point.y <= 20 + tolerance,
-        )
-        .map((point) => point.x);
-    const meanX = titleXs.reduce((sum, x) => sum + x, 0) / titleXs.length;
-    assert.ok(
-        Math.abs(meanX - 50) < 2.5,
-        `粒子云横向重心偏离行盒中心：${meanX}`,
-    );
-    // 纯函数：同一输入两次结果一致。
-    assert.deepEqual(
-        sampleJourneyGuideParticles(data, width, height, 1),
-        points,
-    );
-});
-
-test("引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入", () => {
-    const enter = nextJourneyGuideView(null, "describe");
-    assert.deepEqual(enter, {
-        kind: "describe",
-        phase: "enter",
-        generation: 1,
-    });
-
-    // 形态没变：同一引用返回，不触发重渲染与重播。
-    assert.equal(nextJourneyGuideView(enter, "describe"), enter);
-
-    const switched = nextJourneyGuideView(enter, "review");
-    assert.deepEqual(switched, {
-        kind: "review",
-        phase: "switch",
-        generation: 2,
-    });
-
-    const exiting = nextJourneyGuideView(switched, null);
-    assert.deepEqual(exiting, {
-        kind: "review",
-        phase: "exit",
-        generation: 3,
-    });
-
-    // 退场中重复 null：保持原引用，不重启退场动画。
-    assert.equal(nextJourneyGuideView(exiting, null), exiting);
-    // 只有仍在退场的视图才允许被计时器清掉。
-    assert.equal(completeJourneyGuideExit(exiting), null);
-    assert.equal(completeJourneyGuideExit(switched), switched);
-
-    // 退场中重新拿到形态：旧卡面还在屏幕上，按切换处理。
-    const reentered = nextJourneyGuideView(exiting, "describe");
-    assert.deepEqual(reentered, {
-        kind: "describe",
-        phase: "switch",
-        generation: 4,
-    });
-
-    // 从无到无：不凭空造卡。
-    assert.equal(nextJourneyGuideView(null, null), null);
-});
-
-test("引导卡过渡状态机：切频道后等新频道数据快照，首张卡按 enter 起算", () => {
-    // snapshot 是数据快照标识（调用方传 messages 数组引用），只做同一性比较。
-    const snapshotA = ["a"];
-    const snapshotBEmpty = [];
-
-    // 频道 A 已经显示 review 卡。
-    let state = initialJourneyGuideState("A", "review", snapshotA);
-    assert.deepEqual(state.view, {
-        kind: "review",
-        phase: "enter",
-        generation: 1,
-    });
-
-    // 切到频道 B 的首帧：messages/tasks 还是 A 的数据（useChannelData 的切换 effect
-    // 在提交后才清空/命中缓存），kind 仍是 review。此时不得用它起算，否则会先
-    // enter(review) → exit(review) → switch(describe)，B 的首张卡 phase 就错了。
-    state = syncJourneyGuideState(state, "B", "review", snapshotA);
-    assert.equal(state.view, null);
-    assert.equal(state.awaitingSnapshot, true);
-    // 等快照期间 kind 变化不消费。
-    assert.equal(advanceJourneyGuideState(state, "describe"), state);
-
-    // useChannelData 的切换 effect 清空了旧频道数据 → 快照换新，结束等待。
-    state = syncJourneyGuideState(state, "B", null, snapshotBEmpty);
-    assert.equal(state.awaitingSnapshot, false);
-    assert.equal(state.view, null);
-
-    // 频道 B 的第一张卡：进入，而不是从 A 的形态切过来。
-    state = advanceJourneyGuideState(state, "describe");
-    assert.deepEqual(state.view, {
-        kind: "describe",
-        phase: "enter",
-        generation: 1,
-    });
-
-    // 同频道后续形态变化才走 switch；同形态返回同一引用。
-    state = advanceJourneyGuideState(state, "review");
-    assert.deepEqual(state.view, {
-        kind: "review",
-        phase: "switch",
-        generation: 2,
-    });
-    assert.equal(advanceJourneyGuideState(state, "review"), state);
-
-    // 退场与计时器清理沿用原状态机。
-    state = advanceJourneyGuideState(state, null);
-    assert.equal(state.view.phase, "exit");
-    assert.equal(completeJourneyGuideExitState(state).view, null);
-});
-
-test("引导卡过渡状态机：缓存频道的快照直接带形态时也按首张 enter 起算", () => {
-    const snapshotA = ["a"];
-    const snapshotB = ["b"];
-    let state = initialJourneyGuideState("A", "review", snapshotA);
-    // 切换首帧仍是 A 的数据；缓存命中的 B 快照在 effect 里换新后才消费 kind。
-    state = syncJourneyGuideState(state, "B", "review", snapshotA);
-    assert.equal(state.view, null);
-    state = syncJourneyGuideState(state, "B", "describe", snapshotB);
-    assert.deepEqual(state.view, {
-        kind: "describe",
-        phase: "enter",
-        generation: 1,
-    });
-    // 切到 B 的同一帧如果快照已清空（kind null），也可以直接结束等待。
-    let empty = initialJourneyGuideState("A", "review", snapshotA);
-    empty = syncJourneyGuideState(empty, "B", null, snapshotA);
-    assert.equal(empty.awaitingSnapshot, true);
-    empty = syncJourneyGuideState(empty, "B", null, snapshotA);
-    assert.equal(empty.awaitingSnapshot, false);
-    assert.equal(empty.view, null);
 });
 
 test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务，门控与旧动作栏一致", () => {
@@ -1848,26 +1562,15 @@ test("消息行默认只露高频动作，二级动作收进 ··· 触发器", 
     assert.doesNotMatch(html, /Convert to task/);
 });
 
-test("ChannelView 接线：引导卡/任务角标/秘书入口都进中央视图", async () => {
+test("ChannelView 接线：Tasks badge 计数由 countOpenTasks 推导", async () => {
     const source = await readFile(
         new URL("../components/ChannelView.tsx", import.meta.url),
         "utf-8",
     );
-    assert.match(
-        source,
-        /deriveJourneyState\(\{ messageCount: messages\.length, tasks \}\)/,
-    );
+    assert.match(source, /countOpenTasks\(tasks\)/);
     assert.match(source, /<CenterTabs/);
-    assert.match(source, /openTaskCount=\{journey\.openTaskCount\}/);
+    assert.match(source, /openTaskCount=\{openTaskCount\}/);
     assert.match(source, /onTabChange=\{selectTab\}/);
-    assert.match(
-        source,
-        /<JourneyGuideCard[\s\S]*?onOpenTasks=\{\(\) => selectTab\("tasks"\)\}/,
-    );
-    assert.match(
-        source,
-        /<JourneyGuideCard[\s\S]*?onOpenSecretary=\{onOpenSecretary\}/,
-    );
 });
 
 test("AppShell 复用 CreateAgentModal 打开秘书入口，不新增路由", async () => {
