@@ -23,6 +23,7 @@ import {
   getPendingTargets,
   getRoomTurnStore,
   getSince,
+  INBOX_DRAIN_WINDOW,
   isChannelMember,
   isDM,
   joinChannel,
@@ -78,6 +79,7 @@ import {
   elasticBudget,
   projectMessages,
 } from "./injection-budget.ts";
+import { buildJoinBriefing, type JoinBriefing } from "./join-briefing.ts";
 
 /**
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
@@ -477,14 +479,25 @@ export function buildReplyPrompt(input: {
   context?: ReplyPromptContext;
   /** peer 收束（thread 内 peer 最后一条是收束语）：与判定同源，明确告知本轮不再发帖。 */
   peerClosedExchange?: boolean;
+  /** 新成员首次合法准入、且没有他人新正文时的有界频道简报（票 #243）。 */
+  joinBriefing?: JoinBriefing;
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
   head.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
   // P1：线程轮与频道轮用不同身份措辞——模型得知道自己是在某个（任务）线程里说话
-  head.push(
-    `New activity arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })}:`,
-  );
+  if (input.joinBriefing && input.messages.length === 0) {
+    head.push(
+      `No new messages from other members have arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })} since your watermark.`,
+    );
+    head.push(
+      "You were admitted by a legitimate trigger (reminder, task event, mention, or an existing legal reason) — not by joining. Do not reply merely to acknowledge this briefing.",
+    );
+  } else {
+    head.push(
+      `New activity arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })}:`,
+    );
+  }
   // 11-整改（自激循环）：续工轮的 drain 全是 agent 自己的历史回复（线程游标留口），
   // 模型看到 `@自己` 会误以为被 @mention 而继续回复——标注这些是自己的消息，
   // 不是他人新活动，@mention 也不构成"必须回应"信号。
@@ -496,13 +509,16 @@ export function buildReplyPrompt(input: {
       "(The messages below are YOUR OWN — your prior progress in this thread. They are not new activity from others; being @mentioned within them is a self-mention, not a demand. Decide: continue working, complete the task, or say nothing.)",
     );
   }
+  if (input.joinBriefing) {
+    head.push(...input.joinBriefing.lines);
+  }
   head.push("");
 
   // 尾部（任务/语境/指令/marker）：任务与语境各有硬顶，指令骨架永不裁
   const lines: string[] = [];
   const shownTasks = input.tasks.slice(0, INJECTION_TASK_WINDOW);
   const droppedTasks = input.tasks.length - shownTasks.length;
-  if (shownTasks.length > 0) {
+  if (shownTasks.length > 0 && !input.joinBriefing) {
     const taskLines: string[] = ["", "Related open tasks:"];
     for (const task of shownTasks) {
       const reopened = task.reopened
@@ -1909,6 +1925,43 @@ export function agentMemoryFile(agent: MemberRow): string | null {
   return existsSync(file) ? file : null;
 }
 
+/**
+ * 一轮的 drain 窗口（票 #243）：
+ * - 每个窗口最多 INBOX_DRAIN_WINDOW 条；
+ * - 无确定信号 / 任务事件的窗口静默 ack 越过（它们本来也会被注入预算裁掉）；
+ * - 遇到窗口内的人类点名、任务事件，或到达最后一个窗口时停下；
+ * - 保留跨窗口的最近 INBOX_DRAIN_WINDOW 条，注入形状仍与既有预算同量级。
+ */
+function collectDrainWindow(input: {
+  agentId: string;
+  targetId: string;
+  channel: ChannelRow;
+  reason: WakeReason;
+}): { drained: ReturnType<typeof drain>; messages: MessageWithAuthor[] } {
+  let drained = drain(input.agentId, input.targetId);
+  let recent: MessageWithAuthor[] = [];
+  for (;;) {
+    recent = [...recent, ...drained.messages].slice(-INBOX_DRAIN_WINDOW);
+    const reminderRound = input.reason === "reminder";
+    const signalWindow =
+      !reminderRound &&
+      (hasMustRespondSignal(input.agentId, input.targetId, drained.messages) ||
+        (input.targetId === input.channel.id &&
+          hasRoutableTaskEvent(input.agentId, input.channel, drained.messages)));
+    // 提醒轮必须扫到提醒消息所在的最后窗口；否则只会在旧窗口上白跑一次 prompt。
+    const shouldPrompt = !drained.hasMore || signalWindow;
+    if (shouldPrompt) {
+      // 信号窗口只带本窗口：任务自动路由要求「本轮只有锚点 + 创建事件」，
+      // 把此前静默越过的普通消息拼回来会破坏该裁决。最后一窗才用跨窗口最近 N 条。
+      return { drained, messages: signalWindow ? drained.messages : recent };
+    }
+    // 窗口内没有需要模型裁决的信号：推进到窗口末条，下一轮从新游标继续。
+    // 这里不调用模型，因此积压再多也不会制造无触发调用。
+    ack(input.agentId, input.targetId, drained.maxSeq);
+    drained = drain(input.agentId, input.targetId);
+  }
+}
+
 export async function runAgentRound(
   agentId: string,
   targetId: string,
@@ -1924,12 +1977,19 @@ export async function runAgentRound(
   if (channel.archived === 1)
     return { status: "skipped", reason: "channel archived" };
 
-  const drained = drain(agentId, targetId);
-  if (drained.messages.length === 0)
+  const scanned = collectDrainWindow({
+    agentId,
+    targetId,
+    channel,
+    reason,
+  });
+  const drained = scanned.drained;
+  // 空 drain 只有提醒轮是合法准入（票 #243）：其它空窗口仍然静默，不起会话。
+  if (scanned.messages.length === 0 && reason !== "reminder")
     return { status: "noop", baseSeq: drained.maxSeq };
   // 本轮房间版本（回复 freshness + error 轮 baseSeq 共用；= drain 时的 max(seq)）
   const baseSeq = drained.maxSeq;
-  const incoming = drained.messages.filter(
+  const incoming = scanned.messages.filter(
     (message) => message.author_id !== agent.id,
   );
   // greeting 乒乓收敛：channel 主流程里，其他 agent 的无信号短 greeting
@@ -2008,7 +2068,7 @@ export async function runAgentRound(
   const hasUnhandledTaskSignal =
     targetId === channel.id &&
     (hasPendingTaskClaim(agent.id, channel.id) ||
-      hasRoutableTaskEvent(agent.id, channel, drained.messages));
+      hasRoutableTaskEvent(agent.id, channel, scanned.messages));
   if (
     latest &&
     latest.author_id === agent.id &&
@@ -2060,17 +2120,32 @@ export async function runAgentRound(
   }
 
   publishAgentStatus(agent.id, "working");
+  const relatedTasks = listRelatedTasks(targetId);
+  // 入群后还没有他人正文：只给有界简报（频道名/描述/开放任务短预览/水位），
+  // 不把入群前历史拼回来。已有他人正文时 tasks 仍走既有块，简报不出现。
+  const joinBriefing =
+    channel.type !== "dm" && scanned.messages.length === 0
+      ? buildJoinBriefing({
+          channelName: channel.name,
+          channelDescription: channel.description,
+          watermarkSeq: drained.consumedSeq,
+          windowSeq: baseSeq,
+          tasks: relatedTasks,
+        })
+      : undefined;
+  const relatedTasksForPrompt = joinBriefing ? [] : relatedTasks;
   const prompt = buildReplyPrompt({
     agent,
     channel,
     messages:
-      effectiveIncoming.length > 0 ? effectiveIncoming : drained.messages,
-    tasks: listRelatedTasks(targetId),
+      effectiveIncoming.length > 0 ? effectiveIncoming : scanned.messages,
+    tasks: relatedTasksForPrompt,
     targetId,
     baseSeq,
     memoryFile: agentMemoryFile(agent),
     context: replyPromptContext(agent),
     peerClosedExchange,
+    joinBriefing,
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
@@ -2392,6 +2467,24 @@ function backfillTargetKey(agentId: string, targetId: string): string {
   return `${agentId}\u0000${targetId}`;
 }
 
+/** 游标之后是否还有非本人消息（决定 driver 是否为一个窗口外的积压续排一轮）。 */
+function hasLaterNonOwnMessage(
+  targetId: string,
+  afterSeq: number,
+  agentId: string,
+): boolean {
+  const db = getDb();
+  let cursor = afterSeq;
+  for (;;) {
+    const rows = db.listMessagesAfter(targetId, cursor);
+    if (rows.some((row) => row.author_id !== agentId)) return true;
+    if (rows.length === 0) return false;
+    const lastSeq = rows[rows.length - 1].seq;
+    if (!db.hasMessagesAfter(targetId, lastSeq)) return false;
+    cursor = lastSeq;
+  }
+}
+
 interface DriverState {
   started: boolean;
   runtime: LoopRuntime | null;
@@ -2580,6 +2673,7 @@ async function processAgent(agentId: string): Promise<void> {
       }
 
       let outcome;
+      const consumedBefore = getDb().getConsumedSeq(agentId, queued.targetId);
       try {
         outcome = await runAgentRound(
           agentId,
@@ -2613,6 +2707,21 @@ async function processAgent(agentId: string): Promise<void> {
       // §07 轮次结果落盘（有结论的轮次；noop/skipped/busy 由服务层过滤）。
       // driver 是 runAgentRound 的唯一生产调用点（index.ts 仅 re-export 供测试）。
       logRoundOutcome(agentId, queued.targetId, { ...outcome, usage });
+      // 票 #243：本轮只推进了一个窗口时，窗口外积压必须继续被处理。
+      // 只在游标真的前进后重排（避免 error / busy 无进展时热循环），且同 target 已有排队不重复。
+      const consumedAfter = getDb().getConsumedSeq(agentId, queued.targetId);
+      if (
+        consumedAfter > consumedBefore &&
+        hasLaterNonOwnMessage(queued.targetId, consumedAfter, agentId)
+      ) {
+        const pendingQueue = state.queues.get(agentId);
+        if (
+          pendingQueue &&
+          !pendingQueue.some((entry) => entry.targetId === queued.targetId)
+        ) {
+          pendingQueue.push({ targetId: queued.targetId, reason: queued.reason });
+        }
+      }
       if (outcome.status === "busy" || outcome.status === "busy-cwd") {
         waitForSettle(agentId, queued.targetId, queued.reason);
         break;
