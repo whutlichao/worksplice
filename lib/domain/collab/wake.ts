@@ -1,6 +1,10 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { getChannelMute, listChannelMembers, resolveChannelForTarget } from "./channels.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
+import {
+  parseTaskCreationEventNumber,
+  selectMessageInvitations,
+} from "./invitations.ts";
 import type { MessageRow } from "../../data/types.ts";
 
 /**
@@ -69,21 +73,86 @@ export function notifyMessageWakes(message: MessageRow): void {
     emitWake({ agentId: message.author_id, targetId: message.target_id, seq: message.seq, reason: "message" });
   }
 
-  const woken = new Set<string>();
+  const author = getMember(message.author_id);
+  // DM 语义不变：owner 的私信永远送达对方；agent 的私信不穿透其他 agent。
+  if (channel.type === "dm") {
+    for (const member of listChannelMembers(channel.id)) {
+      if (member.type !== "agent" || member.id === message.author_id) continue;
+      if (getChannelMute(channel.id, member.id)) continue;
+      emitWake({
+        agentId: member.id,
+        targetId: message.target_id,
+        seq: message.seq,
+        reason: "message",
+      });
+    }
+    // DM 语义不变：人类正文里的个人 @ 仍穿透给未加入的 agent；agent 的 @ 不穿透。
+    if (author?.type === "human") {
+      for (const mentionedId of extractMentionedMemberIds(message.content)) {
+        const member = getMember(mentionedId);
+        if (!member || member.type !== "agent" || member.id === message.author_id) continue;
+        emitWake({
+          agentId: mentionedId,
+          targetId: message.target_id,
+          seq: message.seq,
+          reason: "message",
+        });
+      }
+    }
+    return;
+  }
+
+  const notify = (agentId: string): void => {
+    const member = getMember(agentId);
+    if (!member || member.type !== "agent" || member.id === message.author_id) return;
+    emitWake({
+      agentId,
+      targetId: message.target_id,
+      seq: message.seq,
+      reason: "message",
+    });
+  };
+
+  if (author?.type === "human") {
+    // Owner 署名的任务创建事件是系统消息，不是人类敲出来的正文邀请：
+    // 预览里即使带 @ 也不按点名收窄。开放任务沿用既有全员扇出（T2/#240 再收窄），
+    // done/closed 事件不叫任何人。
+    const taskNumber = parseTaskCreationEventNumber(message.content);
+    if (taskNumber !== null) {
+      const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+      if (
+        !task ||
+        task.status === "done" ||
+        task.status === "closed" ||
+        task.reopened === 1
+      ) {
+        return;
+      }
+      for (const member of listChannelMembers(channel.id)) {
+        if (member.type !== "agent" || member.id === message.author_id) continue;
+        if (getChannelMute(channel.id, member.id)) continue;
+        notify(member.id);
+      }
+      return;
+    }
+    // Ticket #237：人类正文点名 / @all 才产生新邀请；候选与 beginTurn 同源。
+    const invitations = selectMessageInvitations({
+      targetId: message.target_id,
+      authorId: message.author_id,
+      content: message.content,
+    });
+    if (invitations.candidates.length > 0) {
+      for (const agentId of invitations.candidates) notify(agentId);
+      return;
+    }
+    return;
+  }
+
+  // 普通 agent 正文 @ 不穿透：只投给频道现有的 agent 成员（任务 owner 靠订阅收到）。
   for (const member of listChannelMembers(channel.id)) {
     if (member.type !== "agent" || member.id === message.author_id) continue;
     if (getChannelMute(channel.id, member.id)) continue;
-    woken.add(member.id);
-    emitWake({ agentId: member.id, targetId: message.target_id, seq: message.seq, reason: "message" });
-  }
-  // agent-authored DM 正文不通过非成员 @mention 穿透唤醒其他 agent。
-  if (channel.type === 'dm' && getMember(message.author_id)?.type === 'agent') return;
-
-  for (const mentionedId of extractMentionedMemberIds(message.content)) {
-    const member = getMember(mentionedId);
-    if (!member || member.type !== "agent" || member.id === message.author_id) continue;
-    if (woken.has(mentionedId)) continue;
-    emitWake({ agentId: mentionedId, targetId: message.target_id, seq: message.seq, reason: "message" });
+    notify(member.id);
   }
 }
 

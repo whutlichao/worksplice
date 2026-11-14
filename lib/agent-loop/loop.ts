@@ -15,6 +15,7 @@ import {
   ack,
   agentHomePath,
   claimTask,
+  decideRoundAdmission,
   drain,
   extractMentionedMemberIds,
   fireDueReminders,
@@ -31,6 +32,7 @@ import {
   listRelatedTasks,
   logRoundOutcome,
   normalizeWorkspacePath,
+  parseTaskCreationEventNumber,
   readDefaultModelFromSettings,
   resolveTargetChannel,
   sendMessage,
@@ -38,6 +40,7 @@ import {
   updateTaskStatus,
   type RoundUsage,
 } from "../domain/collab/index.ts";
+import { hasAllMention } from "../mention.ts";
 import {
   publishAgentStatus,
   startAgentStatusSweeper,
@@ -1235,10 +1238,7 @@ function taskCreationEventNumber(
   message: Pick<MessageRow, "author_id" | "content">,
 ): number | null {
   if (message.author_id !== OWNER_MEMBER_ID) return null;
-  const match = /^Task #(\d+) created(?: — (.*))?$/.exec(message.content);
-  if (!match) return null;
-  const number = Number(match[1]);
-  return Number.isSafeInteger(number) ? number : null;
+  return parseTaskCreationEventNumber(message.content);
 }
 
 /**
@@ -1940,35 +1940,93 @@ export async function runAgentRound(
     targetId === channel.id
       ? incoming.filter((message) => !isChannelNoise(agentId, message))
       : incoming;
-  // §3.2 @mention = 注意力信号而非投递过滤：未加入 channel 的 agent 被个人 @mention
-  // 时穿透送达——非成员仍推进本轮（drain 语境可见），未被 mention 则跳过。
   const isMember = isChannelMember(channel.id, agent.id);
-  if (!isMember) {
-    const mentioned = effectiveIncoming.some((message) =>
-      extractMentionedMemberIds(message.content).includes(agent.id),
-    );
-    if (!mentioned) {
-      return { status: "skipped", reason: "not a member of the channel" };
-    }
-  }
   // §3.7 任务延续：drain 到的全是我自己的回复，但我在该线程有进行中的任务
   // （自醒续工信号：回复落任务线程 → 继续干或 complete，见 wake.ts）
   const continuing = ownsInProgressTaskAt(agentId, targetId);
   // §3.9 reminder 唤醒：系统提醒消息以作者署名投递（作者本人视角 = 全是自己的消息），
   // reminder 驱动的轮次不能按"只有自己的消息"跳过——agent 要看到自己的提醒并行动
   const reminderDriven = reason === "reminder";
-  // CP0（I5）/ 选人门（本票 spec §6.3）：房间场次活跃时，本场次从未被问过的成员不得在房间语境里
-  // 自主插话——返回 skipped 且**不推进消费游标**（它被后来召见时上下文完整）。
-  // reminder 轮次 / 任务延续轮次不受此门约束（gate 内部 bypass）；wake.ts 广播口径一字未改。
-  const roomTurns = getRoomTurnStore();
-  const roomGate = roomTurns.gate({
-    channelId: channel.id,
-    memberId: agent.id,
+  // Ticket #237：单一轮次准入漏斗（drain 之后、startSession / prompt 之前）。
+  // 人类正文点名 / @all 才产生新邀请；普通 agent 正文 @、引用 / 代码块 @ 不算；
+  // 任务线程按任务快照裁决；reminder / owner 续工轮 bypass。
+  const task = getDb().getTaskByMessageId(targetId);
+  const humanMessages = incoming.filter((message) => isHumanAuthor(message));
+  // 只认「本次新场次」的最新一条人类消息：旧消息里被跳过的点名留在 drain 里
+  // 是为了上下文完整，不得在后续轮次伪装成新邀请（例如 in_progress 被拒的点名
+  // 不能在 in_review 自动把 reviewer 叫起来）。场次本身也由最新人类消息开启。
+  const latestHuman = humanMessages.at(-1);
+  // 任务创建事件是系统消息：预览里即使带 @ 也不产生人类邀请（开放任务由
+  // hasOpenTaskEvent 单独裁决；done/closed 事件不叫任何人）。
+  const latestHumanIsTaskEvent = Boolean(
+    latestHuman && parseTaskCreationEventNumber(latestHuman.content) !== null,
+  );
+  const humanMentioned = Boolean(
+    latestHuman &&
+      !latestHumanIsTaskEvent &&
+      extractMentionedMemberIds(latestHuman.content).includes(agent.id),
+  );
+  const humanAllMentioned = Boolean(
+    latestHuman && !latestHumanIsTaskEvent && hasAllMention(latestHuman.content),
+  );
+  const hasOpenTaskEvent =
+    targetId === channel.id &&
+    incoming.some((message) => {
+      if (!isHumanAuthor(message)) return false;
+      const taskNumber = parseTaskCreationEventNumber(message.content);
+      if (taskNumber === null) return false;
+      const eventTask = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+      return Boolean(
+        eventTask &&
+          eventTask.status !== "done" &&
+          eventTask.status !== "closed" &&
+          eventTask.reopened === 0,
+      );
+    });
+  const admission = decideRoundAdmission({
+    agentId,
+    isDM: isDM(targetId),
+    isMember,
+    isTaskThread: Boolean(task),
+    task: task
+      ? {
+          status: task.status,
+          ownerId: task.owner_id,
+          reopened: task.reopened,
+        }
+      : null,
     reason,
     continuing,
+    humanMentioned,
+    humanAllMentioned,
+    hasOpenTaskEvent,
   });
+  // CP0（I5）/ 选人门（本票 spec §6.3）：房间场次活跃时，本场次从未被问过的成员不得在房间语境里
+  // 自主插话——返回 skipped 且**不推进消费游标**（它被后来召见时上下文完整）。
+  // reminder 轮次 / 任务线程 / 任务创建事件不受此门约束（Ticket #237：任务线程不走 channel 房间门）。
+  const roomTurns = getRoomTurnStore();
+  const roomGateApplicable =
+    (admission.admit && admission.useRoomGate) ||
+    (!admission.admit &&
+      !task &&
+      !isDM(targetId) &&
+      reason !== "reminder" &&
+      isMember &&
+      !hasOpenTaskEvent);
+  const roomGate = roomGateApplicable
+    ? roomTurns.gate({
+        channelId: channel.id,
+        memberId: agent.id,
+        reason,
+        continuing,
+      })
+    : { state: "bypass" as const, epoch: null };
   if (roomGate.state === "not-elected") {
     return { status: "skipped", reason: "not elected by room turn" };
+  }
+  if (!admission.admit) {
+    // 未准入 = 稳定 skipped reason：不起会话、不发 prompt、不推进消费游标。
+    return { status: "skipped", reason: admission.reason };
   }
   /** 本轮的场次 epoch（null = 无活跃场次 / reminder 或续工轮次）：I5 检查点的比较基准。 */
   const roomEpoch = roomGate.state === "elected" ? roomGate.epoch : null;

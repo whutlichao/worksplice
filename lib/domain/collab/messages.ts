@@ -5,6 +5,7 @@ import { notifyMessageWakes } from "./wake.ts";
 import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
 import { listAbandonedMarks, type AbandonedMark } from "./rounds.ts";
 import { RoomPrivateChannelForbidden, getRoomTurnStore } from "./room-budget.ts";
+import { selectMessageInvitations } from "./invitations.ts";
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import {
   discardAttachmentFiles,
@@ -224,10 +225,19 @@ function recordRoomTurn(input: {
       order: input.message.rowid ?? input.message.seq,
       text: input.message.content,
       epoch: input.roomContext?.epoch,
+      // Ticket #237：普通 agent 正文 @ 不新增候选、不产生第二波。
+      // 显式传空数组 = 这条发言不贡献引用边；room-budget 的纯状态机单测仍可省略该参数
+      // 走旧解析（保留回边抑制的测试面）。
+      mentions: [],
     });
     return;
   }
   if (input.authorId === OWNER_MEMBER_ID) {
+    const invitations = selectMessageInvitations({
+      targetId: input.message.target_id,
+      authorId: input.authorId,
+      content: input.message.content,
+    });
     store.beginTurn({
       channelId: input.channelId,
       triggerSeq: input.message.seq,
@@ -235,6 +245,7 @@ function recordRoomTurn(input: {
       targetId: input.message.target_id,
       authorId: input.authorId,
       replyToAuthorId: input.replyToAuthorId,
+      candidates: invitations.candidates,
     });
   }
 }

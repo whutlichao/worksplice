@@ -32,6 +32,8 @@ export * from "./reads.ts";
 export * from "./recurrence.ts";
 export * from "./reminders.ts";
 export * from "./room-budget.ts";
+export * from "./invitations.ts";
+export * from "./admission.ts";
 export * from "./rounds.ts";
 export * from "./search.ts";
 export * from "./secretary-auto-create.ts";

@@ -22,6 +22,27 @@ export interface MentionToken {
 
 const MENTION_RE = /@"([^"\n]+)"|@([^\s@,;:!?。，；：！？]+)/g;
 
+/** 引用块行（Markdown blockquote）：引用里的旧 @ 不构成邀请。 */
+function quoteLineRanges(content: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  let offset = 0;
+  for (const line of content.split("\n")) {
+    if (/^\s*>/.test(line)) ranges.push([offset, offset + line.length]);
+    offset += line.length + 1;
+  }
+  return ranges;
+}
+
+function blankRanges(content: string, ranges: Array<[number, number]>): string {
+  const chars = content.split("");
+  for (const [start, end] of ranges) {
+    for (let index = start; index < Math.min(end, chars.length); index += 1) {
+      if (chars[index] !== "\n") chars[index] = " ";
+    }
+  }
+  return chars.join("");
+}
+
 /** 代码围栏（``` / ~~~，行首 trim 后匹配）与行内代码 `...` 的不可提及区间。 */
 export function mentionExcludedRanges(content: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
@@ -49,6 +70,21 @@ export function mentionExcludedRanges(content: string): Array<[number, number]> 
     ranges.push([match.index, match.index + match[0].length]);
   }
   return ranges;
+}
+
+/**
+ * 正文提及文本：去掉引用块、代码围栏与行内代码里的内容，只留下真正的正文。
+ * 邀请判定（人类正文点名）与 must-respond 判定共用这一口径——引用旧 @、代码示例里的
+ * @token 既不算点名，也不构成确定信号。
+ */
+export function bodyMentionText(content: string): string {
+  const withoutQuotes = blankRanges(content, quoteLineRanges(content));
+  return blankRanges(withoutQuotes, mentionExcludedRanges(withoutQuotes));
+}
+
+/** `@all` / `@everyone`：只认正文（引用块 / 代码里的不算）。 */
+export function hasAllMention(content: string): boolean {
+  return /@(?:all|everyone)\b/i.test(bodyMentionText(content));
 }
 
 function overlaps(start: number, end: number, ranges: Array<[number, number]>): boolean {
