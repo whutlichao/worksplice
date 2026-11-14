@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 18;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -55,6 +55,9 @@ const SCHEMA_STATEMENTS: string[] = [
     status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'in_review', 'done', 'closed')),
     owner_id TEXT REFERENCES members(id),
     reopened INTEGER NOT NULL DEFAULT 0,
+    handoff_state TEXT CHECK (handoff_state IS NULL OR handoff_state IN ('handed_off', 'blocked')),
+    handoff_seq INTEGER,
+    handoff_owner_id TEXT REFERENCES members(id),
     updated_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS task_thread_reads (
@@ -249,6 +252,8 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersModelColumns(db);
     migrateMembersAvatarTintColumn(db);
     migrateTasksReopenedColumn(db);
+    migrateTasksHandoffColumns(db);
+    migrateTasksHandoffOwnerColumn(db);
     migrateTaskThreadReads(db);
     migrateRoundLogsCostColumns(db);
     seed(db);
@@ -315,6 +320,43 @@ function migrateTasksReopenedColumn(db: Database.Database): void {
   }>;
   if (!columns.some((c) => c.name === "reopened")) {
     db.exec("ALTER TABLE tasks ADD COLUMN reopened INTEGER NOT NULL DEFAULT 0");
+  }
+}
+
+/**
+ * v17（票 #240）：tasks 增加秘书自动 handoff 的持久标记。
+ * - handoff_state = null / 'handed_off' / 'blocked'，区分「从未自动分流」与「分流的两种结局」；
+ * - handoff_seq = 任务线程内通知消息的 seq，给丢失唤醒留下可恢复定位点（T3 只补唤醒，不重写）。
+ * 老库无列时 ALTER 补上；存量任务一律视为从未自动分流（null）。
+ */
+function migrateTasksHandoffColumns(db: Database.Database): void {
+  const columns = db
+    .prepare("PRAGMA table_info(tasks)")
+    .all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "handoff_state")) {
+    db.exec(
+      "ALTER TABLE tasks ADD COLUMN handoff_state TEXT CHECK (handoff_state IS NULL OR handoff_state IN ('handed_off', 'blocked'))",
+    );
+  }
+  if (!columns.some((column) => column.name === "handoff_seq")) {
+    db.exec("ALTER TABLE tasks ADD COLUMN handoff_seq INTEGER");
+  }
+}
+
+/**
+ * v18（票 #242）：tasks 增加 handoff_owner_id，记录自动分流选中的 owner。
+ * 恢复扫描据此区分「仍是当初 selected 的 owner」与「owner 已被改过」。
+ * 存量 handed_off 行无法可靠推断当初选中者（owner 可能已变），一律保持 NULL：
+ * 宁可不补唤醒，也不把恢复 wake 发给错误成员。
+ */
+function migrateTasksHandoffOwnerColumn(db: Database.Database): void {
+  const columns = db
+    .prepare("PRAGMA table_info(tasks)")
+    .all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "handoff_owner_id")) {
+    db.exec(
+      "ALTER TABLE tasks ADD COLUMN handoff_owner_id TEXT REFERENCES members(id)",
+    );
   }
 }
 

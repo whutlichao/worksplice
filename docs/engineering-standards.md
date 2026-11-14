@@ -7,7 +7,7 @@
 ## 1. 代码风格
 
 - **语言与注释**：代码注释、commit message、issue/ticket 正文一律简体中文；标识符、API 路径、错误消息用英文（对外契约）。
-- **Tabs/引号**：无强制的缩进宽度（沿用 next 脚手架 2 空格）；字符串统一单引号（`eslint` 默认）。提交前必须 `npm run lint` 干净。
+- **缩进/引号**：缩进沿用 next 脚手架的 2 空格。字符串引号以 ESLint 为准：当前配置没有 `quotes` 规则，既有 TS/TSX 以双引号为主，新代码跟随所在文件的既有风格；**禁止为统一引号做全仓重排**。提交前必须 `npm run lint` 干净（0 error）。
 - **命名**：
   - 服务层函数动词开头（`listXxx` / `createXxx` / `updateXxx` / `markXxx`）；路由文件一律 `export async function GET/POST(...)`。
   - 术语必须用 GLOSSARY.md 的领域词表（成员/agent/频道/任务/轮次/唤醒/…），禁止引入同义词造成漂移。

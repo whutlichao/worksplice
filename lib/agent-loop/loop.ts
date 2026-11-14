@@ -15,6 +15,7 @@ import {
   ack,
   agentHomePath,
   claimTask,
+  decideRoundAdmission,
   drain,
   extractMentionedMemberIds,
   fireDueReminders,
@@ -23,21 +24,30 @@ import {
   getPendingTargets,
   getRoomTurnStore,
   getSince,
+  handoffTask,
+  INBOX_DRAIN_WINDOW,
   isChannelMember,
   isDM,
+  isSecretaryMember,
   joinChannel,
   listAgents,
   listChannels,
+  listHandoffCandidates,
   listRelatedTasks,
   logRoundOutcome,
   normalizeWorkspacePath,
+  parseTaskCreationEventNumber,
   readDefaultModelFromSettings,
+  recoverHandoffWakes,
   resolveTargetChannel,
+  selectSecretaryHandoffTask,
   sendMessage,
   subscribeWake,
   updateTaskStatus,
   type RoundUsage,
+  type HandoffWakeEmitter,
 } from "../domain/collab/index.ts";
+import { hasAllMention } from "../mention.ts";
 import {
   publishAgentStatus,
   startAgentStatusSweeper,
@@ -78,6 +88,7 @@ import {
   elasticBudget,
   projectMessages,
 } from "./injection-budget.ts";
+import { buildJoinBriefing, type JoinBriefing } from "./join-briefing.ts";
 
 /**
  * agent-loop 深模块（§5.4，Ticket 02 合并自 loop/wake/driver/backfill/reminder-cron 五文件）：
@@ -124,9 +135,18 @@ export interface LoopRuntime {
 export type ConflictChoice = "revise" | "resend" | "silent" | "anyway";
 const CONFLICT_CHOICES = new Set(["revise", "resend", "silent", "anyway"]);
 
-/** 任务操作（§3.7）：claim = 认领并开工；complete = 完成（置 in_review 待互审）；unclaim = 释放回池。 */
-export type TaskOp = "claim" | "complete" | "unclaim";
-export const TASK_OPS = new Set<TaskOp>(["claim", "complete", "unclaim"]);
+/**
+ * 任务操作（§3.7 + 票 #240）：
+ * claim = 认领并开工；complete = 完成（置 in_review 待互审）；unclaim = 释放回池；
+ * handoff = 秘书把未认领任务交给唯一合适成员（普通 agent 在扫描层被拒）。
+ */
+export type TaskOp = "claim" | "complete" | "unclaim" | "handoff";
+export const TASK_OPS = new Set<TaskOp>([
+  "claim",
+  "complete",
+  "unclaim",
+  "handoff",
+]);
 
 /** §05 兜底上限：确定信号（人类的 @mention / 进行中任务线程收到他人消息）下连续 ignore 达此值 → ack 并记 error（防死循环）。 */
 export const MUST_RESPOND_FAILURE_CAP = 2;
@@ -164,8 +184,16 @@ export interface AgentAction {
   onConflict: ConflictChoice;
   /** 可选：conclude 的简短理由（仅保留 trim 后非空的字符串）。 */
   reason?: string;
-  /** 可选：本轮附带的任务操作（先 claim 再开工；claim 失败就让路）。 */
-  task?: { number: number; op: TaskOp };
+  /**
+   * 可选：本轮附带的任务操作（先 claim 再开工；claim 失败就让路）。
+   * handoff 额外携带 assignee / question（票 #240，仅秘书可执行）。
+   */
+  task?: {
+    number: number;
+    op: TaskOp;
+    assignee?: string | null;
+    question?: string | null;
+  };
   /** 可选：本轮附带的成员 op（ADR-0013 决策一；解析见 ./member-ops.ts）。 */
   ops?: RawMemberOp[];
 }
@@ -219,6 +247,17 @@ function parseTaskOp(value: unknown): TaskOpRequest | undefined {
   const op = String(value.op);
   if (!Number.isInteger(number) || number <= 0 || !TASK_OPS.has(op as TaskOp)) {
     return undefined;
+  }
+  if (op === "handoff") {
+    const assignee =
+      typeof value.assignee === "string" && value.assignee.trim()
+        ? value.assignee.trim()
+        : null;
+    const question =
+      typeof value.question === "string" && value.question.trim()
+        ? value.question.trim()
+        : null;
+    return { number, op: op as TaskOp, assignee, question };
   }
   return { number, op: op as TaskOp };
 }
@@ -477,14 +516,37 @@ export function buildReplyPrompt(input: {
   context?: ReplyPromptContext;
   /** peer 收束（thread 内 peer 最后一条是收束语）：与判定同源，明确告知本轮不再发帖。 */
   peerClosedExchange?: boolean;
+  /** 新成员首次合法准入、且没有他人新正文时的有界频道简报（票 #243）。 */
+  joinBriefing?: JoinBriefing;
+  /**
+   * 秘书 handoff 轮（票 #240）：本轮唯一关联的未认领任务 + 候选成员。
+   * 只有秘书被明确关联时注入；普通轮次不出现 handoff 指令。
+   */
+  handoff?: {
+    number: number;
+    candidates: Array<{ name: string; description: string }>;
+  };
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
   head.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
   // P1：线程轮与频道轮用不同身份措辞——模型得知道自己是在某个（任务）线程里说话
-  head.push(
-    `New activity arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })}:`,
-  );
+  if (
+    input.joinBriefing &&
+    (input.messages.length === 0 ||
+      input.messages.every((message) => message.author_id === input.agent.id))
+  ) {
+    head.push(
+      `No new messages from other members have arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })} since your watermark.`,
+    );
+    head.push(
+      "You were admitted by a legitimate trigger (reminder, task event, mention, or an existing legal reason) — not by joining. Do not reply merely to acknowledge this briefing.",
+    );
+  } else {
+    head.push(
+      `New activity arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })}:`,
+    );
+  }
   // 11-整改（自激循环）：续工轮的 drain 全是 agent 自己的历史回复（线程游标留口），
   // 模型看到 `@自己` 会误以为被 @mention 而继续回复——标注这些是自己的消息，
   // 不是他人新活动，@mention 也不构成"必须回应"信号。
@@ -496,13 +558,16 @@ export function buildReplyPrompt(input: {
       "(The messages below are YOUR OWN — your prior progress in this thread. They are not new activity from others; being @mentioned within them is a self-mention, not a demand. Decide: continue working, complete the task, or say nothing.)",
     );
   }
+  if (input.joinBriefing) {
+    head.push(...input.joinBriefing.lines);
+  }
   head.push("");
 
   // 尾部（任务/语境/指令/marker）：任务与语境各有硬顶，指令骨架永不裁
   const lines: string[] = [];
   const shownTasks = input.tasks.slice(0, INJECTION_TASK_WINDOW);
   const droppedTasks = input.tasks.length - shownTasks.length;
-  if (shownTasks.length > 0) {
+  if (shownTasks.length > 0 && !input.joinBriefing) {
     const taskLines: string[] = ["", "Related open tasks:"];
     for (const task of shownTasks) {
       const reopened = task.reopened
@@ -536,6 +601,9 @@ export function buildReplyPrompt(input: {
   );
   lines.push('- "reply" posts content to this target; task replies may be routed to an anchor thread; "ignore" says nothing.');
   lines.push("- Deciding is yours, but follow these response rules:");
+  lines.push(
+    "- Reply shape: for a simple task, state the direct conclusion first and keep the process short. If you have no new result, do not post a receipt, a \"continuing\", or a \"forwarded\" status message — staying silent is the correct outcome. Tool traces (commands, file reads, intermediate output) stay in your member session and never go into the channel.",
+  );
   lines.push(
     "- MUST reply: a human (the Owner) personally @mentions you in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
   );
@@ -583,6 +651,39 @@ export function buildReplyPrompt(input: {
     '  Correct: {"action":"reply","content":"...","task":{"number":1,"op":"complete"}}',
     '  Wrong: {"action":"reply","content":"...","ops":[{"task":{"number":1,"op":"complete"}}]}',
   );
+  if (input.handoff) {
+    const shownCandidates = input.handoff.candidates.slice(0, 20);
+    const hiddenCandidates =
+      input.handoff.candidates.length - shownCandidates.length;
+    const candidates =
+      shownCandidates.length > 0
+        ? shownCandidates
+            .map((candidate) =>
+              candidate.description
+                ? `@${candidate.name} — ${candidate.description.replace(/\s+/g, " ").slice(0, 160)}`
+                : `@${candidate.name}`,
+            )
+            .join("; ")
+        : "(none — no eligible agent member is available)";
+    const hiddenNotice =
+      hiddenCandidates > 0
+        ? ` (+${hiddenCandidates} more candidates not shown; the app still accepts any eligible member)`
+        : "";
+    lines.push("");
+    lines.push(
+      `Secretary handoff: task #${input.handoff.number} is unclaimed and this round was admitted to route it.`,
+    );
+    lines.push(`Eligible candidates: ${candidates}.${hiddenNotice}`);
+    lines.push(
+      `Reply with {"action":"ignore","task":{"number":${input.handoff.number},"op":"handoff","assignee":"@Name"}} to assign exactly one candidate. The app claims the task for that member and posts a short notice in the task thread; you do not write the notice yourself.`,
+    );
+    lines.push(
+      'If no single candidate fits, omit "assignee" (or set it to null) and include "question":"..." — the app posts a blocked notice with the candidates, the boundary, and that question. Never assign the task to yourself, the Owner, a non-member, a deleted member, or an already-owned/reopened task.',
+    );
+    lines.push(
+      `If the Owner explicitly asked you to own this task, use the normal claim instead: {"action":"reply","content":"...","task":{"number":${input.handoff.number},"op":"claim"}}.`,
+    );
+  }
   lines.push(
     '- Extra operations: add "ops":[ ... ] to your JSON. Every op runs with YOUR identity; permissions are decided by the app, anything not listed here is refused. "task" is not an op: it is a top-level field, never inside "ops".',
   );
@@ -1235,10 +1336,7 @@ function taskCreationEventNumber(
   message: Pick<MessageRow, "author_id" | "content">,
 ): number | null {
   if (message.author_id !== OWNER_MEMBER_ID) return null;
-  const match = /^Task #(\d+) created(?: — (.*))?$/.exec(message.content);
-  if (!match) return null;
-  const number = Number(match[1]);
-  return Number.isSafeInteger(number) ? number : null;
+  return parseTaskCreationEventNumber(message.content);
 }
 
 /**
@@ -1467,6 +1565,78 @@ export async function runTaskOperation(input: {
     return {
       status: "yielded",
       reason: "task not found in this channel",
+      baseSeq,
+    };
+  }
+  // ---- handoff（票 #240）：只有秘书可执行；普通 agent 明确拒绝 ---------------
+  if (taskOp?.op === "handoff") {
+    if (!isSecretaryMember(agent)) {
+      ack(agent.id, input.targetId, baseSeq);
+      return {
+        status: "yielded",
+        reason: "handoff is reserved for the secretary",
+        baseSeq,
+      };
+    }
+
+    let handoff = handoffTask({
+      channelId: channel.id,
+      taskNumber,
+      secretaryId: agent.id,
+      assignee: taskOp.assignee ?? null,
+      question: taskOp.question ?? null,
+      baseSeq,
+    });
+    for (
+      let retry = 0;
+      handoff.status === "held" && retry < MAX_TASK_CLAIM_RETRIES;
+      retry += 1
+    ) {
+      handoff = handoffTask({
+        channelId: channel.id,
+        taskNumber,
+        secretaryId: agent.id,
+        assignee: taskOp.assignee ?? null,
+        question: taskOp.question ?? null,
+        baseSeq: handoff.roomSeq,
+      });
+    }
+    if (handoff.status === "held") {
+      // 不推进游标：触发消息保持 pending，等下一条消息/下一次 wake 再收敛。
+      return {
+        status: "yielded",
+        reason: `handoff held after ${MAX_TASK_CLAIM_RETRIES} retries`,
+        baseSeq,
+      };
+    }
+    if (handoff.status === "denied") {
+      ack(agent.id, input.targetId, baseSeq);
+      return { status: "yielded", reason: handoff.reason, baseSeq };
+    }
+    if (handoff.status === "noop") {
+      ack(agent.id, input.targetId, baseSeq);
+      return {
+        status: "ignored",
+        reason: `handoff noop: ${handoff.reason}`,
+        baseSeq,
+      };
+    }
+
+    // handed_off / blocked 都在任务线程写了通知；线程目标是本轮 target 时把通知自身也收口。
+    ack(
+      agent.id,
+      input.targetId,
+      input.targetId === task.message_id
+        ? Math.max(baseSeq, handoff.notice.seq)
+        : baseSeq,
+    );
+    return {
+      status: "replied",
+      message: handoff.notice,
+      reason:
+        handoff.status === "handed_off"
+          ? `handed off to @${handoff.chosen.name}`
+          : `handoff blocked: ${handoff.reason}`,
       baseSeq,
     };
   }
@@ -1750,6 +1920,16 @@ function isAgentAuthor(message: IncomingMessage): boolean {
   return message.author?.type === "agent";
 }
 
+/** 人类正文的 `@all` 邀请；任务创建事件即使预览里带 @ 也不算人类邀请。 */
+function hasHumanAllMentionSignal(incoming: IncomingMessage[]): boolean {
+  return incoming.some(
+    (message) =>
+      isHumanAuthor(message) &&
+      parseTaskCreationEventNumber(message.content) === null &&
+      hasAllMention(message.content),
+  );
+}
+
 /** §05 确定信号：当轮 incoming 里人类作者个人 @mention 了本 agent，或本 agent 是进行中任务
  * owner 且任务线程来了别人的消息——这类轮次必须回应，ignore 按失败处理（rubric 同款标准）。
  * peer agent 的 @ 不在此列：它是注意力信号（isChannelNoise 不过滤），是否回应仍按 rubric 自判。 */
@@ -1909,6 +2089,44 @@ export function agentMemoryFile(agent: MemberRow): string | null {
   return existsSync(file) ? file : null;
 }
 
+/**
+ * 一轮的 drain 窗口（票 #243）：
+ * - 每个窗口最多 INBOX_DRAIN_WINDOW 条；
+ * - 无确定信号 / 任务事件的窗口静默 ack 越过（它们本来也会被注入预算裁掉）；
+ * - 遇到窗口内的人类点名、任务事件，或到达最后一个窗口时停下；
+ * - 保留跨窗口的最近 INBOX_DRAIN_WINDOW 条，注入形状仍与既有预算同量级。
+ */
+function collectDrainWindow(input: {
+  agentId: string;
+  targetId: string;
+  channel: ChannelRow;
+  reason: WakeReason;
+}): { drained: ReturnType<typeof drain>; messages: MessageWithAuthor[] } {
+  let drained = drain(input.agentId, input.targetId);
+  let recent: MessageWithAuthor[] = [];
+  for (;;) {
+    recent = [...recent, ...drained.messages].slice(-INBOX_DRAIN_WINDOW);
+    const reminderRound = input.reason === "reminder";
+    const signalWindow =
+      !reminderRound &&
+      (hasMustRespondSignal(input.agentId, input.targetId, drained.messages) ||
+        hasHumanAllMentionSignal(drained.messages) ||
+        (input.targetId === input.channel.id &&
+          hasRoutableTaskEvent(input.agentId, input.channel, drained.messages)));
+    // 提醒轮必须扫到提醒消息所在的最后窗口；否则只会在旧窗口上白跑一次 prompt。
+    const shouldPrompt = !drained.hasMore || signalWindow;
+    if (shouldPrompt) {
+      // 信号窗口只带本窗口：任务自动路由要求「本轮只有锚点 + 创建事件」，
+      // 把此前静默越过的普通消息拼回来会破坏该裁决。最后一窗才用跨窗口最近 N 条。
+      return { drained, messages: signalWindow ? drained.messages : recent };
+    }
+    // 窗口内没有需要模型裁决的信号：推进到窗口末条，下一轮从新游标继续。
+    // 这里不调用模型，因此积压再多也不会制造无触发调用。
+    ack(input.agentId, input.targetId, drained.maxSeq);
+    drained = drain(input.agentId, input.targetId);
+  }
+}
+
 export async function runAgentRound(
   agentId: string,
   targetId: string,
@@ -1924,12 +2142,19 @@ export async function runAgentRound(
   if (channel.archived === 1)
     return { status: "skipped", reason: "channel archived" };
 
-  const drained = drain(agentId, targetId);
-  if (drained.messages.length === 0)
+  const scanned = collectDrainWindow({
+    agentId,
+    targetId,
+    channel,
+    reason,
+  });
+  const drained = scanned.drained;
+  // 空 drain 只有提醒轮是合法准入（票 #243）：其它空窗口仍然静默，不起会话。
+  if (scanned.messages.length === 0 && reason !== "reminder")
     return { status: "noop", baseSeq: drained.maxSeq };
   // 本轮房间版本（回复 freshness + error 轮 baseSeq 共用；= drain 时的 max(seq)）
   const baseSeq = drained.maxSeq;
-  const incoming = drained.messages.filter(
+  const incoming = scanned.messages.filter(
     (message) => message.author_id !== agent.id,
   );
   // greeting 乒乓收敛：channel 主流程里，其他 agent 的无信号短 greeting
@@ -1940,35 +2165,161 @@ export async function runAgentRound(
     targetId === channel.id
       ? incoming.filter((message) => !isChannelNoise(agentId, message))
       : incoming;
-  // §3.2 @mention = 注意力信号而非投递过滤：未加入 channel 的 agent 被个人 @mention
-  // 时穿透送达——非成员仍推进本轮（drain 语境可见），未被 mention 则跳过。
   const isMember = isChannelMember(channel.id, agent.id);
-  if (!isMember) {
-    const mentioned = effectiveIncoming.some((message) =>
-      extractMentionedMemberIds(message.content).includes(agent.id),
-    );
-    if (!mentioned) {
-      return { status: "skipped", reason: "not a member of the channel" };
-    }
-  }
   // §3.7 任务延续：drain 到的全是我自己的回复，但我在该线程有进行中的任务
   // （自醒续工信号：回复落任务线程 → 继续干或 complete，见 wake.ts）
   const continuing = ownsInProgressTaskAt(agentId, targetId);
   // §3.9 reminder 唤醒：系统提醒消息以作者署名投递（作者本人视角 = 全是自己的消息），
   // reminder 驱动的轮次不能按"只有自己的消息"跳过——agent 要看到自己的提醒并行动
   const reminderDriven = reason === "reminder";
-  // CP0（I5）/ 选人门（本票 spec §6.3）：房间场次活跃时，本场次从未被问过的成员不得在房间语境里
-  // 自主插话——返回 skipped 且**不推进消费游标**（它被后来召见时上下文完整）。
-  // reminder 轮次 / 任务延续轮次不受此门约束（gate 内部 bypass）；wake.ts 广播口径一字未改。
-  const roomTurns = getRoomTurnStore();
-  const roomGate = roomTurns.gate({
-    channelId: channel.id,
-    memberId: agent.id,
+  // Ticket #237：单一轮次准入漏斗（drain 之后、startSession / prompt 之前）。
+  // 人类正文点名 / @all 才产生新邀请；普通 agent 正文 @、引用 / 代码块 @ 不算；
+  // 任务线程按任务快照裁决；reminder / owner 续工轮 bypass。
+  const task = getDb().getTaskByMessageId(targetId);
+  const humanMessages = incoming.filter((message) => isHumanAuthor(message));
+  // 只认「本次新场次」的最新一条人类消息：旧消息里被跳过的点名留在 drain 里
+  // 是为了上下文完整，不得在后续轮次伪装成新邀请（例如 in_progress 被拒的点名
+  // 不能在 in_review 自动把 reviewer 叫起来）。场次本身也由最新人类消息开启。
+  const latestHuman = humanMessages.at(-1);
+  // 任务创建事件是系统消息：预览里即使带 @ 也不产生人类邀请（开放任务由
+  // hasOpenTaskEvent 单独裁决；done/closed 事件不叫任何人）。
+  const latestHumanIsTaskEvent = Boolean(
+    latestHuman && parseTaskCreationEventNumber(latestHuman.content) !== null,
+  );
+  const humanMentioned = Boolean(
+    latestHuman &&
+      !latestHumanIsTaskEvent &&
+      extractMentionedMemberIds(latestHuman.content).includes(agent.id),
+  );
+  // 最新一条人类消息若是任务创建事件，事件本身不继承此前正文的 @all；
+  // 否则窗口内的 @all 不能被后续无点名正文覆盖（#237）。
+  const humanAllMentioned =
+    !latestHumanIsTaskEvent && hasHumanAllMentionSignal(incoming);
+  const hasOpenTaskEvent =
+    targetId === channel.id &&
+    incoming.some((message) => {
+      if (!isHumanAuthor(message)) return false;
+      const taskNumber = parseTaskCreationEventNumber(message.content);
+      if (taskNumber === null) return false;
+      const eventTask = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+      return Boolean(
+        eventTask &&
+          eventTask.status !== "done" &&
+          eventTask.status !== "closed" &&
+          eventTask.reopened === 0,
+      );
+    });
+  // 人类在任务锚点上已经直接点名本 agent / @all：这是显式邀请，不是事件预览里的 @。
+  // 任务事件本身仍只唤醒秘书；只有「同一轮 drain 里能看到这个锚点」时才沿用直接邀请。
+  const latestTaskEvent =
+    targetId === channel.id
+      ? [...incoming]
+          .reverse()
+          .find(
+            (message) =>
+              isHumanAuthor(message) &&
+              parseTaskCreationEventNumber(message.content) !== null,
+          )
+      : undefined;
+  const taskEventAnchorInvited = (() => {
+    if (!latestTaskEvent) return false;
+    const taskNumber = parseTaskCreationEventNumber(latestTaskEvent.content);
+    if (taskNumber === null) return false;
+    const eventTask = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+    if (!eventTask) return false;
+    const anchor = incoming.find(
+      (candidate) => candidate.id === eventTask.message_id,
+    );
+    if (!anchor || !isHumanAuthor(anchor)) return false;
+    return (
+      extractMentionedMemberIds(anchor.content).includes(agent.id) ||
+      hasAllMention(anchor.content)
+    );
+  })();
+  // 票 #240：秘书只在「任务创建事件 / 明确关联的未认领任务」两种入口被自动准入。
+  // 多任务命中、无关联、任意闲聊、已分流、已有 owner、reopened 都由触发判定拒绝。
+  const isSecretary = isSecretaryMember(agent);
+  const handoffSelection = isSecretary
+    ? selectSecretaryHandoffTask({
+        secretary: agent,
+        channel,
+        targetId,
+        messages: incoming,
+      })
+    : null;
+  // 票 #242：blocked / handed_off 的通知与标记已在同一事务提交，但进程可能在 ack 前退出。
+  // 重启后同一触发仍在 drain 里时，重入 handoff 只会得到 already-handled；这里只推进游标，
+  // 不起会话、不写第二条通知、不改 owner / 状态。人类指名秘书时不走这条捷径。
+  if (
+    isSecretary &&
+    handoffSelection?.kind === "none" &&
+    handoffSelection.reason === "already-handled" &&
+    !humanMentioned &&
+    !humanAllMentioned
+  ) {
+    ack(agentId, targetId, drained.maxSeq);
+    return {
+      status: "noop",
+      reason: "handoff already handled — acknowledged",
+      baseSeq: drained.maxSeq,
+    };
+  }
+  const handoffTargetTask =
+    handoffSelection?.kind === "handoff" ? handoffSelection.task : null;
+  const handoffCandidates = handoffTargetTask
+    ? listHandoffCandidates({
+        channelId: channel.id,
+        taskId: handoffTargetTask.id,
+        secretaryId: agent.id,
+      })
+    : [];
+  const admission = decideRoundAdmission({
+    agentId,
+    isDM: isDM(targetId),
+    isMember,
+    isTaskThread: Boolean(task),
+    task: task
+      ? {
+          status: task.status,
+          ownerId: task.owner_id,
+          reopened: task.reopened,
+        }
+      : null,
     reason,
     continuing,
+    humanMentioned,
+    humanAllMentioned,
+    hasOpenTaskEvent,
+    isSecretary,
+    secretaryHandoff: Boolean(handoffTargetTask),
+    taskEventAnchorInvited,
   });
+  // CP0（I5）/ 选人门（本票 spec §6.3）：房间场次活跃时，本场次从未被问过的成员不得在房间语境里
+  // 自主插话——返回 skipped 且**不推进消费游标**（它被后来召见时上下文完整）。
+  // reminder 轮次 / 任务线程 / 任务创建事件不受此门约束（Ticket #237：任务线程不走 channel 房间门）。
+  const roomTurns = getRoomTurnStore();
+  const roomGateApplicable =
+    (admission.admit && admission.useRoomGate) ||
+    (!admission.admit &&
+      !task &&
+      !isDM(targetId) &&
+      reason !== "reminder" &&
+      isMember &&
+      !hasOpenTaskEvent);
+  const roomGate = roomGateApplicable
+    ? roomTurns.gate({
+        channelId: channel.id,
+        memberId: agent.id,
+        reason,
+        continuing,
+      })
+    : { state: "bypass" as const, epoch: null };
   if (roomGate.state === "not-elected") {
     return { status: "skipped", reason: "not elected by room turn" };
+  }
+  if (!admission.admit) {
+    // 未准入 = 稳定 skipped reason：不起会话、不发 prompt、不推进消费游标。
+    return { status: "skipped", reason: admission.reason };
   }
   /** 本轮的场次 epoch（null = 无活跃场次 / reminder 或续工轮次）：I5 检查点的比较基准。 */
   const roomEpoch = roomGate.state === "elected" ? roomGate.epoch : null;
@@ -2008,7 +2359,7 @@ export async function runAgentRound(
   const hasUnhandledTaskSignal =
     targetId === channel.id &&
     (hasPendingTaskClaim(agent.id, channel.id) ||
-      hasRoutableTaskEvent(agent.id, channel, drained.messages));
+      hasRoutableTaskEvent(agent.id, channel, scanned.messages));
   if (
     latest &&
     latest.author_id === agent.id &&
@@ -2060,17 +2411,45 @@ export async function runAgentRound(
   }
 
   publishAgentStatus(agent.id, "working");
+  const relatedTasks = listRelatedTasks(targetId);
+  // 入群后还没有他人正文：只给有界简报（频道名/描述/开放任务短预览/水位），
+  // 不把入群前历史拼回来。真实提醒会先以作者本人署名落一条系统消息；它不算
+  // “他人新正文”，因此首次合法提醒仍必须拿到简报。已有他人正文时 tasks 仍走既有块。
+  const hasOtherMemberBody = scanned.messages.some(
+    (message) => message.author_id !== agent.id,
+  );
+  const joinBriefing =
+    channel.type !== "dm" && !hasOtherMemberBody
+      ? buildJoinBriefing({
+          channelName: channel.name,
+          channelDescription: channel.description,
+          watermarkSeq: drained.consumedSeq,
+          windowSeq: baseSeq,
+          tasks: relatedTasks,
+        })
+      : undefined;
+  const relatedTasksForPrompt = joinBriefing ? [] : relatedTasks;
   const prompt = buildReplyPrompt({
     agent,
     channel,
     messages:
-      effectiveIncoming.length > 0 ? effectiveIncoming : drained.messages,
-    tasks: listRelatedTasks(targetId),
+      effectiveIncoming.length > 0 ? effectiveIncoming : scanned.messages,
+    tasks: relatedTasksForPrompt,
     targetId,
     baseSeq,
     memoryFile: agentMemoryFile(agent),
     context: replyPromptContext(agent),
     peerClosedExchange,
+    joinBriefing,
+    handoff: handoffTargetTask
+      ? {
+          number: handoffTargetTask.number,
+          candidates: handoffCandidates.map((candidate) => ({
+            name: candidate.name,
+            description: candidate.description,
+          })),
+        }
+      : undefined,
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
@@ -2374,6 +2753,10 @@ export async function runAgentRound(
 interface QueuedTarget {
   targetId: string;
   reason: WakeReason;
+  /** 该 hint 的水位；恢复补发用它判断是否已消费。 */
+  seq: number;
+  /** 只有恢复补发需要执行层去重（普通 wake 可能携带 seq 之后的新消息）。 */
+  recovery: boolean;
 }
 
 interface BackfillQuarantine {
@@ -2390,6 +2773,24 @@ interface BackfillScanFailure {
 
 function backfillTargetKey(agentId: string, targetId: string): string {
   return `${agentId}\u0000${targetId}`;
+}
+
+/** 游标之后是否还有非本人消息（决定 driver 是否为一个窗口外的积压续排一轮）。 */
+function hasLaterNonOwnMessage(
+  targetId: string,
+  afterSeq: number,
+  agentId: string,
+): boolean {
+  const db = getDb();
+  let cursor = afterSeq;
+  for (;;) {
+    const rows = db.listMessagesAfter(targetId, cursor);
+    if (rows.some((row) => row.author_id !== agentId)) return true;
+    if (rows.length === 0) return false;
+    const lastSeq = rows[rows.length - 1].seq;
+    if (!db.hasMessagesAfter(targetId, lastSeq)) return false;
+    cursor = lastSeq;
+  }
 }
 
 interface DriverState {
@@ -2504,6 +2905,14 @@ export function peekAgentLoopBackfillQuarantine(): Array<{
 function enqueueWake(hint: WakeHint): void {
   const state = getDriverState();
   if (!state.started) return;
+  // 票 #242：恢复补发是至少一次投递，但 stale 的补发不得进队列。
+  // 游标已到 hint.seq 说明这一轮已被消费；再排一轮只会白跑。
+  if (
+    hint.recovery &&
+    getDb().getConsumedSeq(hint.agentId, hint.targetId) >= hint.seq
+  ) {
+    return;
+  }
   let queue = state.queues.get(hint.agentId);
   if (!queue) {
     queue = [];
@@ -2514,9 +2923,16 @@ function enqueueWake(hint: WakeHint): void {
     // 同 (agent, target) 合并：reminder 是更宽松的处理模式（不跳过自己的消息），
     // 已排队的 message 轮升级为 reminder 轮也不损失什么；反之会丢自提醒
     if (hint.reason === "reminder") existing.reason = "reminder";
+    existing.seq = Math.max(existing.seq, hint.seq);
+    existing.recovery = existing.recovery && Boolean(hint.recovery);
     return;
   }
-  queue.push({ targetId: hint.targetId, reason: hint.reason });
+  queue.push({
+    targetId: hint.targetId,
+    reason: hint.reason,
+    seq: hint.seq,
+    recovery: Boolean(hint.recovery),
+  });
   const scanFailure = state.backfillScanFailures.get(hint.agentId);
   if (scanFailure) {
     const key = backfillTargetKey(hint.agentId, hint.targetId);
@@ -2567,6 +2983,13 @@ async function processAgent(agentId: string): Promise<void> {
       ) ?? -1;
       if (!queue || readyIndex < 0) break;
       const [queued] = queue.splice(readyIndex, 1);
+      // 执行层去重：排队期间游标已被另一轮推进到 hint 水位，恢复补发不再起一轮。
+      if (
+        queued.recovery &&
+        getDb().getConsumedSeq(agentId, queued.targetId) >= queued.seq
+      ) {
+        continue;
+      }
 
       // v16 每轮用量：轮前快照会话累计统计（会话不存在/统计读取失败 → 本轮记 null）。
       let usageSession: LoopSession | undefined;
@@ -2580,6 +3003,7 @@ async function processAgent(agentId: string): Promise<void> {
       }
 
       let outcome;
+      const consumedBefore = getDb().getConsumedSeq(agentId, queued.targetId);
       try {
         outcome = await runAgentRound(
           agentId,
@@ -2613,8 +3037,29 @@ async function processAgent(agentId: string): Promise<void> {
       // §07 轮次结果落盘（有结论的轮次；noop/skipped/busy 由服务层过滤）。
       // driver 是 runAgentRound 的唯一生产调用点（index.ts 仅 re-export 供测试）。
       logRoundOutcome(agentId, queued.targetId, { ...outcome, usage });
+      // 票 #243：本轮只推进了一个窗口时，窗口外积压必须继续被处理。
+      // 只在游标真的前进后重排（避免 error / busy 无进展时热循环），且同 target 已有排队不重复。
+      const consumedAfter = getDb().getConsumedSeq(agentId, queued.targetId);
+      if (
+        consumedAfter > consumedBefore &&
+        hasLaterNonOwnMessage(queued.targetId, consumedAfter, agentId)
+      ) {
+        const pendingQueue = state.queues.get(agentId);
+        if (
+          pendingQueue &&
+          !pendingQueue.some((entry) => entry.targetId === queued.targetId)
+        ) {
+          // 这是游标之后的真实积压，不是恢复补发：标记成普通轮，避免被恢复去重跳过。
+          pendingQueue.push({
+            targetId: queued.targetId,
+            reason: queued.reason,
+            seq: consumedAfter,
+            recovery: false,
+          });
+        }
+      }
       if (outcome.status === "busy" || outcome.status === "busy-cwd") {
-        waitForSettle(agentId, queued.targetId, queued.reason);
+        waitForSettle(agentId, queued);
         break;
       }
     }
@@ -2640,8 +3085,7 @@ async function processAgent(agentId: string): Promise<void> {
 // 11-收敛：busy-cwd 重试改用 cwd-mutex 原语（waitForCwdSettle + scheduleBusyRetry），行为不变。
 async function waitForSettle(
   agentId: string,
-  targetId: string,
-  reason: WakeReason,
+  queued: QueuedTarget,
 ): Promise<void> {
   const state = getDriverState();
   if (state.waitingForSettle.has(agentId)) return;
@@ -2654,8 +3098,11 @@ async function waitForSettle(
       state.settleUnsubs.delete(agentId);
     }
     const queue = state.queues.get(agentId);
-    if (queue && !queue.some((entry) => entry.targetId === targetId)) {
-      queue.push({ targetId, reason });
+    if (
+      queue &&
+      !queue.some((entry) => entry.targetId === queued.targetId)
+    ) {
+      queue.push(queued);
     }
     void processAgent(agentId);
   };
@@ -3642,60 +4089,67 @@ export function retryAgentBackfillTarget(
 }
 
 // ----------------------------------------------------------------------------
-// reminder cron（§5.6，原 reminder-cron.ts）：进程常驻期间逐分钟轮询 reminders 表
-// （status=scheduled 且 fire_at <= now）→ 触发（fireDueReminders）。
+// maintenance cron（§5.6，原 reminder-cron.ts）：进程常驻期间逐分钟触发到点提醒，
+// 并补发丢失的 handoff 定向唤醒（有次数上限与退避，见 handoff.ts）。
 // 状态挂 globalThis 扛热重载；now 可注入（测试）；timer 幂等启停。
 // ----------------------------------------------------------------------------
 
-interface CronState {
+interface MaintenanceCronState {
   started: boolean;
   timer: NodeJS.Timeout | null;
   pollMs: number;
   now: () => Date;
+  emitWake: HandoffWakeEmitter | undefined;
 }
 
 declare global {
-  var __workspliceReminderCron: CronState | undefined;
+  var __workspliceMaintenanceCron: MaintenanceCronState | undefined;
 }
 
 /** 轮询周期（§5.6 逐分钟）。 */
-export const REMINDER_POLL_MS = 60_000;
+export const MAINTENANCE_POLL_MS = 60_000;
 
-function getCronState(): CronState {
-  if (!globalThis.__workspliceReminderCron) {
-    globalThis.__workspliceReminderCron = {
+function getMaintenanceCronState(): MaintenanceCronState {
+  if (!globalThis.__workspliceMaintenanceCron) {
+    globalThis.__workspliceMaintenanceCron = {
       started: false,
       timer: null,
-      pollMs: REMINDER_POLL_MS,
+      pollMs: MAINTENANCE_POLL_MS,
       now: () => new Date(),
+      emitWake: undefined,
     };
   }
-  return globalThis.__workspliceReminderCron;
+  return globalThis.__workspliceMaintenanceCron;
 }
 
-export function startReminderCron(
-  deps: { pollMs?: number; now?: () => Date } = {},
+export function startMaintenanceCron(
+  deps: {
+    pollMs?: number;
+    now?: () => Date;
+    emitWake?: HandoffWakeEmitter;
+  } = {},
 ): () => void {
-  const state = getCronState();
-  if (state.started) return stopReminderCron;
+  const state = getMaintenanceCronState();
+  if (state.started) return stopMaintenanceCron;
   state.started = true;
-  state.pollMs = deps.pollMs ?? REMINDER_POLL_MS;
+  state.pollMs = deps.pollMs ?? MAINTENANCE_POLL_MS;
   state.now = deps.now ?? (() => new Date());
+  state.emitWake = deps.emitWake;
   state.timer = setInterval(() => {
     try {
-      tickReminderCron(state.now());
+      tickAgentLoopMaintenance(state.now(), { emitWake: state.emitWake });
     } catch (error) {
       console.error(
-        "[worksplice] reminder cron tick failed:",
+        "[worksplice] agent loop maintenance tick failed:",
         error instanceof Error ? error.message : String(error),
       );
     }
   }, state.pollMs);
-  return stopReminderCron;
+  return stopMaintenanceCron;
 }
 
-export function stopReminderCron(): void {
-  const state = getCronState();
+export function stopMaintenanceCron(): void {
+  const state = getMaintenanceCronState();
   if (!state.started) return;
   state.started = false;
   if (state.timer) {
@@ -3710,24 +4164,48 @@ export function tickReminderCron(now: Date = new Date()): number {
   return outcomes.filter((outcome) => outcome.status === "fired").length;
 }
 
+/**
+ * 低频维护 tick（票 #242）：提醒 cron + handoff 恢复扫描共用同一个低频节拍。
+ * 恢复扫描只读任务与游标；补发本身不 claim、不改 owner、不写通知。
+ */
+export function tickAgentLoopMaintenance(
+  now: Date = new Date(),
+  deps: { emitWake?: HandoffWakeEmitter } = {},
+): { reminders: number; recoveryWakes: number } {
+  const reminders = tickReminderCron(now);
+  let recoveryWakes = 0;
+  try {
+    recoveryWakes = recoverHandoffWakes({
+      emitWake: deps.emitWake,
+      now,
+    });
+  } catch (error) {
+    console.error(
+      "[worksplice] handoff recovery tick failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  return { reminders, recoveryWakes };
+}
+
 // ----------------------------------------------------------------------------
 // AgentLoop 公共接口（Ticket 02 窄面）：start / stop / tick。
 // start 组装全套服务（幂等，原 index.ts startAgentLoop 语义）：
 // 1. 状态点低频扫掠（兜底 idle shutdown 漂移）；
 // 2. 崩溃恢复：启动时按 seq 补拉（SQLite 落后于 session jsonl 的回复按序补写，§5.3）；
 // 3. wake 驱动：新消息 → 唤醒对应 agent 的 loop（§5.4）；
-// 4. reminder cron：逐分钟轮询 reminders 表触发到点提醒（§5.6）。
+// 4. maintenance cron：逐分钟触发到点提醒（§5.6）并补发丢失的 handoff 定向唤醒。
 // tick = 手动推进一次 cron 扫描（测试/诊断入口）；driver 本身是事件驱动（wake → 队列），
 // 无 tick 语义。runtime/pollMs/now 可注入（测试传 fake runtime / 假时钟）。
 // ----------------------------------------------------------------------------
 
 export interface AgentLoop {
-  /** 幂等启动全套服务：状态扫掠 + 崩溃恢复补拉 + wake 驱动 + reminder cron。 */
+  /** 幂等启动全套服务：状态扫掠 + 崩溃恢复补拉 + wake 驱动 + maintenance cron。 */
   start(): void;
   /** 幂等停止：取消 wake 订阅与 cron 定时器、清空驱动队列（重复 stop 不炸）。 */
   stop(): void;
   /**
-   * 手动推进一次 reminder cron 扫描（测试/诊断入口；等价 cron 定时器的一轮 tick）。
+   * 手动推进一次 maintenance cron 扫描（测试/诊断入口；等价 cron 定时器的一轮 tick）。
    * 注意：仅覆盖 cron 子组件——driver 是事件驱动的（wake → 队列），没有 tick 语义。
    */
   tick(): void;
@@ -3739,6 +4217,7 @@ export function createAgentLoop(
     pollMs?: number;
     now?: () => Date;
     backfill?: BackfillOptions;
+    emitWake?: HandoffWakeEmitter;
   } = {},
 ): AgentLoop {
   let started = false;
@@ -3751,16 +4230,30 @@ export function createAgentLoop(
       // 留到后续事件循环轮次执行。
       startAgentBackfill(deps.backfill);
       startAgentLoopDriver({ runtime: deps.runtime });
-      startReminderCron({ pollMs: deps.pollMs, now: deps.now });
+      try {
+        recoverHandoffWakes({ emitWake: deps.emitWake });
+      } catch (error) {
+        console.error(
+          "[worksplice] handoff recovery at startup failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      startMaintenanceCron({
+        pollMs: deps.pollMs,
+        now: deps.now,
+        emitWake: deps.emitWake,
+      });
     },
     stop(): void {
       started = false;
       stopAgentBackfill();
       stopAgentLoopDriver();
-      stopReminderCron();
+      stopMaintenanceCron();
     },
     tick(): void {
-      tickReminderCron(deps.now ? deps.now() : new Date());
+      tickAgentLoopMaintenance(deps.now ? deps.now() : new Date(), {
+        emitWake: deps.emitWake,
+      });
     },
   };
 }

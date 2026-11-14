@@ -12,6 +12,7 @@ import {
   buildSearchSnippet,
   escapeLike,
   isAgentAvatarTint,
+  MESSAGE_WINDOW_LIMIT,
   toFtsQuery,
 } from "./types.ts";
 import type { Store } from "./store.ts";
@@ -41,6 +42,7 @@ import type {
   SessionArchiveEntryInput,
   SessionArchiveSearchHit,
   TaskRow,
+  TaskHandoffState,
   TaskStatus,
   TaskThreadReadRow,
 } from "./types.ts";
@@ -196,13 +198,31 @@ export class SQLiteAdapter implements Store {
     return map;
   }
 
-  /** seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。附 rowid 供 mute 判定。 */
-  listMessagesAfter(targetId: string, afterSeq: number): MessageRow[] {
+  /**
+   * seq > afterSeq 的增量（ASC；freshness-hold 摘要 / inbox 后续复用）。附 rowid 供 mute 判定。
+   * 票 #243：硬上限 MESSAGE_WINDOW_LIMIT——传更大的 limit 也会被压回窗口上限。
+   */
+  listMessagesAfter(
+    targetId: string,
+    afterSeq: number,
+    limit: number = MESSAGE_WINDOW_LIMIT,
+  ): MessageRow[] {
+    const bounded = Math.max(0, Math.min(Math.floor(limit), MESSAGE_WINDOW_LIMIT));
+    if (bounded === 0) return [];
     return this.db
       .prepare(
-        "SELECT m.*, m.rowid AS rowid FROM messages m WHERE m.target_id = ? AND m.seq > ? ORDER BY m.seq",
+        "SELECT m.*, m.rowid AS rowid FROM messages m WHERE m.target_id = ? AND m.seq > ? ORDER BY m.seq LIMIT ?",
       )
-      .all(targetId, afterSeq) as MessageRow[];
+      .all(targetId, afterSeq, bounded) as MessageRow[];
+  }
+
+  hasMessagesAfter(targetId: string, afterSeq: number): boolean {
+    const row = this.db
+      .prepare(
+        "SELECT 1 AS hit FROM messages WHERE target_id = ? AND seq > ? LIMIT 1",
+      )
+      .get(targetId, afterSeq) as { hit: number } | undefined;
+    return row !== undefined;
   }
 
   /**
@@ -505,6 +525,9 @@ export class SQLiteAdapter implements Store {
     status?: TaskStatus;
     ownerId?: string | null;
     reopened?: number;
+    handoffState?: TaskHandoffState | null;
+    handoffSeq?: number | null;
+    handoffOwnerId?: string | null;
     updatedAt?: string;
   }): TaskRow {
     const row: TaskRow = {
@@ -514,14 +537,28 @@ export class SQLiteAdapter implements Store {
       status: input.status ?? "todo",
       owner_id: input.ownerId ?? null,
       reopened: input.reopened ?? 0,
+      handoff_state: input.handoffState ?? null,
+      handoff_seq: input.handoffSeq ?? null,
+      handoff_owner_id: input.handoffOwnerId ?? null,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db.transaction(() => {
       this.db
         .prepare(
-          "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, handoff_state, handoff_seq, handoff_owner_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(row.id, row.message_id, row.number, row.status, row.owner_id, row.reopened, row.updated_at);
+        .run(
+          row.id,
+          row.message_id,
+          row.number,
+          row.status,
+          row.owner_id,
+          row.reopened,
+          row.handoff_state,
+          row.handoff_seq,
+          row.handoff_owner_id,
+          row.updated_at,
+        );
       this.db
         .prepare(
           `INSERT INTO task_thread_reads (task_id, baseline_seq, read_seq, updated_at)
@@ -588,6 +625,9 @@ export class SQLiteAdapter implements Store {
       status?: TaskStatus;
       ownerId?: string | null;
       reopened?: number;
+      handoffState?: TaskHandoffState | null;
+      handoffSeq?: number | null;
+      handoffOwnerId?: string | null;
       updatedAt?: string;
     },
   ): TaskRow | undefined {
@@ -598,11 +638,32 @@ export class SQLiteAdapter implements Store {
       status: input.status ?? existing.status,
       owner_id: input.ownerId !== undefined ? input.ownerId : existing.owner_id,
       reopened: input.reopened !== undefined ? input.reopened : existing.reopened,
+      handoff_state:
+        input.handoffState !== undefined
+          ? input.handoffState
+          : existing.handoff_state,
+      handoff_seq:
+        input.handoffSeq !== undefined ? input.handoffSeq : existing.handoff_seq,
+      handoff_owner_id:
+        input.handoffOwnerId !== undefined
+          ? input.handoffOwnerId
+          : existing.handoff_owner_id,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db
-      .prepare("UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, updated_at = ? WHERE id = ?")
-      .run(row.status, row.owner_id, row.reopened, row.updated_at, id);
+      .prepare(
+        "UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, handoff_state = ?, handoff_seq = ?, handoff_owner_id = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(
+        row.status,
+        row.owner_id,
+        row.reopened,
+        row.handoff_state,
+        row.handoff_seq,
+        row.handoff_owner_id,
+        row.updated_at,
+        id,
+      );
     return row;
   }
 
@@ -1171,6 +1232,13 @@ export class SQLiteAdapter implements Store {
       .prepare("SELECT seq FROM consumed_seqs WHERE agent_id = ? AND target_id = ?")
       .get(agentId, targetId) as { seq: number } | undefined;
     return row?.seq ?? 0;
+  }
+
+  hasConsumedSeq(agentId: string, targetId: string): boolean {
+    const row = this.db
+      .prepare("SELECT 1 AS hit FROM consumed_seqs WHERE agent_id = ? AND target_id = ?")
+      .get(agentId, targetId) as { hit: number } | undefined;
+    return row !== undefined;
   }
 
   setConsumedSeq(agentId: string, targetId: string, seq: number): void {

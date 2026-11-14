@@ -128,6 +128,8 @@ app/api/
   channels/[id]/read/route.ts     POST — BAI-6 未读角标：推进 Owner 已读游标到当前 max(seq)，清除角标
   lib/domain/collab/reads.ts       BAI-6 未读角标服务层：unreadCount / markChannelRead / listChannelsWithUnread
   channels/[id]/archive/route.ts  POST { archived } — Owner only，冻结写入
+  channels/[id]/stop/route.ts     POST — Owner 停当前房间波次（只调 stopTurn；不销毁会话/
+                                  不写消费游标/不 ack 任务事件；DM 403、不存在 404）
   channels/[id]/members/route.ts  GET member list
   messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）；
                                   multipart 形态：字段 + `files`（附件随消息一次原子提交，§3.5）
@@ -187,6 +189,11 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   （workspace 绑定唯一性校验；删除 = soft-delete）
   reminders.ts                    schedule/list/snooze/update/cancel/log/fireDueReminders（§3.9/§5.6）
                                   fire 投递系统消息（wake:false）+ 定向唤醒作者（agent → emitWake reason=reminder）
+  invitations.ts                  模型调用前邀请判定（#237）：selectMessageInvitations（人类正文点名 / @all；
+                                  引用块 / 代码块 / 行内代码不算；任务线程 owner 续工；reopened 清空候选）
+                                  + parseTaskCreationEventNumber（创建事件正文唯一解析）
+  admission.ts                    轮次准入纯判定（#237）：decideRoundAdmission + ROUND_SKIP_REASONS
+                                  （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵）
   room-budget.ts                  房间轮次预算（PR #218，设计记录 `.scratch/room-turn-budget/spec.md`）：
                                   createRoomTurnStore（场次状态机 / 选人水位线 / 迟到补充轮次）/ getRoomTurnStore
                                   （生产单例挂 `globalThis.__workspliceRoomTurns`）/ setRoomTurnStore(null)（测试接缝）
@@ -197,26 +204,29 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   observability.ts                §6.5 任务历史服务层：listAgentTasks（owner/锚点作者/thread 进展参与判定）+ buildAgentTimeline（消息 + 任务状态点时间线）
   recurrence.ts                   recurrence DSL 纯解析器：every:Nm/Nh/Nd / daily@HH:MM / weekly:mon,fri@HH:MM
                                   + nextFireAt（严格晚于 from，时区安全，delay 语义）
-  wake.ts                         wake 事件总线（§5.4/§5.5）：WakeHint（只含 agentId/targetId/seq/reason，不含正文）；
-                                  subscribeWake/emitWake；notifyMessageWakes（channel agent 成员除作者 + 未加入被
-                                  @mention 的穿透）；§3.7 任务延续自醒；@mention 解析 re-export（协作服务层发，agent-loop 驱动订阅）
+  wake.ts                         wake 事件总线（§5.4/§5.5）：WakeHint（只含 agentId/targetId/seq/reason
+                                  + 可选 recovery，不含正文）；
+                                  subscribeWake/emitWake；notifyMessageWakes（#237：人类正文点名 / @all 候选；
+                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件只定向秘书）；§3.7 任务延续自醒；
+                                  @mention 解析 re-export（协作服务层发，agent-loop 驱动订阅）
 
 lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并为单文件深模块）
   loop.ts                         深模块（round + driver + backfill + reminder-cron 全收编）：
                                   runAgentRound（wake→drain→decide→act→reply→ack）；结构化回复协议
                                   {"action":"reply"|"ignore","content":...,"onConflict":"revise"|"resend"|"silent"|"anyway",
-                                  "task":{"number":N,"op":"claim"|"complete"|"unclaim"}}
+                                  "task":{"number":N,"op":"claim"|"complete"|"unclaim"|"handoff"}}
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
                                   + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
                                   + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
-                                  + §3.2 mention 穿透：非成员被 @mention 推进本轮，回复公开 channel 时自行加入
+                                  + §3.2 mention 穿透：非成员被**人类正文** @mention 推进本轮（#237），回复公开 channel 时自行加入
                                   + driver 编排：wake → 逐 agent 串行队列；同 (agent,target) hint 合并
                                   （reason 取宽松侧：含 reminder 即按 reminder 处理）；
                                   busy 时 settle 后重试
                                   + backfill 崩溃恢复按 seq 补拉（§5.3）：扫描 session jsonl 找回缺失的
                                   assistant 回复按序补写
-                                  + reminder cron（§5.6 逐分钟）：tickReminderCron 扫描 scheduled 且
-                                  fire_at<=now → fireDueReminders
+                                  + maintenance cron（§5.6 逐分钟）：tickReminderCron 扫描 scheduled 且
+                                  fire_at<=now → fireDueReminders；同 tick 补发丢失的 handoff 定向唤醒
+                                  （启动一次 + 每 60s；每 task/target 每进程最多 3 次，60s/120s 退避）
                                   + 公共接口 createAgentLoop() → { start, stop, tick }（start 幂等组装
                                   状态扫掠 + 补拉 + 驱动 + cron；tick 手动推进 cron 扫描）
   json-prologue.ts                回复 JSON 泄漏修复的三档判据唯一实现（prologue / raw-control / trailing-key）：
@@ -549,9 +559,9 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 ### agent-loop（ticket 06，§3.8/§5.3–5.5）
 
 - **拉取式 inbox，不推送正文**：`consumed_seqs(agent_id, target_id, seq)` 是持久化游标；`drain` 不推进游标（重复 drain 不重不漏），`ack` 由 loop 每轮收口；HTTP 语义（`GET /api/members/[id]/inbox`）是 drain + ack 一步到位。wake hint 只含 `{agentId, targetId, seq, reason}`，正文由 agent 自己 drain。
-- **wake 触发面**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——目标 channel 的 agent 成员（不含作者）全唤醒（§3.2 静音成员除外，不因普通消息唤醒），未加入 channel 但被 `@mention` 的 agent 穿透送达；thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。
+- **wake 触发面（#237/#240）**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——人类正文点名 / `@all` 才产生新邀请（引用块 / 代码块 / 行内代码里的 @ 不算）；普通 agent 正文 @ 不穿透、不产生第二波；DM 语义不变；开放任务创建事件只定向唤醒秘书，没有可用秘书 / 已有 owner / 已分流时不叫任何人。thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。`WakeHint.recovery` 只标记丢失 handoff wake 的补发，驱动层据此去重。
 - **mute（ticket 12，§3.2/§3.8）**：channel 级静音 = `channel_mutes` 表（PK channel+member）记录静音时刻的 `mute_from_seq`（channel max(seq)）与 `mute_rowid`（全表 max(messages.rowid)）。drain/getPendingTargets 过滤：静音后的普通消息不进 inbox，个人 @mention 仍穿透；channel 消息按 seq 比，thread 消息无 channel seq 可比（thread 自己的 seq 空间）按 rowid 比（全局插入序，避免同毫秒 created_at 歧义）。静音前的消息照常投递；取消 mute 后不补投静音期间被压制的消息（游标已推进）。`GET/POST /api/channels/[id]/mute`（Owner 可替任意 agent 设）；ChannelView 头部 `BellOff` 面板逐个 agent 开关。
-- **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author` 消息 + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` → 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 resend。**ack 语义**：ack 到 agent 本轮实际读到/被告知的房间版本（`deliverWithFreshness` 返回 ackSeq，held 后随 roomSeq 推进），避免游标停在旧 baseSeq 导致 target 永久 pending。
+- **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ **轮次准入**（#237：`decideRoundAdmission`；未准入返回稳定 `skipped` reason，不起会话 / 不发 prompt / 不动游标）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author` 消息 + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` 与顶层 `task` op（claim / complete / unclaim / handoff）→ 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 resend。**ack 语义**：ack 到 agent 本轮实际读到/被告知的房间版本（`deliverWithFreshness` 返回 ackSeq，held 后随 roomSeq 推进），避免游标停在旧 baseSeq 导致 target 永久 pending。
 - **prompt 目标身份与内容分工**：`buildReplyPrompt` / `buildRevisionPrompt` 的头部由 `describePromptTarget` 生成——频道轮 `channel X`（与旧文案逐字节一致）、任务线程轮 `the thread of task #N [status] under channel X (anchor seq S)`、普通线程轮 `a thread under channel X (anchor seq S)`（锚点缺失时省略 seq）。`buildReplyPrompt` 的 response rules 里固定注入 `CONTENT_PLACEMENT_RUBRIC`（`onConflict` 之后、`Task protocol` 之前）：交付物的事实/证据/数据/更正 → 该交付物任务线程；可独立成立的方法论 → 频道；可复用事实/口径 → 可留频道但须带来源与日期；频道提到任务仅指针、不带新结论。该 rubric 明写 "the app decides delivery"——只约束内容写在哪，投递方向仍由 §3.7 路由裁决；`buildRevisionPrompt` 不注入它。只加固定骨架行，`projectMessages` / `elasticBudget` / `INJECTION_*` 与消息块裁剪不动。
 - **freshness-hold 四选一**（`deliverWithFreshness`）：held 后按 agent 声明的 onConflict 执行——revise（`buildRevisionPrompt` 携带期间新消息正文重读重写，最多 1 次）/ resend（携带新 roomSeq 原样重试；默认路径，最多 1 次）/ silent（静默放弃）/ anyway（不带 baseSeq 显式绕过，连续 hold 的逃逸口）；重试耗尽归入 silent。发送器可注入（`send` 参数，测试脚本化用）。**hold 重路由**：频道轮的普通回复在 resend/revise 重发前，会用写稿版本（`readBaseSeq`，不随 roomSeq 前移）之后的新消息重跑 `resolveTaskReplyRoute`（`allowPendingFallback=false`，只认创建事件）；输入与 drain 共用 `filterVisibleMessages`（§3.2 mute 口径，被静音的创建事件不能触发认领）。命中时 `deliverWithFreshness` 返回 `{status:"reroute", route, action, ackSeq}`，`ackSeq = max(held roomSeq, route.eventSeq)`（revise 重写期间到达的事件也要随本轮消费，否则下一轮重复路由）；由 `runAgentRound` 以 `baseSeq=ackSeq` 交回既有 `runTaskOperation`（claim 重试 / 参与者 / 线程投递 / 游标收口同一条路径），函数自身不投递、不 claim、不写游标。裁决先于重试预算：第二次 hold 才到达的创建事件不会被 "retries exhausted" 吞掉；线程轮 hold 永不重路由。
 - **崩溃恢复补拉**（loop.ts 内 backfill 段）：loop 的 prompt 末尾带房间标记 `[worksplice:target=<id> seq=<N>]` 落进 session jsonl 的 user 条目（revise prompt 额外带 `[worksplice:revision]`）；启动时（`createAgentLoop().start()`，instrumentation 调用）扫描各 agent 的 session jsonl——**每个标记轮只保留最后一条 assistant 文本**（revise 草稿/工具中间产物被下一轮 prompt 丢弃），回复内容按 `parseAgentAction` 解析（JSON 取 content，ignore 不落库），缺失于 SQLite 的按序补写（同 target 同作者同内容去重）；**投递目标还原**：① 本轮 assistant 回复带显式 `task` op 时，按 `task.number` 还原到该任务的锚点线程（任务缺失则维持频道）——优先于 marker 启发式；② 否则若 `(targetId, markerSeq)` 那条消息是 Owner 的 `Task #N created` 创建事件且任务存在，该轮真实投递目标是任务锚点线程——补写进线程而不是频道顶层（done/closed 也照常还原，状态不影响历史还原）；同 target 幂等按还原后的目标判定，跨 target 判重仍按 `hasAuthorContentInChannel` + 频道 marker 守卫，游标仍只写 marker target；**游标推进到每个标记轮的标记 seq**（标记存在即证明该轮 prompt 已进入上下文——即使回复已存在也推进，覆盖"崩溃于补写后 ack 前"窗口）。**已知残余（P-3）**：走 hold 重路由的轮 marker 仍停在写稿前版本，若进程在线程写入前崩溃，补拉不会还原到线程；补拉也无法区分「崩溃缺失」与 live 明确让路（reopened / claim 耗尽）或裁决时已 done·closed 的轮，会按创建事件还原到线程（后者是 P3 票面「状态不影响还原」的取舍）。根治需让 session marker / round_log 记录该轮真实投递 target。**不回放 wake**（补写直接落库）。wake 由 driver 订阅；`__workspliceWakeListeners` 挂 globalThis（lib/domain/collab/wake.ts）。
@@ -572,10 +582,10 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **I5 用户掐断**：`beginTurn` / `stopTurn` 推进 `epoch`，`isCurrent` 是检查点判据；`runAgentRound` 的 CP0 / CP2 / CP3 据此拒绝入场或标 `stale`。
 - **I6 房间内无隐身通道**：`sendMessage` 收到 `roomContext` 时校验解析出的频道是否等于 `roomContext.channelId`，不等抛 `RoomPrivateChannelForbidden`。
 - **I7 迟到独立预算**：`noteLateReply` + `lateTurns` + `pendingLateSeq`——忙碌 / 超时被释放的成员之后的发言走补充波，最多 `MAX_LATE_TURNS` 次；`stopTurn` 把 `lateTurns` 置哨兵，Stop 之后零补充波。
-- **I8 预算不可自助重置**：预算只挂在房间状态上，`beginTurn`（= 人类新消息）是唯一重置点；`@all` / `@everyone` 只影响第一波选人（`responders()` + `ALL_MENTION`），改不动计数。
-- **接入点一 —— `sendMessage` → `recordRoomTurn`**（`lib/domain/collab/messages.ts`）：Owner 消息 → `beginTurn`（epoch+1、`lateTurns` 归零、第一波选人）；agent 消息 → `noteReply`（I1 计数 + 水位线 + 引用边；跨 target 用 `message.rowid` 当水位线，因为 thread 有自己的 seq 空间）；`roomNotice: true` 或 `wake: false` 的系统消息整个跳过。记账排在 wake hint 之前是承重的——被唤醒的轮次入场第一件事就是问「我是否被这一波选中」。
-- **接入点二 —— `runAgentRound` 的 CP0 选人门**（`lib/agent-loop/loop.ts`）：入场问 `gate({ channelId, memberId, reason, continuing })`，`not-elected` 直接返回 `{ status: "skipped", reason: "not elected by room turn" }` 且**不推进消费游标**（被后来召见时上下文完整，也不起会话、不花模型调用）；reminder 轮次与任务续工轮次由 `gate` 内部 `bypass`。CP2 在出 prompt 前、CP3 在回复落库后各复查一次 `isCurrent`，投递时带 `roomContext`（I6）。
-- **`lib/domain/collab/wake.ts` 一字未改**：门落在**执行期**（`runAgentRound` 入场）而不是广播期，所以既有 wake 语义逐字节不变——广播照旧扇出，被唤醒但没当选的成员自己让路。房间场次不活跃、或 DM 频道（`isRoomChannel` = false）时行为也完全同旧。
+- **I8 预算不可自助重置**：预算只挂在房间状态上，`beginTurn`（= 人类新消息）是唯一重置点；`@all` / `@everyone` 只影响第一波邀请候选（#237 起由 `selectMessageInvitations` 显式传入），改不动计数。
+- **接入点一 —— `sendMessage` → `recordRoomTurn`**（`lib/domain/collab/messages.ts`）：Owner 消息 → `selectMessageInvitations` 先算候选，再 `beginTurn`（epoch+1、`lateTurns` 归零、显式候选；空候选仍推进 epoch / 取代旧场次，但不选人、不等超时）；agent 消息 → `noteReply`（I1 计数 + 水位线；#237 起生产路径传 `mentions: []`，普通 agent 正文 @ 不产生新候选 / 第二波；跨 target 用 `message.rowid` 当水位线，因为 thread 有自己的 seq 空间）；`roomNotice: true` 或 `wake: false` 的系统消息整个跳过。记账排在 wake hint 之前是承重的——被唤醒的轮次入场第一件事就是问「我是否被这一波选中」。
+- **接入点二 —— `runAgentRound` 的准入闸 + CP0 选人门**（`lib/agent-loop/loop.ts`）：先由 `decideRoundAdmission` 判「该不该起会话」（人类正文点名 / `@all`、任务线程 owner / 状态矩阵、DM / reminder / 任务创建事件）；需要房间门的频道轮再问 `gate({ channelId, memberId, reason, continuing })`，`not-elected` 返回既有 `{ status: "skipped", reason: "not elected by room turn" }`；任何未准入都**不推进消费游标**、不起会话、不花模型调用。任务线程不走 channel 房间门；reminder 轮次与任务续工轮次 bypass。CP2 在出 prompt 前、CP3 在回复落库后各复查一次 `isCurrent`，投递时带 `roomContext`（I6）。
+- **wake 与选人同源（#237）**：`lib/domain/collab/wake.ts` 的人类消息候选同样由 `selectMessageInvitations` 计算——广播不再是「全员扇出后各自让路」，而是只唤醒本轮邀请候选；普通 agent 正文 @ 不再穿透。房间场次不活跃、或 DM 频道（`isRoomChannel` = false）时行为与旧语义对齐（DM 完全不变）。
 
 **会静默破坏它的纪律**（每条都是「踩了不报错，只会错」）：
 
@@ -589,7 +599,7 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 
 **已知边界**（都有出处，别当缺陷）：
 
-- `stopTurn()` 只有服务层 API，没有路由、没有按钮（后续票接线；现无任何 `app/api/**` 调用点）。
+- `stopTurn()` 已由 `stopChannelTurn()`、`POST /api/channels/[id]/stop` 与非 DM 频道头部 Stop 按钮接通；任何已 ended 的场次（含 `no_speakers`）再次 Stop 都幂等 no-op，不改收口原因、不重复加 epoch。
 - `HISTORY_LINES` / `LINE_CHARS` 只约束场次转写（选人裁决用）的内存占用，转写**不拼进 prompt**；丢最老的行只会让候选变少，不会放大预算。
 - I3 只做**惰性释放**：`releaseTimeouts` 在 `pump` / `gate` 里跑，比较时间戳后把槽位还回去；不阻塞等待、也没有 `abort` 去打断成员会话。
 

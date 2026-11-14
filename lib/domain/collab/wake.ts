@@ -1,6 +1,12 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { getChannelMute, listChannelMembers, resolveChannelForTarget } from "./channels.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
+import {
+  parseTaskCreationEventNumber,
+  selectMessageInvitations,
+} from "./invitations.ts";
+import { isHandoffEligibleTask, selectSecretaryHandoffTask } from "./handoff-trigger.ts";
+import { findSusanMember } from "./secretary-identity.ts";
 import type { MessageRow } from "../../data/types.ts";
 
 /**
@@ -15,6 +21,8 @@ export interface WakeHint {
   targetId: string;
   seq: number;
   reason: "message" | "reminder";
+  /** 票 #242：handoff 定向唤醒的恢复补发；driver 用 seq 做队列/执行去重。 */
+  recovery?: boolean;
 }
 
 export type WakeReason = WakeHint["reason"];
@@ -69,21 +77,99 @@ export function notifyMessageWakes(message: MessageRow): void {
     emitWake({ agentId: message.author_id, targetId: message.target_id, seq: message.seq, reason: "message" });
   }
 
-  const woken = new Set<string>();
+  const author = getMember(message.author_id);
+  // DM 语义不变：owner 的私信永远送达对方；agent 的私信不穿透其他 agent。
+  if (channel.type === "dm") {
+    for (const member of listChannelMembers(channel.id)) {
+      if (member.type !== "agent" || member.id === message.author_id) continue;
+      if (getChannelMute(channel.id, member.id)) continue;
+      emitWake({
+        agentId: member.id,
+        targetId: message.target_id,
+        seq: message.seq,
+        reason: "message",
+      });
+    }
+    // DM 语义不变：人类正文里的个人 @ 仍穿透给未加入的 agent；agent 的 @ 不穿透。
+    if (author?.type === "human") {
+      for (const mentionedId of extractMentionedMemberIds(message.content)) {
+        const member = getMember(mentionedId);
+        if (!member || member.type !== "agent" || member.id === message.author_id) continue;
+        emitWake({
+          agentId: mentionedId,
+          targetId: message.target_id,
+          seq: message.seq,
+          reason: "message",
+        });
+      }
+    }
+    return;
+  }
+
+  const notify = (agentId: string): void => {
+    const member = getMember(agentId);
+    if (!member || member.type !== "agent" || member.id === message.author_id) return;
+    emitWake({
+      agentId,
+      targetId: message.target_id,
+      seq: message.seq,
+      reason: "message",
+    });
+  };
+
+  if (author?.type === "human") {
+    // Owner 署名的任务创建事件是系统消息，不是人类敲出来的正文邀请：
+    // 预览里即使带 @ 也不按点名收窄。票 #240：未认领任务只定向唤醒秘书，
+    // 不再扇出全 channel；没有可用秘书 / 任务已有 owner / 已分流 ⇒ 不叫任何人。
+    const taskNumber = parseTaskCreationEventNumber(message.content);
+    if (taskNumber !== null) {
+      const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+      if (!isHandoffEligibleTask(task)) return;
+      const susan = findSusanMember();
+      if (!susan || susan.id === message.author_id) return;
+      if (!getDb().isChannelMember(channel.id, susan.id)) return;
+      if (getChannelMute(channel.id, susan.id)) return;
+      notify(susan.id);
+      return;
+    }
+    // Ticket #237：人类正文点名 / @all 才产生新邀请；候选与 beginTurn 同源。
+    const invitations = selectMessageInvitations({
+      targetId: message.target_id,
+      authorId: message.author_id,
+      content: message.content,
+    });
+    const recipients = new Set(invitations.candidates);
+    // 票 #240：与既有未认领任务明确关联的人类消息（任务锚点 / 任务线程 / 唯一
+    // `Task #N` 引用）追加秘书为收件人；多任务命中 / 无关联不追加。
+    const susan = findSusanMember();
+    if (susan && susan.id !== message.author_id) {
+      const selection = selectSecretaryHandoffTask({
+        secretary: susan,
+        channel,
+        targetId: message.target_id,
+        messages: [
+          {
+            id: message.id,
+            target_id: message.target_id,
+            author_id: message.author_id,
+            content: message.content,
+            author: author ?? null,
+          },
+        ],
+      });
+      if (selection.kind === "handoff" && !getChannelMute(channel.id, susan.id)) {
+        recipients.add(susan.id);
+      }
+    }
+    for (const agentId of recipients) notify(agentId);
+    return;
+  }
+
+  // 普通 agent 正文 @ 不穿透：只投给频道现有的 agent 成员（任务 owner 靠订阅收到）。
   for (const member of listChannelMembers(channel.id)) {
     if (member.type !== "agent" || member.id === message.author_id) continue;
     if (getChannelMute(channel.id, member.id)) continue;
-    woken.add(member.id);
-    emitWake({ agentId: member.id, targetId: message.target_id, seq: message.seq, reason: "message" });
-  }
-  // agent-authored DM 正文不通过非成员 @mention 穿透唤醒其他 agent。
-  if (channel.type === 'dm' && getMember(message.author_id)?.type === 'agent') return;
-
-  for (const mentionedId of extractMentionedMemberIds(message.content)) {
-    const member = getMember(mentionedId);
-    if (!member || member.type !== "agent" || member.id === message.author_id) continue;
-    if (woken.has(mentionedId)) continue;
-    emitWake({ agentId: mentionedId, targetId: message.target_id, seq: message.seq, reason: "message" });
+    notify(member.id);
   }
 }
 

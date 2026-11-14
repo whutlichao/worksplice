@@ -32,6 +32,7 @@ import type {
   SearchResult,
   SessionArchiveEntryInput,
   SessionArchiveSearchHit,
+  TaskHandoffState,
   TaskRow,
   TaskStatus,
   TaskThreadReadRow,
@@ -75,7 +76,13 @@ export interface Store {
   hasMessagesBefore(targetId: string, seq: number): boolean;
   threadReplyCount(messageId: string): number;
   threadReplyCounts(messageIds: string[]): Map<string, number>;
-  listMessagesAfter(targetId: string, afterSeq: number): MessageRow[];
+  /**
+   * seq > afterSeq 的增量（ASC），最多 `MESSAGE_WINDOW_LIMIT` 条（票 #243 硬上限）。
+   * 需要继续窗口时由调用方用最后一条 seq 再查一次。
+   */
+  listMessagesAfter(targetId: string, afterSeq: number, limit?: number): MessageRow[];
+  /** seq > afterSeq 是否还有更晚消息（窗口 hasMore 的判据）。 */
+  hasMessagesAfter(targetId: string, afterSeq: number): boolean;
   listMessages(targetId: string): MessageRow[];
   getMessage(id: string): MessageRow | undefined;
   /** 按 (target, seq) 点查（messages 表 UNIQUE(target_id, seq)）：回拉按 marker 还原投递目标用。 */
@@ -148,6 +155,9 @@ export interface Store {
     status?: TaskStatus;
     ownerId?: string | null;
     reopened?: number;
+    handoffState?: TaskHandoffState | null;
+    handoffSeq?: number | null;
+    handoffOwnerId?: string | null;
     updatedAt?: string;
   }): TaskRow;
   listTasks(): TaskRow[];
@@ -158,7 +168,15 @@ export interface Store {
   nextTaskNumber(channelId: string): number;
   updateTask(
     id: string,
-    input: { status?: TaskStatus; ownerId?: string | null; reopened?: number; updatedAt?: string },
+    input: {
+      status?: TaskStatus;
+      ownerId?: string | null;
+      reopened?: number;
+      handoffState?: TaskHandoffState | null;
+      handoffSeq?: number | null;
+      handoffOwnerId?: string | null;
+      updatedAt?: string;
+    },
   ): TaskRow | undefined;
   listTasksForAgent(agentId: string): TaskRow[];
   getTaskThreadRead(taskId: string): TaskThreadReadRow | undefined;
@@ -263,6 +281,8 @@ export interface Store {
   setPinnedOrder(channelId: string, memberId: string, orderedMessageIds: string[]): void;
 
   // -- consumed_seqs（inbox 游标） ------------------------------------------
+  /** 游标行是否存在（与 `getConsumedSeq(...) === 0` 区分：显式 0 也是已有游标）。 */
+  hasConsumedSeq(agentId: string, targetId: string): boolean;
   getConsumedSeq(agentId: string, targetId: string): number;
   setConsumedSeq(agentId: string, targetId: string, seq: number): void;
 

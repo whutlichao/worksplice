@@ -1,11 +1,29 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel, notifyChannelCreated, findSusanMember } from "./event-messages.ts";
 import { assertActorMayPerform } from "./member-capabilities.ts";
+import { getRoomTurnStore, type RoomStopResult } from "./room-budget.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID, DM_ID_PREFIX } from "../../data/schema.ts";
 
 /** 当前人类用户恒为 Owner（§3.6：本地单机形态下 Owner 级操作由 human 在 UI 直接执行）。 */
 export const CURRENT_MEMBER_ID = OWNER_MEMBER_ID;
+
+/** Stop 的准入错误：路由按 `status` 映射稳定 4xx，`code` 给调用方与测试做稳定判据。 */
+export class ChannelStopError extends Error {
+  readonly status: 403 | 404;
+  readonly code: "channel_not_found" | "owner_only" | "dm_not_stoppable";
+
+  constructor(
+    status: 403 | 404,
+    code: "channel_not_found" | "owner_only" | "dm_not_stoppable",
+    message: string,
+  ) {
+    super(message);
+    this.name = "ChannelStopError";
+    this.status = status;
+    this.code = code;
+  }
+}
 
 export function listChannels(): ChannelRow[] {
   return getDb().listChannels();
@@ -25,6 +43,20 @@ function assertMember(memberId: string): MemberRow {
   const member = getDb().getMember(memberId);
   if (!member) throw new Error("Member not found");
   return member;
+}
+
+/**
+ * 非 DM 加入的唯一写入路径：成员关系与入群游标一起落库。
+ * 游标只在缺失时钉到当前 max(seq)——已有游标（含显式 0）是成员自己的进度，不得覆盖。
+ */
+export function addMemberWithJoinCursor(channelId: string, memberId: string): void {
+  const db = getDb();
+  db.withTransaction(() => {
+    db.addChannelMember(channelId, memberId);
+    if (!db.hasConsumedSeq(memberId, channelId)) {
+      db.setConsumedSeq(memberId, channelId, db.maxSeq(channelId));
+    }
+  });
 }
 
 /** DM 频道确定性 id：`dm:owner↔<agent名>`（spec R7，天然幂等）。 */
@@ -117,15 +149,15 @@ export function createChannel(input: {
     type: input.type ?? "public",
     description: (input.description ?? "").trim(),
   });
-  getDb().addChannelMember(channel.id, OWNER_MEMBER_ID);
+  addMemberWithJoinCursor(channel.id, OWNER_MEMBER_ID);
   for (const memberId of input.memberIds ?? []) {
     assertMember(memberId);
-    getDb().addChannelMember(channel.id, memberId);
+    addMemberWithJoinCursor(channel.id, memberId);
   }
   // §7 新建公开频道必加：秘书静默加入（不触发欢迎事件；私有频道由创建者预勾选决定）。
   if (channel.type === "public") {
     const susan = findSusanMember();
-    if (susan) getDb().addChannelMember(channel.id, susan.id);
+    if (susan) addMemberWithJoinCursor(channel.id, susan.id);
   }
   notifyChannelCreated(channel);
   return channel;
@@ -150,7 +182,7 @@ export function joinChannel(
     throw new Error("Only the owner can add members to a private channel");
   }
   const isNewMember = !getDb().isChannelMember(channelId, memberId);
-  getDb().addChannelMember(channelId, memberId);
+  addMemberWithJoinCursor(channelId, memberId);
   if (isNewMember) notifyAgentJoinedChannel(channelId, memberId);
 }
 
@@ -175,6 +207,35 @@ export function leaveChannel(
     throw new Error("Only the owner can remove other members");
   }
   getDb().removeChannelMember(channelId, memberId);
+  // 退群清槽（票 #238）：当前场次的 elected / late / asked 等内存槽位一并移除。
+  // 消息、消费游标、任务事件不在房间状态里——这里一个字都不动。
+  getRoomTurnStore().removeMember(channelId, memberId);
+}
+
+/**
+ * Owner 停当前房间波次（票 #238）：只做准入校验并转交房间状态机的 `stopTurn`。
+ * 不销毁 AgentSession、不写消费游标、不 ack 任务事件——那些都不在房间内存状态里。
+ * 重复 Stop / 无活跃场次由 `stopTurn` 幂等收口（不重复加 epoch）。
+ */
+export function stopChannelTurn(
+  channelId: string,
+  actorId: string = CURRENT_MEMBER_ID,
+): RoomStopResult {
+  const channel = getDb().getChannel(channelId);
+  if (!channel) {
+    throw new ChannelStopError(404, "channel_not_found", "Channel not found");
+  }
+  if (actorId !== OWNER_MEMBER_ID) {
+    throw new ChannelStopError(
+      403,
+      "owner_only",
+      "Only the owner can stop a channel turn",
+    );
+  }
+  if (channel.type === "dm") {
+    throw new ChannelStopError(403, "dm_not_stoppable", "Cannot stop a DM channel");
+  }
+  return getRoomTurnStore().stopTurn(channelId);
 }
 
 /** 归档/解归档（§3.2）：Owner only；归档冻结写入、保留可读；`#all` 不可归档。

@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from "path";
 import { randomUUID } from "crypto";
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel } from "./event-messages.ts";
-import { getDMFor, resumeDirectChannel } from "./channels.ts";
+import { addMemberWithJoinCursor, getDMFor, resumeDirectChannel } from "./channels.ts";
 import { isAgentAvatarTint } from "../../data/types.ts";
 import type { AgentAvatarTint, MemberRow, MemberStatus } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID } from "../../data/schema.ts";
@@ -12,7 +12,7 @@ import {
   buildMemoryTemplate,
   MEMORY_FILE_NAME,
 } from "../../data/dirs.ts";
-import { parseMentionTokens } from "../../mention.ts";
+import { bodyMentionText, parseMentionTokens } from "../../mention.ts";
 
 /**
  * workspace 路径归一化（§5.2 隔离单位是 cwd）：绝对路径化，
@@ -132,7 +132,7 @@ export function updateAgentDescription(
 export function extractMentionedMemberIds(content: string): string[] {
   const members = getDb().listMembers();
   const tokens = parseMentionTokens(
-    content,
+    bodyMentionText(content),
     members.map((m) => ({ id: m.id, name: m.name, type: m.type })),
   );
   // 名字全等匹配即算（重名已被创建期禁止，按名字匹配至多命中一个成员）；去重保序。
@@ -232,7 +232,7 @@ export function createAgent(input: {
       modelId,
       thinkingLevel,
     });
-    getDb().addChannelMember(BUILTIN_CHANNEL_ID, created.id);
+    addMemberWithJoinCursor(BUILTIN_CHANNEL_ID, created.id);
     // 懒创建（dm-lazy-create）：DM 不随 agent 创建，只在 owner 打开「发送消息」入口时幂等建；
     // 但名字命中既有 DM（上一次删除留下的旧对话）时必须就地接续。
     resumeDirectChannel(created.id);
