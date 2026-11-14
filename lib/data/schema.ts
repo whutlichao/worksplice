@@ -1,9 +1,16 @@
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
+
+/**
+ * 升级期引导用的默认首席名字（票 #248）：v19 迁移把现存存活的同名 agent 标为全局首席。
+ * 数据层不得 import 协作域，故此处重复一份字面值（与 `secretary-identity.ts` 的
+ * `SUSAN_MEMBER_NAME` 同值）；它只是迁移 / 引导期常量，不参与任何身份判定。
+ */
+export const LEGACY_CHIEF_MEMBER_NAME = "Susan";
 
 /** DM 频道 id 前缀（§R7 命名固定 `dm:owner↔<agent名>`，确定性 id 天然幂等）。 */
 export const DM_ID_PREFIX = "dm:owner↔";
@@ -37,7 +44,8 @@ const SCHEMA_STATEMENTS: string[] = [
     model_id TEXT,
     thinking_level TEXT,
     created_at TEXT NOT NULL,
-    avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3))
+    avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3)),
+    global_chief INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
@@ -251,6 +259,7 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersDeletedColumn(db);
     migrateMembersModelColumns(db);
     migrateMembersAvatarTintColumn(db);
+    migrateMembersGlobalChiefColumn(db);
     migrateTasksReopenedColumn(db);
     migrateTasksHandoffColumns(db);
     migrateTasksHandoffOwnerColumn(db);
@@ -273,6 +282,30 @@ function migrateMembersAvatarTintColumn(db: Database.Database): void {
       "ALTER TABLE members ADD COLUMN avatar_tint INTEGER CHECK (avatar_tint IS NULL OR (typeof(avatar_tint) = 'integer' AND avatar_tint BETWEEN 0 AND 3))",
     );
   }
+}
+
+/**
+ * v19（票 #248）：members.global_chief —— 全局首席的显式标记（1 / 0，默认 0）。
+ * 列刚补上时做一次引导：把现存**存活的**同名（LEGACY_CHIEF_MEMBER_NAME）agent 标为全局首席，
+ * 升级后无需手工配置。确定性：多条同名存活行按 `created_at, id` 取第一条（至多标一位）。
+ * 幂等：引导只随列补上跑一次——用户事后显式清空首席后，不会在下次开库时被重新标回去。
+ * 库里没有同名存活成员 = 不标、不报错（行为与升级前一致）。
+ */
+function migrateMembersGlobalChiefColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
+  if (columns.some((column) => column.name === "global_chief")) return;
+  db.exec("ALTER TABLE members ADD COLUMN global_chief INTEGER NOT NULL DEFAULT 0");
+  db.prepare(
+    `UPDATE members SET global_chief = 1
+     WHERE id = (
+       SELECT id FROM members
+       WHERE type = 'agent' AND deleted = 0 AND name = ?
+       ORDER BY created_at, id
+       LIMIT 1
+     )`,
+  ).run(LEGACY_CHIEF_MEMBER_NAME);
 }
 
 /**

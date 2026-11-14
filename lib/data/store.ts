@@ -143,6 +143,11 @@ export interface Store {
     },
   ): void;
   setMemberDeleted(id: string, deleted: number): void;
+  /**
+   * #248 全局首席：先清空现有标记，再置一位（同一事务）——「同一时刻至多一位」由这一写入面保证。
+   * `null` = 清空（频道回到「没有默认收件人」）。合法性与存活校验在协作域（chief.ts）。
+   */
+  setGlobalChief(memberId: string | null): void;
   clearTaskOwners(memberId: string): void;
   clearConsumedSeqsForAgent(agentId: string): void;
   removeMemberFromAllChannels(memberId: string): void;

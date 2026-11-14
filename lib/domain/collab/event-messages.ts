@@ -2,7 +2,8 @@ import { getChannel, isChannelMember } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { sendMessage } from "./messages.ts";
 import { emitWake } from "./wake.ts";
-import { findSusanMember, SUSAN_MEMBER_NAME } from "./secretary-identity.ts";
+import { getGlobalChief } from "./chief.ts";
+import { SUSAN_MEMBER_NAME, isSecretaryMember } from "./secretary-identity.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../../data/schema.ts";
 import { previewLine } from "../../preview.ts";
 import type { ChannelRow } from "../../data/types.ts";
@@ -15,8 +16,8 @@ import type { ChannelRow } from "../../data/types.ts";
  * 欢迎语 = 秘书被唤醒后的正常 loop 回复（铁律：不以秘书署名触发）。
  */
 
-/** 秘书默认名字与存活判定见 ./secretary-identity.ts（wake / handoff / 事件消息共用）。 */
-export { SUSAN_MEMBER_NAME, findSusanMember };
+/** 秘书默认名字与身份判定见 ./secretary-identity.ts（wake / handoff / 事件消息共用）。 */
+export { SUSAN_MEMBER_NAME };
 
 /** 可被 mention 解析器识别的 @token（lib/mention.ts：`@名字` / `@"带空格名字"`）。 */
 function mentionText(name: string): string {
@@ -33,7 +34,7 @@ function mentionText(name: string): string {
  * （即便 `wake: false` 已经让预算跳过它，这里也显式标明语义，不依赖两个开关的巧合。）
  */
 function deliverEventMessage(channelId: string, content: string): void {
-  const susan = findSusanMember();
+  const susan = getGlobalChief();
   if (!susan) return;
   const channel = getChannel(channelId);
   if (!channel || channel.archived === 1) return;
@@ -68,8 +69,8 @@ export function notifyAgentJoinedChannel(channelId: string, joinerId: string): v
   const joiner = getMember(joinerId);
   if (!joiner || joiner.deleted === 1) return;
   if (joiner.id === OWNER_MEMBER_ID || joiner.type !== "agent") return;
-  if (joiner.name === SUSAN_MEMBER_NAME) return;
-  const susan = findSusanMember();
+  if (isSecretaryMember(joiner)) return;
+  const susan = getGlobalChief();
   if (!susan) return;
   const targetId = isChannelMember(channelId, susan.id) ? channelId : BUILTIN_CHANNEL_ID;
   deliverEventMessage(
@@ -83,7 +84,7 @@ export function notifyAgentJoinedChannel(channelId: string, joinerId: string): v
  * 秘书未加入（如私有频道初始成员取消勾选）时投 `#all` 经 @mention 穿透送达。
  */
 export function notifyChannelCreated(channel: ChannelRow): void {
-  const susan = findSusanMember();
+  const susan = getGlobalChief();
   if (!susan) return;
   const targetId = isChannelMember(channel.id, susan.id) ? channel.id : BUILTIN_CHANNEL_ID;
   deliverEventMessage(targetId, `${mentionText(susan.name)} New channel #${channel.name} created`);

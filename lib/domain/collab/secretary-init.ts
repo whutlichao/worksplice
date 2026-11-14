@@ -2,8 +2,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { getDb } from "../../data/db-singleton.ts";
 import { listChannels, joinChannel, isChannelMember } from "./channels.ts";
+import { getGlobalChief, setGlobalChief } from "./chief.ts";
 import { createAgent, agentHomePath } from "./members.ts";
-import { findSusanMember, notifySecretaryWelcome, SUSAN_MEMBER_NAME } from "./event-messages.ts";
+import { notifySecretaryWelcome, SUSAN_MEMBER_NAME } from "./event-messages.ts";
 import type { MemberRow } from "../../data/types.ts";
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import { MEMORY_FILE_NAME } from "../../data/dirs.ts";
@@ -64,10 +65,43 @@ export interface InitSecretaryOptions {
   thinkingLevel?: string | null;
 }
 
+/** 升级前的存量秘书：引导期名字 + 存活。#248 起身份判定只看角色（全局首席），这一条只用来
+ *  把「还没被标记过的旧身份」接上来，避免重复创建一个同名身份（软删行不算，重建归调用方裁定）。 */
+function liveLegacySecretary(): MemberRow | undefined {
+  const member = getDb().getMemberByName(SUSAN_MEMBER_NAME);
+  return member && member.type === "agent" && member.deleted === 0 ? member : undefined;
+}
+
 /**
- * 确保秘书就绪（spec §6.2）：无存活 Susan 时按 createAgent 契约创建（判定 = 名字全等 + 存活，
- * findSusanMember 过滤软删；软删行存在不构成阻塞——重建语义归调用方裁定），随后执行
- * 手册重写 / 频道覆盖 / 办公室频道 / 欢迎事件。返回秘书成员行。
+ * ① 身份与家目录（#248 起「秘书 = 全局首席」）：已有全局首席就用它；否则回落到引导期名字
+ * 的存量身份（升级前创建、还没被标记）；都没有才按 createAgent 契约新建。角色随后落地
+ * （setGlobalChief，幂等）——不落地的话「秘书」只是名字，wake / handoff / 无点名收件人都不认它。
+ */
+function resolveSecretaryIdentity(options: InitSecretaryOptions): {
+  member: MemberRow;
+  created: boolean;
+} {
+  const chief = getGlobalChief();
+  const existing = chief ?? liveLegacySecretary();
+  if (existing) {
+    if (chief?.id !== existing.id) setGlobalChief(existing.id);
+    return { member: existing, created: false };
+  }
+  const created = createAgent({
+    name: SUSAN_MEMBER_NAME,
+    description: SUSAN_DESCRIPTION,
+    provider: options.provider ?? null,
+    modelId: options.modelId ?? null,
+    thinkingLevel: options.thinkingLevel ?? null,
+  });
+  setGlobalChief(created.id);
+  return { member: created, created: true };
+}
+
+/**
+ * 确保秘书就绪（spec §6.2）：无秘书时按 createAgent 契约创建（#248 起「秘书 = 全局首席」：
+ * 已有全局首席就用它，否则回落到未标记的存量同名身份，最后才新建），并把角色落地
+ * （setGlobalChief，幂等），随后执行手册重写 / 频道覆盖 / 办公室频道 / 欢迎事件。返回秘书成员行。
  * 软删语义由调用方前置判定（§6.1/§6.4 两规则相反，不能住在共享流程内）：
  * 自动创建（ticket 05）在调用前做"存活或软删均算已存在 → 不创建"的判定；
  * 启动助手重建（ticket 06）直接调用本流程即得重建行为。
@@ -78,18 +112,7 @@ export function initSecretaryFlow(options: InitSecretaryOptions = {}): MemberRow
   const guideContent = readManualAsset(SECRETARY_GUIDE_FILE_NAME);
 
   // ① 身份与家目录：createAgent 契约（家目录 + ADR-0001 固定大纲 MEMORY.md 先落地，随后被 ② 有意重写）
-  const existing = findSusanMember();
-  let susan = existing;
-  if (!susan) {
-    susan = createAgent({
-      name: SUSAN_MEMBER_NAME,
-      description: SUSAN_DESCRIPTION,
-      provider: options.provider ?? null,
-      modelId: options.modelId ?? null,
-      thinkingLevel: options.thinkingLevel ?? null,
-    });
-  }
-  const createdSusan = !existing;
+  const { member: susan, created: createdSusan } = resolveSecretaryIdentity(options);
 
   // ② 手册重写：MEMORY.md 整体重写为速查结构（保留 `## Current work` 节名，与 ADR-0001 固定大纲兼容），
   //    SYSTEM-GUIDE.md 首次落盘——内容 = 02/03 交付的内容资产逐字节
