@@ -514,6 +514,14 @@ export const enLocale: LocalePlugin = {
     "message.send": "Send",
     "message.composerPlaceholder":
       "Message… (Enter to send, Shift+Enter for newline)",
+    "message.chiefHint.channel":
+      "Channel chief {name} will take this message (no agent named)",
+    "message.chiefHint.global":
+      "Global chief {name} will take this message (no channel chief set)",
+    "message.chiefHint.none":
+      "No default recipient — without naming an agent, nobody picks this up",
+    "message.chiefHint.named":
+      "Named agents only — this message reaches those you named, the chief is not added",
     "message.loadEarlier": "Load earlier messages",
     "message.held": "Send blocked — the room changed, send again",
     "message.heldNoticeAction": "The room changed while you were writing — review and send again",
@@ -725,6 +733,15 @@ export const enLocale: LocalePlugin = {
     "agent.descriptionSaveError": "Could not save description",
     "role.member": "Member",
     "agent.workspaceNotBound": "Not bound yet",
+    "agent.chiefSection": "Chief",
+    "agent.chiefGlobal": "Global chief",
+    "agent.chiefYes": "Yes",
+    "agent.chiefNo": "No",
+    "agent.chiefChannels": "Chief of",
+    "agent.chiefNoChannels": "Not the chief of any channel",
+    "agent.setGlobalChief": "Set as global chief",
+    "agent.clearGlobalChief": "Clear global chief",
+    "agent.chiefSaveFailed": "Could not save: {reason}",
     "agent.changeWorkspace": "Change workspace",
     "agent.workspaceHomeHint":
       "Home directory — created automatically, unique to this agent, removed with the identity. Bind a shared project directory to collaborate.",

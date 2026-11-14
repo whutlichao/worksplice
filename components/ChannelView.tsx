@@ -71,7 +71,13 @@ import {
   buildAtInsertText,
   type AtQueryMatch,
 } from "@/lib/file-fuzzy";
-import { composerMentionCandidates } from "@/lib/mention";
+import {
+  bodyMentionText,
+  composerMentionCandidates,
+  hasAllMention,
+  parseMentionTokens,
+  type MentionMember,
+} from "@/lib/mention";
 import { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";
 import { indexCurrentMembersById } from "@/lib/member-index";
 import {
@@ -162,8 +168,10 @@ export interface ChannelWithMeta extends ChannelRow {
   unreadTaskCount: number;
   /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，与 01 迁移的「空」判定同源）。 */
   messageCount: number;
-  /** #252 此刻生效的首席（频道指定 → 全局回落 → 无）与其来源，服务端现算。
-   *  与 `chief_member_id` 分开：绑定失效时两者会不一致，UI 只读这两个字段。 */
+  /** #252 / #251 此刻生效的首席（频道指定 → 全局回落 → 无）与其来源，服务端现算。
+   *  与 `chief_member_id` 分开：绑定失效时两者会不一致，UI 只读这两个字段——
+   *  `shallowEqualChannel` 也纳入它们，否则轮询复用旧行，composer 提示与成员视角显示过期结论。
+   *  可选：旧响应 / 测试构造的行可能不带（`channelChiefView` 把缺失按「无」处理）。 */
   chief?: { id: string; name: string } | null;
   chiefSource?: ChiefSource;
 }
@@ -3119,6 +3127,111 @@ export function TaskViews({
   );
 }
 
+/** composer 首席提示的形态（票 #251）。`named` = 正文点名 / `@all`，提示改为说明按点名送达。 */
+export type ChiefHintKind = "channel" | "global" | "none" | "named";
+
+export interface ChiefHint {
+  kind: ChiefHintKind;
+  /** 生效首席名（仅 channel / global 有；`none` / `named` 为 null）。 */
+  chiefName: string | null;
+}
+
+/**
+ * 无人点名时「这条消息会由谁接」的判定（纯函数，票 #251）：只读频道行已带出的
+ * `chief` / `chiefSource` 结论，**不发请求、不改写正文、不拦截发送**。
+ *
+ * 点名优先：正文出现个人点名或 `@all` 时首席不参与这一轮（#237 准入矩阵的优先级），
+ * 提示改说「按点名送达」，避免同时承诺首席会接。`@` 的判定口径直接复用邀请判定那两个
+ * helper —— 引用块 / 代码块 / 行内代码里的 `@` 不算点名。
+ */
+export function chiefHintFor(input: {
+  draft: string;
+  /** 点名判定用的成员集合（全量：非频道成员的正文点名也会穿透）。
+   *  `type` 必须保留：点名人类成员不会叫起任何 agent，不能当成「按点名送达」。 */
+  mentionMembers: MentionMember[];
+  chief: { id: string; name: string } | null;
+  chiefSource: ChiefSource;
+  /** `false` = 不显示提示（DM；归档 / 未加入等禁用态）。 */
+  enabled: boolean;
+}): ChiefHint | null {
+  if (!input.enabled) return null;
+  if (mentionsAnyAgent(input.draft, input.mentionMembers)) {
+    return { kind: "named", chiefName: null };
+  }
+  if (!input.chief) return { kind: "none", chiefName: null };
+  return {
+    kind: input.chiefSource === "channel" ? "channel" : "global",
+    chiefName: input.chief.name,
+  };
+}
+
+/** 正文是否点名了某个 agent（个人点名或 `@all`）。与邀请判定同口径：引用块 / 代码里的 `@` 不算。 */
+function mentionsAnyAgent(
+  draft: string,
+  mentionMembers: MentionMember[],
+): boolean {
+  if (draft.length === 0) return false;
+  if (hasAllMention(draft)) return true;
+  return parseMentionTokens(bodyMentionText(draft), mentionMembers).some(
+    (token) => !token.isHuman,
+  );
+}
+
+/**
+ * composer 上方的窄提示（票 #251）：说明这条没人点名的消息会由谁接。
+ * 纯呈现层——`null` 时整条不渲染；语气用角色族配色（首席 = `--accent-graphic`，
+ * 没有默认收件人 = `--warn-graphic`），图标走 lucide，不新增 emoji。
+ */
+export function ComposerChiefHint({ hint }: { hint: ChiefHint | null }) {
+  const { t } = useI18n();
+  if (!hint) return null;
+  const text =
+    hint.kind === "channel"
+      ? t("message.chiefHint.channel", { name: hint.chiefName ?? "" })
+      : hint.kind === "global"
+        ? t("message.chiefHint.global", { name: hint.chiefName ?? "" })
+        : hint.kind === "named"
+          ? t("message.chiefHint.named")
+          : t("message.chiefHint.none");
+  const Icon =
+    hint.kind === "named" ? Send : hint.kind === "none" ? CircleSlash : Crown;
+  const tone =
+    hint.kind === "none"
+      ? "var(--warn-graphic)"
+      : hint.kind === "named"
+        ? "var(--muted)"
+        : "var(--accent-graphic)";
+  return (
+    <div
+      data-chief-hint={hint.kind}
+      className="composer-chief-hint"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 6,
+        padding: "3px 10px",
+        color: tone,
+        fontFamily: "var(--mono)",
+        fontSize: 11,
+        lineHeight: "var(--lh-snug)",
+      }}
+    >
+      <Icon size={12} aria-hidden="true" style={{ flex: "0 0 12px" }} />
+      <span
+        style={{
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
 /** 消息输入条：Enter 发送 / Shift+Enter 换行；引用 chip（§3.2 引用动作）；As Task 勾选（§3.7 创建途径 2）；附件（§3.5）。 */
 export function Composer({
   targetId,
@@ -3130,6 +3243,8 @@ export function Composer({
   onClearQuote,
   onSend,
   members,
+  chiefRecipient,
+  mentionMembers,
   focusSignal,
 }: {
   targetId: string;
@@ -3151,6 +3266,17 @@ export function Composer({
     status: MemberRow["status"];
     joined: boolean;
   }>;
+  /**
+   * 无人点名时「这条消息会由谁接」（票 #251）。频道行已带出结论，这里只转给提示层：
+   * **不发额外请求、不改写正文、不拦发送**。`undefined` / `null` = 不显示（DM、未选中频道）。
+   */
+  chiefRecipient?: {
+    chief: { id: string; name: string } | null;
+    chiefSource: ChiefSource;
+  } | null;
+  /** 点名判定用的成员集合（省略 → 取 `members`）：传全量成员，非频道成员的
+   *  正文点名也会穿透，因此不能只递@ 补全候选（那只有频道成员）。 */
+  mentionMembers?: MentionMember[];
   /** 一次性聚焦信号（DM 懒创建入口导航后聚焦输入框）：变化时 focus textarea。 */
   focusSignal?: number;
 }) {
@@ -3288,6 +3414,17 @@ export function Composer({
     }
   };
 
+  // 票 #251：没人点名时「谁会接这条消息」——只读已带出的首席结论，随草稿里的点名即时切换。
+  const recipientHint = chiefHintFor({
+    draft: value,
+    mentionMembers:
+      mentionMembers ??
+      (members ?? []).map((member) => ({ ...member, type: "agent" as const })),
+    chief: chiefRecipient?.chief ?? null,
+    chiefSource: chiefRecipient?.chiefSource ?? "none",
+    enabled: Boolean(chiefRecipient) && !disabled,
+  });
+
   return (
     <div className="composer" style={{ flexShrink: 0 }}>
       <div className="composer-inner">
@@ -3379,6 +3516,7 @@ export function Composer({
             ))}
           </div>
         )}
+        <ComposerChiefHint hint={recipientHint} />
         {/* 常驻输入框形态（`globals.css` 的 `.composer-box` 块）：surface + border-strong + r-lg，
             形状、焦点环与 `--shadow-composer` 全在 class 上。 */}
         <div className="composer-box">
@@ -5528,6 +5666,10 @@ export function ChannelView({
           onClearQuote={() => setQuoting(null)}
           onSend={handleSend}
           members={composerMembers}
+          chiefRecipient={
+            channel.type === "dm" ? null : channelChiefView(channel)
+          }
+          mentionMembers={mentionMembers}
           focusSignal={(composerFocusSignal ?? 0) + composerFocusTick}
         />
       )}

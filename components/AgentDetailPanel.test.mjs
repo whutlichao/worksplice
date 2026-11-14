@@ -21,6 +21,9 @@ const {
     RoundLogsList,
     RoundCostStats,
     RuntimeProbeFeedback,
+    AgentChiefSection,
+    deriveAgentChiefView,
+    createGlobalChiefSaveHandler,
 } = await jiti.import("./AgentDetailPanel.tsx");
 const { Avatar } = await jiti.import("./Avatar.tsx");
 const { ModelPicker } = await jiti.import("./ModelPicker.tsx");
@@ -1134,4 +1137,188 @@ test("round role labels are localized in both packages, with an English fallback
     Object.keys(enLocale.messages).filter((key) => key.startsWith("observability.roundRole.")).length,
     "两套语言包的每个角色标签都齐",
   );
+});
+
+// ── 票 #251：成员视角的首席事实（是否为全局首席 / 在哪些频道当首席 / Owner 入口） ──────
+// 数据源 = 服务端现算的结论：`/api/members`（`global_chief`）+ `/api/channels`（`chief` /
+// `chiefSource`）。面板的派生函数与生产路径同一份，测试注入的也是同样形态的行。
+
+const OTHER_AGENT = { ...AGENT, id: "agent-2", name: "carol" };
+
+/** 频道行（与 /api/channels 同形的最小切片）。 */
+function channelRow({ id, name, chief = null, chiefSource = "none", type = "public" }) {
+    return { id, name, type, chief, chiefSource };
+}
+
+const SUSAN = { id: AGENT.id, name: AGENT.name };
+const CAROL = { id: OTHER_AGENT.id, name: OTHER_AGENT.name };
+
+test("deriveAgentChiefView：全局首席取服务端标记，频道首席只认 chiefSource=channel 的自身绑定", () => {
+    const view = deriveAgentChiefView({
+        agentId: AGENT.id,
+        agents: [{ ...AGENT, global_chief: 0 }, { ...OTHER_AGENT, global_chief: 1 }],
+        channels: [
+            channelRow({ id: "dev", name: "dev", chief: SUSAN, chiefSource: "channel" }),
+            // 同一个人的「回落全局」不算频道首席
+            channelRow({ id: "ops", name: "ops", chief: SUSAN, chiefSource: "global" }),
+            // 别人当首席的频道不算
+            channelRow({ id: "design", name: "design", chief: CAROL, chiefSource: "channel" }),
+            channelRow({ id: "empty", name: "empty" }),
+        ],
+    });
+
+    assert.equal(view.globalChiefId, OTHER_AGENT.id);
+    assert.deepEqual(view.channelNames, ["dev"]);
+});
+
+test("deriveAgentChiefView：软删 / 离场不留过期条目（服务端已把绑定解析成未设置）", () => {
+    const view = deriveAgentChiefView({
+        agentId: AGENT.id,
+        // 软删身份不在 /api/members 列表里：全局首席标记随之消失
+        agents: [{ ...OTHER_AGENT, global_chief: 0 }],
+        // 服务端 resolveEffectiveChief 对失效绑定返回 null —— 行里不会出现旧名字
+        channels: [
+            channelRow({ id: "dev", name: "dev", chief: null, chiefSource: "none" }),
+            channelRow({ id: "ops", name: "ops", chief: SUSAN, chiefSource: "global" }),
+        ],
+    });
+
+    assert.equal(view.globalChiefId, null);
+    assert.deepEqual(view.channelNames, []);
+});
+
+test("成员详情：全局首席显示徽标，并列出当首席的频道（Owner 可见清空入口）", () => {
+    const html = renderPanel({ ...AGENT, global_chief: 1 }, {
+        chiefView: { globalChiefId: AGENT.id, channelNames: ["dev", "ops"] },
+    });
+
+    assert.match(html, /data-chief-badge="global"/);
+    // 标签 + 取值，不再把「全局首席」说两遍
+    assert.match(html, /<span class="k">Global chief<\/span><span class="v"><span data-chief-badge/);
+    assert.match(html, /data-chief-channel="dev"/);
+    assert.match(html, /data-chief-channel="ops"/);
+    assert.match(html, /data-chief-action="clear"/);
+    assert.match(html, /Clear global chief/);
+});
+
+test("成员详情：非首席不显示徽标与频道条目，只给「设为全局首席」入口", () => {
+    const html = renderPanel(AGENT, {
+        chiefView: { globalChiefId: OTHER_AGENT.id, channelNames: [] },
+    });
+
+    assert.doesNotMatch(html, /data-chief-badge/);
+    assert.doesNotMatch(html, /data-chief-channel=/);
+    assert.match(html, /<span class="k">Global chief<\/span><span class="v">No<\/span>/);
+    assert.match(html, /Not the chief of any channel/);
+    assert.match(html, /data-chief-action="set"/);
+    assert.match(html, /Set as global chief/);
+});
+
+test("成员详情：非 Owner 没有设置 / 清空入口，只读结论照常显示", () => {
+    const html = renderPanel(AGENT, {
+        chiefView: { globalChiefId: AGENT.id, channelNames: ["dev"] },
+        viewerId: "agent-someone-else",
+    });
+
+    assert.doesNotMatch(html, /data-chief-action=/);
+    assert.doesNotMatch(html, /Set as global chief/);
+    assert.doesNotMatch(html, /Clear global chief/);
+    assert.match(html, /data-chief-badge="global"/);
+    assert.match(html, /data-chief-channel="dev"/);
+});
+
+test("AgentChiefSection：保存中禁用入口，失败原因就地可读（role=alert）", () => {
+    const saving = renderWith(
+        React.createElement(AgentChiefSection, {
+            isGlobalChief: false,
+            channelNames: [],
+            canManage: true,
+            saving: true,
+            error: null,
+            onSave: () => undefined,
+        }),
+    );
+    assert.match(saving, /data-chief-action="set"[^>]*disabled/);
+
+    const failed = renderWith(
+        React.createElement(AgentChiefSection, {
+            isGlobalChief: false,
+            channelNames: [],
+            canManage: true,
+            saving: false,
+            error: "Global chief must be a live agent",
+            onSave: () => undefined,
+        }),
+    );
+    assert.match(failed, /role="alert"/);
+    assert.match(failed, /Global chief must be a live agent/);
+});
+
+test("全局首席保存：等服务器响应（不乐观提交），失败给可读原因并回读真实状态", async () => {
+    const calls = [];
+    const state = { saving: null, error: "unset", reloads: 0, changed: 0 };
+    const request = async (url, init) => {
+        calls.push({ url, memberId: JSON.parse(init.body).memberId });
+        return {
+            ok: false,
+            status: 400,
+            json: async () => ({ error: "Global chief must be a live agent" }),
+        };
+    };
+
+    const save = createGlobalChiefSaveHandler({
+        memberId: AGENT.id,
+        request,
+        setSaving: (value) => {
+            state.saving = value;
+        },
+        setError: (value) => {
+            state.error = value;
+        },
+        reload: async () => {
+            state.reloads += 1;
+        },
+        onChanged: () => {
+            state.changed += 1;
+        },
+    });
+
+    // 发出请求前没有任何本地「已设为首席」的乐观结论
+    assert.equal(state.error, "unset");
+    const ok = await save();
+
+    assert.equal(ok, false);
+    assert.deepEqual(calls, [{ url: "/api/global-chief", memberId: AGENT.id }]);
+    assert.match(state.error, /live agent/);
+    assert.equal(state.reloads, 1, "失败后回读服务端，界面停在真实状态");
+    assert.equal(state.changed, 0, "失败不改外部状态");
+    assert.equal(state.saving, false);
+});
+
+test("清空全局首席走同一条保存路径（memberId = null）", async () => {
+    const calls = [];
+    const state = { error: null, reloads: 0, changed: 0 };
+    const save = createGlobalChiefSaveHandler({
+        memberId: null,
+        request: async (url, init) => {
+            calls.push({ url, body: JSON.parse(init.body) });
+            return { ok: true, status: 200, json: async () => ({ chief: null }) };
+        },
+        setSaving: () => undefined,
+        setError: (value) => {
+            state.error = value;
+        },
+        reload: async () => {
+            state.reloads += 1;
+        },
+        onChanged: () => {
+            state.changed += 1;
+        },
+    });
+
+    assert.equal(await save(), true);
+    assert.deepEqual(calls, [{ url: "/api/global-chief", body: { memberId: null } }]);
+    assert.equal(state.error, null);
+    assert.equal(state.reloads, 1);
+    assert.equal(state.changed, 1);
 });
