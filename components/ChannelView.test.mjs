@@ -1380,35 +1380,7 @@ test("无消息引导卡在未接线秘书入口时不渲染该按钮", () => {
     assert.doesNotMatch(html, /Let the secretary set up the first room/);
 });
 
-test("handoff 只表示待办任务，不渲染已删除的转任务引导", () => {
-    const html = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "handoff",
-            onOpenTasks: () => undefined,
-        }),
-    );
-
-    assert.match(html, /Waiting for hand off or claim/);
-    assert.match(html, /Open the task board/);
-    assert.doesNotMatch(html, /Turn a message into a task/);
-    assert.doesNotMatch(html, /Convert a message into a task and @mention an agent/);
-    assert.doesNotMatch(html, /Convert the latest message/);
-});
-
-test("只有待办任务时引导卡改为提示交接或认领，并切到任务板", () => {
-    const html = renderI18n(
-        React.createElement(JourneyGuideCard, {
-            kind: "handoff",
-            onOpenTasks: () => undefined,
-        }),
-    );
-
-    assert.match(html, /Waiting for hand off or claim/);
-    assert.match(html, /Open the task board/);
-    assert.doesNotMatch(html, /Convert the latest message/);
-});
-
-test("待审核引导卡提示去复核；running 不再是合法形态", async () => {
+test("待审核引导卡提示去复核；JourneyGuideKind 只保留 describe / review", async () => {
     const review = renderI18n(
         React.createElement(JourneyGuideCard, {
             kind: "review",
@@ -1419,7 +1391,7 @@ test("待审核引导卡提示去复核；running 不再是合法形态", async 
     assert.match(review, /waiting for your review/);
     assert.match(review, /Open the task board/);
 
-    // 联合类型只留 describe / handoff / review，源码里不再有 running 分支。
+    // 联合类型只留 describe / review（handoff 已移除），源码里不再有 running 分支。
     const stateSource = await readFile(
         new URL("../lib/journey-state.ts", import.meta.url),
         "utf-8",
@@ -1428,6 +1400,7 @@ test("待审核引导卡提示去复核；running 不再是合法形态", async 
         /export type JourneyGuideKind =([^;]+);/,
     )?.[1];
     assert.ok(union, "JourneyGuideKind 联合类型应保留");
+    assert.doesNotMatch(union, /"handoff"/);
     assert.doesNotMatch(union, /"running"/);
     const viewSource = await readFile(
         new URL("../components/ChannelView.tsx", import.meta.url),
@@ -1493,7 +1466,7 @@ test("Central Tabs 没有未完成任务时不显示 badge，未读讨论入口�
 
 // —— 引导卡内容过渡：粒子燃尽 → 重聚（最终设计） ——
 
-const GUIDE_KINDS = ["describe", "handoff", "review"];
+const GUIDE_KINDS = ["describe", "review"];
 
 test("引导卡 SSR 只渲染空粒子层，粒子坐标只在客户端生成", () => {
     for (const kind of GUIDE_KINDS) {
@@ -1521,7 +1494,7 @@ test("引导卡 SSR 只渲染空粒子层，粒子坐标只在客户端生成", 
 
 test("卡壳静止：阶段只进 data 属性，不挂整卡动画类", () => {
     const entering = renderI18n(
-        React.createElement(JourneyGuideCard, { kind: "handoff" }),
+        React.createElement(JourneyGuideCard, { kind: "review" }),
     );
     const enteringTag = entering.match(/<section[^>]*>/)?.[0] ?? "";
     assert.match(enteringTag, /class="journey-guide-card"/);
@@ -1548,7 +1521,7 @@ test("卡壳静止：阶段只进 data 属性，不挂整卡动画类", () => {
 
     const exiting = renderI18n(
         React.createElement(JourneyGuideCard, {
-            kind: "handoff",
+            kind: "review",
             phase: "exit",
         }),
     );
@@ -1558,7 +1531,7 @@ test("卡壳静止：阶段只进 data 属性，不挂整卡动画类", () => {
     // 既有契约不变：aria-label 仍是当前形态标题。
     assert.match(
         exiting,
-        /<section[^>]*aria-label="Waiting for hand off or claim"/,
+        /<section[^>]*aria-label="Go review"/,
     );
 });
 
@@ -1657,16 +1630,16 @@ test("引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入", () =>
     // 形态没变：同一引用返回，不触发重渲染与重播。
     assert.equal(nextJourneyGuideView(enter, "describe"), enter);
 
-    const switched = nextJourneyGuideView(enter, "handoff");
+    const switched = nextJourneyGuideView(enter, "review");
     assert.deepEqual(switched, {
-        kind: "handoff",
+        kind: "review",
         phase: "switch",
         generation: 2,
     });
 
     const exiting = nextJourneyGuideView(switched, null);
     assert.deepEqual(exiting, {
-        kind: "handoff",
+        kind: "review",
         phase: "exit",
         generation: 3,
     });
@@ -1678,9 +1651,9 @@ test("引导卡过渡状态机：进入 / 切换 / 退场保留 / 重入", () =>
     assert.equal(completeJourneyGuideExit(switched), switched);
 
     // 退场中重新拿到形态：旧卡面还在屏幕上，按切换处理。
-    const reentered = nextJourneyGuideView(exiting, "review");
+    const reentered = nextJourneyGuideView(exiting, "describe");
     assert.deepEqual(reentered, {
-        kind: "review",
+        kind: "describe",
         phase: "switch",
         generation: 4,
     });
@@ -1704,12 +1677,12 @@ test("引导卡过渡状态机：切频道后等新频道数据快照，首张�
 
     // 切到频道 B 的首帧：messages/tasks 还是 A 的数据（useChannelData 的切换 effect
     // 在提交后才清空/命中缓存），kind 仍是 review。此时不得用它起算，否则会先
-    // enter(review) → exit(review) → switch(handoff)，B 的首张卡 phase 就错了。
+    // enter(review) → exit(review) → switch(describe)，B 的首张卡 phase 就错了。
     state = syncJourneyGuideState(state, "B", "review", snapshotA);
     assert.equal(state.view, null);
     assert.equal(state.awaitingSnapshot, true);
     // 等快照期间 kind 变化不消费。
-    assert.equal(advanceJourneyGuideState(state, "handoff"), state);
+    assert.equal(advanceJourneyGuideState(state, "describe"), state);
 
     // useChannelData 的切换 effect 清空了旧频道数据 → 快照换新，结束等待。
     state = syncJourneyGuideState(state, "B", null, snapshotBEmpty);
@@ -1717,9 +1690,9 @@ test("引导卡过渡状态机：切频道后等新频道数据快照，首张�
     assert.equal(state.view, null);
 
     // 频道 B 的第一张卡：进入，而不是从 A 的形态切过来。
-    state = advanceJourneyGuideState(state, "handoff");
+    state = advanceJourneyGuideState(state, "describe");
     assert.deepEqual(state.view, {
-        kind: "handoff",
+        kind: "describe",
         phase: "enter",
         generation: 1,
     });
@@ -1746,9 +1719,9 @@ test("引导卡过渡状态机：缓存频道的快照直接带形态时也按�
     // 切换首帧仍是 A 的数据；缓存命中的 B 快照在 effect 里换新后才消费 kind。
     state = syncJourneyGuideState(state, "B", "review", snapshotA);
     assert.equal(state.view, null);
-    state = syncJourneyGuideState(state, "B", "handoff", snapshotB);
+    state = syncJourneyGuideState(state, "B", "describe", snapshotB);
     assert.deepEqual(state.view, {
-        kind: "handoff",
+        kind: "describe",
         phase: "enter",
         generation: 1,
     });

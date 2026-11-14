@@ -998,7 +998,7 @@ test("mergeTaskPollRows drives the journey guide card from the polled task statu
   const cases = [
     ["in_review", "review"],
     ["in_progress", null],
-    ["todo", "handoff"],
+    ["todo", null],
     ["done", null],
     ["closed", null],
   ];

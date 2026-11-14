@@ -258,7 +258,7 @@ lib/
                        process.exit(1)）。只被 instrumentation 的 `await import()` 引用——
                        这就是它不在 edge 静态图里的原因；回归测试 lib/access-gate-startup.test.mjs。
   agent-status.ts     状态点事实来源：现场推导（存活 wrapper）/ DB 回落 + publish 广播 + 低频扫掠
-  journey-state.ts    票 16 引导卡状态推导（纯函数）：消息数 + 任务快照 → 引导卡形态（describe / handoff / review，或 null）
+  journey-state.ts    票 16 引导卡状态推导（纯函数）：消息数 + 任务快照 → 引导卡形态（describe / review，或 null）
                       + Tasks badge 未完成计数；不推导旅程步数；无后端接口、SSR 可测
   modal-focus.ts      模态焦点陷阱的判定层（纯函数 + DOM 读取分层）：isTabbable / focusableWithin /
                         nextTabTarget（边界回绕、子浮层让路）+ collectTabbables；BrutalModal 是唯一消费方
@@ -320,7 +320,7 @@ components/
   WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）；只高亮频道行，agent 行点击 = 打开右栏面板
   ChannelView.tsx        channel 消息流：seq 分页 / 引用 / 复制链接 / join-leave-archive
                           / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskViews（§3.7 List|Board 切换，ADR-0002）
-                          / 票 16：三态引导卡（describe / handoff / review，lib/journey-state.ts 推导；无旅程条）
+                          / 票 16：两态引导卡（describe / review，lib/journey-state.ts 推导；无旅程条）
                           / Messages|Tasks 保留 + Tasks 未完成 badge；高频动作（回复/引用/复制链接）常驻，
                           / reaction / pin / 提醒 / 转为任务收进消息 `···` 二级菜单
                           / 提醒入口（header ⏰ + 消息 `···` ⏰，§5.6）
