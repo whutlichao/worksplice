@@ -263,6 +263,8 @@ export interface Store {
   setPinnedOrder(channelId: string, memberId: string, orderedMessageIds: string[]): void;
 
   // -- consumed_seqs（inbox 游标） ------------------------------------------
+  /** 游标行是否存在（与 `getConsumedSeq(...) === 0` 区分：显式 0 也是已有游标）。 */
+  hasConsumedSeq(agentId: string, targetId: string): boolean;
   getConsumedSeq(agentId: string, targetId: string): number;
   setConsumedSeq(agentId: string, targetId: string, seq: number): void;
 

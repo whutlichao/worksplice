@@ -128,6 +128,8 @@ app/api/
   channels/[id]/read/route.ts     POST — BAI-6 未读角标：推进 Owner 已读游标到当前 max(seq)，清除角标
   lib/domain/collab/reads.ts       BAI-6 未读角标服务层：unreadCount / markChannelRead / listChannelsWithUnread
   channels/[id]/archive/route.ts  POST { archived } — Owner only，冻结写入
+  channels/[id]/stop/route.ts     POST — Owner 停当前房间波次（只调 stopTurn；不销毁会话/
+                                  不写消费游标/不 ack 任务事件；DM 403、不存在 404）
   channels/[id]/members/route.ts  GET member list
   messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）；
                                   multipart 形态：字段 + `files`（附件随消息一次原子提交，§3.5）

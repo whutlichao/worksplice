@@ -30,6 +30,7 @@ import {
   Reply,
   Send,
   SmilePlus,
+  Square,
   TriangleAlert,
   Users,
   X,
@@ -3738,6 +3739,12 @@ export function ChannelView({
   const [membersOpen, setMembersOpen] = useState(false);
   const [memberBusy, setMemberBusy] = useState(false);
   const [memberNotice, setMemberNotice] = useState<string | null>(null);
+  // 票 #238：Stop 的提交态与结果反馈（只作用于当前频道的房间波次）。
+  const [stopBusy, setStopBusy] = useState(false);
+  const [stopNotice, setStopNotice] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   // 头部三个可展开面板互斥（手风琴）：同一时刻最多展开一个；再次点击当前按钮正常收起。
   const togglePinnedPanel = () => {
@@ -4140,6 +4147,8 @@ export function ChannelView({
     setMuteNotice(null);
     setMembersOpen(false);
     setMemberNotice(null);
+    setStopBusy(false);
+    setStopNotice(null);
     // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
     loadTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4414,6 +4423,39 @@ export function ChannelView({
     }
   };
 
+  /** 票 #238：Owner 停当前房间波次。只调 HTTP 薄路由；会话 / 游标 / 任务事件由服务层保证不动。 */
+  const stopCurrentWave = async () => {
+    if (!channel || stopBusy) return;
+    setStopBusy(true);
+    setStopNotice(null);
+    try {
+      const res = await fetch(
+        `/api/channels/${encodeURIComponent(channel.id)}/stop`,
+        { method: "POST" },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        stopped?: boolean;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(body.error ?? t("channel.stopFailed"));
+      }
+      setStopNotice({
+        ok: true,
+        text: body.stopped
+          ? t("channel.stopDone")
+          : t("channel.stopIdle"),
+      });
+    } catch (error) {
+      setStopNotice({
+        ok: false,
+        text: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setStopBusy(false);
+    }
+  };
+
   /** §3.2 mute 开关（03 票）：取反提交经 useChannelData.toggleMute（列表写回在 hook 内），
    * 视图只做 toast 提示（与旧内联同文案）。 */
   const toggleMute = async (m: {
@@ -4495,6 +4537,25 @@ export function ChannelView({
           )}
           {channel && (
             <div className="chan-tools">
+              {!isDM && (
+                <button
+                  type="button"
+                  data-testid="channel-stop"
+                  className="btn btn-sm"
+                  title={t("channel.stopHint")}
+                  aria-label={t("channel.stop")}
+                  disabled={stopBusy}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                  onClick={() => void stopCurrentWave()}
+                >
+                  <Square size={11} fill="currentColor" aria-hidden="true" />
+                  {stopBusy ? t("channel.stopping") : t("channel.stop")}
+                </button>
+              )}
               {channel.id !== BUILTIN_CHANNEL_ID && !isDM && (
                 <>
                   {joined ? (
@@ -4592,6 +4653,21 @@ export function ChannelView({
         {channel?.description ? (
           <div className="chan-desc">{channel.description}</div>
         ) : null}
+        {stopNotice && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-stop-notice={stopNotice.ok ? "ok" : "error"}
+            style={{
+              marginTop: 6,
+              fontFamily: "var(--mono)",
+              fontSize: 11,
+              color: stopNotice.ok ? "var(--muted)" : "var(--error)",
+            }}
+          >
+            {stopNotice.text}
+          </div>
+        )}
       </header>
 
       {/* §3.2 mute 面板（channel 头部可展开，手风琴折叠壳常驻渲染）：静音后普通消息不进 inbox，个人 @mention 仍穿透；DM 不渲染 */}
