@@ -1,6 +1,6 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel, notifyChannelCreated } from "./event-messages.ts";
-import { getGlobalChief } from "./chief.ts";
+import { getGlobalChief, resolveEffectiveChief, type ChiefSource } from "./chief.ts";
 import { assertActorMayPerform } from "./member-capabilities.ts";
 import { getRoomTurnStore, type RoomStopResult } from "./room-budget.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
@@ -363,7 +363,7 @@ export function listChannelMembers(channelId: string): MemberRow[] {
     .filter((m): m is MemberRow => m !== undefined && m !== null && m.deleted !== 1);
 }
 
-/** 侧栏/列表用：每个 channel 附 加入状态 + 成员数 + Owner 未读数（BAI-6 未读角标）+ 有消息信号。 */
+/** 侧栏/列表用：每个 channel 附 加入状态 + 成员数 + Owner 未读数（BAI-6 未读角标）+ 有消息信号 + 生效首席。 */
 export function listChannelsWithMeta(
   memberId: string,
 ): Array<
@@ -374,14 +374,25 @@ export function listChannelsWithMeta(
     unreadTaskCount: number;
     /** DM 懒创建「有消息」信号：顶层消息数（= maxSeq，消息 seq 单调自 1、不可变无删除）。 */
     messageCount: number;
+    /**
+     * #250 此刻生效的首席（频道指定 → 全局回落 → 无）与其来源。
+     * 一次给全：UI 不得在客户端按 `chief_member_id` 重新推导（绑定失效时两者会不一致）。
+     */
+    chief: { id: string; name: string } | null;
+    chiefSource: ChiefSource;
   }
 > {
-  return listChannels().map((channel) => ({
-    ...channel,
-    joined: getDb().isChannelMember(channel.id, memberId),
-    memberCount: getDb().listChannelMembers(channel.id).length,
-    unread: getDb().countUnreadChannelMessages(memberId, channel.id),
-    unreadTaskCount: getDb().countUnreadTaskThreads(channel.id, memberId),
-    messageCount: getDb().maxSeq(channel.id),
-  }));
+  return listChannels().map((channel) => {
+    const { chief, source } = resolveEffectiveChief(channel.id);
+    return {
+      ...channel,
+      joined: getDb().isChannelMember(channel.id, memberId),
+      memberCount: getDb().listChannelMembers(channel.id).length,
+      unread: getDb().countUnreadChannelMessages(memberId, channel.id),
+      unreadTaskCount: getDb().countUnreadTaskThreads(channel.id, memberId),
+      messageCount: getDb().maxSeq(channel.id),
+      chief: chief ? { id: chief.id, name: chief.name } : null,
+      chiefSource: source,
+    };
+  });
 }

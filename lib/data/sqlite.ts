@@ -113,12 +113,21 @@ export class SQLiteAdapter implements Store {
       description: input.description ?? "",
       archived: 0,
       created_at: input.createdAt ?? new Date().toISOString(),
+      chief_member_id: null,
     };
     this.db
       .prepare(
-        "INSERT INTO channels (id, name, type, description, archived, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO channels (id, name, type, description, archived, created_at, chief_member_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(row.id, row.name, row.type, row.description, row.archived, row.created_at);
+      .run(
+        row.id,
+        row.name,
+        row.type,
+        row.description,
+        row.archived,
+        row.created_at,
+        row.chief_member_id,
+      );
     return row;
   }
 
@@ -134,6 +143,13 @@ export class SQLiteAdapter implements Store {
 
   setChannelArchived(id: string, archived: number): void {
     this.db.prepare("UPDATE channels SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
+  }
+
+  /** #250 频道首席：单条 UPDATE（先校验后写由协作域负责），`null` = 清除绑定。 */
+  setChannelChief(channelId: string, memberId: string | null): void {
+    this.db
+      .prepare("UPDATE channels SET chief_member_id = ? WHERE id = ?")
+      .run(memberId, channelId);
   }
 
   listChannelMembers(channelId: string): ChannelMemberRow[] {

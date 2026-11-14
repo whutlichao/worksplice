@@ -67,6 +67,11 @@ export interface Store {
   /** 频道描述更新（同上，只改 description；迁移脚本专用，不改变名/成员/归档态）。 */
   updateChannelDescription(id: string, description: string): void;
   setChannelArchived(id: string, archived: number): void;
+  /**
+   * #250 频道首席绑定：`null` = 清除（频道回落到全局首席）。
+   * 合法性与存活校验在协作域（chief.ts）——这里只写单条绑定，不碰成员表。
+   */
+  setChannelChief(channelId: string, memberId: string | null): void;
   listChannelMembers(channelId: string): ChannelMemberRow[];
   isChannelMember(channelId: string, memberId: string): boolean;
   addChannelMember(channelId: string, memberId: string): void;
