@@ -561,12 +561,8 @@ export const zhCNLocale: LocalePlugin = {
       "先在输入框描述任务；用 @ 把任务交接给成员，它就会开始跑。",
     "journey.describe.cta": "描述任务",
     "journey.describe.secretary": "让秘书搭第一间房",
-    "journey.handoff.title": "把一条消息转为任务",
-    "journey.handoff.hint":
-      "把一条消息转为任务，并 @agent 交接；成员会认领并在线程里更新进展。",
     "journey.handoff.waitingTitle": "等待交接或认领",
     "journey.handoff.waitingHint": "有任务还在待办：@agent 交接，或到任务板认领。",
-    "journey.handoff.cta": "把最新消息转为任务",
     "journey.handoff.ctaTasks": "打开任务板",
     "journey.review.title": "去复核",
     "journey.review.hint": "有任务在等你复核，去任务板看看。",
