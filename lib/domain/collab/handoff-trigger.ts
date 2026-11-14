@@ -1,7 +1,7 @@
 import { getDb } from "../../data/db-singleton.ts";
-import { bodyMentionText } from "../../mention.ts";
 import { isChannelMember } from "./channels.ts";
 import { parseTaskCreationEventNumber } from "./invitations.ts";
+import { parseTaskReferenceNumbers } from "./task-reference.ts";
 import { isSecretaryMember } from "./secretary-identity.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../../data/types.ts";
 
@@ -47,21 +47,11 @@ export function isHandoffEligibleTask(task: TaskRow | undefined): boolean {
   );
 }
 
-const TASK_REFERENCE_RE = /\bTask\s+#(\d+)\b/gi;
-
 /**
- * 正文里的 `Task #N` 引用（去重、升序）。引用块 / 代码围栏 / 行内代码不算——
- * 与 @mention 共用 `bodyMentionText` 的正文口径。
+ * 正文里的 `Task #N` 引用（去重、升序）——实现与选人判定共用同一个纯模块
+ * （`task-reference.ts`）；此处再导出保持既有导入路径兼容。
  */
-export function parseTaskReferenceNumbers(content: string): number[] {
-  const body = bodyMentionText(content);
-  const numbers = new Set<number>();
-  for (const match of body.matchAll(TASK_REFERENCE_RE)) {
-    const number = Number(match[1]);
-    if (Number.isSafeInteger(number) && number > 0) numbers.add(number);
-  }
-  return [...numbers].sort((a, b) => a - b);
-}
+export { parseTaskReferenceNumbers };
 
 function isHumanMessage(message: HandoffTriggerMessage): boolean {
   return (

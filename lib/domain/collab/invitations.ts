@@ -3,6 +3,7 @@ import { hasAllMention } from "../../mention.ts";
 import { listChannelMembers, resolveChannelForTarget } from "./channels.ts";
 import { resolveEffectiveChief } from "./chief.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
+import { hasTaskReference } from "./task-reference.ts";
 import type { ChannelRow } from "../../data/types.ts";
 
 /**
@@ -41,10 +42,17 @@ export function parseTaskCreationEventNumber(content: string): number | null {
 }
 
 /**
- * 一条人类消息是否由生效首席默认接住（#248）：只在那四条已有路径全部不成立时成立——
- * 非 DM、无个人点名、无 `@all`、不涉及任务（不是任务线程、不是 `Task #N created` 创建事件）。
+ * 一条人类消息是否由生效首席默认接住（#248 / #250）：只在那四条已有路径全部不成立时成立——
+ * 非 DM、无个人点名、无 `@all`、不涉及任务（不是任务线程、不是任务锚点、不引用任何 `Task #N`）。
+ *
+ * 「涉及任务」的判定与 handoff 触发共用 `task-reference.ts` 的同一份解析：任务相关的人类消息
+ * **只**由全局首席以 secretary-handoff 准入（#240），不得被频道首席的 chief 分支抢走——
+ * 否则频道首席≠全局首席时，一条唯一 `Task #N` 引用会叫错人、或把两轮都叫起来。
+ *
  * 首席在本频道不可用（已软删 / 不是该频道 agent 成员 / 静音了该频道）⇒ null
  * （「没有可用首席」与「没有首席」同义：不换人、不兜底广播）。
+ * 注：解析（`resolveEffectiveChief`）只判绑定是否有效；静音在这一层过滤，
+ * 即「静音的首席」不回落全局首席。
  *
  * 判定住在这里，是因为它复用与邀请候选同一份点名 / 任务解析；`beginTurn`、wake
  * 与 agent-loop 的准入都调它，不另开第二条选人路径。
@@ -61,7 +69,9 @@ export function selectChiefRecipient(input: {
   );
   if (namesAnAgent) return null;
   if (getDb().getTaskByMessageId(input.targetId)) return null;
+  // 任务创建事件的正文形如 `Task #N created — …`，也落在同一份引用解析里。
   if (parseTaskCreationEventNumber(input.content) !== null) return null;
+  if (hasTaskReference(input.content)) return null;
 
   const { chief } = resolveEffectiveChief(input.channel.id);
   if (!chief || chief.type !== "agent") return null;

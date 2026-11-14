@@ -22,7 +22,8 @@ const SCHEMA_STATEMENTS: string[] = [
     type TEXT NOT NULL DEFAULT 'public' CHECK (type IN ('public', 'private', 'dm')),
     description TEXT NOT NULL DEFAULT '',
     archived INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    chief_member_id TEXT REFERENCES members(id)
   )`,
   `CREATE TABLE IF NOT EXISTS channel_members (
     channel_id TEXT NOT NULL REFERENCES channels(id),
@@ -260,6 +261,7 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersModelColumns(db);
     migrateMembersAvatarTintColumn(db);
     migrateMembersGlobalChiefColumn(db);
+    migrateChannelsChiefMemberColumn(db);
     migrateTasksReopenedColumn(db);
     migrateTasksHandoffColumns(db);
     migrateTasksHandoffOwnerColumn(db);
@@ -306,6 +308,21 @@ function migrateMembersGlobalChiefColumn(db: Database.Database): void {
        LIMIT 1
      )`,
   ).run(LEGACY_CHIEF_MEMBER_NAME);
+}
+
+/**
+ * v19（票 #250）：channels.chief_member_id —— 频道首席的显式绑定（nullable）。
+ * 与 #249 并行落在同一个 v19 里，故本票不 bump SCHEMA_VERSION：老库靠 PRAGMA 检查式 ALTER 补列，
+ * 新库由 CREATE TABLE 直接带上，重复开库幂等。存量频道一律 NULL（= 回落全局首席）。
+ * 失效绑定（离场 / 软删 / 非 agent）**不改写**这一列——读侧按「未设置」处理：
+ * 改写会静默换人，清回 NULL 又抹掉用户当初的选择。
+ */
+function migrateChannelsChiefMemberColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(channels)").all() as Array<{
+    name: string;
+  }>;
+  if (columns.some((column) => column.name === "chief_member_id")) return;
+  db.exec("ALTER TABLE channels ADD COLUMN chief_member_id TEXT REFERENCES members(id)");
 }
 
 /**

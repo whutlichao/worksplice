@@ -47,6 +47,11 @@ export interface ChannelRow {
   description: string;
   archived: number;
   created_at: string;
+  /**
+   * #250 频道首席绑定（成员 id；null = 未指定）。只是绑定本身，不代表「此刻生效的首席」——
+   * 绑定失效（离场 / 软删 / 非 agent）时读侧按「未设置」处理，不改写这一列。
+   */
+  chief_member_id: string | null;
 }
 
 export interface MemberRow {
