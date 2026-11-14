@@ -481,6 +481,12 @@ export const enLocale: LocalePlugin = {
     "channel.leave": "Leave",
     "channel.archive": "Archive",
     "channel.unarchive": "Unarchive",
+    "channel.stop": "Stop",
+    "channel.stopping": "Stopping…",
+    "channel.stopHint": "Stop the current room wave without destroying sessions",
+    "channel.stopDone": "Stopped the current room wave",
+    "channel.stopIdle": "No active room wave",
+    "channel.stopFailed": "Could not stop the current room wave",
     "channel.initialMembers": "Initial members",
     "message.send": "Send",
     "message.composerPlaceholder":
