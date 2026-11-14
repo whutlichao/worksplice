@@ -690,16 +690,6 @@ function resolveJourneyGuideContent(
         onClick: () => handlers.onOpenSecretary?.(),
       });
     }
-  } else if (kind === "handoff") {
-    title = t("journey.handoff.waitingTitle");
-    hint = t("journey.handoff.waitingHint");
-    if (handlers.onOpenTasks) {
-      actions.push({
-        label: t("journey.handoff.ctaTasks"),
-        className: "btn btn-primary btn-sm",
-        onClick: () => handlers.onOpenTasks?.(),
-      });
-    }
   } else if (kind === "review") {
     title = t("journey.review.title");
     hint = t("journey.review.hint");

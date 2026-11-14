@@ -575,10 +575,6 @@ export const enLocale: LocalePlugin = {
       "Describe the task in the composer. An agent picks it up after you hand it off with @mention.",
     "journey.describe.cta": "Describe the task",
     "journey.describe.secretary": "Let the secretary set up the first room",
-    "journey.handoff.waitingTitle": "Waiting for hand off or claim",
-    "journey.handoff.waitingHint":
-      "A task is waiting in To do. @mention an agent or claim it on the task board.",
-    "journey.handoff.ctaTasks": "Open the task board",
     "journey.review.title": "Go review",
     "journey.review.hint":
       "Tasks are waiting for your review on the task board.",
