@@ -8,6 +8,7 @@
  */
 import type { DataPaths } from "./dirs.ts";
 import type {
+  AdmissionRole,
   AppendMessageInput,
   AttachmentRow,
   AgentAvatarTint,
@@ -239,6 +240,8 @@ export interface Store {
     promptTokens?: number | null;
     completionTokens?: number | null;
     cost?: number | null;
+    /** #249 本轮准入角色；省略 = 没有准入结论（写 NULL，不编造）。 */
+    role?: AdmissionRole | null;
   }): RoundLogRow;
   listRoundLogs(agentId: string, limit?: number): RoundLogRow[];
   listRoundLogsByTarget(targetId: string): RoundLogRow[];

@@ -781,6 +781,18 @@ export const zhCNLocale: LocalePlugin = {
     "observability.roundStatus.yielded": "让路",
     "observability.roundStatus.error": "失败",
     "observability.roundStatus.busy-cwd": "等待占用",
+    // #249 轮次可观测：每行标出这一轮**怎么进来的**（准入角色）。未记录 = 历史行 / 没有准入结论。
+    "observability.roundRoleTitle": "准入角色",
+    "observability.roundRole.dm": "私信",
+    "observability.roundRole.reminder": "提醒",
+    "observability.roundRole.human-mention": "点名",
+    "observability.roundRole.all-mention": "@全体",
+    "observability.roundRole.chief": "首席",
+    "observability.roundRole.task-owner": "任务负责人",
+    "observability.roundRole.task-reviewer": "任务互审",
+    "observability.roundRole.task-event": "任务事件",
+    "observability.roundRole.secretary-handoff": "秘书分流",
+    "observability.roundRole.none": "未记录",
     "detail.back": "返回频道",
   },
 };

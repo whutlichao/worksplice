@@ -1,4 +1,11 @@
-import type { TaskStatus } from "../../data/types.ts";
+import type { AdmissionRole, TaskStatus } from "../../data/types.ts";
+
+/**
+ * `AdmissionRole`（本轮**怎么进来的**）的取值定义在数据层词表（`lib/data/types.ts`）：
+ * 它同时是 `round_logs.role` 的持久化取值（#249）。这里只转出具名类型，判定层与
+ * 可观测面用的是同一个名字、同一份取值。
+ */
+export type { AdmissionRole };
 
 /**
  * 模型调用前的轮次准入（Ticket #237）：纯判定层。
@@ -23,18 +30,6 @@ export const ROUND_SKIP_REASONS = {
 
 export type RoundSkipReason =
   (typeof ROUND_SKIP_REASONS)[keyof typeof ROUND_SKIP_REASONS];
-
-export type AdmissionRole =
-  | "dm"
-  | "reminder"
-  | "human-mention"
-  | "all-mention"
-  /** #248：本频道此刻生效的首席接住了一条无点名、不涉及任务的人类消息。 */
-  | "chief"
-  | "task-owner"
-  | "task-reviewer"
-  | "task-event"
-  | "secretary-handoff";
 
 export type RoundAdmission =
   | { admit: true; role: AdmissionRole; useRoomGate: boolean }

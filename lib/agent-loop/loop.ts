@@ -45,6 +45,7 @@ import {
   sendMessage,
   subscribeWake,
   updateTaskStatus,
+  type AdmissionRole,
   type RoundUsage,
   type HandoffWakeEmitter,
 } from "../domain/collab/index.ts";
@@ -1297,6 +1298,12 @@ export interface RoundOutcome {
   baseSeq?: number;
   /** v16 本轮用量（driver 收口时从 SDK 会话统计差值取；取不到则缺省）。 */
   usage?: RoundUsage;
+  /**
+   * #249 本轮**怎么进来的**（准入角色）：准入阶段已有的结论，只做标注、不改任何分支。
+   * 只在「有结论、会落盘」的返回点带上——noop / skipped / busy 这类瞬态轮次不落盘，
+   * 也就不带角色（不编造）。
+   */
+  role?: AdmissionRole;
 }
 
 // ----------------------------------------------------------------------------
@@ -2337,6 +2344,13 @@ export async function runAgentRound(
     // 未准入 = 稳定 skipped reason：不起会话、不发 prompt、不推进消费游标。
     return { status: "skipped", reason: admission.reason };
   }
+  /** #249：本轮的准入角色（`round_logs.role` 的唯一来源；准入只在这里判定一次）。 */
+  const admittedRole = admission.role;
+  /** 给会落盘的返回点贴角色标签：纯标注，不参与任何判断。 */
+  const withRole = (outcome: RoundOutcome): RoundOutcome => ({
+    ...outcome,
+    role: admittedRole,
+  });
   /** 本轮的场次 epoch（null = 无活跃场次 / reminder 或续工轮次）：I5 检查点的比较基准。 */
   const roomEpoch = roomGate.state === "elected" ? roomGate.epoch : null;
   /** pass 协议（本票 spec §5）：把槽位还给房间（不计 replies、不进 spoke）。 */
@@ -2405,15 +2419,15 @@ export async function runAgentRound(
           roomTurns.noteBusy({ channelId: channel.id, memberId: agent.id, epoch: roomEpoch });
         }
         // 07-承诺：busy-cwd 轮同 error 轮——携带本轮 drain 的房间版本（round_logs base_seq 非 0）
-        return { status: "busy-cwd", reason: error.message, baseSeq };
+        return withRole({ status: "busy-cwd", reason: error.message, baseSeq });
       }
       publishAgentStatus(agent.id, "error");
-      return {
+      return withRole({
         status: "error",
         reason: error instanceof Error ? error.message : String(error),
         // 11-整改：error 轮携带本轮 drain 的房间版本（round_logs base_seq 非 0）
         baseSeq,
-      };
+      });
     }
     session = rt.findSession(agent);
   }
@@ -2471,12 +2485,14 @@ export async function runAgentRound(
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
   let opsSummary = "";
   const withOps = (outcome: RoundOutcome): RoundOutcome =>
-    opsSummary
-      ? {
-          ...outcome,
-          reason: outcome.reason ? `${outcome.reason}; ${opsSummary}` : opsSummary,
-        }
-      : outcome;
+    withRole(
+      opsSummary
+        ? {
+            ...outcome,
+            reason: outcome.reason ? `${outcome.reason}; ${opsSummary}` : opsSummary,
+          }
+        : outcome,
+    );
   /** 不发帖收口（conclude / peer 收束共用）：ack 房间版本、streak 清零、状态回 online，零新增消息。 */
   const closeWithoutPosting = (reason: string): RoundOutcome => {
     ack(agentId, targetId, baseSeq);
@@ -2512,7 +2528,7 @@ export async function runAgentRound(
     if (!first.ok) {
       publishAgentStatus(agent.id, "error");
       // 11-整改：prompt-fail 的 error 轮携带本轮 drain 的房间版本
-      return { status: "error", reason: first.error, baseSeq };
+      return withRole({ status: "error", reason: first.error, baseSeq });
     }
     const action = parseAgentAction(first.text);
     // ADR-0013 决策一：本轮随附的成员 op（与 task 同一条缝）——以结构身份执行；

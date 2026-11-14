@@ -1030,3 +1030,108 @@ test("agent description editor copy exists in every supported language", async (
         assert.ok(zhCNLocale.messages[key], `zh-CN missing ${key}`);
     }
 });
+
+/**
+ * 票 #249：轮次记录每行带「这一轮怎么进来的」（准入角色）。角色是既有准入结论的展示，
+ * 不吞掉既有状态与 reason 原文；历史行没有角色信息 ⇒ 展示「未记录」，不报错、不空白。
+ */
+test("round rows label the admission role, and legacy rows read as 未记录 (#249)", () => {
+  const zhT = (key) => zhCNLocale.messages[key] ?? key;
+  const html = renderWith(
+    React.createElement(RoundLogsList, {
+      rounds: [
+        {
+          id: "round-chief",
+          targetId: "chan-chief",
+          status: "replied",
+          reason: "",
+          baseSeq: 9,
+          createdAt: "2026-10-01T03:00:00.000Z",
+          promptTokens: null,
+          completionTokens: null,
+          cost: null,
+          role: "chief",
+        },
+        {
+          id: "round-mention",
+          targetId: "chan-mention",
+          status: "yielded",
+          reason: "claim failed",
+          baseSeq: 11,
+          createdAt: "2026-10-01T03:10:00.000Z",
+          promptTokens: null,
+          completionTokens: null,
+          cost: null,
+          role: "human-mention",
+        },
+        {
+          id: "round-legacy",
+          targetId: "chan-legacy",
+          status: "error",
+          reason: "Rate limit exceeded.",
+          baseSeq: 12,
+          createdAt: "2026-10-01T03:20:00.000Z",
+          promptTokens: null,
+          completionTokens: null,
+          cost: null,
+          // 本票之前落下的历史行：没有角色信息
+          role: null,
+        },
+      ],
+      t: zhT,
+    }),
+  );
+
+  assert.match(html, /首席/, "首席接住的轮次显示「首席」，与被点名的可区分");
+  assert.match(html, /点名/);
+  assert.match(html, /未记录/, "历史行没有角色 ⇒ 未记录（不报错、不空白）");
+  // 既有口径不被角色吞掉：状态词与 reason 原文照常可见
+  assert.match(html, /已回复/);
+  assert.match(html, /让路/);
+  assert.match(html, /失败/);
+  assert.match(html, /claim failed/);
+  assert.match(html, /Rate limit exceeded\./);
+  assert.doesNotMatch(html, /undefined/);
+});
+
+test("round role labels are localized in both packages, with an English fallback (#249)", () => {
+  const enT = (key) => enLocale.messages[key] ?? key;
+  const html = renderWith(
+    React.createElement(RoundLogsList, {
+      rounds: [
+        {
+          id: "round-chief-en",
+          targetId: "chan-chief",
+          status: "replied",
+          reason: "",
+          baseSeq: 1,
+          createdAt: "2026-10-01T03:00:00.000Z",
+          promptTokens: null,
+          completionTokens: null,
+          cost: null,
+          role: "chief",
+        },
+        {
+          id: "round-legacy-en",
+          targetId: "chan-legacy",
+          status: "replied",
+          reason: "",
+          baseSeq: 2,
+          createdAt: "2026-10-01T03:10:00.000Z",
+          promptTokens: null,
+          completionTokens: null,
+          cost: null,
+          role: null,
+        },
+      ],
+      t: enT,
+    }),
+  );
+  assert.match(html, /Chief/);
+  assert.match(html, /Not recorded/);
+  assert.equal(
+    Object.keys(zhCNLocale.messages).filter((key) => key.startsWith("observability.roundRole.")).length,
+    Object.keys(enLocale.messages).filter((key) => key.startsWith("observability.roundRole.")).length,
+    "两套语言包的每个角色标签都齐",
+  );
+});
