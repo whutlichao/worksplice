@@ -21,6 +21,7 @@
 export * from "./attachments.ts";
 export * from "./channels.ts";
 export * from "./event-messages.ts";
+export * from "./secretary-identity.ts";
 export * from "./inbox.ts";
 export * from "./member-capabilities.ts";
 export * from "./members.ts";
@@ -34,6 +35,8 @@ export * from "./reminders.ts";
 export * from "./room-budget.ts";
 export * from "./invitations.ts";
 export * from "./admission.ts";
+export * from "./handoff-trigger.ts";
+export * from "./handoff.ts";
 export * from "./rounds.ts";
 export * from "./search.ts";
 export * from "./secretary-auto-create.ts";

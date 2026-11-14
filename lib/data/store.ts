@@ -32,6 +32,7 @@ import type {
   SearchResult,
   SessionArchiveEntryInput,
   SessionArchiveSearchHit,
+  TaskHandoffState,
   TaskRow,
   TaskStatus,
   TaskThreadReadRow,
@@ -154,6 +155,8 @@ export interface Store {
     status?: TaskStatus;
     ownerId?: string | null;
     reopened?: number;
+    handoffState?: TaskHandoffState | null;
+    handoffSeq?: number | null;
     updatedAt?: string;
   }): TaskRow;
   listTasks(): TaskRow[];
@@ -164,7 +167,14 @@ export interface Store {
   nextTaskNumber(channelId: string): number;
   updateTask(
     id: string,
-    input: { status?: TaskStatus; ownerId?: string | null; reopened?: number; updatedAt?: string },
+    input: {
+      status?: TaskStatus;
+      ownerId?: string | null;
+      reopened?: number;
+      handoffState?: TaskHandoffState | null;
+      handoffSeq?: number | null;
+      updatedAt?: string;
+    },
   ): TaskRow | undefined;
   listTasksForAgent(agentId: string): TaskRow[];
   getTaskThreadRead(taskId: string): TaskThreadReadRow | undefined;

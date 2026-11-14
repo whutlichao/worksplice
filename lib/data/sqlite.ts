@@ -42,6 +42,7 @@ import type {
   SessionArchiveEntryInput,
   SessionArchiveSearchHit,
   TaskRow,
+  TaskHandoffState,
   TaskStatus,
   TaskThreadReadRow,
 } from "./types.ts";
@@ -524,6 +525,8 @@ export class SQLiteAdapter implements Store {
     status?: TaskStatus;
     ownerId?: string | null;
     reopened?: number;
+    handoffState?: TaskHandoffState | null;
+    handoffSeq?: number | null;
     updatedAt?: string;
   }): TaskRow {
     const row: TaskRow = {
@@ -533,14 +536,26 @@ export class SQLiteAdapter implements Store {
       status: input.status ?? "todo",
       owner_id: input.ownerId ?? null,
       reopened: input.reopened ?? 0,
+      handoff_state: input.handoffState ?? null,
+      handoff_seq: input.handoffSeq ?? null,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db.transaction(() => {
       this.db
         .prepare(
-          "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO tasks (id, message_id, number, status, owner_id, reopened, handoff_state, handoff_seq, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(row.id, row.message_id, row.number, row.status, row.owner_id, row.reopened, row.updated_at);
+        .run(
+          row.id,
+          row.message_id,
+          row.number,
+          row.status,
+          row.owner_id,
+          row.reopened,
+          row.handoff_state,
+          row.handoff_seq,
+          row.updated_at,
+        );
       this.db
         .prepare(
           `INSERT INTO task_thread_reads (task_id, baseline_seq, read_seq, updated_at)
@@ -607,6 +622,8 @@ export class SQLiteAdapter implements Store {
       status?: TaskStatus;
       ownerId?: string | null;
       reopened?: number;
+      handoffState?: TaskHandoffState | null;
+      handoffSeq?: number | null;
       updatedAt?: string;
     },
   ): TaskRow | undefined {
@@ -617,11 +634,27 @@ export class SQLiteAdapter implements Store {
       status: input.status ?? existing.status,
       owner_id: input.ownerId !== undefined ? input.ownerId : existing.owner_id,
       reopened: input.reopened !== undefined ? input.reopened : existing.reopened,
+      handoff_state:
+        input.handoffState !== undefined
+          ? input.handoffState
+          : existing.handoff_state,
+      handoff_seq:
+        input.handoffSeq !== undefined ? input.handoffSeq : existing.handoff_seq,
       updated_at: input.updatedAt ?? new Date().toISOString(),
     };
     this.db
-      .prepare("UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, updated_at = ? WHERE id = ?")
-      .run(row.status, row.owner_id, row.reopened, row.updated_at, id);
+      .prepare(
+        "UPDATE tasks SET status = ?, owner_id = ?, reopened = ?, handoff_state = ?, handoff_seq = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(
+        row.status,
+        row.owner_id,
+        row.reopened,
+        row.handoff_state,
+        row.handoff_seq,
+        row.updated_at,
+        id,
+      );
     return row;
   }
 

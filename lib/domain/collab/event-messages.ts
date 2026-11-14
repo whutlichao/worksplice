@@ -1,10 +1,11 @@
 import { getChannel, isChannelMember } from "./channels.ts";
-import { getMember, listAgents } from "./members.ts";
+import { getMember } from "./members.ts";
 import { sendMessage } from "./messages.ts";
 import { emitWake } from "./wake.ts";
+import { findSusanMember, SUSAN_MEMBER_NAME } from "./secretary-identity.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../../data/schema.ts";
 import { previewLine } from "../../preview.ts";
-import type { ChannelRow, MemberRow } from "../../data/types.ts";
+import type { ChannelRow } from "../../data/types.ts";
 
 /**
  * 事件系统消息（spec-bootstrap-agent.md §4.2/§7，构建 effort ticket 01）：
@@ -14,13 +15,8 @@ import type { ChannelRow, MemberRow } from "../../data/types.ts";
  * 欢迎语 = 秘书被唤醒后的正常 loop 回复（铁律：不以秘书署名触发）。
  */
 
-/** 秘书默认名字（spec §1.3/§2.3）：@mention 用 @Susan；身份判定按名字全等（§6.1/§6.4）。 */
-export const SUSAN_MEMBER_NAME = "Susan";
-
-/** 存活秘书（未软删的 agent、名字全等）；不存在时事件消息整体跳过（无人可唤醒）。 */
-export function findSusanMember(): MemberRow | undefined {
-  return listAgents().find((m) => m.name === SUSAN_MEMBER_NAME);
-}
+/** 秘书默认名字与存活判定见 ./secretary-identity.ts（wake / handoff / 事件消息共用）。 */
+export { SUSAN_MEMBER_NAME, findSusanMember };
 
 /** 可被 mention 解析器识别的 @token（lib/mention.ts：`@名字` / `@"带空格名字"`）。 */
 function mentionText(name: string): string {

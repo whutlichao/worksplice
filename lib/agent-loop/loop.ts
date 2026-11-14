@@ -24,18 +24,22 @@ import {
   getPendingTargets,
   getRoomTurnStore,
   getSince,
+  handoffTask,
   INBOX_DRAIN_WINDOW,
   isChannelMember,
   isDM,
+  isSecretaryMember,
   joinChannel,
   listAgents,
   listChannels,
+  listHandoffCandidates,
   listRelatedTasks,
   logRoundOutcome,
   normalizeWorkspacePath,
   parseTaskCreationEventNumber,
   readDefaultModelFromSettings,
   resolveTargetChannel,
+  selectSecretaryHandoffTask,
   sendMessage,
   subscribeWake,
   updateTaskStatus,
@@ -129,9 +133,18 @@ export interface LoopRuntime {
 export type ConflictChoice = "revise" | "resend" | "silent" | "anyway";
 const CONFLICT_CHOICES = new Set(["revise", "resend", "silent", "anyway"]);
 
-/** 任务操作（§3.7）：claim = 认领并开工；complete = 完成（置 in_review 待互审）；unclaim = 释放回池。 */
-export type TaskOp = "claim" | "complete" | "unclaim";
-export const TASK_OPS = new Set<TaskOp>(["claim", "complete", "unclaim"]);
+/**
+ * 任务操作（§3.7 + 票 #240）：
+ * claim = 认领并开工；complete = 完成（置 in_review 待互审）；unclaim = 释放回池；
+ * handoff = 秘书把未认领任务交给唯一合适成员（普通 agent 在扫描层被拒）。
+ */
+export type TaskOp = "claim" | "complete" | "unclaim" | "handoff";
+export const TASK_OPS = new Set<TaskOp>([
+  "claim",
+  "complete",
+  "unclaim",
+  "handoff",
+]);
 
 /** §05 兜底上限：确定信号（人类的 @mention / 进行中任务线程收到他人消息）下连续 ignore 达此值 → ack 并记 error（防死循环）。 */
 export const MUST_RESPOND_FAILURE_CAP = 2;
@@ -169,8 +182,16 @@ export interface AgentAction {
   onConflict: ConflictChoice;
   /** 可选：conclude 的简短理由（仅保留 trim 后非空的字符串）。 */
   reason?: string;
-  /** 可选：本轮附带的任务操作（先 claim 再开工；claim 失败就让路）。 */
-  task?: { number: number; op: TaskOp };
+  /**
+   * 可选：本轮附带的任务操作（先 claim 再开工；claim 失败就让路）。
+   * handoff 额外携带 assignee / question（票 #240，仅秘书可执行）。
+   */
+  task?: {
+    number: number;
+    op: TaskOp;
+    assignee?: string | null;
+    question?: string | null;
+  };
   /** 可选：本轮附带的成员 op（ADR-0013 决策一；解析见 ./member-ops.ts）。 */
   ops?: RawMemberOp[];
 }
@@ -224,6 +245,17 @@ function parseTaskOp(value: unknown): TaskOpRequest | undefined {
   const op = String(value.op);
   if (!Number.isInteger(number) || number <= 0 || !TASK_OPS.has(op as TaskOp)) {
     return undefined;
+  }
+  if (op === "handoff") {
+    const assignee =
+      typeof value.assignee === "string" && value.assignee.trim()
+        ? value.assignee.trim()
+        : null;
+    const question =
+      typeof value.question === "string" && value.question.trim()
+        ? value.question.trim()
+        : null;
+    return { number, op: op as TaskOp, assignee, question };
   }
   return { number, op: op as TaskOp };
 }
@@ -484,6 +516,14 @@ export function buildReplyPrompt(input: {
   peerClosedExchange?: boolean;
   /** 新成员首次合法准入、且没有他人新正文时的有界频道简报（票 #243）。 */
   joinBriefing?: JoinBriefing;
+  /**
+   * 秘书 handoff 轮（票 #240）：本轮唯一关联的未认领任务 + 候选成员。
+   * 只有秘书被明确关联时注入；普通轮次不出现 handoff 指令。
+   */
+  handoff?: {
+    number: number;
+    candidates: Array<{ name: string; description: string }>;
+  };
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
@@ -605,6 +645,39 @@ export function buildReplyPrompt(input: {
     '  Correct: {"action":"reply","content":"...","task":{"number":1,"op":"complete"}}',
     '  Wrong: {"action":"reply","content":"...","ops":[{"task":{"number":1,"op":"complete"}}]}',
   );
+  if (input.handoff) {
+    const shownCandidates = input.handoff.candidates.slice(0, 20);
+    const hiddenCandidates =
+      input.handoff.candidates.length - shownCandidates.length;
+    const candidates =
+      shownCandidates.length > 0
+        ? shownCandidates
+            .map((candidate) =>
+              candidate.description
+                ? `@${candidate.name} — ${candidate.description.replace(/\s+/g, " ").slice(0, 160)}`
+                : `@${candidate.name}`,
+            )
+            .join("; ")
+        : "(none — no eligible agent member is available)";
+    const hiddenNotice =
+      hiddenCandidates > 0
+        ? ` (+${hiddenCandidates} more candidates not shown; the app still accepts any eligible member)`
+        : "";
+    lines.push("");
+    lines.push(
+      `Secretary handoff: task #${input.handoff.number} is unclaimed and this round was admitted to route it.`,
+    );
+    lines.push(`Eligible candidates: ${candidates}.${hiddenNotice}`);
+    lines.push(
+      `Reply with {"action":"ignore","task":{"number":${input.handoff.number},"op":"handoff","assignee":"@Name"}} to assign exactly one candidate. The app claims the task for that member and posts a short notice in the task thread; you do not write the notice yourself.`,
+    );
+    lines.push(
+      'If no single candidate fits, omit "assignee" (or set it to null) and include "question":"..." — the app posts a blocked notice with the candidates, the boundary, and that question. Never assign the task to yourself, the Owner, a non-member, a deleted member, or an already-owned/reopened task.',
+    );
+    lines.push(
+      `If the Owner explicitly asked you to own this task, use the normal claim instead: {"action":"reply","content":"...","task":{"number":${input.handoff.number},"op":"claim"}}.`,
+    );
+  }
   lines.push(
     '- Extra operations: add "ops":[ ... ] to your JSON. Every op runs with YOUR identity; permissions are decided by the app, anything not listed here is refused. "task" is not an op: it is a top-level field, never inside "ops".',
   );
@@ -1489,6 +1562,78 @@ export async function runTaskOperation(input: {
       baseSeq,
     };
   }
+  // ---- handoff（票 #240）：只有秘书可执行；普通 agent 明确拒绝 ---------------
+  if (taskOp?.op === "handoff") {
+    if (!isSecretaryMember(agent)) {
+      ack(agent.id, input.targetId, baseSeq);
+      return {
+        status: "yielded",
+        reason: "handoff is reserved for the secretary",
+        baseSeq,
+      };
+    }
+
+    let handoff = handoffTask({
+      channelId: channel.id,
+      taskNumber,
+      secretaryId: agent.id,
+      assignee: taskOp.assignee ?? null,
+      question: taskOp.question ?? null,
+      baseSeq,
+    });
+    for (
+      let retry = 0;
+      handoff.status === "held" && retry < MAX_TASK_CLAIM_RETRIES;
+      retry += 1
+    ) {
+      handoff = handoffTask({
+        channelId: channel.id,
+        taskNumber,
+        secretaryId: agent.id,
+        assignee: taskOp.assignee ?? null,
+        question: taskOp.question ?? null,
+        baseSeq: handoff.roomSeq,
+      });
+    }
+    if (handoff.status === "held") {
+      // 不推进游标：触发消息保持 pending，等下一条消息/下一次 wake 再收敛。
+      return {
+        status: "yielded",
+        reason: `handoff held after ${MAX_TASK_CLAIM_RETRIES} retries`,
+        baseSeq,
+      };
+    }
+    if (handoff.status === "denied") {
+      ack(agent.id, input.targetId, baseSeq);
+      return { status: "yielded", reason: handoff.reason, baseSeq };
+    }
+    if (handoff.status === "noop") {
+      ack(agent.id, input.targetId, baseSeq);
+      return {
+        status: "ignored",
+        reason: `handoff noop: ${handoff.reason}`,
+        baseSeq,
+      };
+    }
+
+    // handed_off / blocked 都在任务线程写了通知；线程目标是本轮 target 时把通知自身也收口。
+    ack(
+      agent.id,
+      input.targetId,
+      input.targetId === task.message_id
+        ? Math.max(baseSeq, handoff.notice.seq)
+        : baseSeq,
+    );
+    return {
+      status: "replied",
+      message: handoff.notice,
+      reason:
+        handoff.status === "handed_off"
+          ? `handed off to @${handoff.chosen.name}`
+          : `handoff blocked: ${handoff.reason}`,
+      baseSeq,
+    };
+  }
   // §6.3 写稿时版本：thread 回复用决策时刻的线程版本；状态更新用 agent 语境里的 channel 版本
   // （当前轮 drain 过 channel 则为其 maxSeq，否则取其已消费游标 = 上一轮读到的最新版本）
   const threadBaseSeq =
@@ -2046,6 +2191,53 @@ export async function runAgentRound(
           eventTask.reopened === 0,
       );
     });
+  // 人类在任务锚点上已经直接点名本 agent / @all：这是显式邀请，不是事件预览里的 @。
+  // 任务事件本身仍只唤醒秘书；只有「同一轮 drain 里能看到这个锚点」时才沿用直接邀请。
+  const latestTaskEvent =
+    targetId === channel.id
+      ? [...incoming]
+          .reverse()
+          .find(
+            (message) =>
+              isHumanAuthor(message) &&
+              parseTaskCreationEventNumber(message.content) !== null,
+          )
+      : undefined;
+  const taskEventAnchorInvited = (() => {
+    if (!latestTaskEvent) return false;
+    const taskNumber = parseTaskCreationEventNumber(latestTaskEvent.content);
+    if (taskNumber === null) return false;
+    const eventTask = getDb().getTaskByChannelNumber(channel.id, taskNumber);
+    if (!eventTask) return false;
+    const anchor = incoming.find(
+      (candidate) => candidate.id === eventTask.message_id,
+    );
+    if (!anchor || !isHumanAuthor(anchor)) return false;
+    return (
+      extractMentionedMemberIds(anchor.content).includes(agent.id) ||
+      hasAllMention(anchor.content)
+    );
+  })();
+  // 票 #240：秘书只在「任务创建事件 / 明确关联的未认领任务」两种入口被自动准入。
+  // 多任务命中、无关联、任意闲聊、已分流、已有 owner、reopened 都由触发判定拒绝。
+  const isSecretary = isSecretaryMember(agent);
+  const handoffSelection = isSecretary
+    ? selectSecretaryHandoffTask({
+        secretary: agent,
+        channel,
+        targetId,
+        messages: incoming,
+      })
+    : null;
+  const handoffTargetTask =
+    handoffSelection?.kind === "handoff" ? handoffSelection.task : null;
+  const handoffCandidates = handoffTargetTask
+    ? listHandoffCandidates({
+        channelId: channel.id,
+        taskId: handoffTargetTask.id,
+        secretaryId: agent.id,
+      })
+    : [];
   const admission = decideRoundAdmission({
     agentId,
     isDM: isDM(targetId),
@@ -2063,6 +2255,9 @@ export async function runAgentRound(
     humanMentioned,
     humanAllMentioned,
     hasOpenTaskEvent,
+    isSecretary,
+    secretaryHandoff: Boolean(handoffTargetTask),
+    taskEventAnchorInvited,
   });
   // CP0（I5）/ 选人门（本票 spec §6.3）：房间场次活跃时，本场次从未被问过的成员不得在房间语境里
   // 自主插话——返回 skipped 且**不推进消费游标**（它被后来召见时上下文完整）。
@@ -2207,6 +2402,15 @@ export async function runAgentRound(
     context: replyPromptContext(agent),
     peerClosedExchange,
     joinBriefing,
+    handoff: handoffTargetTask
+      ? {
+          number: handoffTargetTask.number,
+          candidates: handoffCandidates.map((candidate) => ({
+            name: candidate.name,
+            description: candidate.description,
+          })),
+        }
+      : undefined,
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。

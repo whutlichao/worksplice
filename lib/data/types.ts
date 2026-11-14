@@ -23,6 +23,14 @@ export function isAgentAvatarTint(value: unknown): value is AgentAvatarTint {
 }
 
 export type TaskStatus = "todo" | "in_progress" | "in_review" | "done" | "closed";
+/**
+ * 秘书自动 handoff 的持久状态（票 #240）：
+ * - null = 从未自动分流；
+ * - handed_off = 已把 owner 交给唯一合适成员（handoff_seq = 任务线程通知 seq）；
+ * - blocked = 无唯一合适人，已在任务线程写 blocked 通知（handoff_seq = 通知 seq）。
+ * handoff_seq 是丢失唤醒时的可恢复定位点（T3 用）。
+ */
+export type TaskHandoffState = "handed_off" | "blocked";
 export type ReminderStatus = "scheduled" | "fired" | "canceled";
 
 /**
@@ -84,6 +92,9 @@ export interface TaskRow {
   owner_id: string | null;
   /** §3.7 重开封锁标记：reopen 置 1、人类认领清 0；置 1 期间 agent-loop 不可自动认领。 */
   reopened: number;
+  handoff_state: TaskHandoffState | null;
+  /** 任务线程内通知消息的 seq；null = 尚未发生自动分流。 */
+  handoff_seq: number | null;
   updated_at: string;
 }
 

@@ -5,6 +5,8 @@ import {
   parseTaskCreationEventNumber,
   selectMessageInvitations,
 } from "./invitations.ts";
+import { isHandoffEligibleTask, selectSecretaryHandoffTask } from "./handoff-trigger.ts";
+import { findSusanMember } from "./secretary-identity.ts";
 import type { MessageRow } from "../../data/types.ts";
 
 /**
@@ -115,24 +117,17 @@ export function notifyMessageWakes(message: MessageRow): void {
 
   if (author?.type === "human") {
     // Owner 署名的任务创建事件是系统消息，不是人类敲出来的正文邀请：
-    // 预览里即使带 @ 也不按点名收窄。开放任务沿用既有全员扇出（T2/#240 再收窄），
-    // done/closed 事件不叫任何人。
+    // 预览里即使带 @ 也不按点名收窄。票 #240：未认领任务只定向唤醒秘书，
+    // 不再扇出全 channel；没有可用秘书 / 任务已有 owner / 已分流 ⇒ 不叫任何人。
     const taskNumber = parseTaskCreationEventNumber(message.content);
     if (taskNumber !== null) {
       const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
-      if (
-        !task ||
-        task.status === "done" ||
-        task.status === "closed" ||
-        task.reopened === 1
-      ) {
-        return;
-      }
-      for (const member of listChannelMembers(channel.id)) {
-        if (member.type !== "agent" || member.id === message.author_id) continue;
-        if (getChannelMute(channel.id, member.id)) continue;
-        notify(member.id);
-      }
+      if (!isHandoffEligibleTask(task)) return;
+      const susan = findSusanMember();
+      if (!susan || susan.id === message.author_id) return;
+      if (!getDb().isChannelMember(channel.id, susan.id)) return;
+      if (getChannelMute(channel.id, susan.id)) return;
+      notify(susan.id);
       return;
     }
     // Ticket #237：人类正文点名 / @all 才产生新邀请；候选与 beginTurn 同源。
@@ -141,10 +136,30 @@ export function notifyMessageWakes(message: MessageRow): void {
       authorId: message.author_id,
       content: message.content,
     });
-    if (invitations.candidates.length > 0) {
-      for (const agentId of invitations.candidates) notify(agentId);
-      return;
+    const recipients = new Set(invitations.candidates);
+    // 票 #240：与既有未认领任务明确关联的人类消息（任务锚点 / 任务线程 / 唯一
+    // `Task #N` 引用）追加秘书为收件人；多任务命中 / 无关联不追加。
+    const susan = findSusanMember();
+    if (susan && susan.id !== message.author_id) {
+      const selection = selectSecretaryHandoffTask({
+        secretary: susan,
+        channel,
+        targetId: message.target_id,
+        messages: [
+          {
+            id: message.id,
+            target_id: message.target_id,
+            author_id: message.author_id,
+            content: message.content,
+            author: author ?? null,
+          },
+        ],
+      });
+      if (selection.kind === "handoff" && !getChannelMute(channel.id, susan.id)) {
+        recipients.add(susan.id);
+      }
     }
+    for (const agentId of recipients) notify(agentId);
     return;
   }
 
