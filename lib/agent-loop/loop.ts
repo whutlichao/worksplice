@@ -531,7 +531,11 @@ export function buildReplyPrompt(input: {
   const head: string[] = [];
   head.push(`You are @${input.agent.name}, a member of the worksplice workspace.`);
   // P1：线程轮与频道轮用不同身份措辞——模型得知道自己是在某个（任务）线程里说话
-  if (input.joinBriefing && input.messages.length === 0) {
+  if (
+    input.joinBriefing &&
+    (input.messages.length === 0 ||
+      input.messages.every((message) => message.author_id === input.agent.id))
+  ) {
     head.push(
       `No new messages from other members have arrived in ${describePromptTarget({ channel: input.channel, targetId: input.targetId })} since your watermark.`,
     );
@@ -1916,6 +1920,16 @@ function isAgentAuthor(message: IncomingMessage): boolean {
   return message.author?.type === "agent";
 }
 
+/** 人类正文的 `@all` 邀请；任务创建事件即使预览里带 @ 也不算人类邀请。 */
+function hasHumanAllMentionSignal(incoming: IncomingMessage[]): boolean {
+  return incoming.some(
+    (message) =>
+      isHumanAuthor(message) &&
+      parseTaskCreationEventNumber(message.content) === null &&
+      hasAllMention(message.content),
+  );
+}
+
 /** §05 确定信号：当轮 incoming 里人类作者个人 @mention 了本 agent，或本 agent 是进行中任务
  * owner 且任务线程来了别人的消息——这类轮次必须回应，ignore 按失败处理（rubric 同款标准）。
  * peer agent 的 @ 不在此列：它是注意力信号（isChannelNoise 不过滤），是否回应仍按 rubric 自判。 */
@@ -2096,6 +2110,7 @@ function collectDrainWindow(input: {
     const signalWindow =
       !reminderRound &&
       (hasMustRespondSignal(input.agentId, input.targetId, drained.messages) ||
+        hasHumanAllMentionSignal(drained.messages) ||
         (input.targetId === input.channel.id &&
           hasRoutableTaskEvent(input.agentId, input.channel, drained.messages)));
     // 提醒轮必须扫到提醒消息所在的最后窗口；否则只会在旧窗口上白跑一次 prompt。
@@ -2176,9 +2191,10 @@ export async function runAgentRound(
       !latestHumanIsTaskEvent &&
       extractMentionedMemberIds(latestHuman.content).includes(agent.id),
   );
-  const humanAllMentioned = Boolean(
-    latestHuman && !latestHumanIsTaskEvent && hasAllMention(latestHuman.content),
-  );
+  // 最新一条人类消息若是任务创建事件，事件本身不继承此前正文的 @all；
+  // 否则窗口内的 @all 不能被后续无点名正文覆盖（#237）。
+  const humanAllMentioned =
+    !latestHumanIsTaskEvent && hasHumanAllMentionSignal(incoming);
   const hasOpenTaskEvent =
     targetId === channel.id &&
     incoming.some((message) => {
@@ -2397,9 +2413,13 @@ export async function runAgentRound(
   publishAgentStatus(agent.id, "working");
   const relatedTasks = listRelatedTasks(targetId);
   // 入群后还没有他人正文：只给有界简报（频道名/描述/开放任务短预览/水位），
-  // 不把入群前历史拼回来。已有他人正文时 tasks 仍走既有块，简报不出现。
+  // 不把入群前历史拼回来。真实提醒会先以作者本人署名落一条系统消息；它不算
+  // “他人新正文”，因此首次合法提醒仍必须拿到简报。已有他人正文时 tasks 仍走既有块。
+  const hasOtherMemberBody = scanned.messages.some(
+    (message) => message.author_id !== agent.id,
+  );
   const joinBriefing =
-    channel.type !== "dm" && scanned.messages.length === 0
+    channel.type !== "dm" && !hasOtherMemberBody
       ? buildJoinBriefing({
           channelName: channel.name,
           channelDescription: channel.description,
@@ -4069,12 +4089,12 @@ export function retryAgentBackfillTarget(
 }
 
 // ----------------------------------------------------------------------------
-// reminder cron（§5.6，原 reminder-cron.ts）：进程常驻期间逐分钟轮询 reminders 表
-// （status=scheduled 且 fire_at <= now）→ 触发（fireDueReminders）。
+// maintenance cron（§5.6，原 reminder-cron.ts）：进程常驻期间逐分钟触发到点提醒，
+// 并补发丢失的 handoff 定向唤醒（有次数上限与退避，见 handoff.ts）。
 // 状态挂 globalThis 扛热重载；now 可注入（测试）；timer 幂等启停。
 // ----------------------------------------------------------------------------
 
-interface CronState {
+interface MaintenanceCronState {
   started: boolean;
   timer: NodeJS.Timeout | null;
   pollMs: number;
@@ -4083,36 +4103,36 @@ interface CronState {
 }
 
 declare global {
-  var __workspliceReminderCron: CronState | undefined;
+  var __workspliceMaintenanceCron: MaintenanceCronState | undefined;
 }
 
 /** 轮询周期（§5.6 逐分钟）。 */
-export const REMINDER_POLL_MS = 60_000;
+export const MAINTENANCE_POLL_MS = 60_000;
 
-function getCronState(): CronState {
-  if (!globalThis.__workspliceReminderCron) {
-    globalThis.__workspliceReminderCron = {
+function getMaintenanceCronState(): MaintenanceCronState {
+  if (!globalThis.__workspliceMaintenanceCron) {
+    globalThis.__workspliceMaintenanceCron = {
       started: false,
       timer: null,
-      pollMs: REMINDER_POLL_MS,
+      pollMs: MAINTENANCE_POLL_MS,
       now: () => new Date(),
       emitWake: undefined,
     };
   }
-  return globalThis.__workspliceReminderCron;
+  return globalThis.__workspliceMaintenanceCron;
 }
 
-export function startReminderCron(
+export function startMaintenanceCron(
   deps: {
     pollMs?: number;
     now?: () => Date;
     emitWake?: HandoffWakeEmitter;
   } = {},
 ): () => void {
-  const state = getCronState();
-  if (state.started) return stopReminderCron;
+  const state = getMaintenanceCronState();
+  if (state.started) return stopMaintenanceCron;
   state.started = true;
-  state.pollMs = deps.pollMs ?? REMINDER_POLL_MS;
+  state.pollMs = deps.pollMs ?? MAINTENANCE_POLL_MS;
   state.now = deps.now ?? (() => new Date());
   state.emitWake = deps.emitWake;
   state.timer = setInterval(() => {
@@ -4125,11 +4145,11 @@ export function startReminderCron(
       );
     }
   }, state.pollMs);
-  return stopReminderCron;
+  return stopMaintenanceCron;
 }
 
-export function stopReminderCron(): void {
-  const state = getCronState();
+export function stopMaintenanceCron(): void {
+  const state = getMaintenanceCronState();
   if (!state.started) return;
   state.started = false;
   if (state.timer) {
@@ -4155,7 +4175,10 @@ export function tickAgentLoopMaintenance(
   const reminders = tickReminderCron(now);
   let recoveryWakes = 0;
   try {
-    recoveryWakes = recoverHandoffWakes({ emitWake: deps.emitWake });
+    recoveryWakes = recoverHandoffWakes({
+      emitWake: deps.emitWake,
+      now,
+    });
   } catch (error) {
     console.error(
       "[worksplice] handoff recovery tick failed:",
@@ -4171,18 +4194,18 @@ export function tickAgentLoopMaintenance(
 // 1. 状态点低频扫掠（兜底 idle shutdown 漂移）；
 // 2. 崩溃恢复：启动时按 seq 补拉（SQLite 落后于 session jsonl 的回复按序补写，§5.3）；
 // 3. wake 驱动：新消息 → 唤醒对应 agent 的 loop（§5.4）；
-// 4. reminder cron：逐分钟轮询 reminders 表触发到点提醒（§5.6）。
+// 4. maintenance cron：逐分钟触发到点提醒（§5.6）并补发丢失的 handoff 定向唤醒。
 // tick = 手动推进一次 cron 扫描（测试/诊断入口）；driver 本身是事件驱动（wake → 队列），
 // 无 tick 语义。runtime/pollMs/now 可注入（测试传 fake runtime / 假时钟）。
 // ----------------------------------------------------------------------------
 
 export interface AgentLoop {
-  /** 幂等启动全套服务：状态扫掠 + 崩溃恢复补拉 + wake 驱动 + reminder cron。 */
+  /** 幂等启动全套服务：状态扫掠 + 崩溃恢复补拉 + wake 驱动 + maintenance cron。 */
   start(): void;
   /** 幂等停止：取消 wake 订阅与 cron 定时器、清空驱动队列（重复 stop 不炸）。 */
   stop(): void;
   /**
-   * 手动推进一次 reminder cron 扫描（测试/诊断入口；等价 cron 定时器的一轮 tick）。
+   * 手动推进一次 maintenance cron 扫描（测试/诊断入口；等价 cron 定时器的一轮 tick）。
    * 注意：仅覆盖 cron 子组件——driver 是事件驱动的（wake → 队列），没有 tick 语义。
    */
   tick(): void;
@@ -4215,7 +4238,7 @@ export function createAgentLoop(
           error instanceof Error ? error.message : String(error),
         );
       }
-      startReminderCron({
+      startMaintenanceCron({
         pollMs: deps.pollMs,
         now: deps.now,
         emitWake: deps.emitWake,
@@ -4225,7 +4248,7 @@ export function createAgentLoop(
       started = false;
       stopAgentBackfill();
       stopAgentLoopDriver();
-      stopReminderCron();
+      stopMaintenanceCron();
     },
     tick(): void {
       tickAgentLoopMaintenance(deps.now ? deps.now() : new Date(), {

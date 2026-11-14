@@ -76,6 +76,11 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
   if (input.isDM) {
     return { admit: true, role: "dm", useRoomGate: false };
   }
+  // 成员关系先于任务 owner 身份：退群 / 被移出后，旧任务 wake hint 与续工
+  // 不得把成员重新拉起。唯一穿透口仍是本轮人类正文的个人点名（不含 @all）。
+  if (!input.isMember && !input.humanMentioned) {
+    return { admit: false, reason: ROUND_SKIP_REASONS.notMember };
+  }
 
   if (input.isTaskThread && input.task) {
     const task = input.task;
@@ -111,11 +116,6 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
     return { admit: true, role: "task-owner", useRoomGate: false };
   }
 
-  if (!input.isMember) {
-    return input.humanMentioned
-      ? { admit: true, role: "human-mention", useRoomGate: true }
-      : { admit: false, reason: ROUND_SKIP_REASONS.notMember };
-  }
   if (input.humanAllMentioned) {
     return { admit: true, role: "all-mention", useRoomGate: true };
   }

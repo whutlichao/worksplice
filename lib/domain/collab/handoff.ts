@@ -321,13 +321,48 @@ export function handoffTask(input: {
  * 只读任务与游标并重发 wake；不重复 claim、不改 owner、不写第二条通知。
  * 只在任务仍为 in_progress、当前 owner 仍是当初选中的 handoff_owner_id、
  * 通知消息仍存在且游标尚未到达 handoff_seq 时补发。
+ *
+ * 触发频率：AgentLoop 启动时一次，随后 maintenance cron 每 60 秒一次。
+ * 成本上限：每个 (task, target) 在每个进程内最多补发 HANDOFF_RECOVERY_MAX_ATTEMPTS 次；
+ * 退避从 60 秒起按 2 倍递增。达到上限后，即使游标仍未推进也不再起模型调用。
  */
+export const HANDOFF_RECOVERY_MAX_ATTEMPTS = 3;
+export const HANDOFF_RECOVERY_BASE_BACKOFF_MS = 60_000;
+
+interface HandoffRecoveryState {
+  attempts: number;
+  nextAttemptAt: number | null;
+}
+
+declare global {
+  var __workspliceHandoffRecovery: Map<string, HandoffRecoveryState> | undefined;
+}
+
+function handoffRecoveryKey(task: TaskRow): string {
+  return `${task.id}\u0000${task.message_id}`;
+}
+
+function getHandoffRecoveryState(): Map<string, HandoffRecoveryState> {
+  if (!globalThis.__workspliceHandoffRecovery) {
+    globalThis.__workspliceHandoffRecovery = new Map();
+  }
+  return globalThis.__workspliceHandoffRecovery;
+}
+
 export function recoverHandoffWakes(
-  input: { emitWake?: HandoffWakeEmitter } = {},
+  input: { emitWake?: HandoffWakeEmitter; now?: Date | number } = {},
 ): number {
   const wake = input.emitWake ?? emitWake;
+  const nowMs =
+    input.now instanceof Date
+      ? input.now.getTime()
+      : typeof input.now === "number"
+        ? input.now
+        : Date.now();
+  const recoveryState = getHandoffRecoveryState();
   let emitted = 0;
   for (const task of getDb().listTasks()) {
+    const key = handoffRecoveryKey(task);
     if (
       task.handoff_state !== "handed_off" ||
       task.handoff_seq === null ||
@@ -335,13 +370,29 @@ export function recoverHandoffWakes(
       task.owner_id === null ||
       task.handoff_owner_id !== task.owner_id
     ) {
+      recoveryState.delete(key);
       continue;
     }
     const owner = getMember(task.owner_id);
-    if (!owner || owner.type !== "agent" || owner.deleted === 1) continue;
-    if (!getDb().getMessageBySeq(task.message_id, task.handoff_seq)) continue;
+    if (!owner || owner.type !== "agent" || owner.deleted === 1) {
+      recoveryState.delete(key);
+      continue;
+    }
+    if (!getDb().getMessageBySeq(task.message_id, task.handoff_seq)) {
+      recoveryState.delete(key);
+      continue;
+    }
     if (
       getDb().getConsumedSeq(owner.id, task.message_id) >= task.handoff_seq
+    ) {
+      recoveryState.delete(key);
+      continue;
+    }
+    const previous = recoveryState.get(key);
+    if (
+      previous &&
+      (previous.attempts >= HANDOFF_RECOVERY_MAX_ATTEMPTS ||
+        (previous.nextAttemptAt !== null && nowMs < previous.nextAttemptAt))
     ) {
       continue;
     }
@@ -351,6 +402,15 @@ export function recoverHandoffWakes(
       seq: task.handoff_seq,
       reason: "message",
       recovery: true,
+    });
+    const attempts = (previous?.attempts ?? 0) + 1;
+    recoveryState.set(key, {
+      attempts,
+      nextAttemptAt:
+        attempts >= HANDOFF_RECOVERY_MAX_ATTEMPTS
+          ? null
+          : nowMs +
+            HANDOFF_RECOVERY_BASE_BACKOFF_MS * 2 ** (attempts - 1),
     });
     emitted += 1;
   }
