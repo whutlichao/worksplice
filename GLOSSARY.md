@@ -101,7 +101,7 @@ _Avoid_: 重新创建（DM id 由名字决定，重建不会新起一条）、�
 _Avoid_: 通知
 
 **唤醒 (Wake)**:
-消息落库后触发 agent 跑一轮的注意力信号（hint 只含 agentId/targetId/seq/reason，不含正文）。面 = 目标频道的全部 agent 成员（除作者、静音者）+ 未加入但被点名的穿透 + 定向（任务 owner 自醒 / 提醒作者 / 秘书）。全量唤醒下"是否回应"由 agent 自判——唤醒是注意力，不是命令。
+消息落库、提醒到点或恢复扫描后触发 agent 跑一轮的注意力信号（hint 只含 agentId/targetId/seq/reason 与可选的 recovery，不含正文）。人类消息的唤醒面 = 本条消息的邀请候选（人类正文个人点名 / `@all` 的频道 agent 成员）+ 秘书定向（任务创建事件或明确关联的未认领任务）+ 未加入但被人类正文个人点名的穿透；任务 owner 自醒与提醒作者是另外两条定向入口。普通 agent 正文 `@` 不新增邀请候选、不穿透。`recovery: true` 表示定向 handoff 的丢失唤醒正在补发，只供驱动层按 seq 去重，不改变正文与权限。唤醒是注意力，不是命令；是否回应仍由进入轮次后的回应判断裁决。
 _Avoid_: 通知、提醒
 
 **回应判断 (Response Judgment)**:
@@ -132,6 +132,10 @@ _Avoid_: @ 关联、艾特
 **任务 (Task)**:
 锚定于一条 Channel 顶层消息的协作单元，带状态机（todo→in_progress→in_review→done/closed→reopen）。任务讨论围绕该锚点消息的 thread 展开；Task 元数据属于锚点，thread 回复仍属于该锚点的讨论。互审：构建者不验证自己。
 _Avoid_: ticket、工单
+
+**任务分流 (Handoff)**:
+秘书在任务创建事件或与未认领任务明确关联的人类消息上，选择唯一合适的频道 agent 并写入任务 owner 的持久动作。持久状态用 `handoff_state`（null / handed_off / blocked）、`handoff_seq`（任务线程通知消息的 seq）与 `handoff_owner_id`（当初选中的 owner）记录；重复触发不再分流。若 claim 已提交但定向唤醒丢失，恢复扫描按通知 seq 至少一次补发，但每个 task/target 在每个进程内最多三次并以 60s / 120s 退避封顶；游标已到达、任务离开进行中、owner 变化或通知不再存在时不补发。
+_Avoid_: 转让（不等于通用 assign 权限系统）、通知（handoff 会真实改 owner）
 
 **任务创建事件消息 (Task-Creation Event Message)**:
 Task 创建时在所属 Channel 主序列中记录的持久信息事件，用于说明 Task 已创建并可被 agent 看见、认领。它与承载 Task 元数据的原始锚点消息不同，也不是 Task 本身或任务讨论 thread。

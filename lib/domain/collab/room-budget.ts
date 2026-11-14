@@ -2,6 +2,7 @@ import { emitWake } from "./wake.ts";
 import { listChannelMembers, resolveChannelForTarget } from "./channels.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
+import { hasAllMention } from "../../mention.ts";
 import type { WakeHint } from "./wake.ts";
 
 /**
@@ -285,8 +286,6 @@ interface RoomState {
   turns: InternalTurn[];
 }
 
-/** `@all` / `@everyone`：只影响选人（I8 剩下的那半句）。 */
-const ALL_MENTION = /@(?:all|everyone)\b/i;
 /** pass 协议（本票 spec §5）：这些文本一律不计发言。 */
 const PASS_TEXT = /^\(?\s*pass\s*\)?\.?$/i;
 const ENDED_TURN_HISTORY = 8;
@@ -743,7 +742,7 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     replyToAuthorId: string | null,
   ): string[] {
     const picked = new Set<string>();
-    if (!ALL_MENTION.test(text)) {
+    if (!hasAllMention(text)) {
       for (const member of mentions(text)) {
         if (member === authorId) continue;
         if (!directory.isAgent(member)) continue;
@@ -819,11 +818,12 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     },
     stopTurn(channelId) {
       const room = rooms.get(channelId);
-      // 无活跃场次 / 已经停过：幂等 no-op（不建 room、不重复加 epoch）
-      if (!room?.turn || room.turn.endedReason === "stopped") {
+      // 无活跃场次 / 已自然收口 / 已经停过：一律幂等 no-op
+      // （不建 room、不改收口原因、不重复加 epoch）。
+      if (!room?.turn || room.turn.endedReason !== null) {
         return { stopped: false, epoch: room?.epoch ?? 0 };
       }
-      // Stop 是用户显式取消：无论之前因何收口，终态一律是 stopped（本票 spec §6.8）
+      // Stop 是用户显式取消：只对仍在进行的场次生效（本票 spec §6.8）。
       room.turn.endedReason = "stopped";
       room.turn.stale = true;
       // I5：Stop 也推进 epoch；I7：lateTurns 置哨兵（Stop 之后零补充波）
