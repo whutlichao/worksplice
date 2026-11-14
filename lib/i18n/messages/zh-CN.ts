@@ -480,6 +480,12 @@ export const zhCNLocale: LocalePlugin = {
     "channel.initialMembers": "初始成员",
     "message.send": "发送",
     "message.composerPlaceholder": "输入消息…（Enter 发送，Shift+Enter 换行）",
+    "message.chiefHint.channel": "没点名任何 agent：这条消息由频道首席 {name} 接",
+    "message.chiefHint.global":
+      "没点名任何 agent：本频道未指定首席，回落全局首席 {name}",
+    "message.chiefHint.none": "没有默认收件人：不点名 agent 时不会有人接这条消息",
+    "message.chiefHint.named":
+      "按点名送达：这条消息只叫被点名的 agent，首席不再额外接手",
     "message.loadEarlier": "加载更早的消息",
     "message.held": "发送被拦截——房间已变化，请重新发送",
     "message.heldNoticeAction": "房间在你写作期间已变化，请核对后重新发送",
@@ -680,6 +686,15 @@ export const zhCNLocale: LocalePlugin = {
     "agent.descriptionSaveError": "描述保存失败",
     "role.member": "Member",
     "agent.workspaceNotBound": "尚未绑定",
+    "agent.chiefSection": "首席",
+    "agent.chiefGlobal": "全局首席",
+    "agent.chiefYes": "是",
+    "agent.chiefNo": "否",
+    "agent.chiefChannels": "当首席的频道",
+    "agent.chiefNoChannels": "未在任何频道当首席",
+    "agent.setGlobalChief": "设为全局首席",
+    "agent.clearGlobalChief": "清除全局首席",
+    "agent.chiefSaveFailed": "保存失败：{reason}",
     "agent.changeWorkspace": "更换工作区",
     "agent.workspaceHomeHint":
       "家目录——创建时自动生成、唯一私有、随身份删除；可绑定共享项目目录协作。",
