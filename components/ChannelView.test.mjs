@@ -818,8 +818,39 @@ test("DM 头部不渲染成员管理/归档/静音入口，保留提醒与 pinne
     // 复用频道消息体验：提醒 + pinned 入口仍在
     assert.match(html, /Set a channel reminder/);
     assert.match(html, /Toggle pinned messages/);
+    // 票 #238：DM 没有房间波次语义，Stop 不显示
+    assert.doesNotMatch(html, /Stop the current room wave/);
     // DM 类型徽标（而非 public/private）
     assert.match(html, />DM</);
+});
+
+test("非 DM 频道头部显示 Stop（票 #238），并带不销毁会话的提示", () => {
+    const channel = {
+        id: "stop-room",
+        name: "stop-room",
+        type: "public",
+        description: "",
+        archived: 0,
+        created_at: "2026-08-03T00:00:00.000Z",
+        joined: true,
+        memberCount: 2,
+        unread: 0,
+        unreadTaskCount: 0,
+        messageCount: 0,
+    };
+    const html = renderI18n(
+        React.createElement(ChannelView, {
+            channel,
+            tab: "messages",
+            onTabChange: () => undefined,
+            currentMemberId: "owner",
+            onChannelChanged: () => undefined,
+            focusMessageId: null,
+        }),
+    );
+    assert.match(html, /data-testid="channel-stop"/);
+    assert.match(html, /aria-label="Stop"/);
+    assert.match(html, /title="Stop the current room wave without destroying sessions"/);
 });
 
 test("TaskViews renders the task board layout without mounting the channel data loop (05 票排版回归)", async () => {

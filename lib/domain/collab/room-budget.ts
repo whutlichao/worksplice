@@ -134,6 +134,8 @@ export interface RoomTurnView {
   settled: Set<string>;
   /** 本波被问的成员。 */
   elected: Set<string>;
+  /** 本场次已离开房间的成员：迟到回复不计预算、不参与选人、不再被旧 wake hint 拉起。 */
+  departed: Set<string>;
   /** 场次已被取代（回复照常落库，但不计预算、不参与选人）。 */
   stale: boolean;
   endedReason: RoomTurnEndReason | null;
@@ -167,6 +169,12 @@ export interface RoomReplyNote {
   stale: boolean;
   late: boolean;
   replies: number;
+}
+
+/** Stop 结果：`stopped:false` = 没有活跃场次 / 已停过（幂等 no-op，epoch 不变）。 */
+export interface RoomStopResult {
+  stopped: boolean;
+  epoch: number;
 }
 
 /** 房间目录接缝（默认读 SQLite；测试注入纯映射，不碰数据库）。 */
@@ -221,12 +229,14 @@ export interface RoomTurnStore {
   notePass(input: { channelId: string; memberId: string; epoch?: number }): void;
   /** 忙碌成员：记 busy-notice 并立刻释放槽位（房间不等待）。 */
   noteBusy(input: { channelId: string; memberId: string; epoch?: number }): void;
+  /** 成员离开频道（主动 / 被移出）：从当前场次 elected / late / asked 等槽位移除，幂等。 */
+  removeMember(channelId: string, memberId: string): void;
   /** 惰性推进（释放超时槽位 / 结算当前波 / 开下一波）；gate 与超时断言共用的显式入口。 */
   pump(channelId: string): void;
   /** I5 检查点：把某 epoch 的场次标为已被取代（幂等）。 */
   markSuperseded(channelId: string, epoch: number): boolean;
-  /** Stop：epoch+1、lateTurns 置哨兵、场次收口为 stopped。 */
-  stopTurn(channelId: string): void;
+  /** Stop：epoch+1、lateTurns 置哨兵、场次收口为 stopped；重复 / 无活跃场次 no-op。 */
+  stopTurn(channelId: string): RoomStopResult;
   isCurrent(channelId: string, epoch: number): boolean;
   snapshot(channelId: string): RoomSnapshot | null;
   /** 测试与运维用的显式清理。 */
@@ -247,6 +257,7 @@ interface InternalTurn {
   spoke: Set<string>;
   settled: Set<string>;
   elected: Set<string>;
+  departed: Set<string>;
   stale: boolean;
   endedReason: RoomTurnEndReason | null;
   askLog: AskRecord[];
@@ -284,6 +295,7 @@ function view(turn: InternalTurn): RoomTurnView {
     spoke: new Set(turn.spoke),
     settled: new Set(turn.settled),
     elected: new Set(turn.elected),
+    departed: new Set(turn.departed),
     askLog: turn.askLog.map((record) => ({ ...record })),
     transcript: turn.transcript.map((line) => ({ ...line, mentions: [...line.mentions] })),
   };
@@ -394,6 +406,8 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     const citers = new Map<string, Set<string>>();
     for (const line of turn.transcript) {
       if (line.kind !== "speech") continue;
+      // 离开成员的旧发言不再驱动选人；其迟到回复也不会进入转写。
+      if (turn.departed.has(line.author)) continue;
       // 发过言 = 已看过自己（水位线前移）
       turn.seen.set(line.author, Math.max(turn.seen.get(line.author) ?? 0, line.order));
       for (const member of line.mentions) {
@@ -409,6 +423,7 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     const ordered = [...citedAt.entries()].sort((left, right) => left[1] - right[1]);
     for (const [member, atSeq] of ordered) {
       if (!directory.isAgent(member)) continue;
+      if (turn.departed.has(member)) continue;
       // I4-a：同一条 @ 不二次唤起（已看到把它的引用之后的水位线）
       if ((turn.seen.get(member) ?? -1) >= atSeq) continue;
       const soleCiter = citers.get(member)?.size === 1 ? [...citers.get(member)!][0] : null;
@@ -528,6 +543,10 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     const turn = room.turn;
     const order = input.order ?? input.seq;
     if (!turn) return { counted: false, stale: false, late: false, replies: 0 };
+    // 已离开成员的在飞 / 迟到回复：若调用方绕过了成员校验，也不得计预算或开启新波。
+    if (turn.departed.has(input.memberId)) {
+      return { counted: false, stale: true, late: true, replies: turn.replies };
+    }
     // I5：被取代场次的落库——照常可见，但不计预算、不参与选人
     if (input.epoch !== undefined && input.epoch !== turn.epoch) {
       turn.stale = true;
@@ -687,6 +706,7 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
       spoke: new Set(),
       settled: new Set(),
       elected: new Set(),
+      departed: new Set(),
       stale: false,
       endedReason: null,
       askLog: [],
@@ -738,6 +758,10 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
       const room = rooms.get(input.channelId);
       const turn = room?.turn;
       if (!room || !turn || turn.endedReason !== null) return { state: "no-turn", epoch: null };
+      // 离开成员不再被旧 wake hint / 旧 mention 拉起；下次人类新消息开新场次才重新评估。
+      if (turn.departed.has(input.memberId)) {
+        return { state: "not-elected", epoch: turn.epoch };
+      }
       // reminder 轮次与任务延续轮次不受选人门约束（本票 spec §6.3）
       if (input.reason === "reminder" || input.continuing) {
         return { state: "bypass", epoch: turn.epoch };
@@ -755,6 +779,21 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
     noteReply,
     notePass,
     noteBusy,
+    removeMember(channelId, memberId) {
+      const room = rooms.get(channelId);
+      const turn = room?.turn;
+      if (!room || !turn) return;
+      // 只清房间内存槽位：消息、消费游标、任务事件都在房间之外，原样保留。
+      turn.elected.delete(memberId);
+      turn.settled.delete(memberId);
+      turn.spoke.delete(memberId);
+      turn.late.delete(memberId);
+      turn.asked.delete(memberId);
+      turn.askedAt.delete(memberId);
+      turn.citedBy.delete(memberId);
+      turn.departed.add(memberId);
+      pump(room, turn);
+    },
     pump(channelId) {
       const room = rooms.get(channelId);
       if (room?.turn) pump(room, room.turn);
@@ -768,18 +807,20 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
       return true;
     },
     stopTurn(channelId) {
-      const room = getRoom(channelId);
-      if (room.turn) {
-        // Stop 是用户显式取消：无论之前因何收口，终态一律是 stopped（本票 spec §6.8）
-        room.turn.endedReason = "stopped";
-        room.turn.stale = true;
-        room.running = null;
+      const room = rooms.get(channelId);
+      // 无活跃场次 / 已经停过：幂等 no-op（不建 room、不重复加 epoch）
+      if (!room?.turn || room.turn.endedReason === "stopped") {
+        return { stopped: false, epoch: room?.epoch ?? 0 };
       }
+      // Stop 是用户显式取消：无论之前因何收口，终态一律是 stopped（本票 spec §6.8）
+      room.turn.endedReason = "stopped";
+      room.turn.stale = true;
       // I5：Stop 也推进 epoch；I7：lateTurns 置哨兵（Stop 之后零补充波）
       room.epoch += 1;
       room.lateTurns = limits.MAX_LATE_TURNS;
       room.pendingLateSeq = null;
       room.running = null;
+      return { stopped: true, epoch: room.epoch };
     },
     isCurrent(channelId, epoch) {
       const room = rooms.get(channelId);
