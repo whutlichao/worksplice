@@ -300,11 +300,12 @@ export class SQLiteAdapter implements Store {
       thinking_level: input.thinkingLevel ?? null,
       created_at: input.createdAt ?? new Date().toISOString(),
       avatar_tint: null,
+      global_chief: 0,
     };
     this.db
       .prepare(
-        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at, avatar_tint)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at, avatar_tint, global_chief)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -321,6 +322,7 @@ export class SQLiteAdapter implements Store {
         row.thinking_level,
         row.created_at,
         row.avatar_tint,
+        row.global_chief,
       );
     return this.withEffectiveWorkspace(row);
   }
@@ -390,6 +392,16 @@ export class SQLiteAdapter implements Store {
 
   setMemberDeleted(id: string, deleted: number): void {
     this.db.prepare("UPDATE members SET deleted = ? WHERE id = ?").run(deleted ? 1 : 0, id);
+  }
+
+  /** #248 全局首席：先清空再置位（同一事务），保证「同一时刻至多一位」。 */
+  setGlobalChief(memberId: string | null): void {
+    this.withTransaction(() => {
+      this.db.prepare("UPDATE members SET global_chief = 0 WHERE global_chief = 1").run();
+      if (memberId !== null) {
+        this.db.prepare("UPDATE members SET global_chief = 1 WHERE id = ?").run(memberId);
+      }
+    });
   }
 
   /** 删除身份：认领消失（§3.6），任务回到未认领池。 */

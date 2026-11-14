@@ -1,5 +1,6 @@
 import { getDb } from "../../data/db-singleton.ts";
-import { notifyAgentJoinedChannel, notifyChannelCreated, findSusanMember } from "./event-messages.ts";
+import { notifyAgentJoinedChannel, notifyChannelCreated } from "./event-messages.ts";
+import { getGlobalChief } from "./chief.ts";
 import { assertActorMayPerform } from "./member-capabilities.ts";
 import { getRoomTurnStore, type RoomStopResult } from "./room-budget.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
@@ -156,7 +157,7 @@ export function createChannel(input: {
   }
   // §7 新建公开频道必加：秘书静默加入（不触发欢迎事件；私有频道由创建者预勾选决定）。
   if (channel.type === "public") {
-    const susan = findSusanMember();
+    const susan = getGlobalChief();
     if (susan) addMemberWithJoinCursor(channel.id, susan.id);
   }
   notifyChannelCreated(channel);

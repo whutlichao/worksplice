@@ -6,7 +6,7 @@ import {
   selectMessageInvitations,
 } from "./invitations.ts";
 import { isHandoffEligibleTask, selectSecretaryHandoffTask } from "./handoff-trigger.ts";
-import { findSusanMember } from "./secretary-identity.ts";
+import { getGlobalChief } from "./chief.ts";
 import type { MessageRow } from "../../data/types.ts";
 
 /**
@@ -125,7 +125,7 @@ export function notifyMessageWakes(message: MessageRow): void {
     if (taskNumber !== null) {
       const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
       if (!isHandoffEligibleTask(task)) return;
-      const susan = findSusanMember();
+      const susan = getGlobalChief();
       if (!susan || susan.id === message.author_id) return;
       if (!getDb().isChannelMember(channel.id, susan.id)) return;
       if (getChannelMute(channel.id, susan.id)) return;
@@ -141,7 +141,7 @@ export function notifyMessageWakes(message: MessageRow): void {
     const recipients = new Set(invitations.candidates);
     // 票 #240：与既有未认领任务明确关联的人类消息（任务锚点 / 任务线程 / 唯一
     // `Task #N` 引用）追加秘书为收件人；多任务命中 / 无关联不追加。
-    const susan = findSusanMember();
+    const susan = getGlobalChief();
     if (susan && susan.id !== message.author_id) {
       const selection = selectSecretaryHandoffTask({
         secretary: susan,

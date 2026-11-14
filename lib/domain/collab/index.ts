@@ -20,6 +20,7 @@
  */
 export * from "./attachments.ts";
 export * from "./channels.ts";
+export * from "./chief.ts";
 export * from "./event-messages.ts";
 export * from "./secretary-identity.ts";
 export * from "./inbox.ts";

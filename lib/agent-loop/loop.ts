@@ -40,6 +40,7 @@ import {
   readDefaultModelFromSettings,
   recoverHandoffWakes,
   resolveTargetChannel,
+  selectChiefRecipient,
   selectSecretaryHandoffTask,
   sendMessage,
   subscribeWake,
@@ -2273,6 +2274,20 @@ export async function runAgentRound(
         secretaryId: agent.id,
       })
     : [];
+  // #248：生效首席接住「无点名、无 @all、不涉及任务」的人类消息。判定与 wake / beginTurn
+  // 共用同一份（selectChiefRecipient），这里只问「这一轮我是不是那个首席」。
+  // 涉及任务 handoff 的消息（唯一 `Task #N` 引用 / 任务锚点 / 任务线程）**不归首席**：
+  // 它们照旧按 secretary-handoff 准入（useRoomGate: false，不被房间门拦下），
+  // 否则首席分支会把 handoff 轮挪到房间门后面。
+  const chiefInvited = Boolean(
+    latestHuman &&
+      !handoffTargetTask &&
+      selectChiefRecipient({
+        channel,
+        targetId,
+        content: latestHuman.content,
+      }) === agent.id,
+  );
   const admission = decideRoundAdmission({
     agentId,
     isDM: isDM(targetId),
@@ -2290,6 +2305,7 @@ export async function runAgentRound(
     humanMentioned,
     humanAllMentioned,
     hasOpenTaskEvent,
+    chiefInvited,
     isSecretary,
     secretaryHandoff: Boolean(handoffTargetTask),
     taskEventAnchorInvited,

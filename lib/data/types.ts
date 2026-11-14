@@ -66,6 +66,11 @@ export interface MemberRow {
   created_at: string;
   /** 身份头像色：null 表示继续按 member id 自动取色。 */
   avatar_tint: AgentAvatarTint | null;
+  /**
+   * #248 全局首席标记（1 = 是，0 = 否）：频道没指定首席时接住无点名人类消息的那位成员。
+   * 同一时刻至多一位；软删身份不算首席（读侧按存活过滤，不看这一列）。
+   */
+  global_chief: number;
 }
 
 export interface ChannelMemberRow {
