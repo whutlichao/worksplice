@@ -147,6 +147,28 @@ export interface ReminderLogRow {
   created_at: string;
 }
 
+/**
+ * 轮次准入角色（票 #249）：`round_logs.role` 的取值 = 这一轮**怎么进来的**。
+ * 判定在 `lib/domain/collab/admission.ts`（`decideRoundAdmission`），这里只是持久化词表
+ * （与 `TaskStatus` 同形态：状态机在 domain，取值在数据层）。没有准入结论的轮次写 NULL。
+ * - dm / reminder：DM 轮次 / 提醒唤醒；
+ * - human-mention / all-mention：人类正文个人点名 / `@all`；
+ * - chief：本频道生效的首席接住了一条无点名、不涉及任务的人类消息（#248）；
+ * - task-owner / task-reviewer：任务线程 owner 续工 / 互审；
+ * - task-event：任务创建事件旁的显式邀请；
+ * - secretary-handoff：秘书（全局首席）下沉 handoff 的那一轮。
+ */
+export type AdmissionRole =
+  | "dm"
+  | "reminder"
+  | "human-mention"
+  | "all-mention"
+  | "chief"
+  | "task-owner"
+  | "task-reviewer"
+  | "task-event"
+  | "secretary-handoff";
+
 /** §07 轮次结果（Round Outcome）落盘行：一次有结论的 agent-loop 轮次。 */
 export interface RoundLogRow {
   id: string;
@@ -160,6 +182,8 @@ export interface RoundLogRow {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   cost: number | null;
+  /** #249 准入角色（null = 没有准入结论 / 本票之前的历史行，「展示为未记录」）。 */
+  role: AdmissionRole | null;
 }
 
 /** round_logs 用量聚合（成本看板双视图：全量 / 最近 N 轮）。 */

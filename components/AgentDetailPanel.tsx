@@ -17,6 +17,7 @@ import { DirectoryPicker } from "./DirectoryPicker";
 import { ModelPicker } from "./ModelPicker";
 import { AgentTranscriptToggle, AgentTranscriptViewer } from "./AgentTranscriptViewer";
 import type {
+  AdmissionRole,
   AgentAvatarTint,
   MemberRow,
   MemberStatus,
@@ -393,6 +394,8 @@ interface ObservabilityData {
     promptTokens: number | null;
     completionTokens: number | null;
     cost: number | null;
+    /** #249 这一轮怎么进来的；null = 历史行 / 没有准入结论（展示「未记录」）。 */
+    role: AdmissionRole | null;
   }>;
   /** v16 成本双视图（round_logs 用量聚合）：全量 + 最近 50 轮。 */
   roundUsage: {
@@ -590,6 +593,11 @@ export function RoundLogsList({
               style={{ maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis" }}
             >
               {round.targetId}
+            </span>
+            <span className="ts" title={t("observability.roundRoleTitle")}>
+              {round.role
+                ? t("observability.roundRole." + round.role)
+                : t("observability.roundRole.none")}
             </span>
             <span className={`lv ${ROUND_LEVEL[round.status] ?? "info"}`}>
               {t("observability.roundStatus." + round.status)}
