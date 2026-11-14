@@ -75,7 +75,13 @@ export interface Store {
   hasMessagesBefore(targetId: string, seq: number): boolean;
   threadReplyCount(messageId: string): number;
   threadReplyCounts(messageIds: string[]): Map<string, number>;
-  listMessagesAfter(targetId: string, afterSeq: number): MessageRow[];
+  /**
+   * seq > afterSeq 的增量（ASC），最多 `MESSAGE_WINDOW_LIMIT` 条（票 #243 硬上限）。
+   * 需要继续窗口时由调用方用最后一条 seq 再查一次。
+   */
+  listMessagesAfter(targetId: string, afterSeq: number, limit?: number): MessageRow[];
+  /** seq > afterSeq 是否还有更晚消息（窗口 hasMore 的判据）。 */
+  hasMessagesAfter(targetId: string, afterSeq: number): boolean;
   listMessages(targetId: string): MessageRow[];
   getMessage(id: string): MessageRow | undefined;
   /** 按 (target, seq) 点查（messages 表 UNIQUE(target_id, seq)）：回拉按 marker 还原投递目标用。 */

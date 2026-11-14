@@ -2,7 +2,7 @@ import { getDb } from "../../data/db-singleton.ts";
 import { getMember, extractMentionedMemberIds } from "./members.ts";
 import { getChannelMute, resolveChannelForTarget } from "./channels.ts";
 import { messageWithAuthor, previewLine, type MessageWithAuthor } from "./messages.ts";
-import type { MessageRow } from "../../data/types.ts";
+import { MESSAGE_WINDOW_LIMIT, type MessageRow } from "../../data/types.ts";
 
 /**
  * inbox 服务层（§5.5）：拉取式收件箱的查询接口。
@@ -16,13 +16,19 @@ export type { MessageWithAuthor } from "./messages.ts";
 export interface DrainResult {
   targetId: string;
   messages: MessageWithAuthor[];
-  /** 协议兼容的 hasMore 语义：本地无分页上限，一次 drain 取尽（恒为 false）。 */
+  /** 本窗口之外是否还有更晚的消息（票 #243：窗口外积压留给下一轮）。 */
   hasMore: boolean;
   /** drain 时的已消费游标（ack 前的读数）。 */
   consumedSeq: number;
-  /** drain 时的房间版本 = target 的 max(seq)（回复 freshness 的 baseSeq 来源）。 */
+  /**
+   * 本窗口实际读到的最后一条 seq（回复 freshness 的 baseSeq / ack 来源）。
+   * 不是 target 的全局 max(seq)：窗口外还有积压时两者不同。
+   */
   maxSeq: number;
 }
+
+/** drain 的窗口条数（与注入窗口同量级；数据层另有同值硬上限）。 */
+export const INBOX_DRAIN_WINDOW = MESSAGE_WINDOW_LIMIT;
 
 /** §5.5 getSince(target, sinceSeq)：seq 增量查询（ASC）。 */
 export function getSince(targetId: string, sinceSeq: number): MessageWithAuthor[] {
@@ -58,15 +64,17 @@ export function filterVisibleMessages<T extends MessageRow>(
  * §3.2 mute 过滤见 filterVisibleMessages（静音后的普通消息不进 inbox）。
  */
 export function drain(agentId: string, targetId: string): DrainResult {
-  const consumedSeq = getDb().getConsumedSeq(agentId, targetId);
-  const rows = getDb().listMessagesAfter(targetId, consumedSeq);
+  const db = getDb();
+  const consumedSeq = db.getConsumedSeq(agentId, targetId);
+  const rows = db.listMessagesAfter(targetId, consumedSeq, INBOX_DRAIN_WINDOW);
   const visible = filterVisibleMessages(agentId, targetId, rows);
+  const windowLastSeq = rows.length > 0 ? rows[rows.length - 1].seq : consumedSeq;
   return {
     targetId,
     messages: visible.map((m) => messageWithAuthor(m)),
-    hasMore: false,
+    hasMore: rows.length > 0 && db.hasMessagesAfter(targetId, windowLastSeq),
     consumedSeq,
-    maxSeq: getDb().maxSeq(targetId),
+    maxSeq: windowLastSeq,
   };
 }
 
@@ -100,7 +108,15 @@ export function getPendingTargets(agentId: string): string[] {
       const mute = getChannelMute(targetId, agentId);
       if (!mute) return true;
       const since = Math.max(db.getConsumedSeq(agentId, targetId), mute.muteFromSeq);
-      return db.listMessagesAfter(targetId, since).some((message) => mentionsAgent(message, agentId));
+      let cursor = since;
+      for (;;) {
+        const rows = db.listMessagesAfter(targetId, cursor);
+        if (rows.some((message) => mentionsAgent(message, agentId))) return true;
+        if (rows.length === 0) return false;
+        const lastSeq = rows[rows.length - 1].seq;
+        if (!db.hasMessagesAfter(targetId, lastSeq)) return false;
+        cursor = lastSeq;
+      }
     });
 }
 
