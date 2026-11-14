@@ -11,14 +11,13 @@ export interface JourneyInput {
 
 export interface JourneyState {
   guideKind: JourneyGuideKind | null;
-  hasTasks: boolean;
   /** Tasks Tab badge：未完成（todo / in_progress）与待复核（in_review）。 */
   openTaskCount: number;
 }
 
 /**
  * 按频道状态推导当前该给哪张引导卡（不再推导旅程步数）：
- * 无消息 → describe；有消息无任务 → handoff；任一 in_review → review（最高优先）；
+ * 无消息 → describe；有消息无任务 → null；任一 in_review → review（最高优先）；
  * 任一 todo（含与 in_progress 并存）→ handoff（等待交接/认领）；
  * 其余（只有 in_progress，或全部 done/closed）→ null——进行中不产出卡片。
  */
@@ -38,7 +37,7 @@ export function deriveJourneyState(input: JourneyInput): JourneyState {
   if (!hasMessages) {
     guideKind = "describe";
   } else if (!hasTasks) {
-    guideKind = "handoff";
+    guideKind = null;
   } else if (hasInReview) {
     guideKind = "review";
   } else if (hasOpenTodo) {
@@ -49,7 +48,6 @@ export function deriveJourneyState(input: JourneyInput): JourneyState {
 
   return {
     guideKind,
-    hasTasks,
     openTaskCount,
   };
 }

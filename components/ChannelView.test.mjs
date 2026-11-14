@@ -1349,28 +1349,25 @@ test("无消息引导卡在未接线秘书入口时不渲染该按钮", () => {
     assert.doesNotMatch(html, /Let the secretary set up the first room/);
 });
 
-test("有消息无任务引导卡：给出把消息转为任务的入口", () => {
+test("handoff 只表示待办任务，不渲染已删除的转任务引导", () => {
     const html = renderI18n(
         React.createElement(JourneyGuideCard, {
             kind: "handoff",
-            hasTasks: false,
-            onConvertLatest: () => undefined,
             onOpenTasks: () => undefined,
         }),
     );
 
-    assert.match(html, /Turn a message into a task/);
-    assert.match(html, /Convert a message into a task and @mention an agent/);
-    assert.match(html, /Convert the latest message/);
-    assert.doesNotMatch(html, /Open the task board/);
+    assert.match(html, /Waiting for hand off or claim/);
+    assert.match(html, /Open the task board/);
+    assert.doesNotMatch(html, /Turn a message into a task/);
+    assert.doesNotMatch(html, /Convert a message into a task and @mention an agent/);
+    assert.doesNotMatch(html, /Convert the latest message/);
 });
 
 test("只有待办任务时引导卡改为提示交接或认领，并切到任务板", () => {
     const html = renderI18n(
         React.createElement(JourneyGuideCard, {
             kind: "handoff",
-            hasTasks: true,
-            onConvertLatest: () => undefined,
             onOpenTasks: () => undefined,
         }),
     );
@@ -1522,7 +1519,6 @@ test("卡壳静止：阶段只进 data 属性，不挂整卡动画类", () => {
         React.createElement(JourneyGuideCard, {
             kind: "handoff",
             phase: "exit",
-            hasTasks: true,
         }),
     );
     const exitingTag = exiting.match(/<section[^>]*>/)?.[0] ?? "";

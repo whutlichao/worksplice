@@ -663,12 +663,10 @@ interface JourneyGuideFxState {
 
 function resolveJourneyGuideContent(
   kind: JourneyGuideKind,
-  hasTasks: boolean,
   t: (key: string) => string,
   handlers: {
     onDescribe?: () => void;
     onOpenSecretary?: () => void;
-    onConvertLatest?: (trigger: HTMLButtonElement) => void;
     onOpenTasks?: () => void;
   },
 ): JourneyGuideContentSpec {
@@ -693,23 +691,13 @@ function resolveJourneyGuideContent(
       });
     }
   } else if (kind === "handoff") {
-    title = hasTasks
-      ? t("journey.handoff.waitingTitle")
-      : t("journey.handoff.title");
-    hint = hasTasks
-      ? t("journey.handoff.waitingHint")
-      : t("journey.handoff.hint");
-    if (hasTasks && handlers.onOpenTasks) {
+    title = t("journey.handoff.waitingTitle");
+    hint = t("journey.handoff.waitingHint");
+    if (handlers.onOpenTasks) {
       actions.push({
         label: t("journey.handoff.ctaTasks"),
         className: "btn btn-primary btn-sm",
         onClick: () => handlers.onOpenTasks?.(),
-      });
-    } else if (handlers.onConvertLatest) {
-      actions.push({
-        label: t("journey.handoff.cta"),
-        className: "btn btn-primary btn-sm",
-        onClick: (trigger) => handlers.onConvertLatest?.(trigger),
       });
     }
   } else if (kind === "review") {
@@ -1003,27 +991,22 @@ export function JourneyGuideCard({
   kind,
   phase = "enter",
   generation,
-  hasTasks = false,
   onDescribe,
   onOpenSecretary,
-  onConvertLatest,
   onOpenTasks,
 }: {
   kind: JourneyGuideKind;
   phase?: JourneyGuidePhase;
   /** 每次形态变化递增；没有该值（空态静态卡）时不做过渡。 */
   generation?: number;
-  hasTasks?: boolean;
   onDescribe?: () => void;
   onOpenSecretary?: () => void;
-  onConvertLatest?: (trigger: HTMLButtonElement) => void;
   onOpenTasks?: () => void;
 }) {
   const { t } = useI18n();
-  const content = resolveJourneyGuideContent(kind, hasTasks, t, {
+  const content = resolveJourneyGuideContent(kind, t, {
     onDescribe,
     onOpenSecretary,
-    onConvertLatest,
     onOpenTasks,
   });
   const [fx, setFx] = useState<JourneyGuideFxState | null>(null);
@@ -5155,12 +5138,7 @@ export function ChannelView({
                   kind={guideView.kind}
                   phase={guideView.phase}
                   generation={guideView.generation}
-                  hasTasks={journey.hasTasks}
                   onOpenTasks={() => selectTab("tasks")}
-                  onConvertLatest={(trigger) => {
-                    const latest = messages[messages.length - 1];
-                    if (latest) handleConvertToTask(latest, trigger);
-                  }}
                 />
               )}
             </div>
