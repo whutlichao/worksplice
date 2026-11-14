@@ -1,6 +1,11 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { notifyAgentJoinedChannel, notifyChannelCreated } from "./event-messages.ts";
-import { getGlobalChief, resolveEffectiveChief, type ChiefSource } from "./chief.ts";
+import {
+  getGlobalChief,
+  resolveEffectiveChief,
+  setChannelChief,
+  type ChiefSource,
+} from "./chief.ts";
 import { assertActorMayPerform } from "./member-capabilities.ts";
 import { getRoomTurnStore, type RoomStopResult } from "./room-budget.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
@@ -132,12 +137,17 @@ export function resumeDirectChannel(agentId: string): void {
 /**
  * 创建 channel 并自动加入创建者（Owner）+ 初始成员（§3.2 创建 channel 规则）。
  * 私有 channel 的初始成员也由创建者（Owner）直接指定，属合法路径。
+ *
+ * #252：`chiefMemberId` 是「建频道时顺手指定的频道首席」，可省略 / null（不写绑定 ⇒ 回落全局）。
+ * 频道行、成员关系与首席绑定同一笔事务提交——目标不是本频道未软删的 agent 成员时，
+ * `setChannelChief` 的唯一校验口拒绝并整笔回滚，因此不会留下建了一半的频道或半条绑定。
  */
 export function createChannel(input: {
   name: string;
   type?: ChannelRow["type"];
   description?: string;
   memberIds?: string[];
+  chiefMemberId?: string | null;
 }): ChannelRow {
   const name = input.name.trim();
   if (!name) throw new Error("Channel name is required");
@@ -145,21 +155,28 @@ export function createChannel(input: {
   if (input.type === "dm") {
     throw new Error("DM channels are created via createDirectChannel");
   }
-  const channel = getDb().insertChannel({
-    name,
-    type: input.type ?? "public",
-    description: (input.description ?? "").trim(),
+  const chiefMemberId = input.chiefMemberId ?? null;
+  const channel = getDb().withTransaction(() => {
+    const created = getDb().insertChannel({
+      name,
+      type: input.type ?? "public",
+      description: (input.description ?? "").trim(),
+    });
+    addMemberWithJoinCursor(created.id, OWNER_MEMBER_ID);
+    for (const memberId of input.memberIds ?? []) {
+      assertMember(memberId);
+      addMemberWithJoinCursor(created.id, memberId);
+    }
+    // §7 新建公开频道必加：秘书静默加入（不触发欢迎事件；私有频道由创建者预勾选决定）。
+    if (created.type === "public") {
+      const susan = getGlobalChief();
+      if (susan) addMemberWithJoinCursor(created.id, susan.id);
+    }
+    // 成员关系写完之后才校验：频道首席的合法面就是「本频道的 agent 成员」。
+    if (chiefMemberId !== null) setChannelChief(created.id, chiefMemberId);
+    // 回读：返回值要与落库结果一致（含 chief_member_id）。
+    return getDb().getChannel(created.id) as ChannelRow;
   });
-  addMemberWithJoinCursor(channel.id, OWNER_MEMBER_ID);
-  for (const memberId of input.memberIds ?? []) {
-    assertMember(memberId);
-    addMemberWithJoinCursor(channel.id, memberId);
-  }
-  // §7 新建公开频道必加：秘书静默加入（不触发欢迎事件；私有频道由创建者预勾选决定）。
-  if (channel.type === "public") {
-    const susan = getGlobalChief();
-    if (susan) addMemberWithJoinCursor(channel.id, susan.id);
-  }
   notifyChannelCreated(channel);
   return channel;
 }
