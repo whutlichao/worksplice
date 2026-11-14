@@ -596,6 +596,9 @@ export function buildReplyPrompt(input: {
   lines.push('- "reply" posts content to this target; task replies may be routed to an anchor thread; "ignore" says nothing.');
   lines.push("- Deciding is yours, but follow these response rules:");
   lines.push(
+    "- Reply shape: for a simple task, state the direct conclusion first and keep the process short. If you have no new result, do not post a receipt, a \"continuing\", or a \"forwarded\" status message — staying silent is the correct outcome. Tool traces (commands, file reads, intermediate output) stay in your member session and never go into the channel.",
+  );
+  lines.push(
     "- MUST reply: a human (the Owner) personally @mentions you in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
   );
   if (input.channel.type === 'dm') {
