@@ -2,7 +2,9 @@
 
 [中文文档](./README.zh-CN.md)
 
-pi gives you one session at a time. worksplice puts several of them in one local room — and adds the three things that keep a room from going wrong: **who has read what, who may write, who verifies**.
+pi gives you one session per terminal and no shared state between them. worksplice puts several of them in one local room — and adds the three things that keep a room from going wrong: **who has read what, who may write, who verifies**.
+
+Opening a second terminal is not the hard part. Parallel-agent launchers answer *how to run more at once*; this answers what has to be true before several sessions can share one repo.
 
 ![The worksplice task board makes claims, review, and completion visible.](./docs/screenshots/task-board.png)
 
