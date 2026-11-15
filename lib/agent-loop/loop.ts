@@ -28,6 +28,7 @@ import {
   INBOX_DRAIN_WINDOW,
   isChannelMember,
   isDM,
+  isEffectiveChiefForChannel,
   isSecretaryMember,
   joinChannel,
   listAgents,
@@ -522,9 +523,9 @@ export const DEFAULT_RECIPIENT_RULE: readonly string[] = [
 /**
  * 建完即派（票 chief-recipient-router，用户裁决 ①）：**首席会话的任何一轮**都注入。
  *
- * 为什么是「首席会话」而不是「所有会话」：`handoff` op 只对全局首席开放（`runTaskOperation` 的
- * 第一道闸是 `isSecretaryMember`），六个 `worksplice_*` 工具也只注册在首席会话里。给普通成员的
- * prompt 教这套动作，等于教它用一个它没有的工具，还会让非首席轮次的 prompt 不再逐字节不变。
+ * 为什么是「全局首席会话」而不是「所有会话」：六个 `worksplice_*` 工具只注册在全局首席会话里，
+ * `handoff` op 则对本频道的生效首席开放（频道首席或全局回落）。普通成员没有这套工具，给它们
+ * 注入这段 prompt 等于教一个不存在的入口；频道首席也不得因此升格为全局工具面。
  *
  * 为什么是 prompt 而不是 loop 逻辑：`handoff` 不受轮次准入约束——准入只决定「这一轮要不要起来」，
  * 派哪个任务由 `handoffTask` 的资格判定决定。所以「建完即派」缺的只是「同一轮可以接着派」这句告知。
@@ -563,8 +564,8 @@ export function buildReplyPrompt(input: {
   /** 新成员首次合法准入、且没有他人新正文时的有界频道简报（票 #243）。 */
   joinBriefing?: JoinBriefing;
   /**
-   * 秘书 handoff 轮（票 #240）：本轮唯一关联的未认领任务 + 候选成员。
-   * 只有秘书被明确关联时注入；普通轮次不出现 handoff 指令。
+   * 首席 handoff 轮（票 #240 / #270）：本轮唯一关联的未认领任务 + 候选成员。
+   * 只有本频道的生效首席被明确关联时注入；普通轮次不出现 handoff 指令。
    */
   handoff?: {
     number: number;
@@ -573,7 +574,8 @@ export function buildReplyPrompt(input: {
   /**
    * 本轮的收件人身份（票 chief-recipient-router）：只决定两段固定骨架行，不参与任何判定。
    * - `role`：本轮是怎么进来的（与 `round_logs.role` 同一份取值）；`"chief"` ⇒ 默认收件人轮。
-   * - `canHandoff`：本会话属于全局首席（`isSecretaryMember`）——`handoff` op 只对首席开放。
+   * - `canHandoff`：本会话属于**全局首席工具面**（`isSecretaryMember`），只控制
+   *   「建完即派」提示；频道首席可以执行已有的 handoff op，但不拿到建任务工具。
    * 缺省 = 不适用：prompt 与今天逐字节相同（非首席成员 / 直调本函数的单测）。
    */
   recipient?: { role: AdmissionRole; canHandoff: boolean };
@@ -690,7 +692,7 @@ export function buildReplyPrompt(input: {
   lines.push(...CONTENT_PLACEMENT_RUBRIC);
   // 收件人规则（票 chief-recipient-router）：两条独立条件、互不蕴含——
   // 「默认收件人只路由」只属于本轮作为默认收件人进来的轮次（role="chief"）；
-  // 「建完即派」属于首席会话的任何准入角色（handoff 只对全局首席开放）。
+  // 「建完即派」属于全局首席工具面的任何准入角色；频道首席走任务事件自己的 handoff prompt。
   if (input.recipient?.role === "chief") lines.push(...DEFAULT_RECIPIENT_RULE);
   if (input.recipient?.canHandoff) lines.push(...CREATE_THEN_HANDOFF_RULE);
   lines.push(
@@ -727,7 +729,7 @@ export function buildReplyPrompt(input: {
         : "";
     lines.push("");
     lines.push(
-      `Secretary handoff: task #${input.handoff.number} is unclaimed and this round was admitted to route it.`,
+      `Chief handoff: task #${input.handoff.number} is unclaimed and this round was admitted to route it.`,
     );
     lines.push(`Eligible candidates: ${candidates}.${hiddenNotice}`);
     lines.push(
@@ -1633,9 +1635,9 @@ export async function runTaskOperation(input: {
       baseSeq,
     };
   }
-  // ---- handoff（票 #240）：只有秘书可执行；普通 agent 明确拒绝 ---------------
+  // ---- handoff（票 #240 / #270）：只有本频道的生效首席可执行；普通 agent 明确拒绝 --
   if (taskOp?.op === "handoff") {
-    if (!isSecretaryMember(agent)) {
+    if (!isEffectiveChiefForChannel(channel.id, agent.id)) {
       ack(agent.id, input.targetId, baseSeq);
       return {
         status: "yielded",
@@ -2260,6 +2262,29 @@ export async function runAgentRound(
   // 否则窗口内的 @all 不能被后续无点名正文覆盖（#237）。
   const humanAllMentioned =
     !latestHumanIsTaskEvent && hasHumanAllMentionSignal(incoming);
+  // 互审触达（#270）：只认任务 owner 是 agent、当前 agent 是频道成员，且本轮 drain
+  // 里**最新一条 owner 消息**点名了当前 agent。owner 的收束语 / 签退仍不算新邀请。
+  const taskOwnerId = task?.owner_id ?? null;
+  const taskOwnerMember =
+    taskOwnerId === null ? undefined : getDb().getMember(taskOwnerId);
+  const latestTaskOwnerMessage =
+    taskOwnerId === null
+      ? undefined
+      : [...incoming]
+          .reverse()
+          .find((message) => message.author_id === taskOwnerId);
+  const taskOwnerMentioned = Boolean(
+    isMember &&
+      task &&
+      task.status === "in_review" &&
+      task.owner_id !== agent.id &&
+      taskOwnerMember?.type === "agent" &&
+      taskOwnerMember.deleted !== 1 &&
+      isChannelMember(channel.id, taskOwnerMember.id) &&
+      latestTaskOwnerMessage &&
+      extractMentionedMemberIds(latestTaskOwnerMessage.content).includes(agent.id) &&
+      !isPeerCloseText(latestTaskOwnerMessage.content),
+  );
   const hasOpenTaskEvent =
     targetId === channel.id &&
     incoming.some((message) => {
@@ -2301,10 +2326,11 @@ export async function runAgentRound(
       hasAllMention(anchor.content)
     );
   })();
-  // 票 #240：秘书只在「任务创建事件 / 明确关联的未认领任务」两种入口被自动准入。
-  // 多任务命中、无关联、任意闲聊、已分流、已有 owner、reopened 都由触发判定拒绝。
-  const isSecretary = isSecretaryMember(agent);
-  const handoffSelection = isSecretary
+  // 票 #240 / #270：任务 handoff 只自动准入本频道的生效首席——频道首席在场时不再叫
+  // 全局回落首席。多任务命中、无关联、任意闲聊、已分流、已有 owner、reopened 都由触发判定拒绝。
+  const isGlobalChief = isSecretaryMember(agent);
+  const isEffectiveChief = isEffectiveChiefForChannel(channel.id, agent.id);
+  const handoffSelection = isEffectiveChief
     ? selectSecretaryHandoffTask({
         secretary: agent,
         channel,
@@ -2316,7 +2342,7 @@ export async function runAgentRound(
   // 重启后同一触发仍在 drain 里时，重入 handoff 只会得到 already-handled；这里只推进游标，
   // 不起会话、不写第二条通知、不改 owner / 状态。人类指名秘书时不走这条捷径。
   if (
-    isSecretary &&
+    isEffectiveChief &&
     handoffSelection?.kind === "none" &&
     handoffSelection.reason === "already-handled" &&
     !humanMentioned &&
@@ -2368,9 +2394,10 @@ export async function runAgentRound(
     continuing,
     humanMentioned,
     humanAllMentioned,
+    taskOwnerMentioned,
     hasOpenTaskEvent,
     chiefInvited,
-    isSecretary,
+    isEffectiveChief,
     secretaryHandoff: Boolean(handoffTargetTask),
     taskEventAnchorInvited,
   });
@@ -2537,9 +2564,9 @@ export async function runAgentRound(
           })),
         }
       : undefined,
-    // 收件人身份（票 chief-recipient-router）：角色取准入的唯一结论，可派与否取秘书身份——
-    // 两者都不在这里重新推导（`decideRoundAdmission` 与 `isSecretaryMember` 各自已经是单一来源）。
-    recipient: { role: admittedRole, canHandoff: isSecretary },
+    // 收件人身份（票 chief-recipient-router）：角色取准入的唯一结论；`canHandoff` 仍表示
+    // 全局首席工具面（本票不扩工具面），不能拿来判断频道首席能否执行既有 handoff op。
+    recipient: { role: admittedRole, canHandoff: isGlobalChief },
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。

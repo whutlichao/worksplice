@@ -18,7 +18,8 @@ export const ROUND_SKIP_REASONS = {
   noInvitation: "no human mention and no attributable task",
   notMember: "not a member of the channel",
   taskOwnerOnly: "task in progress — only its owner may continue",
-  taskReviewerNotInvited: "task in review — reviewers require a human mention",
+  taskReviewerNotInvited:
+    "task in review — reviewers require a human or task-owner mention",
   taskUnclaimed: "task is unclaimed — no automatic round",
   taskDoneOrClosed: "task is done or closed — no automatic round",
   taskReopened: "task was reopened — awaiting the human owner",
@@ -53,6 +54,12 @@ export interface RoundAdmissionInput {
   humanMentioned: boolean;
   /** 当轮 incoming 里是否有任何人类正文出现 @all / @everyone。 */
   humanAllMentioned: boolean;
+  /**
+   * 任务 owner 是本频道的 agent，且本轮 drain 里最新一条 owner 消息点名了当前 agent。
+   * 这是互审的注意力信号，不是 must-respond：只放开 `in_review` 的模型调用准入。
+   * owner 的收束语 / 签退消息不计入（由 loop 的 `isPeerCloseText` 判据排除）。
+   */
+  taskOwnerMentioned: boolean;
   /** 当轮 incoming 里是否有仍开放的 Owner `Task #N created` 事件。 */
   hasOpenTaskEvent: boolean;
   /**
@@ -61,9 +68,9 @@ export interface RoundAdmissionInput {
    * 它把「以首席身份进来」与「被人点名」分开——涉及任务的消息仍走 secretary-handoff。
    */
   chiefInvited: boolean;
-  /** 本成员是否就是当前存活的秘书。 */
-  isSecretary: boolean;
-  /** 秘书本轮是否被一个唯一的未认领任务明确关联（创建事件 / 任务线程 / 唯一引用）。 */
+  /** 本成员是否就是该频道此刻的生效首席（频道首席 → 全局回落 → 无）。 */
+  isEffectiveChief: boolean;
+  /** 生效首席本轮是否被一个唯一的未认领任务明确关联（创建事件 / 任务线程 / 唯一引用）。 */
   secretaryHandoff: boolean;
   /**
    * 任务创建事件旁边的人类任务锚点是否明确点名了本 agent / @all。
@@ -98,7 +105,9 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
           : { admit: false, reason: ROUND_SKIP_REASONS.taskOwnerOnly };
       case "in_review":
         if (owner) return { admit: true, role: "task-owner", useRoomGate: false };
-        return input.humanMentioned || input.humanAllMentioned
+        return input.humanMentioned ||
+          input.humanAllMentioned ||
+          input.taskOwnerMentioned
           ? { admit: true, role: "task-reviewer", useRoomGate: false }
           : { admit: false, reason: ROUND_SKIP_REASONS.taskReviewerNotInvited };
       case "done":
@@ -107,7 +116,7 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
           ? { admit: true, role: "human-mention", useRoomGate: false }
           : { admit: false, reason: ROUND_SKIP_REASONS.taskDoneOrClosed };
       case "todo":
-        if (input.isSecretary && input.secretaryHandoff) {
+        if (input.isEffectiveChief && input.secretaryHandoff) {
           return { admit: true, role: "secretary-handoff", useRoomGate: false };
         }
         return input.humanMentioned || input.humanAllMentioned
@@ -126,11 +135,11 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
     return { admit: true, role: "human-mention", useRoomGate: true };
   }
   // #248：没点名、没 @all、不涉及任务时，生效首席接住这条消息——优先级低于人类直接点名，
-  // 高于秘书 handoff / 任务事件；首席同样走房间门（受预算与 Stop 约束）。
+  // 高于 handoff / 任务事件；首席同样走房间门（受预算与 Stop 约束）。
   if (input.chiefInvited) {
     return { admit: true, role: "chief", useRoomGate: true };
   }
-  if (input.isSecretary && input.secretaryHandoff) {
+  if (input.isEffectiveChief && input.secretaryHandoff) {
     return { admit: true, role: "secretary-handoff", useRoomGate: false };
   }
   if (input.hasOpenTaskEvent) {
@@ -139,7 +148,7 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
     }
     return {
       admit: false,
-      reason: input.isSecretary
+      reason: input.isEffectiveChief
         ? ROUND_SKIP_REASONS.handoffNotTriggered
         : ROUND_SKIP_REASONS.taskEventHandoffOnly,
     };

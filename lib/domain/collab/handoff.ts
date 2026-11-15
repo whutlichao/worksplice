@@ -5,6 +5,7 @@ import {
   isChannelMember,
   listChannelMembers,
 } from "./channels.ts";
+import { isEffectiveChiefForChannel } from "./chief.ts";
 import { isHandoffEligibleTask } from "./handoff-trigger.ts";
 import { sendMessage } from "./messages.ts";
 import { getMember } from "./members.ts";
@@ -25,8 +26,8 @@ import type {
  *   与 `handoff_state='blocked'` 同事务提交，任务保持 todo、owner 空。
  * - 重复触发看到 handoff_state 即 no-op；并发 claim 由 claimTask 的 owner 唯一性裁决。
  *
- * 自动路径绝不把秘书自己写成 owner：候选列表排除秘书，显式指定秘书也走 blocked。
- * 用户明确点名秘书为 owner 时，走普通 `claimTask`（不经过本模块）。
+ * 自动路径绝不把执行 handoff 的生效首席写成 owner：候选列表排除执行者，显式指定它
+ * 也走 blocked。用户明确点名首席为 owner 时，走普通 `claimTask`（不经过本模块）。
  */
 
 export type HandoffResult =
@@ -169,7 +170,8 @@ function candidateNames(candidates: MemberRow[]): string {
 }
 
 /**
- * 执行一次秘书 handoff。所有写入在单个事务内；wake 在提交后发出。
+ * 执行一次首席 handoff（`secretaryId` 指本频道的生效首席：频道首席或全局回落）。
+ * 所有写入在单个事务内；wake 在提交后发出。
  * `deliverNotice` 是测试接缝：注入抛错时验证 owner / 标记 / 通知一起回滚。
  */
 export function handoffTask(input: {
@@ -185,7 +187,7 @@ export function handoffTask(input: {
   const channel = getChannel(input.channelId);
   if (!channel) return { status: "noop", reason: "not_found" };
   const secretary = getMember(input.secretaryId);
-  if (!secretary || !isSecretaryMember(secretary)) {
+  if (!secretary || !isEffectiveChiefForChannel(channel.id, secretary.id)) {
     return {
       status: "denied",
       reason: "handoff is reserved for the secretary",
@@ -258,7 +260,7 @@ export function handoffTask(input: {
         anchor,
         secretary,
         chosen,
-        content: `Task #${task.number} owner set to @${chosen.name} by secretary handoff.`,
+        content: `Task #${task.number} owner set to @${chosen.name} by @${secretary.name} (chief handoff).`,
       });
       const updated = getDb().updateTask(task.id, {
         handoffState: "handed_off",
