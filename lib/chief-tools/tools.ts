@@ -29,6 +29,7 @@ import {
   listChannelMembers,
   listChannels,
   listChannelTasks,
+  memberIdRejection,
   notifyChiefSystemAction,
 } from "../domain/collab/index.ts";
 import {
@@ -45,7 +46,6 @@ import {
   decideListTasksInput,
   decideTaskCreateInput,
   isChannelVisibleToActor,
-  memberIdRejection,
   memberSummary,
   taskSummary,
 } from "./decisions.ts";

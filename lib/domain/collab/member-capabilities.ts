@@ -20,7 +20,7 @@
  */
 
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
-import type { MemberRow } from "../../data/types.ts";
+import type { ChannelType, MemberRow } from "../../data/types.ts";
 
 /**
  * `ops` 数组词表（协议层，见 lib/agent-loop/member-ops.ts）：开口表从它派生，两边不会漂移。
@@ -217,14 +217,24 @@ const CREATE_CHANNEL_CONSTRAINT: ChannelCreateConstraint = Object.freeze({
  * 按动作名取执行约束：**单一来源**。返回 `null` = 该动作没有形状约束（不是「不允许」——
  * 那由 `canMemberPerform` 回答）。批量与单条执行器都从这里取值，不再各写一份。
  */
+export function memberOpConstraint(op: "createAgent"): AgentCreateConstraint;
+export function memberOpConstraint(op: "createChannel"): ChannelCreateConstraint;
+export function memberOpConstraint(op: string): MemberOpConstraint | null;
 export function memberOpConstraint(operation: string): MemberOpConstraint | null {
+  // 重载让四条判据拿到**具体分支**的类型（不用 `as` 把联合缩窄——判据是安全边界，
+  // 不给自己留一个「以为拿到了 createAgent 的约束，实际拿到 createChannel 的」的口子）。
   if (operation === "createAgent") return CREATE_AGENT_CONSTRAINT;
   if (operation === "createChannel") return CREATE_CHANNEL_CONSTRAINT;
   return null;
 }
 
-/** 值的可读描述：拒绝时要点名「收到了什么」（对象 / 数组也照原样）。 */
-function describeValue(value: unknown): string {
+/**
+ * 值的可读描述：拒绝时要点名「收到了什么」（对象 / 数组也照原样）。
+ *
+ * 导出是因为首席 tools 的判定层（`lib/chief-tools/decisions.ts`）对**其它**字段也报同一口径的
+ * 「received …」——两边共一份，不能各写一个描述函数（同一事实两种写法是本票要消除的东西）。
+ */
+export function describeValue(value: unknown): string {
   if (typeof value === "string") return JSON.stringify(value);
   if (value === undefined) return "undefined";
   try {
@@ -240,7 +250,7 @@ function describeValue(value: unknown): string {
  * 文案在这里只写一份：两条路径拒绝时给模型看到的是**同一句话**（改规则时不可能只改一边）。
  */
 export function agentNameRejection(name: unknown): string | null {
-  const constraint = memberOpConstraint("createAgent") as AgentCreateConstraint;
+  const constraint = memberOpConstraint("createAgent");
   if (typeof name === "string" && constraint.namePattern.test(name)) return null;
   return (
     `agent name must match /${constraint.namePattern.source}/ — start with "ops-", then 1-28 ` +
@@ -253,7 +263,7 @@ export function agentNameRejection(name: unknown): string | null {
  * 视为没出现）——新身份继承全局默认，不允许按次指定服务商 / 模型。
  */
 export function modelSelectionRejection(fields: Record<string, unknown>): string | null {
-  const constraint = memberOpConstraint("createAgent") as AgentCreateConstraint;
+  const constraint = memberOpConstraint("createAgent");
   const given = constraint.rejectedFields.filter(
     (field) => fields[field] !== undefined && fields[field] !== null,
   );
@@ -271,11 +281,11 @@ export function modelSelectionRejection(fields: Record<string, unknown>): string
  * 私有频道不能靠它变成立——否则「首席建了一个自己不在里面的私有房间」换个写法又成立了。
  */
 export function privateChannelActorRejection(input: {
-  type: string;
+  type: ChannelType;
   memberIds: readonly string[];
   actorId: string;
 }): string | null {
-  const constraint = memberOpConstraint("createChannel") as ChannelCreateConstraint;
+  const constraint = memberOpConstraint("createChannel");
   if (!constraint.privateRequiresActor || input.type !== "private") return null;
   if (input.memberIds.includes(input.actorId)) return null;
   return (

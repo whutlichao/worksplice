@@ -13,15 +13,25 @@ import {
   MEMBER_AGENT_CREATE_QUOTA_REJECTION,
   MEMBER_AGENT_NAME_PATTERN,
   agentNameRejection,
-  memberIdRejection,
+  describeValue,
   privateChannelActorRejection,
 } from "../domain/collab/member-capabilities.ts";
 
 /**
- * 首席领域工具的**判定层**（票 chief-tools）：参数校验、配额、可见面、读面摘要与事件文案。
- * 纯函数 + 零领域依赖：运行时只引入 `lib/preview.ts` 这一个纯工具模块，其余 import 全是
+ * 首席领域工具的**判定层**（票 chief-tools）：参数校验、可见面、读面摘要与事件文案。
+ * 纯函数 + 零重依赖：运行时只引入 `lib/preview.ts` 与**能力表**
+ * `lib/domain/collab/member-capabilities.ts`（票 chief-capability-converge——名字正则 / 配额文案 /
+ * 私有频道的 actor 判据 / memberIds 准入面都不再往这里写第二份），其余 import 全是
  * `import type`（数据层的共享词表 `lib/data/types.ts`，编译后不留运行时依赖）——所以每条规则
  * 都能用一次调用取证，不需要 SDK、不需要数据库，也不需要起会话。
+ *
+ * ## 子路径导入是有意例外（协作域唯一导入面那条规矩）
+ *
+ * `docs/engineering-standards.md` §1 要求消费方一律走 `lib/domain/collab/index.ts`。这里刻意
+ * 直接引子模块：索引面会把 messages / tasks / sqlite 这些**带 DB 的服务**一并拉进运行时图，
+ * 而本文件的价值就在「不碰 DB、不拉 SDK」。能力表本身是零依赖判定层（只 import 数据层常量与
+ * 类型），所以这条子路径不破坏分层，反而是这条分层的守卫。`decisions.test.mjs` 里的源码级
+ * 断言把运行时依赖面固定成「preview + 能力表」两项，新增第三个会立刻报红。
  *
  * 分工照 `lib/tool-path-guard.ts` / `lib/pi-env-status.ts` 的同一套纪律：判定在纯函数里，
  * 副作用（读库、建频道、建 agent、投事件消息）留在 `lib/chief-tools/tools.ts` 的薄壳里。
@@ -94,16 +104,6 @@ function reject<T>(error: string): Decision<T> {
 }
 
 /** 参数值的可读描述：报告里点名「收到了什么」（对象/数组也照原样）。 */
-function describeValue(value: unknown): string {
-  if (typeof value === "string") return JSON.stringify(value);
-  if (value === undefined) return "undefined";
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    return String(value);
-  }
-}
-
 function asObject(input: unknown): Record<string, unknown> | null {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return null;
   return input as Record<string, unknown>;
@@ -354,17 +354,10 @@ function readMemberIds(value: unknown): Decision<string[]> {
 }
 
 /**
- * `memberIds` 的准入判据：只允许**存活的 agent 成员**。
- *
- * 票 chief-capability-converge 起落在能力表（`lib/domain/collab/member-capabilities.ts`）：
- * 这里只做 re-export，保留既有导入面（工具层与测试都从这里取），判据与文案仍只有一份。
- *
- * 为什么需要它（实测）：`createChannel` 的 `assertMember` 只查「这一行在不在」
- * （`getDb().getMember` 连软删行一起返回，也不看 `type`），所以软删身份和人类 id 都能被
- * 塞进新频道。软删身份重新出现在频道里违反 §3.6「删除即移出全部 channel」；人类 id 该走
- * 「Owner 自动加入」那条既有语义，不该由 `memberIds` 决定。
+ * `memberIds` 的准入判据（只允许**存活 agent 成员**）住在能力表：
+ * `memberIdRejection`（`lib/domain/collab/member-capabilities.ts`）。工具层直接从协作域索引面取它
+ * ——本文件不留一个只做转手的 re-export（那只是多一层中间人，判据仍只有一份）。
  */
-export { memberIdRejection };
 
 // ---------------------------------------------------------------------------
 // 写面 2：worksplice_agent_create —— *只有* { name, description?, channelId? }

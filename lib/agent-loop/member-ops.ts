@@ -394,12 +394,13 @@ function resolveMemberIds(refs: string[]): { ids: string[]; rejection: string | 
   for (const ref of refs) {
     const name = ref.startsWith("@") ? ref.slice(1) : ref;
     const member = getDb().getMemberByName(name);
-    // 准入判据的唯一来源是能力表（`memberIdRejection`）：只收存活 agent。
-    // 软删身份重新出现在频道里违反 §3.6「删除即移出全部 channel」；人类该走
+    // 不存在的先出局（否则下面拿不到 id）；再让共享判据判「存活 agent」——
+    // 软删身份重新出现在频道里违反 §3.6「删除即移出全部 channel」，人类该走
     // 「Owner 自动加入」那条既有语义，不该由调用方按名指定。
+    if (!member) return { ids: [], rejection: memberIdRejection(null, ref) };
     const rejection = memberIdRejection(member, ref);
     if (rejection) return { ids: [], rejection };
-    if (!ids.includes(member!.id)) ids.push(member!.id);
+    if (!ids.includes(member.id)) ids.push(member.id);
   }
   return { ids, rejection: null };
 }
