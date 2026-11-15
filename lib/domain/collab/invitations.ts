@@ -46,7 +46,7 @@ export function parseTaskCreationEventNumber(content: string): number | null {
  * 非 DM、无个人点名、无 `@all`、不涉及任务（不是任务线程、不是任务锚点、不引用任何 `Task #N`）。
  *
  * 「涉及任务」的判定与 handoff 触发共用 `task-reference.ts` 的同一份解析：任务相关的人类消息
- * **只**由全局首席以 secretary-handoff 准入（#240），不得被频道首席的 chief 分支抢走——
+ * **只**由本频道的生效首席以 secretary-handoff 准入（#240 / #270），不得被 chief 收件人分支抢走——
  * 否则频道首席≠全局首席时，一条唯一 `Task #N` 引用会叫错人、或把两轮都叫起来。
  *
  * 首席在本频道不可用（已软删 / 不是该频道 agent 成员 / 静音了该频道）⇒ null

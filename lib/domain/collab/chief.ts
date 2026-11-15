@@ -148,6 +148,19 @@ export function resolveEffectiveChief(channelId: string): EffectiveChief {
   return globalChief ? { chief: globalChief, source: "global" } : { chief: null, source: "none" };
 }
 
+/**
+ * 这个成员是不是该频道**此刻**的生效首席。
+ *
+ * 唯一解析仍归 `resolveEffectiveChief`：调用点不得自己重走「频道 → 全局 → 无」。
+ * 这里不判静音——静音是可达性（`canRouteToChief`），不是身份。
+ */
+export function isEffectiveChiefForChannel(
+  channelId: string,
+  memberId: string,
+): boolean {
+  return resolveEffectiveChief(channelId).chief?.id === memberId;
+}
+
 /** 频道首席绑定的拒绝语义：路由按 `status` 映射稳定 4xx，`code` 给调用方与测试做稳定判据。 */
 export type ChannelChiefErrorCode =
   | "channel_not_found"

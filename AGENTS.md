@@ -180,6 +180,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   + CURRENT_MEMBER_ID（恒为 owner）
   chief.ts                        首席身份的唯一解析口（#248–#252）：getGlobalChief / setGlobalChief
                                   （GlobalChiefError）/ resolveEffectiveChief（频道 → 全局 → 无）
+                                  / isEffectiveChiefForChannel（只回答某成员是否是该频道此刻的生效首席）
                                   / setChannelChief（ChannelChiefError）/ canRouteToChief（对本频道是否
                                   可达：成员 + 未静音，选人 · wake · 频道行共用）/ chiefRefOf（ChiefRef）
   secretary-identity.ts           秘书身份判定源（#248 起是角色判定）：isSecretaryMember = 是不是当前
@@ -187,6 +188,13 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   task-reference.ts               「正文提到了哪些任务」的共享纯判定（parseTaskReferenceNumbers /
                                   hasTaskReference）：handoff 触发与选人共用，断开 handoff-trigger ← invitations
                                   的反向依赖；引用块 / 代码块里的 Task #N 不算
+  handoff-trigger.ts              消息触发的任务分流判定（#240 / #270）：selectSecretaryHandoffTask
+                                  （授权 = 本频道生效首席；创建事件 / 任务锚点 / 任务线程 / 唯一引用；
+                                  多任务 / 无关联 / 已分流 / 有 owner / reopened / 非 todo 不选）+
+                                  isHandoffEligibleTask；内部 secretary 命名指生效首席，不是全局首席
+  handoff.ts                      handoff 写路径：handoffTask（授权 = 生效首席 → 频道首席或全局回落；
+                                  候选排除 / claim 事务 / freshness / blocked / 提交后定向唤醒 chosen）+
+                                  listHandoffCandidates / recoverHandoffWakes；成功通知写明实际执行者
   rounds.ts                       §07 轮次结果服务层：logRoundOutcome / listRoundLogs（camelCase 出线
                                   RoundLogView）+ v19 `role`（这一轮怎么进来的：chief / 点名 / 任务 / 提醒 / DM）
   messages.ts                     sendMessage（freshness + thread 校验 + quote + 附件落盘 + 提交后发 wake）
@@ -225,7 +233,8 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   键 = agentId + 会话标识；拿不到会话标识 ⇒ 退化为「该 agent 在本进程内至多 1 次」
                                   并记一条退化日志（fail-closed，绝不退化成「跳过配额」）
   admission.ts                    轮次准入纯判定（#237）：decideRoundAdmission + ROUND_SKIP_REASONS
-                                  （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵）
+                                  （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵；
+                                  in_review 非 owner 在人类或任务 owner @ 时以 task-reviewer 准入，仍非 must-respond）
   patrol.ts                       任务巡检的**判定层**（票 #267）：纯函数、零 IO。三个阈值 + 7 天窗口的
                                   单一定义处（PATROL_UNCLAIMED_TODO_MS / PATROL_HANDOFF_BLOCKED_MS /
                                   PATROL_IN_REVIEW_MS / PATROL_WINDOW_MS）+ findPatrolFindings（时间与任务快照注入；
@@ -255,7 +264,8 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   wake.ts                         wake 事件总线（§5.4/§5.5）：WakeHint（只含 agentId/targetId/seq/reason
                                   + 可选 recovery，不含正文）；
                                   subscribeWake/emitWake；notifyMessageWakes（#237：人类正文点名 / @all 候选；
-                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件只定向秘书）；§3.7 任务延续自醒；
+                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件 / 明确任务关联只定向本频道
+                                  生效首席，一个事件最多一个收件人，不可达则静默）；§3.7 任务延续自醒；
                                   @mention 解析 re-export（协作服务层发，agent-loop 驱动订阅）
 
 lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并为单文件深模块）
@@ -265,8 +275,11 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并
                                   "task":{"number":N,"op":"claim"|"complete"|"unclaim"|"handoff"}}
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
                                   + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
+                                  + handoff 授权 = 本频道生效首席；`recipient.canHandoff` 仍只表示全局工具面
                                   + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
                                   + §3.2 mention 穿透：非成员被**人类正文** @mention 推进本轮（#237），回复公开 channel 时自行加入
+                                  + in_review 任务 owner（agent 成员）最新消息的 @：只放开 task-reviewer 准入，
+                                  不进 must-respond；收束语 / 签退不算
                                   + driver 编排：wake → 逐 agent 串行队列；同 (agent,target) hint 合并
                                   （reason 取宽松侧：含 reminder 即按 reminder 处理）；
                                   busy 时 settle 后重试
@@ -614,14 +627,14 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **未读角标（BAI-6）**：`channel_reads(member_id, channel_id, read_seq)` 是 Owner 每频道已读游标（schema v11，仅 UI 呈现层状态，不参与 agent 唤醒/drain）；未读数 = 频道内「作者非本人且 seq &gt; read_seq」的消息数（自己的消息不算未读）。`markChannelRead` 推进到当前 max(seq)，打开频道即调用（`/api/channels/[id]/read`）；侧栏 15s 轮询刷新角标，选中频道本地立即清零。服务层 `lib/domain/collab/reads.ts`，`listChannelsWithMeta` 附 `unread` 字段。
 - **房间轮次预算挂在消息漏斗上**（PR #218）：`sendMessage` 是房间预算的**唯一写入面**——提交成功后调 `recordRoomTurn`：Owner 消息 → `beginTurn`（开新房次 + 第一波选人），agent 消息 → `noteReply`（计发言 + 水位线 + 引用边），`roomNotice: true` 或 `wake: false` 的系统消息整个跳过。两个入参的语义：`roomContext: { channelId, epoch? }` 是「本轮在哪个房间回合里发言」的语境——解析出的频道不等于 `channelId` 时抛 `RoomPrivateChannelForbidden`（I6 房间内无隐身通道），`epoch` 让被取代场次的回复照常落库但按 `stale` 记账；`roomNotice: true` 声明「这是系统 / 事件消息，不是人类真的敲出来的」，不得开新房次、不得重置 `lateTurns`。不变量、陷阱与接入点见 Key Design Decisions 的「房间轮次预算」段。
 
-### 首席（Chief，#248–#252、#266–#268：一个身份、两个职责）
+### 首席（Chief，#248–#252、#266–#270：一个身份、两个职责）
 
-- **身份 = 角色，不是名字**：频道首席（`channels.chief_member_id`）→ 全局首席（`members.global_chief`，同一时刻至多一位）→ 无，三档回落；解析口 `resolveEffectiveChief`（`lib/domain/collab/chief.ts`）不缓存、每次现算，绑定失效（离场 / 软删 / 非 agent）按「未设置」处理且**不改写**绑定。名字不参与任何判定——引导期默认名只有 `lib/secretary-name.ts` 一份字面来源。
+- **身份 = 角色，不是名字**：频道首席（`channels.chief_member_id`）→ 全局首席（`members.global_chief`，同一时刻至多一位）→ 无，三档回落；解析口 `resolveEffectiveChief`（`lib/domain/collab/chief.ts`）不缓存、每次现算，绑定失效（离场 / 软删 / 非 agent）按「未设置」处理且**不改写**绑定；`isEffectiveChiefForChannel` 只比较这个唯一结论，调用点不重走回落链。名字不参与任何判定——引导期默认名只有 `lib/secretary-name.ts` 一份字面来源。
 - **可达是另一件事（投递判定）**：`canRouteToChief(channelId, memberId)`（本频道未软删 agent 成员 + 未静音）是唯一结论，`selectChiefRecipient`（谁接这条消息）、wake 的定向唤醒、`listChannelsWithMeta` 的 `chiefAvailable` 三处共用；composer 提示只读 `chiefAvailable`（`false` ⇒ 说「没有默认收件人」），客户端不重新推导——否则提示会承诺一次不会发生的投递（可达反例：私有频道不自动加全局首席、频道首席被静音）。
-- **收件人只多一条分支**：既有四条路径（个人点名 / `@all` / 任务线程裁决 / 任务创建事件 handoff）全都不成立时，才把生效首席加入候选**一次**；静音优先于首席（静音 ⇒ 不可达，不回落、不换人）。「涉及任务」复用 `task-reference.ts` 的 `hasTaskReference`（单一来源，不再单独解析创建事件正文）。
-- **秘书 = 全局首席**：不是独立角色，是它在下沉 handoff 职责时的称呼（`isSecretaryMember`）；引导期默认名只用于 v19 迁移与「启动助手」入口。
-- **默认收件人只路由 / 建完即派（票 chief-recipient-router）**：两段固定骨架行都**只是 prompt**（`loop.ts` 的 `DEFAULT_RECIPIENT_RULE` / `CREATE_THEN_HANDOFF_RULE`）——`handoff` 不受轮次准入约束（准入只决定「这一轮要不要起来」），所以「建完即派」缺的只是告知。注入条件各一条、互不蕴含：A 只在 `role === "chief"` 的轮次（无点名、无任务关联的人类消息 ⇒ 只分流、短答仍走 `action: "reply"` 而非 `ignore`）；B 在**首席会话的任何轮次**（`handoff` 与六个 `worksplice_*` 工具都只对全局首席开放，把它加进普通成员 prompt 等于教一个它没有的工具，也破「非首席 prompt 逐字节不变」）。
-- **一个身份、两个职责（#268）**：身份仍只有一条回落链（上一段），**不因职责分工产生第二个身份、也不新增判定入口**。两个职责各自可判定、可记账，对应 `round_logs.role` 的两个取值（`AdmissionRole`，`lib/data/types.ts`）：**收件人** = `chief`（`admission.ts` 的 `chiefInvited` 分支：无点名、无 `@all`、不涉及任务时接住这条消息，走房间门）；**路由者** = `secretary-handoff`（`isSecretary` ∧ `secretaryHandoff`：全局首席把未认领任务下沉 handoff，无房间门）。路由者的「把需求变成任务」发生在**她作为收件人的那一轮**里（工具面只在全局首席会话注册），「发现卡住的事」由**巡检**干——巡检只报告，不替她建任务。术语见 `GLOSSARY.md`「首席 (Chief)」的收件人 / 路由者两条。
+- **收件人只多一条分支**：既有四条路径（个人点名 / `@all` / 任务线程裁决 / 任务创建事件 handoff）全都不成立时，才把生效首席加入候选**一次**；静音优先于首席（静音 ⇒ 不可达，不回落、不换人）。任务事件与明确任务关联不走收件人分支，而是由同一个生效首席走 handoff。「涉及任务」复用 `task-reference.ts` 的 `hasTaskReference`（单一来源，不再单独解析创建事件正文）。
+- **全局工具面 = 全局首席；任务分流授权 = 生效首席**：`isSecretaryMember` 只判定当前全局首席，继续守六个 `worksplice_*` 工具与巡检接入面；它不再决定谁能执行任务 handoff。频道首席与全局回落首席都可执行既有 handoff 动作，但频道首席**不**获得建任务 / 建 agent 工具。`isEffectiveChiefForChannel` 只回答身份问题，不判静音；可达性仍由 `canRouteToChief` 单独回答。
+- **默认收件人只路由 / 建完即派（票 chief-recipient-router）**：两段固定骨架行都**只是 prompt**（`loop.ts` 的 `DEFAULT_RECIPIENT_RULE` / `CREATE_THEN_HANDOFF_RULE`）——`handoff` 不受轮次准入约束（准入只决定「这一轮要不要起来」），所以「建完即派」缺的只是告知。注入条件各一条、互不蕴含：A 只在 `role === "chief"` 的轮次（无点名、无任务关联的人类消息 ⇒ 只分流、短答仍走 `action: "reply"` 而非 `ignore`）；B 只对**全局工具面**（六个 `worksplice_*` 工具只在全局首席会话注册）注入；频道首席可走任务事件自己的 handoff prompt，但不因频道身份获得这段工具提示。
+- **一个身份、两个职责（#268 / #270）**：身份仍只有一条回落链（上一段），**不因职责分工产生第二个身份、也不新增判定入口**。两个职责各自可判定、可记账，对应 `round_logs.role` 的两个取值（`AdmissionRole`，`lib/data/types.ts`）：**收件人** = `chief`（`admission.ts` 的 `chiefInvited` 分支：无点名、无 `@all`、不涉及任务时接住这条消息，走房间门）；**路由者** = `secretary-handoff`（`isEffectiveChief` ∧ `secretaryHandoff`：本频道生效首席把未认领任务下沉 handoff，无房间门）。频道首席在场时不再同时叫全局首席；全局首席只在频道档缺失时回落。路由者的「把需求变成任务」仍受全局工具面限制（频道首席不能从无点名消息建任务），「发现卡住的事」由巡检承担且仍按现有全局首席接入面运行。术语与取舍见 `GLOSSARY.md`「首席 (Chief)」与 ADR-0019。
 - **消息指认（#266，ADR-0018 决策一）**：她读到的每条消息都带**完整消息 id**。形状只有一处字面来源：`injection-budget.ts` 的 `messageIdTag` → `(messageId <完整 uuid>)`；两个渲染入口同形——轮次注入行由 `projectMessages` 行尾追加（`#seq @author: 正文 (messageId <id>)`，渲染点唯一 ⇒ decide / revise 两个 prompt 自动一致），搜索命中行由 `member-ops.ts` 的 `formatSearchObservation` 用**同一个函数**加句柄（频道命中与线程命中同形）。`InjectableMessage.id` 必填。于是 `worksplice_task_create` 的**参数形状一字未动**（仍只收 `messageId`），也不需要 seq→id 映射。行首 `#seq` 保留（react / pin 的句柄，只在自己 target 内唯一），两者并存。**预算没放宽**：行尾 id 是固定开销，三个上界（`ROUND_INJECTION_BUDGET_CHARS` / `INJECTION_MESSAGE_WINDOW` / `MESSAGE_CONTENT_CAP`）一个没调；截断只吃正文，行首句柄与行尾 id 先占住。归档命中是 session 归档条目、没有频道消息 id —— 保留 archive / entry 定位，**不硬造 messageId**。
 - **领域工具面（票 chief-tools）**：首席会话 = `read` + 六个 `worksplice_*` 工具，清单只有 `member-tool-policy.ts` 的 `CHIEF_DOMAIN_TOOL_NAMES` 一份（注册面与激活面共用，`lib/chief-tools/tools.ts` 注册时 `assertPolicyCoverage` 防漂移——名字对不上会静默变成「注册了但永不激活」）。六个工具**只在首席会话注册**（`RpcSessionStartOptions.domainTools` 不在场 ⇒ 工厂不进 `extensionFactories`，不是「注册了再停用」），且**每次调用重新复判** `isSecretaryMember`：换人 / 软删之后旧会话里的工具立即失效（会话创建时判定过不算数）。写面三个：`worksplice_channel_create`（私有频道必须把 actor 放进 `memberIds`；`memberIds` 只收**存活 agent**——`createChannel` 的 `assertMember` 只查存在性、`getMember` 连软删行一起返回，所以这层自己判；两条判据自票 chief-capability-converge 起住在能力表，见下节）；`worksplice_agent_create`（只收 `name` / `description` / `channelId`，模型一律 `provider: null` 继承全局默认；名字 `^ops-[a-z0-9][a-z0-9-]{1,27}$`；每会话至多 1 次成功创建、失败不消耗——上限与计数都在能力表 + 跨路径共享的配额 store 里）；`worksplice_task_create`（票 chief-task-create：参数**只有** `messageId`——把一条**既有**顶层消息转成任务，校验 / 取号 / `TaskAlreadyExistsError` 全复用 `createTask`，thread 内消息由它自己抛错；actor 须是该消息所在频道的成员；成功回 `{ number, status, anchorSeq }`。**有意例外：不补 actor 署名事件**——`createTask` 内部已投 Owner 署名的 `Task #N created`（`roomNotice: true` + `wake: true` 全频道扇出），那条既是频道留痕、也是下一轮 handoff 的准入触发）。写操作留痕走 `notifyChiefSystemAction`（**actor 署名** + `wake:false` + `roomNotice:true`——系统事件不得开房间场次、不得重置 `lateTurns`；仅前两个 `*_create` 工具使用）。三个读面都有界：只回约定字段（任务 preview ≤ 120 字符），可见面 = 公开频道 + 本人成员。
 - **巡检（#267，ADR-0018 决策二）**：路由者职责的第三件事，每分钟一次、有界。判定层 `lib/domain/collab/patrol.ts`（纯函数 / 零 IO，时间与任务快照注入）只认**已有任务**的三类卡住——未认领 `todo` 30 分（`PATROL_UNCLAIMED_TODO_MS`）/ `status` 仍为 `todo` 且 `handoff_state=blocked` 30 分（`PATROL_HANDOFF_BLOCKED_MS`；`claimTask` 不清 `handoff_state`，认领过的 blocked 是历史标记、不算卡住）/ `in_review` 24 小时（`PATROL_IN_REVIEW_MS`），7 天窗口（`PATROL_WINDOW_MS`，按锚点 `created_at`；卡住时长按任务行 `updated_at`）；去重签名 = 任务+状态+详情、**不含时长**（状态变了才重报，不按时间冷却）。接入层 `patrol-run.ts` 的 `runPatrolOnce` 搭 `tickAgentLoopMaintenance` 的同一分钟节拍（`WORKSPLICE_PATROL_DISABLED=1` 关闭，现算），每轮**最多一条**汇总、无发现完全沉默；**不读消息内容、不建任务、不派活、不改任务状态**（唯一写入是投递，投递失败不消耗签名）。投递 `wake:false` + `roomNotice:true`（系统事件：不进房间场次、不动迟到名额、不 supersede 在跑场次），只扫她作为成员、未归档、非 DM 的频道；签名集只在进程内（重启后同一批卡住再报一次），语义是 `prior = 已报过 ∧ 本轮仍检出`（淡出不再检出的），投递成功后 `= prior ∪ 进了这条消息的签名`——没进消息的私有发现不被吞掉，将来成为落点还能报出来；投递失败不写签名。落点与可见面：她作为生效首席、且**自己频道里**还有没报过的发现的频道（扫描顺序**逐个试**：前一个报过之后让给下一个，否则两个首席频道都有发现时后面那个会被永久哑掉；判据取「自己的发现」而不是「该频道可上报的发现」，否则全局首席让扫描名单第一个——通常是 `#all`——永远截走所有公开频道的发现）→ 她所在的第一个**公开**频道（`isPublic`，私有频道不参与兜底）→ 静默，不广播、不私信人类；汇总只携带落点自己的发现 + 公开频道的发现，**落在别的私有频道的发现不上报**（否则「私有频道名 + 任务号」会跟着公开落点泄露进更大的可见面；落点是私有频道时聚合公开发现是安全的）。兜底是本轮**新引入**的语义（既有代码只回答「谁是首席」不回答「落在哪」）。
@@ -672,7 +685,7 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 ### agent-loop（ticket 06，§3.8/§5.3–5.5）
 
 - **拉取式 inbox，不推送正文**：`consumed_seqs(agent_id, target_id, seq)` 是持久化游标；`drain` 不推进游标（重复 drain 不重不漏），`ack` 由 loop 每轮收口；HTTP 语义（`GET /api/members/[id]/inbox`）是 drain + ack 一步到位。wake hint 只含 `{agentId, targetId, seq, reason}`，正文由 agent 自己 drain。
-- **wake 触发面（#237/#240）**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——人类正文点名 / `@all` 才产生新邀请（引用块 / 代码块 / 行内代码里的 @ 不算）；普通 agent 正文 @ 不穿透、不产生第二波；DM 语义不变；开放任务创建事件只定向唤醒秘书，没有可用秘书 / 已有 owner / 已分流时不叫任何人。thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。`WakeHint.recovery` 只标记丢失 handoff wake 的补发，驱动层据此去重。
+- **wake 触发面（#237/#240/#270）**：`sendMessage` 提交成功后（事务外）调 `notifyMessageWakes`——人类正文点名 / `@all` 才产生新邀请（引用块 / 代码块 / 行内代码里的 @ 不算）；普通 agent 正文 @ 不穿透、不产生第二波；DM 语义不变；开放任务创建事件与明确关联的未认领任务只定向唤醒本频道**生效首席**（频道首席 → 全局回落 → 无），一个事件最多一个收件人，没有可用 / 可达首席 / 已有 owner / 已分流时不叫任何人且不换人。thread 消息以锚点消息 id 为目标。回滚的 held 不会误唤醒。`WakeHint.recovery` 只标记丢失 handoff wake 的补发，驱动层据此去重。
 - **mute（ticket 12，§3.2/§3.8）**：channel 级静音 = `channel_mutes` 表（PK channel+member）记录静音时刻的 `mute_from_seq`（channel max(seq)）与 `mute_rowid`（全表 max(messages.rowid)）。drain/getPendingTargets 过滤：静音后的普通消息不进 inbox，个人 @mention 仍穿透；channel 消息按 seq 比，thread 消息无 channel seq 可比（thread 自己的 seq 空间）按 rowid 比（全局插入序，避免同毫秒 created_at 歧义）。静音前的消息照常投递；取消 mute 后不补投静音期间被压制的消息（游标已推进）。`GET/POST /api/channels/[id]/mute`（Owner 可替任意 agent 设）；ChannelView 头部 `BellOff` 面板逐个 agent 开关。
 - **一轮的结构化协议**：`runAgentRound` = drain（过滤自己的消息）→ **轮次准入**（#237：`decideRoundAdmission`；未准入返回稳定 `skipped` reason，不起会话 / 不发 prompt / 不动游标）→ 检查"最新消息是本人的回复"则只 ack 不重复应答（崩溃窗口自愈）→ 起会话 → 发 prompt（`buildReplyPrompt`：channel 语境 + `#seq @author … (messageId <id>)` 消息行（#266） + 相关任务状态 + JSON 指示 + 房间标记）→ `parseAgentAction` 解析 `{"action":"reply"|"ignore","content","onConflict"}` 与顶层 `task` op（claim / complete / unclaim / handoff）→ 回复经 `sendMessage` 带 baseSeq 走 freshness → ack 推进游标。非 JSON 回复整段作为内容，默认 resend。**ack 语义**：ack 到 agent 本轮实际读到/被告知的房间版本（`deliverWithFreshness` 返回 ackSeq，held 后随 roomSeq 推进），避免游标停在旧 baseSeq 导致 target 永久 pending。
 - **prompt 目标身份与内容分工**：`buildReplyPrompt` / `buildRevisionPrompt` 的头部由 `describePromptTarget` 生成——频道轮 `channel X`（与旧文案逐字节一致）、任务线程轮 `the thread of task #N [status] under channel X (anchor seq S)`、普通线程轮 `a thread under channel X (anchor seq S)`（锚点缺失时省略 seq）。`buildReplyPrompt` 的 response rules 里固定注入 `CONTENT_PLACEMENT_RUBRIC`（`onConflict` 之后、`Task protocol` 之前）：交付物的事实/证据/数据/更正 → 该交付物任务线程；可独立成立的方法论 → 频道；可复用事实/口径 → 可留频道但须带来源与日期；频道提到任务仅指针、不带新结论。该 rubric 明写 "the app decides delivery"——只约束内容写在哪，投递方向仍由 §3.7 路由裁决；`buildRevisionPrompt` 不注入它。只加固定骨架行，`projectMessages` / `elasticBudget` / `INJECTION_*` 与消息块裁剪不动。
@@ -697,7 +710,7 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **I7 迟到独立预算**：`noteLateReply` + `lateTurns` + `pendingLateSeq`——忙碌 / 超时被释放的成员之后的发言走补充波，最多 `MAX_LATE_TURNS` 次；`stopTurn` 把 `lateTurns` 置哨兵，Stop 之后零补充波。
 - **I8 预算不可自助重置**：预算只挂在房间状态上，`beginTurn`（= 人类新消息）是唯一重置点；`@all` / `@everyone` 只影响第一波邀请候选（#237 起由 `selectMessageInvitations` 显式传入），改不动计数。
 - **接入点一 —— `sendMessage` → `recordRoomTurn`**（`lib/domain/collab/messages.ts`）：Owner 消息 → `selectMessageInvitations` 先算候选，再 `beginTurn`（epoch+1、`lateTurns` 归零、显式候选；空候选仍推进 epoch / 取代旧场次，但不选人、不等超时）；agent 消息 → `noteReply`（I1 计数 + 水位线；#237 起生产路径传 `mentions: []`，普通 agent 正文 @ 不产生新候选 / 第二波；跨 target 用 `message.rowid` 当水位线，因为 thread 有自己的 seq 空间）；`roomNotice: true` 或 `wake: false` 的系统消息整个跳过。记账排在 wake hint 之前是承重的——被唤醒的轮次入场第一件事就是问「我是否被这一波选中」。
-- **接入点二 —— `runAgentRound` 的准入闸 + CP0 选人门**（`lib/agent-loop/loop.ts`）：先由 `decideRoundAdmission` 判「该不该起会话」（人类正文点名 / `@all`、任务线程 owner / 状态矩阵、DM / reminder / 任务创建事件）；需要房间门的频道轮再问 `gate({ channelId, memberId, reason, continuing })`，`not-elected` 返回既有 `{ status: "skipped", reason: "not elected by room turn" }`；任何未准入都**不推进消费游标**、不起会话、不花模型调用。任务线程不走 channel 房间门；reminder 轮次与任务续工轮次 bypass。CP2 在出 prompt 前、CP3 在回复落库后各复查一次 `isCurrent`，投递时带 `roomContext`（I6）。
+- **接入点二 —— `runAgentRound` 的准入闸 + CP0 选人门**（`lib/agent-loop/loop.ts`）：先由 `decideRoundAdmission` 判「该不该起会话」（人类正文点名 / `@all`、任务线程 owner / 状态矩阵、in_review 任务 owner 的 @ attention、DM / reminder / 任务创建事件）；`in_review` 的 owner mention 只以 `task-reviewer` 放开模型调用，**不进入 must-respond**，模型仍可选 ignore / conclude。需要房间门的频道轮再问 `gate({ channelId, memberId, reason, continuing })`，`not-elected` 返回既有 `{ status: "skipped", reason: "not elected by room turn" }`；任何未准入都**不推进消费游标**、不起会话、不花模型调用。任务线程不走 channel 房间门；reminder 轮次与任务续工轮次 bypass。CP2 在出 prompt 前、CP3 在回复落库后各复查一次 `isCurrent`，投递时带 `roomContext`（I6）。
 - **wake 与选人同源（#237）**：`lib/domain/collab/wake.ts` 的人类消息候选同样由 `selectMessageInvitations` 计算——广播不再是「全员扇出后各自让路」，而是只唤醒本轮邀请候选；普通 agent 正文 @ 不再穿透。房间场次不活跃、或 DM 频道（`isRoomChannel` = false）时行为与旧语义对齐（DM 完全不变）。
 
 **会静默破坏它的纪律**（每条都是「踩了不报错，只会错」）：
