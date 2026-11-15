@@ -50,7 +50,13 @@ export class RpcCaller {
     cwd: string | undefined,
     options: RpcSessionStartOptions = {},
   ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
-    const { toolNames, initialModel, thinkingLevel, pathGuard } = options;
+    const {
+      toolNames,
+      initialModel,
+      thinkingLevel,
+      pathGuard,
+      includeExtensionTools = true,
+    } = options;
     const registry = getRpcRegistry();
     const locks = getLocks();
 
@@ -178,11 +184,17 @@ export class RpcCaller {
       // If specific tool names were requested (non-empty), set the active tools to the
       // requested builtin coding tools PLUS all extension/package tools, so installed
       // extensions stay usable in worksplice just like in the `pi` CLI.
+      // `includeExtensionTools: false`（窄面会话，票 chief-tool-surface）则只留请求的清单。
       if (toolNames && toolNames.length > 0) {
-        inner.setActiveToolsByName(withExtensionTools(inner, toolNames));
+        inner.setActiveToolsByName(withExtensionTools(inner, toolNames, includeExtensionTools));
       }
 
-      const wrapper = new AgentSessionWrapper(inner, forcedEmptySystemPromptSwitch, containedBash);
+      const wrapper = new AgentSessionWrapper(
+        inner,
+        forcedEmptySystemPromptSwitch,
+        containedBash,
+        includeExtensionTools,
+      );
       // When all tools are disabled, clear the system prompt entirely.
       // pi's buildSystemPrompt always produces a non-empty prompt even with no tools;
       // keep this forced after extension resource discovery and reloads as well.
