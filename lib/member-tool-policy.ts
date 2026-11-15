@@ -21,6 +21,16 @@
  * 首席要能读自己家目录里的 MEMORY.md 与任务上下文，产 `[]` 会连这一点也关掉，还会顺带
  * 触发那条空 prompt 路径。窄面 = 一个非空的具体清单。
  *
+ * ## 第二批：五个领域工具（票 chief-tools）
+ *
+ * `read` 之外再加五个 `worksplice_*` 领域工具（建频道 / 建 agent / 三个有界读面），它们的
+ * 实现与注册在 `lib/chief-tools/`。清单留在本模块而不是工具模块，是因为它同时是
+ * **激活面**与**注册面**的唯一来源：`lib/chief-tools/tools.ts` 注册的定义名必须与本清单
+ * 逐字对齐（那边有运行期守卫 + 测试双向断言），否则会变成「注册了但永远不被激活」——
+ * 给 agent 开系统操作的口子上，静默半开与静默全开同样不可接受。
+ *
+ * 仍然**不并回**扩展 / 包工具：领域能力只从这份白名单来，不从「装了什么都算」来。
+ *
  * ## 非首席：空对象，不是「默认值」
  *
  * 返回 `{}` 的含义是「调用方什么都不传」——不传 `toolNames`、不传 `includeExtensionTools`，
@@ -28,8 +38,23 @@
  * 这里刻意不写 `toolNames: undefined` 之类的显式键：空策略的契约就是「不表态」。
  */
 
-/** 全局首席会话可激活的工具面：只有读。落点由 ADR-0011 的路径守卫收窄。 */
-export const CHIEF_TOOL_NAMES: readonly string[] = ["read"];
+/**
+ * 首席会话的五个领域工具名（票 chief-tools）：建频道 / 建 agent / 三个有界读面。
+ * 注册侧（`lib/chief-tools/tools.ts`）从这份清单取齐定义名，不另抄一份。
+ */
+export const CHIEF_DOMAIN_TOOL_NAMES: readonly string[] = [
+  "worksplice_list_channels",
+  "worksplice_list_members",
+  "worksplice_list_tasks",
+  "worksplice_channel_create",
+  "worksplice_agent_create",
+];
+
+/**
+ * 全局首席会话可激活的工具面：`read` + 五个领域工具。`read` 的落点由 ADR-0011 的路径守卫收窄；
+ * 五个领域工具的参数面与可见面由 `lib/chief-tools/` 的判定层收窄。
+ */
+export const CHIEF_TOOL_NAMES: readonly string[] = ["read", ...CHIEF_DOMAIN_TOOL_NAMES];
 
 /** 判定输入：调用方注入的身份结论（`isSecretaryMember(member)`）。 */
 export interface MemberToolPolicyInput {
