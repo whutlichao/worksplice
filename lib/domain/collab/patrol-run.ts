@@ -18,6 +18,9 @@ import {
  * - 巡检只**报告**已有任务：不读消息内容、不建任务、不派活、不改任务状态（唯一写入是投递）。
  * - 每轮最多一条消息；无发现则完全沉默。
  * - 扫描范围 = 全局首席作为成员、未归档、非 DM 的频道。没有全局首席 ⇒ 整轮静默。
+ * - 落点与可见面是两件事（见 `resolveDestination` / `visibleFindings`）：落点按「她作为首席的
+ *   频道 → 第一个公开频道 → 静默」；内容只携带落点自己的发现 + 公开频道的发现，别的私有频道的
+ *   发现不上报（汇总只有一条消息，不能把私有可见面带进公开频道）。
  * - 投递按**系统事件**语义（`roomNotice: true` + `wake: false`）：不得开房间场次、不得
  *   重置迟到名额、不得 supersede 在跑的场次——否则巡检会持续吃掉房间发言配额，把正常
  *   对话挤成沉默（spec #265 的承重约束）。
@@ -41,6 +44,11 @@ export interface PatrolChannelScope {
    * 不在巡检里重新推导一遍。
    */
   chiefHere: boolean;
+  /**
+   * 是否公开频道（`channel.type === "public"`）：落点兜底只从公开频道里取，
+   * 可见性过滤也只把公开频道的发现带进别的落点（见 `visibleFindings`）。
+   */
+  isPublic: boolean;
 }
 
 /** 巡检一次的运行结果：给 tick 的返回值，也给测试观察（不投递 / 投了几条 / 落在哪）。 */
@@ -103,6 +111,7 @@ function defaultReadChannels(chiefId: string): PatrolChannelScope[] {
     .map((channel) => ({
       channelId: channel.id,
       chiefHere: channel.chief?.id === chiefId,
+      isPublic: channel.type === "public",
     }));
 }
 
@@ -110,13 +119,17 @@ function defaultReadChannels(chiefId: string): PatrolChannelScope[] {
  * 默认任务快照读取：直接读数据层的 `TaskRow`（+ 锚点消息的 `created_at`，7 天窗口用）。
  * 故意不走 `listChannelTasks`（TaskView）：它顺带给每条任务算 reactions / 附件 / 未读回复，
  * 而巡检每分钟要扫一遍首席的全部频道——这里只需要判定用的那几列。
+ *
+ * `TaskRow` 没有 `created_at`（7 天窗口按**锚点消息**时间算，不按任务行时间），所以每条任务
+ * 要额外取一次锚点消息；读的是同一个适配器实例，所以 `getDb()` 在函数顶取一次即可。
  */
 function defaultReadTasks(channelId: string): PatrolTaskSnapshot[] {
+  const db = getDb();
   const channelName = getChannel(channelId)?.name ?? channelId;
-  return getDb()
+  return db
     .listChannelTasks(channelId)
     .map((task) => {
-      const anchor = getDb().getMessage(task.message_id);
+      const anchor = db.getMessage(task.message_id);
       if (!anchor) return null;
       return {
         taskId: task.id,
@@ -150,10 +163,13 @@ function defaultDeliver(input: {
 
 /**
  * 落点解析（**本 spec 新引入的兜底语义**，既有代码只回答「谁是首席」、不回答「落在哪」）：
- * ① 第一个「她是生效首席」的频道里的发现 ⇒ 落在那个频道；
- * ② 否则退到她所在的第一个公开（非 DM、未归档、joined）频道——扫描列表本身就是这个集合，
- *    取第一条；
- * ③ 都没有（没有扫描范围内的频道）⇒ `null` = 静默。不广播、不私信人类。
+ * ① 第一个「她是生效首席」的频道里有发现 ⇒ 落在那个频道（私有也行——她就是那个频道的首席）；
+ * ② 否则退到她所在的第一个**公开**频道（`isPublic`）：私有频道不是兜底——她只是成员的私有
+ *    频道不能成为「一条系统消息」的去处；
+ * ③ 扫描范围为空、或范围内没有任何公开频道 ⇒ `null` = 静默。不广播、不私信人类。
+ *
+ * 判据用的是**全部发现**（不是去重后的新发现）：落点是「这批发现该投到哪」，与「哪几条还没报过」
+ * 是两件事——已报过的发现占着的首席频道仍然是它自己那批发现的自然落点。
  */
 function resolveDestination(
   findings: PatrolFinding[],
@@ -164,7 +180,26 @@ function resolveDestination(
   );
   const chiefHere = findings.find((finding) => chiefChannels.has(finding.channelId));
   if (chiefHere) return chiefHere.channelId;
-  return channels[0]?.channelId ?? null;
+  return channels.find((channel) => channel.isPublic)?.channelId ?? null;
+}
+
+/**
+ * 可见性过滤（spec #265「不发明广播」、`GLOSSARY.md`「巡检落点」）：汇总只有一条消息，所以它
+ * 只能携带**落点频道看得见**的发现——落点频道自己的发现 ∪ 落在**公开频道**的发现。
+ * 落在**别的私有频道**的发现不上报：否则「私有频道名 + 任务号」就跟着公开落点泄露进了更大的
+ * 可见面。落点自身是私有频道时聚合公开发现是安全的——私有可见面 ⊆ 公开可见面，不是泄露。
+ */
+function visibleFindings(
+  findings: PatrolFinding[],
+  destination: string,
+  channels: PatrolChannelScope[],
+): PatrolFinding[] {
+  const publicChannels = new Set(
+    channels.filter((channel) => channel.isPublic).map((channel) => channel.channelId),
+  );
+  return findings.filter(
+    (finding) => finding.channelId === destination || publicChannels.has(finding.channelId),
+  );
 }
 
 /** 依赖缺省值的唯一落点（注入什么就用什么，其余走真实实现）。 */
@@ -199,17 +234,19 @@ export function runPatrolOnce(deps: PatrolRunDeps = {}): PatrolRunResult {
     findings.push(...findPatrolFindings({ now, tasks: readTasks(channel.channelId) }));
   }
 
-  const current = new Set(findings.map((finding) => patrolSignatureOf(finding)));
-  const fresh = findings.filter((finding) => !signatures.has(patrolSignatureOf(finding)));
-  if (fresh.length === 0) {
+  const channelId = resolveDestination(findings, channels);
+  const reportable = channelId === null ? [] : visibleFindings(findings, channelId, channels);
+  // 签名集**只记可上报的发现**：私有且非落点的发现不写进去，将来她成为那个频道的首席时才报得出来。
+  const current = new Set(reportable.map((finding) => patrolSignatureOf(finding)));
+  const fresh = reportable.filter((finding) => !signatures.has(patrolSignatureOf(finding)));
+  if (channelId === null || fresh.length === 0) {
     // 签名集随扫描结论一起淡出：修好的任务不再占位，之后重新卡住算新事件。
     replaceSignatures(signatures, current);
     return { status: "silent", findings: findings.length, reported: 0, channelId: null };
   }
 
-  const channelId = resolveDestination(fresh, channels);
-  const content = channelId === null ? null : buildPatrolSummary(fresh);
-  if (channelId === null || content === null) {
+  const content = buildPatrolSummary(fresh);
+  if (content === null) {
     replaceSignatures(signatures, current);
     return { status: "silent", findings: findings.length, reported: 0, channelId: null };
   }
