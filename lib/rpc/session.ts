@@ -130,6 +130,13 @@ export interface RpcSessionStartOptions {
    * 生产路径（`agent-runtime.startSession`）不传。
    */
   bashContainment?: BashContainmentDeps;
+  /**
+   * 是否把扩展 / 包工具并回活动面（票 chief-tool-surface）：省略 = 并回，即今天的行为；
+   * `false` = 只激活 `toolNames`，扩展工具一个都不进来（窄面会话，见
+   * `lib/member-tool-policy.ts`）。这个开关随会话持有：`set_tools` 命令沿用**创建时**的
+   * 同一个值，否则一次 UI 档位切换就把窄面自己放大回去了。
+   */
+  includeExtensionTools?: boolean;
 }
 
 // Every colour token the SDK's own `theme-schema.json` marks required, minus the five it
@@ -247,9 +254,20 @@ class PlainTextTheme extends Theme {
 const PLAIN_TEXT_THEME = new PlainTextTheme();
 const CUSTOM_UI_KEYBINDINGS = new TuiKeybindingsManager(TUI_KEYBINDINGS);
 
-/** 把请求的编码工具名 + 全部扩展/包工具合并为活动工具集（caller 启动会话时复用）。 */
-export function withExtensionTools(session: AgentSessionLike, toolNames: string[]): string[] {
+/**
+ * 把请求的编码工具名 + 全部扩展/包工具合并为活动工具集（caller 启动会话时复用）。
+ *
+ * `includeExtensionTools: false` 是窄面会话的开关（票 chief-tool-surface：全局首席的会话
+ * 只留 `read`）：只保留传入的清单，扩展 / 包工具一个都不并回。省略 = 今天的行为（并回）。
+ * 注意 `toolNames: []` 是**另一条**语义（全部关闭 + 强制空 system prompt），不受这个开关影响。
+ */
+export function withExtensionTools(
+  session: AgentSessionLike,
+  toolNames: string[],
+  includeExtensionTools = true,
+): string[] {
   if (toolNames.length === 0) return [];
+  if (!includeExtensionTools) return [...new Set(toolNames)];
 
   const codingToolNames = new Set(CODING_TOOL_NAMES);
   const extensionToolNames = session
@@ -297,6 +315,11 @@ export class AgentSessionWrapper {
      * 与工具面的同名覆盖定义用同一份 operations；未传 = 无人归属的会话（人类自己的会话）不沙箱。
      */
     private readonly bashContainment?: ContainedBash,
+    /**
+     * 工具面开关（票 chief-tool-surface）：会话创建时定稿，`set_tools` 沿用同一个值。
+     * 省略 = 并回扩展工具（今天的行为）。
+     */
+    private readonly includeExtensionTools: boolean = true,
   ) {
     this.forcedEmptySystemPromptSwitch = forcedEmptySystemPromptSwitch;
   }
@@ -775,7 +798,7 @@ export class AgentSessionWrapper {
       case "set_tools": {
         const toolNames = command.toolNames as string[];
         this.setForceEmptySystemPrompt(toolNames.length === 0);
-        this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
+        this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames, this.includeExtensionTools));
         this.applyForcedEmptySystemPrompt();
         return null;
       }

@@ -6,11 +6,13 @@ import { getDb } from "./data/db-singleton.ts";
 import {
   agentHomePath,
   getMember,
+  isSecretaryMember,
   normalizeWorkspacePath,
   setAgentSessionFile,
 } from "./domain/collab/index.ts";
 import { publishAgentStatus, setAgentStatusLookup } from "./agent-status.ts";
 import { pathGuardScopeFor } from "./tool-path-guard.ts";
+import { resolveMemberToolPolicy } from "./member-tool-policy.ts";
 import type { AgentSessionWrapper } from "./rpc/index.ts";
 import { findBusySession, isCwdBusy, withCwdMutex } from "./cwd-mutex.ts";
 
@@ -296,11 +298,17 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
         const sessionFile = choice.sessionFile;
 
         // 以成员 id 为锁键：并发请求合并、重启复用同一键，且 registry 卸载时按真实 id 清理
+        //
+        // 工具面策略（票 chief-tool-surface）：全局首席 → 只留 `read` 且不并回扩展工具；
+        // 其余成员 → 空策略（options 里一个键都不加，与今天逐字节相同）。身份判据唯一来源是
+        // `isSecretaryMember`，策略本身在 `lib/member-tool-policy.ts`（零依赖判定层）。
+        const memberToolPolicy = resolveMemberToolPolicy({ isChief: isSecretaryMember(member) });
         const { session, realSessionId } = await startRpcSession(
           `agent-${member.id}`,
           sessionFile ?? "",
           cwd,
           {
+            ...memberToolPolicy,
             // §3.10 per-agent runtime：覆盖全局默认（provider/modelId 成对；thinking 可单独）
             ...(member.model_provider && member.model_id
               ? { initialModel: { provider: member.model_provider, modelId: member.model_id } }
