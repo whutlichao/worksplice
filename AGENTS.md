@@ -261,9 +261,11 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并
                                   （启动一次 + 每 60s；每 task/target 每进程最多 3 次，60s/120s 退避）
                                   + 公共接口 createAgentLoop() → { start, stop, tick }（start 幂等组装
                                   状态扫掠 + 补拉 + 驱动 + cron；tick 手动推进 cron 扫描）
-  json-prologue.ts                回复 JSON 泄漏修复的三档判据唯一实现（prologue / raw-control / trailing-key）：
-                                  parseAgentAction 与 scripts/fix-reply-json-leak.mjs 共用的 seam；零依赖纯函数，
-                                  候选面（isLeakedReplyCandidate，含只报告不修的未闭合尾）与可修面（parseLeakedReply）分开
+  json-prologue.ts                回复 JSON 泄漏修复的四档判据唯一实现（prologue / raw-control / trailing-key /
+                                  unescaped-quote）：parseAgentAction 与 scripts/fix-reply-json-leak.mjs 共用的 seam；
+                                  零依赖纯函数，候选面（isLeakedReplyCandidate，含只报告不修的未闭合尾）
+                                  与可修面（parseLeakedReply）分开；未转义双引号档只在能确定 content 边界
+                                  （重新 parse 成协议对象）时采纳，只转义边界内引号与裸控制字符
   index.ts                        AgentLoop 公共 API 面（窄）：仅 re-export createAgentLoop / AgentLoop 类型；
                                   内部函数测试面直接从 ./loop.ts 导入
                                   （协作域 wake 总线见 lib/domain/collab/wake.ts：协作服务层发、本模块订阅）

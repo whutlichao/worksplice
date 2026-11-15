@@ -1,5 +1,5 @@
 /**
- * 回复 JSON 泄漏修复（reply-json-leak）：**三档相互独立的放宽**，各有已实证形态。
+ * 回复 JSON 泄漏修复（reply-json-leak）：**四档相互独立的放宽**，各有已实证形态。
  *
  * **第一档（票 01）**——模型偶发把 JSON 对象的开头 `{"` 输出成 `","` 或 `,"`：
  *   ```json","action":"reply","content":"…","onConflict":"resend"}
@@ -22,15 +22,25 @@
  * 前两档都不命中（不以 `","` / `,"` 开头，也没有裸控制字符）→ 整段 JSON 当正文落库，
  * 顺带把 `task` / `ops` 声明整段吞掉。判据见 `scanProtocolTail`。
  *
- * 三档是**各自独立**的放宽，不共用判据：形态复发时重新评估一档，而不是扩大另一档的常量。
+ * **第四档（reply-json-leak-unescaped-quote，issue #262）**——协议对象的结构、字面量与转义都写对了，
+ * 但 `content` 字符串值里出现了**未转义的双引号**（模型把正文里的引号原样输出，没写成 `\"`）：
+ *   {"action":"reply","content":"…能挡掉一半的"其实不用改代码"。…","task":{"number":5,"op":"complete"}}
+ * `JSON.parse` 在正文里第一个引号处提前合上字符串（`Expected ',' or '}' after property value`），
+ * 第一档不命中（有 `{"` 开头）、第二档也不命中（**一条裸控制字符都没有**——最新 live 样本正是
+ * 这样，它连候选面都进不去）、第三档只认尾部空键 → 整段 JSON 当正文落库，`task` 被吞。
+ * 判据见 `parseUnescapedQuoteReply`。
+ *
+ * 四档是**各自独立**的放宽，不共用判据：形态复发时重新评估一档，而不是扩大另一档的常量。
  * 第三档尤其不能借第二档的判据：后者的语义是「字符串字面量里有哪些字符要转义」（一个逐字符
  * 变换），前者是「对象尾部有没有一段结构上不合法的成员」——两件事的输入面与失败模式都不同。
  * 而且第三档必须同时回答**两个**问题（这段文本值得当候选看吗？这段文本能修吗？），
  * 第二档只有前者（改完能 parse 就是能修）——共用一个 `changed` 标记会把「只报告」误读成「能修」。
- * 三档共用的是**同一份形状校验口径**（`acceptProtocolObject`）与**同一个返回形状**
+ * 第四档则必须**先定边界**再谈修复：`content` 的结尾引号是未知量，所以它的候选生成与采纳判定
+ * 必然纠缠在一起（试边界 = 试 parse），这与前三档「先生成候选、再统一校验」不同，是本档的固有形态。
+ * 四档共用的是**同一份形状校验口径**（`acceptProtocolObject`）与**同一个返回形状**
  * （`RepairedReply`），所以调用方只跨 `parseLeakedReply` 一个 seam。
  *
- * 本模块是这三条修复判定的**唯一实现**：`parseAgentAction`（loop.ts，防未来）与
+ * 本模块是这四条修复判定的**唯一实现**：`parseAgentAction`（loop.ts，防未来）与
  * `scripts/fix-reply-json-leak.mjs`（一次性存量清洗）都从这里取候选与校验，两处同源同形。
  * 零依赖纯函数：不 import 任何模块，不碰 IO，只做「文本 → 修复候选 → 协议形状校验」。
  */
@@ -55,7 +65,7 @@ export function repairJsonPrologue(text: string): string | null {
 // ----------------------------------------------------------------------------
 
 /** 命中的是哪一档。 */
-export type ReplyLeakForm = "prologue" | "raw-control" | "trailing-key";
+export type ReplyLeakForm = "prologue" | "raw-control" | "trailing-key" | "unescaped-quote";
 
 export interface RepairedReply {
   /** 命中档位。 */
@@ -142,6 +152,13 @@ const CONTROL_ESCAPES: Record<string, string> = {
   "\f": "\\f",
 };
 
+/** 单个裸控制字符的 JSON 转义（短转义优先，其余 `\u00XX`）——第二、第四档共用。 */
+function escapeRawControlChar(ch: string): string {
+  return (
+    CONTROL_ESCAPES[ch] ?? `\\u${(ch.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`
+  );
+}
+
 /**
  * 第二档的候选判据：`trim()` 后以 `{` 开头且以 `}` 结尾——先排掉绝大多数散文，
  * 避免对每段自然语言都做逐字符扫描。这是**便宜的前置筛**，不是采纳判据。
@@ -199,9 +216,7 @@ function repairRawControlChars(text: string): string | null {
     }
     if (isRawControlChar(ch)) {
       changed = true;
-      out +=
-        CONTROL_ESCAPES[ch] ??
-        `\\u${(ch.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`;
+      out += escapeRawControlChar(ch);
       continue;
     }
     out += ch;
@@ -326,28 +341,232 @@ function parseTrailingKeyReply(text: string): RepairedReply | null {
   return parseCandidate(candidate, "trailing-key");
 }
 
+// ----------------------------------------------------------------------------
+// 第四档：content 字符串值里未转义的双引号
+// ----------------------------------------------------------------------------
+
 /**
- * 三档合一——`parseAgentAction` 与清洗脚本跨的就是这一个 seam：同一份形状校验、
- * 同一个返回形状，档位由 `RepairedReply.form` 带出。三档判据互不重叠
- * （第一档要求开头没有 `{`，第二档要求 `{`…`}`，第三档要求尾部结构缺陷），顺序不影响结果。
+ * 第四档的前置扫描结果。`bodyStart` 之后的未转义双引号里**包含**真正的结尾引号——
+ * 本档不知道它是哪一个，这正是要靠 parse 逐个试边界的原因。
  */
-export function parseLeakedReply(text: string): RepairedReply | null {
-  return parseRepairedReply(text) ?? parseRawControlReply(text) ?? parseTrailingKeyReply(text);
+interface ContentLiteral {
+  /** content 字符串值内部起点（紧接开引号之后）。 */
+  readonly bodyStart: number;
+  /** body 起所有未转义双引号的下标（升序）。 */
+  readonly quotePositions: readonly number[];
+}
+
+/** 整段是不是合法 JSON（本档的守卫：合法 JSON 走原生解析路径，不是泄漏）。 */
+function isWellFormedJson(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function skipProtocolWhitespace(text: string, from: number): number {
+  let i = from;
+  while (i < text.length && isProtocolWhitespace(text[i])) i += 1;
+  return i;
+}
+
+/** 一个已闭合的字符串是不是根对象的 `"content"` 成员名（深度 1 + 名字对得上 + 后面紧跟 `:`）。 */
+function isRootContentKey(text: string, nameStart: number, quoteIndex: number, depth: number): boolean {
+  if (depth !== 1 || text.slice(nameStart, quoteIndex) !== "content") return false;
+  return text[skipProtocolWhitespace(text, quoteIndex + 1)] === ":";
 }
 
 /**
- * 文本是否落在**任一档的候选面**上（前置判据，不含 parse / 形状校验）。
+ * 成员名闭合引号之后找值：字符串则返回其**内部起点**（紧接开引号之后），否则 -1。
+ * -1 是「找到了 content、但它不是字符串」——本档到此为止（不是猜得出来的正文）。
+ */
+function contentValueStartAt(text: string, afterKeyQuote: number): number {
+  const colon = skipProtocolWhitespace(text, afterKeyQuote);
+  const literal = skipProtocolWhitespace(text, colon + 1);
+  return text[literal] === '"' ? literal + 1 : -1;
+}
+
+/**
+ * 找根对象上 `"content"` 的字符串值**内部起点**（紧接开引号之后）；没有则 -1。
+ *
+ * 只认 `depth === 1` 上的 `"content"`（嵌在 `ops` / `task` 里的同名字段不是回复正文），
+ * 且后面必须紧跟 `:` 与一个开引号（content 不是字符串就不是本档）。
+ * 「成员名」与「前一个成员的字符串值」靠那个冒号判据自然分开：值的闭合引号后面是 `,` 或 `}`，
+ * 不是 `:`，所以不需要额外维护「现在该读键还是读值」的状态机。
+ * 重复键取**第一个**（合法 JSON 走不到这里，见 `isWellFormedJson` 守卫）。
+ */
+function findContentValueStart(text: string): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let stringStart = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') {
+        inString = false;
+        if (isRootContentKey(text, stringStart, i, depth)) {
+          return contentValueStartAt(text, i + 1);
+        }
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      stringStart = i + 1;
+    } else if (ch === "{" || ch === "[") depth += 1;
+    else if (ch === "}" || ch === "]") depth -= 1;
+  }
+  return -1;
+}
+
+/**
+ * 第四档的前置筛：整段是**协议对象形状**（去两端可忽略空白后 `{"` 开头、`}` 结尾）
+ * 且根对象上有 `"content"` 字符串值。不满足即 null（未闭合、非对象形状、content 不是字符串）。
+ *
+ * 含 U+0000 的文本一律不认，与第二档的裸控制字符区间从 0x01 起是**同一个理由**：
+ * SQLite 的字符串处理在第一个 NUL 就截断、GLOB 字符类也覆盖不了它，若 JS 侧认它，
+ * 就会出现「loop 能修、清洗脚本永远捞不到」的单向不一致。
+ */
+function scanContentLiteral(text: string): ContentLiteral | null {
+  const trimmed = stripProtocolWhitespace(text);
+  if (!trimmed.startsWith('{"') || !trimmed.endsWith("}")) return null;
+  if (trimmed.includes("\u0000")) return null;
+  const bodyStart = findContentValueStart(trimmed);
+  if (bodyStart < 0) return null;
+  const quotePositions: number[] = [];
+  let escaped = false;
+  for (let i = bodyStart; i < trimmed.length; i += 1) {
+    const ch = trimmed[i];
+    if (escaped) escaped = false;
+    else if (ch === "\\") escaped = true;
+    else if (ch === '"') quotePositions.push(i);
+  }
+  return { bodyStart, quotePositions };
+}
+
+/**
+ * content 值的 body 转义：把 `[bodyStart, end)` 里的未转义双引号与裸控制字符就地转义。
+ *
+ * 只动这一段——边界之外的结构字段（`action` / `onConflict` / `task` / `ops` …）一字不改。
+ * `\` 之后的下一个字符一律不看：那是既有的（合法或非法的）转义序列，本档不得二次转义
+ * （否则 `\"xxx\"` 会被写成 `\\\"xxx\\\"`）。
+ */
+function escapeContentBody(body: string): string {
+  let out = "";
+  let escaped = false;
+  for (const ch of body) {
+    if (escaped) {
+      escaped = false;
+      out += ch;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      out += '\\"';
+      continue;
+    }
+    if (isRawControlChar(ch)) {
+      out += escapeRawControlChar(ch);
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/**
+ * 第四档：content 值里的未转义双引号 → 候选 → parse → 形状校验。
+ *
+ * **边界是逐个试的**，因为 content 的结尾引号正是未知量：从早到晚取每一个未转义双引号当作结尾、
+ * 把它之前的引号当作正文引号转义，然后要求整段重新 `JSON.parse` 成功且通过 `acceptProtocolObject`。
+ * 「整个对象因此合法」这一条同时回答了两个问题：
+ * - **太早的边界**（把正文切在半句）接不上后续结构，parse 失败；
+ * - **太晚的边界**（把 `,"task":…}` / `,"onConflict":"…"` 吞进正文）会留下多余的闭合括号，
+ *   parse 同样失败。
+ * 因此不需要「优先保留后续协议成员」这类启发式：能 parse 的边界就是保留了后续协议成员的那个。
+ * 早到晚的顺序保证万一有两处都成立，选的是**正文更短、协议成员更全**的那一个（结构字段优先
+ * 留在结构里，不被吞进正文）。
+ *
+ * 三个硬条件（都是必要条件，不是启发式）：
+ * - 整段已是合法 JSON 时**不修**：那是原生解析路径的活，本档只碰坏掉的文本；
+ * - 整段必须是协议对象形状（见 `scanContentLiteral`）；
+ * - 试的边界后面必须紧跟 `,` 或 `}`（JSON 语法决定对象里字符串值之后只能是这两个），
+ *   据此跳过绝大多数中间引号，不做无谓 parse。
+ *
+ * 候选生成与采纳判定在这里必然同居（试边界 = 试 parse），与前三档「先生成候选、再统一校验」不同：
+ * 本档的候选面（`isLeakedReplyCandidate`）只回答「值得报告吗」，边界仍只在 parse 成功时才确定。
+ *
+ * 已知边界（不猜，只按 JSON 语义取边界）：正文以**裸反斜杠**结尾时（如 Windows 路径 `C:\`），
+ * 意图的闭合引号被那个反斜杠转义——JSON 语义上字符串并未结束。本档照 JSON 语义继续往后找可
+ * parse 的边界，正文因此会吸收中间的成员序列（多数尾巴吸收后 parse 不过，直接返回 null）。
+ * 这种形态本身就「无法确定意图」，拒绝与吸收同样任意；live 实测三条样本的正文都不以反斜杠结尾。
+ */
+function parseUnescapedQuoteReply(text: string): RepairedReply | null {
+  const literal = scanContentLiteral(text);
+  if (literal === null) return null;
+  const trimmed = stripProtocolWhitespace(text);
+  if (isWellFormedJson(trimmed)) return null;
+  for (const end of literal.quotePositions) {
+    const after = skipProtocolWhitespace(trimmed, end + 1);
+    if (trimmed[after] !== "," && trimmed[after] !== "}") continue;
+    const body = trimmed.slice(literal.bodyStart, end);
+    const candidate = `${trimmed.slice(0, literal.bodyStart)}${escapeContentBody(body)}"${trimmed.slice(end + 1)}`;
+    const repaired = parseCandidate(candidate, "unescaped-quote");
+    if (repaired !== null) return repaired;
+  }
+  return null;
+}
+
+/**
+ * 四档合一——`parseAgentAction` 与清洗脚本跨的就是这一个 seam：同一份形状校验、
+ * 同一个返回形状，档位由 `RepairedReply.form` 带出。四档判据**各自独立**、按固定顺序判：
+ * 前三档的顺序与行为一字未动，第四档排在最后（只在前三档都不成立时才被问到）。
+ */
+export function parseLeakedReply(text: string): RepairedReply | null {
+  return (
+    parseRepairedReply(text) ??
+    parseRawControlReply(text) ??
+    parseTrailingKeyReply(text) ??
+    parseUnescapedQuoteReply(text)
+  );
+}
+
+/**
+ * 第四档的候选面：协议对象形状 + 根对象 `"content"` 是字符串值 + **整段不是合法 JSON**。
+ *
+ * 最后一条是本档与前几档最不一样的地方：合法 JSON 不进候选面（原生路径负责），只有坏掉的
+ * 协议对象形状才值得报告。这里不包含「边界是否能 parse」这个采纳判据（那在
+ * `parseUnescapedQuoteReply` 里），所以「进候选面 ≠ 可修」的区分在本档照旧成立。
+ */
+function isUnescapedQuoteCandidate(text: string): boolean {
+  if (scanContentLiteral(text) === null) return false;
+  return !isWellFormedJson(stripProtocolWhitespace(text));
+}
+
+/**
+ * 文本是否落在**任一档的候选面**上（前置判据，不含修复采纳）。
  * 清洗脚本 SQL 里那份「捞候选」的条件与它是同一件事的两份表示，由测试钉住不变式
  * （JS 候选面必须被 SQL 全部捞到；SQL 多捞的只允许进 skipped）。
  *
  * ⚠️ 本函数回答的是**值不值得当候选**，不是**能不能修**：第三档把“未闭合尾”也算候选
- * （只报告不修），所以 `isLeakedReplyCandidate(x) === true` 与 `parseLeakedReply(x) !== null`
- * 不是同一件事。这个区分是本档能否站住的关键（有独立用例钉住）。
+ * （只报告不修），第四档把「协议对象形状 + content 是字符串 + 整段 parse 不了」当候选
+ * （边界猜不出来就不修），所以 `isLeakedReplyCandidate(x) === true` 与
+ * `parseLeakedReply(x) !== null` 不是同一件事。这个区分是本模块能否站住的关键（有独立用例钉住）。
  */
 export function isLeakedReplyCandidate(text: string): boolean {
   return (
     LEAK_PROLOGUE_PATTERN.test(text) ||
     repairRawControlChars(text) !== null ||
-    scanProtocolTail(text) !== null
+    scanProtocolTail(text) !== null ||
+    isUnescapedQuoteCandidate(text)
   );
 }
