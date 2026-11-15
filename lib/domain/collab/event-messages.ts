@@ -142,3 +142,39 @@ export const SECRETARY_WELCOME_CONTENT = `${mentionText(SUSAN_MEMBER_NAME)} Welc
 export function notifySecretaryWelcome(channelId: string): void {
   deliverEventMessage(channelId, SECRETARY_WELCOME_CONTENT);
 }
+
+/**
+ * 首席系统动作留痕（票 chief-tools）：领域写工具（建频道 / 建 agent）成功后，以 **actor 署名**
+ * 投一条频道事件消息，让「系统被改了」这件事在消息流里可审计。
+ *
+ * 与 `deliverEventMessage` 的两处刻意差别：
+ * - **署名者是 actor，不是 Owner**。首席的操作记到人类头上，记分板与审计面就都错位了；
+ *   作者是谁就是谁（`sendMessage` 按作者写入，agent 作者不触发房间新场次）。
+ * - **不定向唤醒任何人**：`wake: false` 只落库（写操作结果已由工具调用本身返回给首席，
+ *   不必再把自己从消息流里叫醒一轮）。
+ *
+ * `roomNotice: true` 是承重的：这是**系统事件**、不是人类真的敲出来的消息——不得开房间场次、
+ * 不得重置 `lateTurns`、不得 supersede 在跑的场次（房间轮次预算禁止项 #5，
+ * 见 `.scratch/room-turn-budget/spec.md`）。
+ *
+ * 尽力而为（与 `deliverEventMessage` 同一套纪律）：actor 已软删 / 频道不存在或已归档 /
+ * actor 不是该频道成员 / 投递抛错 → 静默跳过或只记日志，**绝不向上抛**。
+ * 写操作已经提交，事件消息不得反向破坏调用方（工具调用不会因留痕失败而报失败）。
+ */
+export function notifyChiefSystemAction(channelId: string, actorId: string, content: string): void {
+  const actor = getMember(actorId);
+  if (!actor || actor.deleted === 1) return;
+  const channel = getChannel(channelId);
+  if (!channel || channel.archived === 1) return;
+  try {
+    sendMessage({
+      targetId: channelId,
+      authorId: actorId,
+      content,
+      wake: false,
+      roomNotice: true,
+    });
+  } catch (error) {
+    console.error("[event-messages] chief system action delivery failed:", error);
+  }
+}

@@ -24,6 +24,7 @@ import type { RpcSessionStartOptions } from "./session.ts";
 import { forcedEmptySystemPromptExtension } from "./forced-empty-system-prompt";
 import { toolPathGuardExtension } from "../tool-path-guard-extension.ts";
 import { bashContainmentExtension, createContainedBash } from "../bash-containment-extension.ts";
+import { chiefToolsExtension } from "../chief-tools/tools.ts";
 import { getRpcRegistry } from "./registry.ts";
 import { trackStarting } from "../cwd-mutex.ts";
 
@@ -56,6 +57,7 @@ export class RpcCaller {
       thinkingLevel,
       pathGuard,
       includeExtensionTools = true,
+      domainTools,
     } = options;
     const registry = getRpcRegistry();
     const locks = getLocks();
@@ -126,11 +128,16 @@ export class RpcCaller {
         cwd: sessionCwd,
         agentDir,
         resourceLoaderOptions: {
-          // 路径守卫、沙箱与 forced-empty 三个扩展住同一条接缝（ADR-0011 决策四 / ADR-0012 决策一）：
-          // 成员会话把六个文件工具与 `bash` 注册成同名覆盖的守卫／沙箱版；未传 pathGuard 的会话
-          // （人类）保持 pi 的默认实现。
+          // 路径守卫、沙箱、领域工具与 forced-empty 四个扩展住同一条接缝
+          // （ADR-0011 决策四 / ADR-0012 决策一 / 票 chief-tools）：成员会话把六个文件工具与 `bash`
+          // 注册成同名覆盖的守卫／沙箱版；未传 pathGuard 的会话（人类）保持 pi 的默认实现。
+          //
+          // 领域工具只在 `domainTools` 在场时注册（首席会话，见 lib/agent-runtime.ts）。非首席会话
+          // **不注册**这五个名字——不是注册了再停用：注册面越窄，「能不能被非首席调到」这条
+          // 安全边界就越少一个需要靠运行时判定的地方。
           extensionFactories: [
             forcedEmptySystemPromptExtension(forcedEmptySystemPromptSwitch),
+            ...(domainTools ? [chiefToolsExtension({ actorId: domainTools.actorId })] : []),
             ...(pathGuard ? [toolPathGuardExtension({ cwd: sessionCwd, scope: pathGuard })] : []),
             ...(containedBash ? [bashContainmentExtension({ cwd: sessionCwd, contained: containedBash })] : []),
           ],
