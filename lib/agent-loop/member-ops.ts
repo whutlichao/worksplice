@@ -367,12 +367,12 @@ export function formatSearchObservation(query: string, hits: SearchHit[]): strin
       continue;
     }
     const author = hit.author?.name ?? "unknown";
-    // 频道命中与线程命中同形：归属（线程加 (thread) 标记）+ 完整 messageId 句柄 + snippet。
-    // seq 仍是 react / pin 的句柄，messageId 是建任务 / 引用的句柄——两个都要在。
-    const where = hit.inThread
-      ? `${channelLabel(hit.target_id)} (thread)`
-      : channelLabel(hit.target_id);
-    lines.push(`- #${hit.seq} @${author} in ${where} ${messageIdTag(hit.id)}: ${snippet}`);
+    // 频道命中与线程命中同形：归属（线程由 `channelLabel` 写成 `thread of <anchorId>`）+ 完整
+    // messageId 句柄 + snippet。seq 仍是 react / pin 的句柄，messageId 是建任务 / 引用的句柄——
+    // 两个都要在。归属不另叠 `(thread)` 标记：`thread of …` 已经说了这件事，重复的标记只是噪声。
+    lines.push(
+      `- #${hit.seq} @${author} in ${channelLabel(hit.target_id)} ${messageIdTag(hit.id)}: ${snippet}`,
+    );
   }
   return lines.join("\n");
 }
