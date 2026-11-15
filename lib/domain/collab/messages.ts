@@ -300,6 +300,21 @@ export function listMessages(
   };
 }
 
+/**
+ * **轻量**读取（票 collab-debt-sweep 债 2）：只回消息行本身——不做 author 联表、不做 reaction
+ * 聚合 / 附件 / 线程计数。
+ *
+ * 用在「这条消息在不在、属于哪个 target」这类**存在性判断**上（`lib/chief-tools/tools.ts` 的
+ * `task_create`）；那类判断不需要展示面，用 `getMessageWithAuthor` 既多查又不合语义。
+ * 展示面继续用它，本函数不改它的语义（尤其是它的「不存在即抛错」）。
+ *
+ * 不存在**不抛错**，回 `null`（存在性判断自己决定怎么说）；`id` 先 trim，与本文件既有的
+ * target 读取（`resolveTargetRef`）同一口径。
+ */
+export function getMessage(id: string): MessageRow | null {
+  return getDb().getMessage(id.trim()) ?? null;
+}
+
 export function getMessageWithAuthor(id: string): MessageWithAuthor {
   const message = getDb().getMessage(id);
   if (!message) throw new Error("Message not found");

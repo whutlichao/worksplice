@@ -43,5 +43,6 @@ export * from "./rounds.ts";
 export * from "./search.ts";
 export * from "./secretary-auto-create.ts";
 export * from "./secretary-init.ts";
+export * from "./task-reference.ts";
 export * from "./tasks.ts";
 export * from "./wake.ts";
