@@ -20,6 +20,7 @@
  */
 
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
+import type { ChannelType, MemberRow } from "../../data/types.ts";
 
 /**
  * `ops` 数组词表（协议层，见 lib/agent-loop/member-ops.ts）：开口表从它派生，两边不会漂移。
@@ -146,4 +147,169 @@ export function assertMemberMayPerform(
 /** 服务层入口：按调用者 id 裁决（`OWNER_MEMBER_ID` = human，其余 = agent）。 */
 export function assertActorMayPerform(operation: string, actorId: string): void {
   assertMemberMayPerform(operation, actorId === OWNER_MEMBER_ID ? "human" : "agent");
+}
+
+// ---------------------------------------------------------------------------
+// 约束面（票 chief-capability-converge）：`canMemberPerform` 回答「能不能」，
+// 这里回答「以什么形状能」——两条执行路径（ops 面 / 首席 tools 面）共用同一份。
+//
+// 为什么上移：仓里本来有两条路径能做同一件事（`{"ops":[...]}` 与首席领域工具），
+// 而它们的约束是**各自硬编码**的——于是被约束的角色（首席）反而比任何其它 agent 更受限，
+// 同样的事换个写法就绕过去了。约束面把不矛盾的规矩收到一处：名字形状、每会话配额、
+// 模型选择不接受、私有频道的创建者可见性、`memberIds` 只收存活 agent。
+// 开口集合（谁能做）**不变**——本表只补充「以什么形状做」。
+//
+// 只覆盖两条会「造出东西」的 op：其余五条（post / react / pin / remind / search）没有可
+// 争论的形状规则，本层不给它们凭空造一条。
+// ---------------------------------------------------------------------------
+
+/**
+ * `createAgent` 允许的名字形状：`ops-` 前缀 + 小写字母 / 数字 / 连字符，总长 ≤ 32。
+ * 让「系统自建的身份」与人类命名的成员在名字上一眼可分（名字同时是 mention 句柄）。
+ */
+export const MEMBER_AGENT_NAME_PATTERN = /^ops-[a-z0-9][a-z0-9-]{1,27}$/;
+
+/** 同一 agent 的**同一会话**内 `createAgent` 的成功次数上限（失败不消耗，装在配额 store 里）。 */
+export const MEMBER_AGENT_CREATE_LIMIT = 1;
+
+/** `createAgent` **不接受**的字段：新身份一律继承全局默认模型（不接受按次指定）。 */
+export const MEMBER_AGENT_MODEL_FIELDS = ["provider", "modelId", "thinkingLevel"] as const;
+
+/**
+ * 配额用尽的拒绝文案（两条路径共用同一句）。字面值保持与既有首席工具一致——那条文案是
+ * 模型读到的契约，换写法只会让同一个事实在两条路径上说两遍不同的话。
+ */
+export const MEMBER_AGENT_CREATE_QUOTA_REJECTION =
+  "agent_create is limited to one new agent per session; ask a human for more";
+
+/** `createAgent` 的执行约束。 */
+export interface AgentCreateConstraint {
+  op: "createAgent";
+  namePattern: RegExp;
+  perSessionLimit: number;
+  rejectedFields: readonly string[];
+}
+
+/** `createChannel` 的执行约束。 */
+export interface ChannelCreateConstraint {
+  op: "createChannel";
+  privateRequiresActor: boolean;
+  /** `memberIds` 的准入面：只收存活 agent（软删 / 人类 / 不存在一律拒绝）。 */
+  memberIds: "live-agent";
+}
+
+export type MemberOpConstraint = AgentCreateConstraint | ChannelCreateConstraint;
+
+const CREATE_AGENT_CONSTRAINT: AgentCreateConstraint = Object.freeze({
+  op: "createAgent",
+  namePattern: MEMBER_AGENT_NAME_PATTERN,
+  perSessionLimit: MEMBER_AGENT_CREATE_LIMIT,
+  rejectedFields: MEMBER_AGENT_MODEL_FIELDS,
+});
+
+const CREATE_CHANNEL_CONSTRAINT: ChannelCreateConstraint = Object.freeze({
+  op: "createChannel",
+  privateRequiresActor: true,
+  memberIds: "live-agent",
+});
+
+/**
+ * 按动作名取执行约束：**单一来源**。返回 `null` = 该动作没有形状约束（不是「不允许」——
+ * 那由 `canMemberPerform` 回答）。批量与单条执行器都从这里取值，不再各写一份。
+ */
+export function memberOpConstraint(op: "createAgent"): AgentCreateConstraint;
+export function memberOpConstraint(op: "createChannel"): ChannelCreateConstraint;
+export function memberOpConstraint(op: string): MemberOpConstraint | null;
+export function memberOpConstraint(operation: string): MemberOpConstraint | null {
+  // 重载让四条判据拿到**具体分支**的类型（不用 `as` 把联合缩窄——判据是安全边界，
+  // 不给自己留一个「以为拿到了 createAgent 的约束，实际拿到 createChannel 的」的口子）。
+  if (operation === "createAgent") return CREATE_AGENT_CONSTRAINT;
+  if (operation === "createChannel") return CREATE_CHANNEL_CONSTRAINT;
+  return null;
+}
+
+/**
+ * 值的可读描述：拒绝时要点名「收到了什么」（对象 / 数组也照原样）。
+ *
+ * 导出是因为首席 tools 的判定层（`lib/chief-tools/decisions.ts`）对**其它**字段也报同一口径的
+ * 「received …」——两边共一份，不能各写一个描述函数（同一事实两种写法是本票要消除的东西）。
+ */
+export function describeValue(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (value === undefined) return "undefined";
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * 名字形状判据 → 拒绝理由（`null` = 通过）。
+ *
+ * 文案在这里只写一份：两条路径拒绝时给模型看到的是**同一句话**（改规则时不可能只改一边）。
+ */
+export function agentNameRejection(name: unknown): string | null {
+  const constraint = memberOpConstraint("createAgent");
+  if (typeof name === "string" && constraint.namePattern.test(name)) return null;
+  return (
+    `agent name must match /${constraint.namePattern.source}/ — start with "ops-", then 1-28 ` +
+    `lowercase letters, digits or hyphens (32 characters at most) (received ${describeValue(name)})`
+  );
+}
+
+/**
+ * 模型选择判据：`provider` / `modelId` / `thinkingLevel` 任一**出现**即拒绝（`null`/`undefined`
+ * 视为没出现）——新身份继承全局默认，不允许按次指定服务商 / 模型。
+ */
+export function modelSelectionRejection(fields: Record<string, unknown>): string | null {
+  const constraint = memberOpConstraint("createAgent");
+  const given = constraint.rejectedFields.filter(
+    (field) => fields[field] !== undefined && fields[field] !== null,
+  );
+  if (given.length === 0) return null;
+  return (
+    `createAgent does not accept ${given.join(", ")} — a new identity inherits the global default ` +
+    `model; retry with "name" only`
+  );
+}
+
+/**
+ * 私有频道的创建者可见性判据：私有频道必须把 actor 放进 `memberIds`。
+ *
+ * 判据对**声明值**生效（不是执行器自动补完之后的值）：「创建者自动加入」是公开频道的既有语义，
+ * 私有频道不能靠它变成立——否则「首席建了一个自己不在里面的私有房间」换个写法又成立了。
+ */
+export function privateChannelActorRejection(input: {
+  type: ChannelType;
+  memberIds: readonly string[];
+  actorId: string;
+}): string | null {
+  const constraint = memberOpConstraint("createChannel");
+  if (!constraint.privateRequiresActor || input.type !== "private") return null;
+  if (input.memberIds.includes(input.actorId)) return null;
+  return (
+    "a private channel must include its creator (the actor) in memberIds — a private channel is " +
+    "visible only to its members, so the creator must be one of them"
+  );
+}
+
+/**
+ * `memberIds` 的准入判据：只允许**存活的 agent 成员**。
+ *
+ * 「`createChannel` 的 `assertMember` 会拦」这句话不成立：`assertMember` 只查「这一行在不在」
+ * （`getDb().getMember` 连软删行一起返回，也不看 `type`），所以软删身份和人类 id 都能被塞进
+ * 新频道。软删身份重新出现在频道里违反 §3.6「删除即移出全部 channel」；人类 id 该走
+ * 「Owner 自动加入」那条既有语义，不该由调用方决定。
+ */
+export function memberIdRejection(
+  member: Pick<MemberRow, "type" | "deleted"> | null | undefined,
+  memberId: string,
+): string | null {
+  if (!member) return `member not found: ${memberId}`;
+  if (member.deleted === 1) return `member ${memberId} is deleted; memberIds accept live agent ids only`;
+  if (member.type !== "agent") {
+    return `member ${memberId} is not an agent; memberIds accept live agent ids only`;
+  }
+  return null;
 }

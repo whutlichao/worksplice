@@ -21,6 +21,7 @@ import {
   createTask,
   getChannel,
   getMember,
+  getMemberOpQuotaStore,
   getMessageWithAuthor,
   isChannelMember,
   isSecretaryMember,
@@ -28,6 +29,7 @@ import {
   listChannelMembers,
   listChannels,
   listChannelTasks,
+  memberIdRejection,
   notifyChiefSystemAction,
 } from "../domain/collab/index.ts";
 import {
@@ -37,7 +39,6 @@ import {
   agentCreateEventContent,
   channelCreateEventContent,
   channelSummary,
-  createAgentCreateQuota,
   decideAgentCreateInput,
   decideChannelCreateInput,
   decideListChannelsInput,
@@ -45,7 +46,6 @@ import {
   decideListTasksInput,
   decideTaskCreateInput,
   isChannelVisibleToActor,
-  memberIdRejection,
   memberSummary,
   taskSummary,
 } from "./decisions.ts";
@@ -75,15 +75,21 @@ function reasonOf(error: unknown): string {
 export interface ChiefToolsOptions {
   /** 会话归属的成员 id：每次调用都用它**重新**判定首席身份，也是写操作的署名者。 */
   actorId: string;
+  /**
+   * 会话标识（票 chief-capability-converge）：`createAgent` 配额按「agent + 会话」分期，
+   * 与 ops 面共用同一个配额单例（`getMemberOpQuotaStore()`），所以两条路径命中同一份计数。
+   * 省略 = 拿不到标识 → 配额退化为「该 agent 在本进程内至多 1 次」并记日志（fail-closed）。
+   */
+  sessionKey?: string | null;
 }
 
 /**
- * 六个领域工具的定义（未注册）。一次调用 = 一份配额实例：配额挂在这里而不是模块级，
- * 是因为工厂每次 `startSession` 执行一次，天然就是「一次连续工作窗口」的边界。
+ * 六个领域工具的定义（未注册）。配额来自**进程级单例**（跨路径共享），随会话标识分期——
+ * 不再挂在本工厂实例上：那条「每个工厂闭包一份」的旧实现正是「换个写法就没有配额」的成因。
  */
 export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition[] {
   const { actorId } = options;
-  const quota = createAgentCreateQuota();
+  const sessionKey = options.sessionKey ?? null;
 
   /**
    * 每次调用重新判定 actor 仍是当前全局首席（唯一判据 `isSecretaryMember`）。
@@ -302,7 +308,8 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
       chiefOnly(() => {
         const decision = decideAgentCreateInput(input);
         if (!decision.ok) return failure(decision.error);
-        if (quota.isExhausted()) return failure(AGENT_CREATE_QUOTA_ERROR);
+        const quota = getMemberOpQuotaStore();
+        if (quota.isExhausted(actorId, sessionKey)) return failure(AGENT_CREATE_QUOTA_ERROR);
 
         // 缺省目标 = #all；给了 channelId 就必须可达（不静默改投到别处）。
         const channelId = decision.value.channelId ?? BUILTIN_CHANNEL_ID;
@@ -318,7 +325,7 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
             modelId: null,
           });
           // 只在成功之后记账：失败（重名 / 参数 / 权限）不消耗配额。
-          quota.recordSuccess();
+          quota.recordSuccess(actorId, sessionKey);
           notifyChiefSystemAction(channelId, actorId, agentCreateEventContent(actorName(), agent.name));
           return success(memberSummary(agent));
         } catch (error) {
