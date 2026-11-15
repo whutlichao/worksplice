@@ -499,6 +499,36 @@ export const CONTENT_PLACEMENT_RUBRIC: readonly string[] = [
 ];
 
 /**
+ * 收件人只路由（票 chief-recipient-router，用户裁决 ②）：**当且仅当**本轮以 `chief` 角色被邀请时注入。
+ *
+ * 场景：一条人类消息既没有点名、也没有 @all、也不涉及任何任务——它落到生效首席头上，只因为
+ * 她是这个频道的默认收件人。这种情况下「回一篇分析」是错的：她该做的是**分流**，把实现细节
+ * 留给真正干活的人；一句话闲聊就用一两句短答收口。
+ *
+ * 短答仍走既有的 `action: "reply"`：`ignore` 在这套协议里等于「没看到」，会让人类以为消息丢了。
+ * 本段只加固定骨架行，与 `CONTENT_PLACEMENT_RUBRIC` 同一条纪律（不动消息块 / 预算 / 其余规则）。
+ */
+export const DEFAULT_RECIPIENT_RULE: readonly string[] = [
+  "- This round you are the channel's default recipient: nobody was named, so the message landed on you. Your job is routing, not answering it in depth — if it can become a task, make it one with worksplice_task_create (handing it off when exactly one member is clearly the right owner); if it clearly belongs to one person or one task, say where it goes and hand it off when you can; if it is small talk or needs no action, reply with one or two sentences and say you are doing nothing.",
+  '- No long analysis when you have no new facts — implementation detail belongs to whoever does the work. Still deliver that short answer with the normal "reply" action, never "ignore": silence would read as if you never saw the message.',
+];
+
+/**
+ * 建完即派（票 chief-recipient-router，用户裁决 ①）：**首席会话的任何一轮**都注入。
+ *
+ * 为什么是「首席会话」而不是「所有会话」：`handoff` op 只对全局首席开放（`runTaskOperation` 的
+ * 第一道闸是 `isSecretaryMember`），六个 `worksplice_*` 工具也只注册在首席会话里。给普通成员的
+ * prompt 教这套动作，等于教它用一个它没有的工具，还会让非首席轮次的 prompt 不再逐字节不变。
+ *
+ * 为什么是 prompt 而不是 loop 逻辑：`handoff` 不受轮次准入约束——准入只决定「这一轮要不要起来」，
+ * 派哪个任务由 `handoffTask` 的资格判定决定。所以「建完即派」缺的只是「同一轮可以接着派」这句告知。
+ */
+export const CREATE_THEN_HANDOFF_RULE: readonly string[] = [
+  '- Create and hand off in the same round: when worksplice_task_create returns a number in this round and exactly one member is clearly the right owner, add {"task":{"number":N,"op":"handoff","assignee":"@Name"}} to your JSON — no need to wait for the next round. If you cannot tell who the candidates are, look with worksplice_list_members or the member context above first.',
+  "- If no single member clearly fits (a tie, nobody suitable, or the Owner has to decide), do not force a handoff: leave the task unclaimed and say in your reply what is blocking. A refused handoff (blocked or held) does not roll back the task — it still exists and is still unclaimed, so never write that it was assigned.",
+];
+
+/**
  * decide 的 prompt（§5.4 AX 原则）：新消息（带 seq/作者）+ 相关任务状态 + 明确的 next action 选项。
  *
  * 票 08（spec B5）：整轮注入形状受 `ROUND_INJECTION_BUDGET_CHARS` 约束——
@@ -534,6 +564,13 @@ export function buildReplyPrompt(input: {
     number: number;
     candidates: Array<{ name: string; description: string }>;
   };
+  /**
+   * 本轮的收件人身份（票 chief-recipient-router）：只决定两段固定骨架行，不参与任何判定。
+   * - `role`：本轮是怎么进来的（与 `round_logs.role` 同一份取值）；`"chief"` ⇒ 默认收件人轮。
+   * - `canHandoff`：本会话属于全局首席（`isSecretaryMember`）——`handoff` op 只对首席开放。
+   * 缺省 = 不适用：prompt 与今天逐字节相同（非首席成员 / 直调本函数的单测）。
+   */
+  recipient?: { role: AdmissionRole; canHandoff: boolean };
 }): string {
   // 头部（骨架，永不裁）
   const head: string[] = [];
@@ -645,6 +682,11 @@ export function buildReplyPrompt(input: {
     "- onConflict applies only if the room changed while you were writing (freshness-hold): revise = read the new messages and rewrite; resend = send the draft as-is; silent = stay silent; anyway = send without the freshness check.",
   );
   lines.push(...CONTENT_PLACEMENT_RUBRIC);
+  // 收件人规则（票 chief-recipient-router）：两条独立条件、互不蕴含——
+  // 「默认收件人只路由」只属于本轮作为默认收件人进来的轮次（role="chief"）；
+  // 「建完即派」属于首席会话的任何准入角色（handoff 只对全局首席开放）。
+  if (input.recipient?.role === "chief") lines.push(...DEFAULT_RECIPIENT_RULE);
+  if (input.recipient?.canHandoff) lines.push(...CREATE_THEN_HANDOFF_RULE);
   lines.push(
     '- Task protocol: a non-empty ordinary reply auto-claims only when this round\'s only new channel activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
     '  In both cases, claim first and post in the task thread; if claim fails (freshness hold, another owner, reopened block), yield without posting anywhere.',
@@ -2489,6 +2531,9 @@ export async function runAgentRound(
           })),
         }
       : undefined,
+    // 收件人身份（票 chief-recipient-router）：角色取准入的唯一结论，可派与否取秘书身份——
+    // 两者都不在这里重新推导（`decideRoundAdmission` 与 `isSecretaryMember` 各自已经是单一来源）。
+    recipient: { role: admittedRole, canHandoff: isSecretary },
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
