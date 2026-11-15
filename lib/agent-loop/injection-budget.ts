@@ -53,13 +53,15 @@ const TRUNCATED_PREFIX = "（正文已按注入预算截断）";
 
 /** 可被注入的消息（结构子集：不绑定领域类型，loop.ts 的 MessageWithAuthor 直接满足）。 */
 export interface InjectableMessage {
+  /** 完整消息 id（票 #266）：注入行尾的句柄，模型拿它直接调建任务工具。 */
+  id: string;
   seq: number;
   content: string;
   author?: { name?: string | null } | null;
 }
 
 export interface MessageProjection {
-  /** 注入的消息行（seq 升序）。 */
+  /** 注入的消息行（seq 升序；每行行尾带该消息的完整 id 句柄）。 */
   lines: string[];
   /** 被裁掉的较早消息条数（0 = 无裁剪）。 */
   omitted: number;
@@ -72,6 +74,17 @@ export function clampText(text: string, cap: number): string {
   if (text.length <= cap) return text;
   if (cap <= 1) return "…";
   return `${text.slice(0, cap - 1)}…`;
+}
+
+/**
+ * 消息 id 句柄的唯一文本形状（票 #266）：轮次注入行与搜索命中行（member-ops 的观察相）共用。
+ *
+ * 只写完整 id：不做短 id、不做前缀唯一性解析——歧义错误与额外维护不值得省那点字符
+ * （spec #265「消息指认」的明确取舍）。两个入口同形是这条不变量的可观察面：任一入口
+ * 自己拼一份形状，模型就会在另一个入口上拿错句柄。
+ */
+export function messageIdTag(messageId: string): string {
+  return `(messageId ${messageId})`;
 }
 
 /** 多行文本的字符量（含行间换行，向上取整，宁可高估）。 */
@@ -104,18 +117,31 @@ export function clampLines(lines: readonly string[], capChars: number): string[]
   return kept;
 }
 
+/** 行首句柄（`#seq @author: `）：id 句柄之前的固定部分，单独拎出来供截断分支算余量。 */
+function linePrefix(message: InjectableMessage): string {
+  const author = message.author?.name ?? "unknown";
+  return `#${message.seq} @${author}: `;
+}
+
+/** 一行注入消息：`#seq @author: 正文 (messageId <完整 id>)`（notice 只在截断分支里有内容）。 */
+function renderMessage(
+  message: InjectableMessage,
+  contentCap = MESSAGE_CONTENT_CAP,
+  notice = "",
+): string {
+  return `${linePrefix(message)}${notice}${clampText(message.content, contentCap)} ${messageIdTag(message.id)}`;
+}
+
 /**
  * 消息块投影：在 `budgetChars` 内保留最近的若干条消息，更早的从注入投影里裁掉。
  * 保证：返回行的字符量 + 提示行 ≤ `budgetChars`（最新一条永远在，必要时截断它的正文）。
  */
+
 export function projectMessages(
   messages: readonly InjectableMessage[],
   budgetChars: number,
 ): MessageProjection {
-  const rendered = messages.map((message) => {
-    const author = message.author?.name ?? "unknown";
-    return `#${message.seq} @${author}: ${clampText(message.content, MESSAGE_CONTENT_CAP)}`;
-  });
+  const rendered = messages.map((message) => renderMessage(message));
   const usable = Math.max(budgetChars - NOTICE_RESERVE_CHARS, 0);
   const kept: string[] = [];
   let used = 0;
@@ -126,15 +152,15 @@ export function projectMessages(
     kept.unshift(rendered[index]);
     used += cost;
   }
-  // 至少保住最新一条：它是本轮要回的内容，必要时截断正文也要留在注入里
+  // 至少保住最新一条：它是本轮要回的内容，必要时截断正文也要留在注入里。
+  // 截断只吃正文：行首句柄与行尾 id 是固定开销（票 #266），被截掉的正文可以再搜，
+  // 被截掉的 id 会让模型永远调不对建任务工具。
   if (kept.length === 0 && rendered.length > 0) {
-    const newest = rendered[rendered.length - 1];
+    const newest = messages[messages.length - 1];
     const room = Math.max(usable - 1, 0);
-    kept.push(
-      room >= TRUNCATED_PREFIX.length + MIN_MESSAGE_CHARS
-        ? `${TRUNCATED_PREFIX}${clampText(newest, room - TRUNCATED_PREFIX.length)}`
-        : clampText(newest, room),
-    );
+    const notice = room >= TRUNCATED_PREFIX.length + MIN_MESSAGE_CHARS ? TRUNCATED_PREFIX : "";
+    const fixed = linePrefix(newest).length + notice.length + 1 + messageIdTag(newest.id).length;
+    kept.push(renderMessage(newest, Math.max(room - fixed, 0), notice));
   }
   const omitted = rendered.length - kept.length;
   return {

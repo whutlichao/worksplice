@@ -38,6 +38,8 @@ import {
   type SearchHit,
 } from "../domain/collab/index.ts";
 import type { MemberRow } from "../data/types.ts";
+// 消息 id 句柄的唯一文本形状（票 #266）：观察相与轮次注入行共用，避免两处口径漂移。
+import { messageIdTag } from "./injection-budget.ts";
 
 // ---------------------------------------------------------------------------
 // 协议形状
@@ -341,7 +343,12 @@ function channelLabel(targetId: string): string {
 /** 搜索命中 → 观察文本（含消息句柄，便于模型用 react / pin 引用命中）。
  *  上下文治理票 07 扩面（spec B2/B3）：命中来源可能是消息或归档会话原文（含 compact summary）——
  *  归档行标注来源「archived session」并携带归档定位（archive id / 条目行号 / 条目类型）；
- *  snippet 截断与条数上限沿用既有机制（B8 形状不变）。 */
+ *  snippet 截断与条数上限沿用既有机制（B8 形状不变）。
+ *
+ *  票 #266（消息指认）：消息命中行同样带**完整消息 id**，形状与轮次注入行共用 `messageIdTag`
+ *  ——「看到过 → 转任务（worksplice_task_create 只收 messageId）」在两个入口都成立，
+ *  只修一个入口等于半边不可用。归档命中是 session 归档条目，**没有频道消息 id**：它保留自己的
+ *  归档定位（archive / entry），不硬造一个不存在的 messageId。 */
 export function formatSearchObservation(query: string, hits: SearchHit[]): string {
   const lines = [
     `Search results for "${query}" (scoped to the channels you belong to and your own archived sessions):`,
@@ -360,12 +367,12 @@ export function formatSearchObservation(query: string, hits: SearchHit[]): strin
       continue;
     }
     const author = hit.author?.name ?? "unknown";
-    // channel 命中：seq + channel 名即可回指（react/pin 的 seq + targetId）；
-    // thread 命中：seq 属线程自己的空间，附 messageId 句柄，否则模型拿不到引用。
+    // 频道命中与线程命中同形：归属（线程加 (thread) 标记）+ 完整 messageId 句柄 + snippet。
+    // seq 仍是 react / pin 的句柄，messageId 是建任务 / 引用的句柄——两个都要在。
     const where = hit.inThread
-      ? `${channelLabel(hit.target_id)} (thread, messageId ${hit.id})`
+      ? `${channelLabel(hit.target_id)} (thread)`
       : channelLabel(hit.target_id);
-    lines.push(`- #${hit.seq} @${author} in ${where}: ${snippet}`);
+    lines.push(`- #${hit.seq} @${author} in ${where} ${messageIdTag(hit.id)}: ${snippet}`);
   }
   return lines.join("\n");
 }
