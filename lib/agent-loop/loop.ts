@@ -110,6 +110,12 @@ import { buildJoinBriefing, type JoinBriefing } from "./join-briefing.ts";
  */
 
 export interface LoopSession {
+  /**
+   * 会话标识（票 chief-capability-converge）：`createAgent` 配额按「agent + 会话」分期。
+   * 生产实现（`lib/rpc/session.ts` 的 `AgentSessionWrapper`）本来就暴露它；测试用的假会话
+   * 可以不提供——拿不到标识时配额退化为「该 agent 在本进程内至多 1 次」并记日志（fail-closed）。
+   */
+  readonly sessionId?: string;
   send(command: {
     type: string;
     message?: string;
@@ -846,6 +852,8 @@ async function applyMemberOps(input: {
   agent: MemberRow;
   targetId: string;
   action: AgentAction;
+  /** 本轮所在会话的标识（配额分期用）；undefined = 会话没暴露 id（配额退化，见 store）。 */
+  sessionKey?: string | null;
   promptFn: (promptText: string) => Promise<string>;
 }): Promise<{ action: AgentAction; summary: string }> {
   let action = input.action;
@@ -856,6 +864,7 @@ async function applyMemberOps(input: {
       agent: input.agent,
       targetId: input.targetId,
       plans: planMemberOps(action.ops ?? []),
+      sessionKey: input.sessionKey ?? null,
     });
     outcomes.push(...result.outcomes);
     if (!result.observation || phases >= MAX_OPS_OBSERVATION_PHASES) {
@@ -2539,6 +2548,8 @@ export async function runAgentRound(
         agent,
         targetId,
         action,
+        // 配额按会话分期：会话标识就是本轮这条会话自己的 id（与 chief tools 同一个口径）。
+        sessionKey: session.sessionId ?? null,
         promptFn: async (opsPrompt) => {
           const revised = await promptSession(session, opsPrompt);
           return revised.ok ? revised.text : "";

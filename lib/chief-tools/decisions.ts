@@ -9,6 +9,13 @@ import type {
   TaskStatus,
 } from "../data/types.ts";
 import { previewLine } from "../preview.ts";
+import {
+  MEMBER_AGENT_CREATE_QUOTA_REJECTION,
+  MEMBER_AGENT_NAME_PATTERN,
+  agentNameRejection,
+  memberIdRejection,
+  privateChannelActorRejection,
+} from "../domain/collab/member-capabilities.ts";
 
 /**
  * 首席领域工具的**判定层**（票 chief-tools）：参数校验、配额、可见面、读面摘要与事件文案。
@@ -65,13 +72,15 @@ export const TASK_STATUSES: readonly TaskStatus[] = [
 
 /**
  * `worksplice_agent_create` 的名字形状：`ops-` 前缀 + 小写字母 / 数字 / 连字符，总长 ≤ 32。
- * 让「首席自建的身份」与人类命名的成员在名字上一眼可分（名字同时是 mention 句柄）。
+ *
+ * 票 chief-capability-converge 起改为**共享常量的别名**（唯一来源 =
+ * `lib/domain/collab/member-capabilities.ts`）：约束面与 `ops` 面执行器读的是同一个对象，
+ * 两条路径不可能再各自漂移（本文件不再自己写一份正则）。
  */
-export const AGENT_NAME_PATTERN = /^ops-[a-z0-9][a-z0-9-]{1,27}$/;
+export const AGENT_NAME_PATTERN = MEMBER_AGENT_NAME_PATTERN;
 
-/** 配额耗尽的文案（票据逐字要求）。 */
-export const AGENT_CREATE_QUOTA_ERROR =
-  "agent_create is limited to one new agent per session; ask a human for more";
+/** 配额耗尽的文案（票据逐字要求）——同样只有一个来源，两条路径报同一句话。 */
+export const AGENT_CREATE_QUOTA_ERROR = MEMBER_AGENT_CREATE_QUOTA_REJECTION;
 
 /** 判定结果：拒绝时带**可直接回给模型**的英文原因。 */
 export type Decision<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -312,12 +321,13 @@ export function decideChannelCreateInput(input: unknown, actorId: string): Decis
   const memberIds = readMemberIds(params.value.memberIds);
   if (!memberIds.ok) return memberIds;
 
-  if (type === "private" && !memberIds.value.includes(actorId)) {
-    return reject(
-      "a private channel must include the actor in memberIds: the global chief can only create " +
-        "channels it belongs to",
-    );
-  }
+  // 私有频道的创建者可见性：判据在能力表（与 ops 面同一条，理由同一句）。
+  const violation = privateChannelActorRejection({
+    type,
+    memberIds: memberIds.value,
+    actorId,
+  });
+  if (violation) return reject(violation);
 
   return accept({
     name,
@@ -344,25 +354,17 @@ function readMemberIds(value: unknown): Decision<string[]> {
 }
 
 /**
- * `memberIds` 的准入判据（纯函数，薄壳逐项取证）：只允许**存活的 agent 成员**。
+ * `memberIds` 的准入判据：只允许**存活的 agent 成员**。
  *
- * 票据的括号说「`createChannel` 已有的 `assertMember` 会拦，别重复实现」——实测那句前提不成立：
- * `assertMember` 只查「这一行在不在」（`getDb().getMember` 连软删行一起返回，也不看 `type`），
- * 所以软删身份和人类 id 都能被塞进新频道。软删身份重新出现在频道里违反 §3.6「删除即移出全部
- * channel」；人类 id 该走「Owner 自动加入」那条既有语义，不该由 `memberIds` 决定。
- * 于是这里按票据**第一句**的要求（只允许存活 agent 成员）就地判，并留这条注释说明偏离。
+ * 票 chief-capability-converge 起落在能力表（`lib/domain/collab/member-capabilities.ts`）：
+ * 这里只做 re-export，保留既有导入面（工具层与测试都从这里取），判据与文案仍只有一份。
+ *
+ * 为什么需要它（实测）：`createChannel` 的 `assertMember` 只查「这一行在不在」
+ * （`getDb().getMember` 连软删行一起返回，也不看 `type`），所以软删身份和人类 id 都能被
+ * 塞进新频道。软删身份重新出现在频道里违反 §3.6「删除即移出全部 channel」；人类 id 该走
+ * 「Owner 自动加入」那条既有语义，不该由 `memberIds` 决定。
  */
-export function memberIdRejection(
-  member: Pick<MemberRow, "type" | "deleted"> | null | undefined,
-  memberId: string,
-): string | null {
-  if (!member) return `member not found: ${memberId}`;
-  if (member.deleted === 1) return `member ${memberId} is deleted; memberIds accept live agent ids only`;
-  if (member.type !== "agent") {
-    return `member ${memberId} is not an agent; memberIds accept live agent ids only`;
-  }
-  return null;
-}
+export { memberIdRejection };
 
 // ---------------------------------------------------------------------------
 // 写面 2：worksplice_agent_create —— *只有* { name, description?, channelId? }
@@ -385,12 +387,13 @@ export function decideAgentCreateInput(input: unknown): Decision<AgentCreateInte
   if (!params.ok) return params;
 
   const name = params.value.name;
-  if (typeof name !== "string" || !AGENT_NAME_PATTERN.test(name)) {
-    return reject(
-      `agent name must match /${AGENT_NAME_PATTERN.source}/ — start with "ops-", then 1-28 ` +
-        `lowercase letters, digits or hyphens (32 characters at most) (received ${describeValue(name)})`,
-    );
+  // 类型层与规则层分开：非字符串是「字段形状」错误（与 description / channelId 同口径）；
+  // 是字符串但形状不合规时，理由来自能力表——与 ops 面同一句话。
+  if (typeof name !== "string") {
+    return reject(`name must be a string (received ${describeValue(name)})`);
   }
+  const violation = agentNameRejection(name);
+  if (violation) return reject(violation);
 
   const description = params.value.description;
   if (description !== undefined && typeof description !== "string") {
@@ -429,33 +432,15 @@ export function decideTaskCreateInput(input: unknown): Decision<{ messageId: str
 }
 
 // ---------------------------------------------------------------------------
-// 配额：每个会话至多 1 次成功创建
+// 配额：搬到能力表 + 进程级 store（票 chief-capability-converge）
 // ---------------------------------------------------------------------------
-
-/** 一次会话工作窗口内「建 agent」的成功次数配额（实现是薄闭包，测试可直接数）。 */
-export interface AgentCreateQuota {
-  /** 已经用掉了（第 2 次调用直接拒绝）。 */
-  isExhausted(): boolean;
-  /** 只在**成功**创建之后调用；失败不消耗配额。 */
-  recordSuccess(): void;
-}
-
-/** 每个常量只此一处，配额上限不可注入（避免「调大上限」成为一条绕过路径）。 */
-const AGENT_CREATE_LIMIT = 1;
-
-/**
- * 新配额实例。挂在**该会话的扩展工厂实例**上（工厂每次 `startSession` 执行一次），
- * 所以它就是「一次连续工作窗口」的天然边界：会话重载 / 重启 = 新窗口 = 新配额。
- */
-export function createAgentCreateQuota(): AgentCreateQuota {
-  let created = 0;
-  return {
-    isExhausted: () => created >= AGENT_CREATE_LIMIT,
-    recordSuccess: () => {
-      created += 1;
-    },
-  };
-}
+//
+// 这里曾经有一个 `createAgentCreateQuota()` 闭包：配额挂在**扩展工厂实例**上，看上去
+// 「每个会话一份」，实际上只约束了走工具的这一条路径——同一个 agent 用 `{"ops":[...]}`
+// 建 agent 就没有配额。现在计数与上限都是共享的：
+// - 上限：`MEMBER_AGENT_CREATE_LIMIT`（能力表）
+// - 计数：`getMemberOpQuotaStore()`（`lib/domain/collab/member-op-quota.ts`，按 agent + 会话分期）
+// - 文案：`AGENT_CREATE_QUOTA_ERROR` = `MEMBER_AGENT_CREATE_QUOTA_REJECTION`（上面那个别名）
 
 // ---------------------------------------------------------------------------
 // 系统事件文案（写操作留痕，英文，紧跟既有事件消息的写法）

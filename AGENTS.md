@@ -209,6 +209,18 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   invitations.ts                  模型调用前邀请判定（#237）：selectMessageInvitations（人类正文点名 / @all；
                                   引用块 / 代码块 / 行内代码不算；任务线程 owner 续工；reopened 清空候选）
                                   + parseTaskCreationEventNumber（创建事件正文唯一解析）
+  member-capabilities.ts          成员能力表的两个面（ADR-0013 决策一 + 票 chief-capability-converge）：
+                                  canMemberPerform = **开口面**（能不能做；默认拒绝、逐条开口）
+                                  / memberOpConstraint = **约束面**（以什么形状做：createAgent 的名字正则 +
+                                  每会话上限 + 不接受的模型字段；createChannel 的私有必含 actor + memberIds
+                                  只收存活 agent）+ 四条判据函数（agentNameRejection / modelSelectionRejection /
+                                  privateChannelActorRejection / memberIdRejection）——约束常量**只在这里定义一次**，
+                                  ops 面执行器与首席 tools 判定层都从这里取值
+  member-op-quota.ts              createAgent 的配额 store（跨路径共享的单一实例）：
+                                  createMemberOpQuotaStore / getMemberOpQuotaStore（挂 `globalThis.
+                                  __workspliceMemberOpQuota`）/ setMemberOpQuotaStore(null)（测试接缝）；
+                                  键 = agentId + 会话标识；拿不到会话标识 ⇒ 退化为「该 agent 在本进程内至多 1 次」
+                                  并记一条退化日志（fail-closed，绝不退化成「跳过配额」）
   admission.ts                    轮次准入纯判定（#237）：decideRoundAdmission + ROUND_SKIP_REASONS
                                   （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵）
   room-budget.ts                  房间轮次预算（PR #218，设计记录 `.scratch/room-turn-budget/spec.md`）：
@@ -304,10 +316,12 @@ lib/
                        + shallowEqualChannel（含 chief / chiefSource / chiefAvailable：结论变了行就换新引用）
   chief-failure.ts     首席写入失败码 → i18n key 的唯一映射（client-safe）：chiefFailureText /
                        isChiefFailureCode；频道设置与建频道弹窗共用，不再前缀猜码
-  chief-tools/         首席领域工具（票 chief-tools / chief-task-create，薄壳 + 判定层）：
-                       decisions.ts = 判定层（参数校验 / 配额 / 可见面 / 读面摘要 / 事件文案，纯函数，
-                       运行时只依赖 lib/preview.ts）；tools.ts = 扩展工厂薄壳（六个 `worksplice_*`
-                       工具经 `extensionFactories` 注册，每次调用复判 `isSecretaryMember`）
+  chief-tools/         首席领域工具（票 chief-tools / chief-task-create / chief-capability-converge，薄壳 + 判定层）：
+                       decisions.ts = 判定层（参数校验 / 可见面 / 读面摘要 / 事件文案，纯函数，运行时只依赖
+                       lib/preview.ts 与能力表 member-capabilities.ts）；约束常量与配额**都不再住在这里**（名字正则与
+                       配额文案是能力表的别名，计数走 member-op-quota 的单例）；tools.ts = 扩展工厂薄壳（六个
+                       `worksplice_*` 工具经 `extensionFactories` 注册，每次调用复判 `isSecretaryMember`，
+                       拿 `actorId` + `sessionKey` 两样身份）
   member-tool-policy.ts 成员会话的工具面策略判定层（零依赖）：CHIEF_DOMAIN_TOOL_NAMES / CHIEF_TOOL_NAMES
                        （首席 = `read` + 六个领域工具）与 resolveMemberToolPolicy（非首席 → `{}` 不表态）
   secretary-name.ts    引导期默认秘书名字的唯一字面来源（零依赖、client-safe；数据层迁移常量 /
@@ -578,8 +592,39 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **可达是另一件事（投递判定）**：`canRouteToChief(channelId, memberId)`（本频道未软删 agent 成员 + 未静音）是唯一结论，`selectChiefRecipient`（谁接这条消息）、wake 的定向唤醒、`listChannelsWithMeta` 的 `chiefAvailable` 三处共用；composer 提示只读 `chiefAvailable`（`false` ⇒ 说「没有默认收件人」），客户端不重新推导——否则提示会承诺一次不会发生的投递（可达反例：私有频道不自动加全局首席、频道首席被静音）。
 - **收件人只多一条分支**：既有四条路径（个人点名 / `@all` / 任务线程裁决 / 任务创建事件 handoff）全都不成立时，才把生效首席加入候选**一次**；静音优先于首席（静音 ⇒ 不可达，不回落、不换人）。「涉及任务」复用 `task-reference.ts` 的 `hasTaskReference`（单一来源，不再单独解析创建事件正文）。
 - **秘书 = 全局首席**：不是独立角色，是它在下沉 handoff 职责时的称呼（`isSecretaryMember`）；引导期默认名只用于 v19 迁移与「启动助手」入口。
-- **领域工具面（票 chief-tools）**：首席会话 = `read` + 六个 `worksplice_*` 工具，清单只有 `member-tool-policy.ts` 的 `CHIEF_DOMAIN_TOOL_NAMES` 一份（注册面与激活面共用，`lib/chief-tools/tools.ts` 注册时 `assertPolicyCoverage` 防漂移——名字对不上会静默变成「注册了但永不激活」）。六个工具**只在首席会话注册**（`RpcSessionStartOptions.domainTools` 不在场 ⇒ 工厂不进 `extensionFactories`，不是「注册了再停用」），且**每次调用重新复判** `isSecretaryMember`：换人 / 软删之后旧会话里的工具立即失效（会话创建时判定过不算数）。写面三个：`worksplice_channel_create`（私有频道必须把 actor 放进 `memberIds`；`memberIds` 只收**存活 agent**——`createChannel` 的 `assertMember` 只查存在性、`getMember` 连软删行一起返回，所以这层自己判）；`worksplice_agent_create`（只收 `name` / `description` / `channelId`，模型一律 `provider: null` 继承全局默认；名字 `^ops-[a-z0-9][a-z0-9-]{1,27}$`；每会话至多 1 次成功创建，配额挂在工厂实例上、失败不消耗）；`worksplice_task_create`（票 chief-task-create：参数**只有** `messageId`——把一条**既有**顶层消息转成任务，校验 / 取号 / `TaskAlreadyExistsError` 全复用 `createTask`，thread 内消息由它自己抛错；actor 须是该消息所在频道的成员；成功回 `{ number, status, anchorSeq }`。**有意例外：不补 actor 署名事件**——`createTask` 内部已投 Owner 署名的 `Task #N created`（`roomNotice: true` + `wake: true` 全频道扇出），那条既是频道留痕、也是下一轮 handoff 的准入触发）。写操作留痕走 `notifyChiefSystemAction`（**actor 署名** + `wake:false` + `roomNotice:true`——系统事件不得开房间场次、不得重置 `lateTurns`；仅前两个 `*_create` 工具使用）。三个读面都有界：只回约定字段（任务 preview ≤ 120 字符），可见面 = 公开频道 + 本人成员。
+- **领域工具面（票 chief-tools）**：首席会话 = `read` + 六个 `worksplice_*` 工具，清单只有 `member-tool-policy.ts` 的 `CHIEF_DOMAIN_TOOL_NAMES` 一份（注册面与激活面共用，`lib/chief-tools/tools.ts` 注册时 `assertPolicyCoverage` 防漂移——名字对不上会静默变成「注册了但永不激活」）。六个工具**只在首席会话注册**（`RpcSessionStartOptions.domainTools` 不在场 ⇒ 工厂不进 `extensionFactories`，不是「注册了再停用」），且**每次调用重新复判** `isSecretaryMember`：换人 / 软删之后旧会话里的工具立即失效（会话创建时判定过不算数）。写面三个：`worksplice_channel_create`（私有频道必须把 actor 放进 `memberIds`；`memberIds` 只收**存活 agent**——`createChannel` 的 `assertMember` 只查存在性、`getMember` 连软删行一起返回，所以这层自己判；两条判据自票 chief-capability-converge 起住在能力表，见下节）；`worksplice_agent_create`（只收 `name` / `description` / `channelId`，模型一律 `provider: null` 继承全局默认；名字 `^ops-[a-z0-9][a-z0-9-]{1,27}$`；每会话至多 1 次成功创建、失败不消耗——上限与计数都在能力表 + 跨路径共享的配额 store 里）；`worksplice_task_create`（票 chief-task-create：参数**只有** `messageId`——把一条**既有**顶层消息转成任务，校验 / 取号 / `TaskAlreadyExistsError` 全复用 `createTask`，thread 内消息由它自己抛错；actor 须是该消息所在频道的成员；成功回 `{ number, status, anchorSeq }`。**有意例外：不补 actor 署名事件**——`createTask` 内部已投 Owner 署名的 `Task #N created`（`roomNotice: true` + `wake: true` 全频道扇出），那条既是频道留痕、也是下一轮 handoff 的准入触发）。写操作留痕走 `notifyChiefSystemAction`（**actor 署名** + `wake:false` + `roomNotice:true`——系统事件不得开房间场次、不得重置 `lateTurns`；仅前两个 `*_create` 工具使用）。三个读面都有界：只回约定字段（任务 preview ≤ 120 字符），可见面 = 公开频道 + 本人成员。
 - **schema v19 三列 + 两档幂等迁移**：`members.global_chief`（补列时把存活同名 agent 标一次；用户事后清空后不在开库时复活）/ `channels.chief_member_id`（纯补列，存量 NULL = 回落全局）/ `round_logs.role`（准入角色，可空，历史行 = 未记录）。三列都靠 `PRAGMA table_info` 检查式 ALTER，重复开库幂等。
+
+### 成员能力：开口面 + 约束面（票 chief-capability-converge）
+
+`lib/domain/collab/member-capabilities.ts` 有两个面，各自回答一个问题：
+
+- **开口面** `canMemberPerform(op, actorType)`：**能不能**做——ADR-0013 决策一的默认拒绝 + 逐条开口。签名与判定结果本票一字未动（开口集合不增不减）。
+- **约束面** `memberOpConstraint(op)` + 四条判据：**以什么形状**做——`createAgent` 的名字正则 / 每会话上限 / 不接受的模型字段、`createChannel` 的私有必含 actor / `memberIds` 只收存活 agent。常量只在这里定义一次：`lib/chief-tools/decisions.ts` 的 `AGENT_NAME_PATTERN` / `AGENT_CREATE_QUOTA_ERROR` 是它的**别名**（`decisions.test.mjs` 用同一个模块缓存做 `===` 断言，并且禁止判定层再写一份正则字面量或配额上限）。
+
+**为什么上移**：同一个动作本来有两条执行路径、规则各写一份——结果被约束的角色（全局首席）反而比任何 agent 更受限，而同样的事换个写法就绕过去了。约束面把**不矛盾的那部分**收到一处，两条路径同口径；不退役任何一条面，也不动不矛盾的项。
+
+| 动作 | ops 面（任何 agent，`{"ops":[...]}`） | 首席 tools 面（只有全局首席） | 口径 |
+| --- | --- | --- | --- |
+| `post` / `react` / `pin` / `remind` / `search` | ✅ | — | 本票不动（与今天逐字节相同） |
+| `reply` / `task`（claim / complete / unclaim / handoff） | ✅ | — | 协议字段，不动 |
+| `createAgent` | ✅ 受约束 | ✅ 受约束 | **同口径**：同一名字正则、同一配额 store、同一句拒绝文案 |
+| `createChannel` | ✅ 受约束 | ✅ 受约束 | **同口径**：私有必须含 actor；`memberIds` 只收存活 agent |
+| 频道 / 成员 / 任务读面 | 走每轮语境注入（不占 op） | ✅ 三个有界读面 | 只有 tools 面有显式读工具 |
+| 归档 / 删除身份 / 三种 reset / 改 runtime / 改 workspace | ❌（`HUMAN_ONLY_OPERATIONS`） | ❌ | 人类专属，两条面都不开 |
+
+**配额 = 跨路径共享的单一实例**：`lib/domain/collab/member-op-quota.ts` 的 `getMemberOpQuotaStore()`。规则是「同一 agent 的同一会话内 `createAgent` **成功**至多 1 次，失败不消耗」。
+
+- 会话标识：tools 面由 `lib/rpc/caller.ts` 传 `sessionManager.getSessionId()`；ops 面由 `lib/agent-loop/loop.ts` 的调用点传 `session.sessionId`（`LoopSession` 的可选字段）。两侧是**同一个 id**，所以同一个会话在两条路径上就是同一个窗口。
+- **fail-closed**：拿不到会话标识 ⇒ 退化为「该 agent 在本进程内至多 1 次」并记一条退化日志——**不允许**「拿不到标识就跳过配额」，那本身就是一条绕过路径。
+- 上限**不可注入**（`MEMBER_AGENT_CREATE_LIMIT` 是唯一来源）：一旦可注入，「把上限调大」就是第二条绕过路径。
+
+**会静默破坏它的纪律**：
+
+1. 新增 / 修改约束只改能力表：在 `decisions.ts` 或 `member-ops.ts` 里再写一份正则 / 上限 / 文案，两条路径会重新分裂（`lib/chief-tools/decisions.test.mjs` 有源码级断言守这条）。
+2. ops 面的拒绝走 `MemberOpOutcome` 的 `denied` 通道、并且在**写操作之前**返回（可读理由会进 `round_logs`）；不要改成抛错（`error` 通道），也不要静默改写（例如替私有频道自动补 actor——那正是绕过的成因）。
+3. 配额只在**成功之后**记账（`recordSuccess`），`isExhausted` 永远只读；失败（重名 / 参数 / 权限）不消耗。
+4. 热重载：配额单例挂 `globalThis.__workspliceMemberOpQuota`，改本模块或它的接缝后必须重启 dev server（同 `__workspliceRoomTurns` / `__workspliceWakeListeners`）。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）
 

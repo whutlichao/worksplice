@@ -135,9 +135,20 @@ export class RpcCaller {
           // 领域工具只在 `domainTools` 在场时注册（首席会话，见 lib/agent-runtime.ts）。非首席会话
           // **不注册**这六个名字——不是注册了再停用：注册面越窄，「能不能被非首席调到」这条
           // 安全边界就越少一个需要靠运行时判定的地方。
+          //
+          // 会话标识（票 chief-capability-converge）：`createAgent` 配额按「agent + 会话」分期，
+          // 所以把本会话的 id 一并交给领域工具，与 agent-loop 侧（`LoopSession.sessionId`）同一口径
+          // ——同一个会话在两条路径上就是同一个配额窗口。
           extensionFactories: [
             forcedEmptySystemPromptExtension(forcedEmptySystemPromptSwitch),
-            ...(domainTools ? [chiefToolsExtension({ actorId: domainTools.actorId })] : []),
+            ...(domainTools
+              ? [
+                  chiefToolsExtension({
+                    actorId: domainTools.actorId,
+                    sessionKey: sessionManager.getSessionId(),
+                  }),
+                ]
+              : []),
             ...(pathGuard ? [toolPathGuardExtension({ cwd: sessionCwd, scope: pathGuard })] : []),
             ...(containedBash ? [bashContainmentExtension({ cwd: sessionCwd, contained: containedBash })] : []),
           ],

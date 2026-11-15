@@ -17,19 +17,23 @@
 
 import { getDb } from "../data/db-singleton.ts";
 import {
+  MEMBER_AGENT_CREATE_QUOTA_REJECTION,
+  agentNameRejection,
   canMemberPerform,
   createAgent,
   createChannel,
+  getMemberOpQuotaStore,
   isValidRecurrence,
+  memberIdRejection,
+  modelSelectionRejection,
   pinMessage,
-  readDefaultModelFromSettings,
+  privateChannelActorRejection,
   resolveChannelForTarget,
   resolveTargetRef,
   scheduleReminder,
   searchMessages,
   sendMessage,
   toggleReaction,
-  type DefaultModelConfig,
   type MemberOpName,
   type SearchHit,
 } from "../domain/collab/index.ts";
@@ -238,9 +242,8 @@ function planForOp(name: string, fields: Record<string, unknown>): MemberOpPlan 
       }
       const provider = optionalString(fields.provider);
       const modelId = optionalString(fields.modelId);
-      if (Boolean(provider) !== Boolean(modelId)) {
-        return { kind: "rejected", name, reason: '"provider" and "modelId" must be given together' };
-      }
+      // 不再校验「provider 与 modelId 成对」：两者连同 thinkingLevel 都由约束面（能力表）
+      // 一律拒绝（新身份继承全局默认）。报「必须成对」会误导模型改成一个仍然非法的组合。
       return {
         kind: "planned",
         action: {
@@ -386,23 +389,31 @@ function resolveMessageId(ref: MessageRef, defaultTargetId: string): string {
   return row.id;
 }
 
-function resolveMemberIds(refs: string[]): string[] {
+function resolveMemberIds(refs: string[]): { ids: string[]; rejection: string | null } {
   const ids: string[] = [];
   for (const ref of refs) {
     const name = ref.startsWith("@") ? ref.slice(1) : ref;
     const member = getDb().getMemberByName(name);
-    if (!member || member.deleted === 1) throw new Error(`Member not found: ${ref}`);
-    if (!ids.includes(member.id)) ids.push(member.id);
+    // 准入判据的唯一来源是能力表（`memberIdRejection`）：只收存活 agent。
+    // 软删身份重新出现在频道里违反 §3.6「删除即移出全部 channel」；人类该走
+    // 「Owner 自动加入」那条既有语义，不该由调用方按名指定。
+    const rejection = memberIdRejection(member, ref);
+    if (rejection) return { ids: [], rejection };
+    if (!ids.includes(member!.id)) ids.push(member!.id);
   }
-  return ids;
+  return { ids, rejection: null };
 }
 
 export interface ExecuteMemberOpsInput {
   agent: MemberRow;
   targetId: string;
   plans: MemberOpPlan[];
-  /** 建 agent 的默认模型解析器（测试注入）；缺省读 settings.json。 */
-  resolveDefaultModel?: () => DefaultModelConfig | null;
+  /**
+   * 会话标识（票 chief-capability-converge）：`createAgent` 配额按「agent + 会话」分期。
+   * 调用点缺省不传 = 拿不到标识 → 配额退化为「该 agent 在本进程内至多 1 次」（fail-closed，
+   * 见 lib/domain/collab/member-op-quota.ts），绝不退化成「跳过配额」。
+   */
+  sessionKey?: string | null;
   /** 相对时间基准（inMinutes）；测试注入。 */
   now?: () => Date;
 }
@@ -441,7 +452,7 @@ export function executeMemberOps(input: ExecuteMemberOpsInput): MemberOpsOutcome
         agent: input.agent,
         targetId: input.targetId,
         now,
-        resolveDefaultModel: input.resolveDefaultModel,
+        sessionKey: input.sessionKey ?? null,
       });
       outcomes.push(outcome);
       if (action.op === "search" && outcome.observation) {
@@ -472,7 +483,8 @@ interface ActionContext {
   agent: MemberRow;
   targetId: string;
   now: () => Date;
-  resolveDefaultModel?: () => DefaultModelConfig | null;
+  /** 会话标识（配额分期用）；null = 调用点拿不到标识（配额退化并记日志）。 */
+  sessionKey: string | null;
 }
 
 function runAction(
@@ -543,13 +555,24 @@ function runAction(
       };
     }
     case "createChannel": {
-      const memberIds = resolveMemberIds(action.members);
+      const resolved = resolveMemberIds(action.members);
+      if (resolved.rejection) {
+        return { op: "createChannel", status: "denied", detail: resolved.rejection };
+      }
+      // 私有频道必须把创建者写进 memberIds（与首席 tools 同一条判据）。判的是**声明值**：
+      // 「创建者自动加入」是公开频道的既有语义，私有频道不能靠它变成立。
+      const violation = privateChannelActorRejection({
+        type: action.type,
+        memberIds: resolved.ids,
+        actorId: agent.id,
+      });
+      if (violation) return { op: "createChannel", status: "denied", detail: violation };
       // 创建者自动加入（人类路径由 createChannel 加 OWNER；成员路径由调用点加自己）。
       const created = createChannel({
         name: action.name,
         type: action.type,
         description: action.description,
-        memberIds: [agent.id, ...memberIds.filter((id) => id !== agent.id)],
+        memberIds: [agent.id, ...resolved.ids.filter((id) => id !== agent.id)],
       });
       return {
         op: "createChannel",
@@ -558,32 +581,35 @@ function runAction(
       };
     }
     case "createAgent": {
-      let provider = action.provider;
-      let modelId = action.modelId;
-      if (!provider || !modelId) {
-        const fallback = (context.resolveDefaultModel ?? readDefaultModelFromSettings)();
-        if (!fallback) {
-          return {
-            op: "createAgent",
-            status: "error",
-            detail:
-              "no model configured: pass provider+modelId, or set a default model in the agent settings",
-          };
-        }
-        provider = fallback.provider;
-        modelId = fallback.modelId;
+      // 约束面（票 chief-capability-converge）：名字形状 / 不接受的模型字段 / 每会话配额，
+      // 三条都从能力表来——与首席 tools 读同一份规则、报同一句话。
+      const violation =
+        agentNameRejection(action.name) ??
+        modelSelectionRejection({
+          provider: action.provider,
+          modelId: action.modelId,
+          thinkingLevel: action.thinkingLevel,
+        });
+      if (violation) return { op: "createAgent", status: "denied", detail: violation };
+
+      const quota = getMemberOpQuotaStore();
+      if (quota.isExhausted(agent.id, context.sessionKey)) {
+        return { op: "createAgent", status: "denied", detail: MEMBER_AGENT_CREATE_QUOTA_REJECTION };
       }
+
       const created = createAgent({
         name: action.name,
         description: action.description,
-        provider,
-        modelId,
-        thinkingLevel: action.thinkingLevel,
+        // 显式 null：新身份继承全局默认模型（不接受按次指定 provider / modelId / thinking）。
+        provider: null,
+        modelId: null,
       });
+      // 只在成功之后记账：失败（重名 / 参数 / 权限）不消耗配额。
+      quota.recordSuccess(agent.id, context.sessionKey);
       return {
         op: "createAgent",
         status: "applied",
-        detail: `created agent @${created.name} (${provider}/${modelId}) as @${agent.name}`,
+        detail: `created agent @${created.name} (inherits the global default model) as @${agent.name}`,
       };
     }
     case "search": {
