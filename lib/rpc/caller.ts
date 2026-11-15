@@ -133,7 +133,7 @@ export class RpcCaller {
           // 注册成同名覆盖的守卫／沙箱版；未传 pathGuard 的会话（人类）保持 pi 的默认实现。
           //
           // 领域工具只在 `domainTools` 在场时注册（首席会话，见 lib/agent-runtime.ts）。非首席会话
-          // **不注册**这五个名字——不是注册了再停用：注册面越窄，「能不能被非首席调到」这条
+          // **不注册**这六个名字——不是注册了再停用：注册面越窄，「能不能被非首席调到」这条
           // 安全边界就越少一个需要靠运行时判定的地方。
           extensionFactories: [
             forcedEmptySystemPromptExtension(forcedEmptySystemPromptSwitch),

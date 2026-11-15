@@ -138,8 +138,8 @@ export interface RpcSessionStartOptions {
    */
   includeExtensionTools?: boolean;
   /**
-   * 领域工具（票 chief-tools，第二批）：传了就在该会话注册五个 `worksplice_*` 工具
-   * （建频道 / 建 agent / 三个有界读面），`actorId` 是**使用它们的那个成员**——工具每次调用都用它
+   * 领域工具（票 chief-tools，第二批）：传了就在该会话注册六个 `worksplice_*` 工具
+   * （建频道 / 建 agent / 把既有消息转任务 / 三个有界读面），`actorId` 是**使用它们的那个成员**——工具每次调用都用它
    * 重新判定「是否仍是全局首席」。只有首席会话传这个字段：非首席会话**不注册**这些工具
    * （不是注册了再停用），注册面越窄越好。
    */

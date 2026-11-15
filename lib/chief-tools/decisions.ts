@@ -408,6 +408,27 @@ export function decideAgentCreateInput(input: unknown): Decision<AgentCreateInte
 }
 
 // ---------------------------------------------------------------------------
+// 写面 3：worksplice_task_create —— *只有* { messageId }
+// ---------------------------------------------------------------------------
+
+/**
+ * 参数判定：只收 `messageId`。本票**不提供**「发消息 + 建任务」的合并能力，所以 `content` /
+ * `channelId` / `title` 一律按多余字段报错（不静默忽略，见模块头注释）。
+ *
+ * 这里只判「是不是一个非空字符串」——消息存在不存在、是不是顶层消息（thread 内不可转）、
+ * 归属哪个频道、是否已经转过任务，全部交给 `createTask` 与工具层的成员判定，本层不重写一套。
+ */
+export function decideTaskCreateInput(input: unknown): Decision<{ messageId: string }> {
+  const params = readParameters(input, ["messageId"]);
+  if (!params.ok) return params;
+
+  const messageId = readOptionalString(params.value, "messageId");
+  if (!messageId.ok) return messageId;
+  if (messageId.value === null) return reject("messageId is required");
+  return accept({ messageId: messageId.value });
+}
+
+// ---------------------------------------------------------------------------
 // 配额：每个会话至多 1 次成功创建
 // ---------------------------------------------------------------------------
 

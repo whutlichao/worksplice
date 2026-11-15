@@ -1,4 +1,4 @@
-// 首席领域工具的**扩展工厂**（票 chief-tools）：五个 `worksplice_*` 工具经
+// 首席领域工具的**扩展工厂**（票 chief-tools / 第三批）：六个 `worksplice_*` 工具经
 // `resourceLoaderOptions.extensionFactories` 接缝注册进会话（与路径守卫 / bash 沙箱同一条缝，
 // ADR-0011 决策四）。本文件只做三件事：判 actor 是否**仍然是**全局首席、把参数交给
 // `./decisions.ts` 的判定层、把通过的值交给协作域服务。
@@ -18,8 +18,10 @@ import { CHIEF_DOMAIN_TOOL_NAMES } from "../member-tool-policy.ts";
 import {
   createAgent,
   createChannel,
+  createTask,
   getChannel,
   getMember,
+  getMessageWithAuthor,
   isChannelMember,
   isSecretaryMember,
   listAgents,
@@ -41,6 +43,7 @@ import {
   decideListChannelsInput,
   decideListMembersInput,
   decideListTasksInput,
+  decideTaskCreateInput,
   isChannelVisibleToActor,
   memberIdRejection,
   memberSummary,
@@ -75,7 +78,7 @@ export interface ChiefToolsOptions {
 }
 
 /**
- * 五个领域工具的定义（未注册）。一次调用 = 一份配额实例：配额挂在这里而不是模块级，
+ * 六个领域工具的定义（未注册）。一次调用 = 一份配额实例：配额挂在这里而不是模块级，
  * 是因为工厂每次 `startSession` 执行一次，天然就是「一次连续工作窗口」的边界。
  */
 export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition[] {
@@ -324,12 +327,74 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
       }),
   };
 
+  /**
+   * 写面 3（票 chief-task-create）：把一条**既有**消息转成任务（与 UI 的 “Convert to Task” 同一个
+   * 服务，不另写一套取号与校验）。
+   *
+   * ## 有意例外：这一个写面**不**补 actor 署名事件
+   *
+   * 前两个写面都会再调一次 `notifyChiefSystemAction`，这里**不调**。理由：`createTask` 内部已经投了
+   * `Task #N created`（Owner 署名、`roomNotice: true`、`wake: true` 全频道扇出）——那条消息既是
+   * 频道可见的留痕，**也是下一轮 handoff 的准入触发**；再补一条 actor 署名事件只会让同一个事实在
+   * 频道里出现两次，还多给下一轮一个诱因。同理也**不**给 `createTask` 传任何“抑制 wake”的开关：
+   * 那条扇出就是「建完任务后有人会来处理」的唯一信号。
+   */
+  const taskCreateTool: ToolDefinition = {
+    name: "worksplice_task_create",
+    label: "Create task",
+    description:
+      'Turn one existing top-level channel message into a task (the same conversion as "Convert to Task"). ' +
+      "Only `messageId` is accepted — no content, channelId or title. " +
+      "The global chief must be a member of the message's channel. " +
+      "The task service keeps its own rules: a thread message cannot become a task, one message becomes " +
+      "at most one task, and task numbers increment per channel. Its errors are returned as-is. " +
+      "Returns number, status and anchorSeq.",
+    promptSnippet: "Turn an existing channel message into a task (messageId only)",
+    parameters: {
+      type: "object",
+      properties: {
+        messageId: {
+          type: "string",
+          description: "Id of the top-level channel message to turn into a task",
+        },
+      },
+      required: ["messageId"],
+      additionalProperties: false,
+    },
+    defaultActive: false,
+    execute: async (_toolCallId, input) =>
+      chiefOnly(() => {
+        const decision = decideTaskCreateInput(input);
+        if (!decision.ok) return failure(decision.error);
+        const { messageId } = decision.value;
+
+        try {
+          // 消息存在性用服务层的同一措辞（Message not found），不在这里另写一套。
+          const message = getMessageWithAuthor(messageId);
+          // 顶层消息的 target_id 就是频道；thread 内消息的 target_id 是锚点消息——那条路径的
+          // 锚点归一化**不在这里实现**，直接让 `createTask` 抛
+          // "Only top-level messages can become tasks"。
+          const channel = getChannel(message.target_id);
+          if (channel) {
+            const accessError = channelAccessError(channel.id);
+            if (accessError) return failure(accessError);
+          }
+          const task = createTask({ messageId });
+          return success({ number: task.number, status: task.status, anchorSeq: task.anchor.seq });
+        } catch (error) {
+          // 重复转任务（TaskAlreadyExistsError）等错误原样透出：模型能据此改动作，不吞成通用错误。
+          return failure(reasonOf(error));
+        }
+      }),
+  };
+
   const definitions: ToolDefinition[] = [
     listChannelsTool,
     listMembersTool,
     listTasksTool,
     channelCreateTool,
     agentCreateTool,
+    taskCreateTool,
   ];
   assertPolicyCoverage(definitions);
   return definitions;
@@ -357,7 +422,7 @@ function assertPolicyCoverage(definitions: readonly ToolDefinition[]): void {
 /** 内联扩展名；`builtin:` 前缀使它在诊断里读起来就是 worksplice 自己的东西。 */
 export const CHIEF_TOOL_EXTENSION = "builtin:worksplice-chief-tools";
 
-/** 注册五个领域工具（扩展工厂执行体）。 */
+/** 注册六个领域工具（扩展工厂执行体）。 */
 export function registerChiefTools(pi: ExtensionAPI, options: ChiefToolsOptions): void {
   for (const definition of chiefToolDefinitions(options)) pi.registerTool(definition);
 }
