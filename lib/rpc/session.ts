@@ -24,6 +24,7 @@ import type { AgentSessionLike, ExtensionUiContextLike, ToolInfo } from "../pi-t
 import type { ForcedEmptySystemPromptSwitch } from "./forced-empty-system-prompt";
 import { CODING_TOOL_NAMES } from "../tool-presets";
 import type { PathGuardScope } from "../tool-path-guard.ts";
+import type { ChiefToolSurface } from "../member-tool-policy.ts";
 import type { ExtensionUiRequest, ExtensionUiResponse, ExtensionWidgetItem } from "../types";
 
 // ============================================================================
@@ -138,12 +139,13 @@ export interface RpcSessionStartOptions {
    */
   includeExtensionTools?: boolean;
   /**
-   * 领域工具（票 chief-tools，第二批）：传了就在该会话注册六个 `worksplice_*` 工具
-   * （建频道 / 建 agent / 把既有消息转任务 / 三个有界读面），`actorId` 是**使用它们的那个成员**——工具每次调用都用它
-   * 重新判定「是否仍是全局首席」。只有首席会话传这个字段：非首席会话**不注册**这些工具
+   * 领域工具（票 chief-tools / #272）：传了就在该会话注册 `surface` 对应的工具面——
+   * `global` = 六个 `worksplice_*` 工具（三个有界读面 + 三个写面），`channel` = 只有
+   * `worksplice_task_create`。`actorId` 是**使用它们的那个成员**——工具每次调用都用它
+   * 重新判定身份。只有首席会话传这个字段：非首席会话**不注册**这些工具
    * （不是注册了再停用），注册面越窄越好。
    */
-  domainTools?: { actorId: string };
+  domainTools?: { actorId: string; surface: ChiefToolSurface };
 }
 
 // Every colour token the SDK's own `theme-schema.json` marks required, minus the five it

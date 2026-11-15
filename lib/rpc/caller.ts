@@ -145,6 +145,7 @@ export class RpcCaller {
               ? [
                   chiefToolsExtension({
                     actorId: domainTools.actorId,
+                    surface: domainTools.surface,
                     sessionKey: sessionManager.getSessionId(),
                   }),
                 ]

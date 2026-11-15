@@ -1,7 +1,9 @@
-// 首席领域工具的**扩展工厂**（票 chief-tools / 第三批）：六个 `worksplice_*` 工具经
-// `resourceLoaderOptions.extensionFactories` 接缝注册进会话（与路径守卫 / bash 沙箱同一条缝，
-// ADR-0011 决策四）。本文件只做三件事：判 actor 是否**仍然是**全局首席、把参数交给
-// `./decisions.ts` 的判定层、把通过的值交给协作域服务。
+// 首席领域工具的**扩展工厂**（票 chief-tools / #272 / ADR-0020）：按会话的 `surface`
+// 注册 `worksplice_*` 工具（global = 六个；channel = 只 task_create），经
+// `resourceLoaderOptions.extensionFactories` 接缝进入会话（与路径守卫 / bash 沙箱同一条缝，
+// ADR-0011 决策四）。本文件只做三件事：每次调用**重新**判定 actor 的权限（五个读 / 管理员
+// 写面只认全局首席；task_create 认消息所属频道的生效首席）、把参数交给 `./decisions.ts`
+// 的判定层、把通过的值交给协作域服务。
 //
 // 为什么是「薄壳 + 判定层」两层：注册这一层拖 SDK 类型与领域服务，判定那一层（参数校验、
 // 配额、可见面、事件文案）是纯函数，能在没有 SDK / 数据库的情况下逐条取证。安全边界的
@@ -14,7 +16,11 @@ import type {
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../data/schema.ts";
-import { CHIEF_DOMAIN_TOOL_NAMES } from "../member-tool-policy.ts";
+import {
+  CHANNEL_CHIEF_TOOL_NAMES,
+  CHIEF_DOMAIN_TOOL_NAMES,
+  type ChiefToolSurface,
+} from "../member-tool-policy.ts";
 import {
   createAgent,
   createChannel,
@@ -23,7 +29,9 @@ import {
   getMember,
   getMemberOpQuotaStore,
   getMessage,
+  isChiefOfAnyChannel,
   isChannelMember,
+  isEffectiveChiefForChannel,
   isSecretaryMember,
   listAgents,
   listChannelMembers,
@@ -36,6 +44,7 @@ import {
   AGENT_CREATE_QUOTA_ERROR,
   AGENT_NAME_PATTERN,
   CHIEF_ONLY_ERROR,
+  TASK_CREATE_CHIEF_ERROR,
   agentCreateEventContent,
   channelCreateEventContent,
   channelSummary,
@@ -95,15 +104,22 @@ export interface ChiefToolsOptions {
    * 省略 = 拿不到标识 → 配额退化为「该 agent 在本进程内至多 1 次」并记日志（fail-closed）。
    */
   sessionKey?: string | null;
+  /**
+   * 工具面（票 #272 / ADR-0020）：`global` = 六个领域工具，由 `CHIEF_TOOL_NAMES` 显式激活；
+   * `channel` = 只注册 `worksplice_task_create`，且 `defaultActive: true`，补进频道首席
+   * 不收窄的普通工具面。缺省 = `global`，既有直调用例保持原样。
+   */
+  surface?: ChiefToolSurface;
 }
 
 /**
- * 六个领域工具的定义（未注册）。配额来自**进程级单例**（跨路径共享），随会话标识分期——
+ * 当前 surface 的领域工具定义（未注册）。配额来自**进程级单例**（跨路径共享），随会话标识分期——
  * 不再挂在本工厂实例上：那条「每个工厂闭包一份」的旧实现正是「换个写法就没有配额」的成因。
  */
 export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition[] {
   const { actorId } = options;
   const sessionKey = options.sessionKey ?? null;
+  const surface: ChiefToolSurface = options.surface ?? "global";
 
   /**
    * 每次调用重新判定 actor 仍是当前全局首席（唯一判据 `isSecretaryMember`）。
@@ -112,10 +128,19 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
   const chiefOnly = (run: () => ChiefToolResult): ChiefToolResult =>
     isSecretaryMember(getMember(actorId)) ? run() : failure(CHIEF_ONLY_ERROR);
 
+  /**
+   * `worksplice_task_create` 的第一道授权（票 #272）：actor 必须仍是某个频道的生效首席
+   * （全局或频道）。不是任何首席时**先于消息读取**拒绝；具体频道的第二道授权在 execute 里。
+   */
+  const taskCreateAuthorizationError = (): string | null => {
+    if (isSecretaryMember(getMember(actorId))) return null;
+    return isChiefOfAnyChannel(actorId) ? null : TASK_CREATE_CHIEF_ERROR;
+  };
+
   const actorName = () => getMember(actorId)?.name ?? actorId;
 
   /**
-   * 频道可达判定的唯一一处（三个读面 + 两个写面共用）：不存在 → 报错；actor 不是成员 → 报错。
+   * 频道可达判定的唯一一处（三个读面 + 三个写面共用）：不存在 → 报错；actor 不是成员 → 报错。
    * 两条都是「拒绝」而不是「换个频道」（不静默改投）。
    */
   const channelAccessError = (channelId: string): string | null => {
@@ -366,7 +391,8 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
     description:
       'Turn one existing top-level channel message into a task (the same conversion as "Convert to Task"). ' +
       "Only `messageId` is accepted — no content, channelId or title. " +
-      "The global chief must be a member of the message's channel. " +
+      "Only the effective chief of the message's channel (the channel chief, or the global chief when " +
+      "the channel has none) may create tasks; the actor must also be a member of that channel. " +
       "The task service keeps its own rules: a thread message cannot become a task, one message becomes " +
       "at most one task, and task numbers increment per channel. Its errors are returned as-is. " +
       "Returns number, status and anchorSeq.",
@@ -382,31 +408,40 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
       required: ["messageId"],
       additionalProperties: false,
     },
-    defaultActive: false,
-    execute: async (_toolCallId, input) =>
-      chiefOnly(() => {
-        const decision = decideTaskCreateInput(input);
-        if (!decision.ok) return failure(decision.error);
-        const { messageId } = decision.value;
+    // channel surface 的关键：频道首席的普通工具面不收窄、不传 toolNames，若不在这里
+    // defaultActive，注册了也永远不会进入 getActiveToolNames()。global surface 仍由
+    // CHIEF_TOOL_NAMES 显式激活，保持 false。
+    defaultActive: surface === "channel",
+    execute: async (_toolCallId, input) => {
+      const authorizationError = taskCreateAuthorizationError();
+      if (authorizationError) return failure(authorizationError);
 
-        try {
-          // 可达判定只在该消息真的属于一个频道时做（不存在 / thread 内消息的情形见 `owningChannelOfMessage`）：
-          // 两条降级路径都由 `createTask` 报服务层自己的错——措辞的单一来源在服务层，工具层不抄第二遍。
-          const channel = owningChannelOfMessage(messageId);
-          if (channel) {
-            const accessError = channelAccessError(channel.id);
-            if (accessError) return failure(accessError);
+      const decision = decideTaskCreateInput(input);
+      if (!decision.ok) return failure(decision.error);
+      const { messageId } = decision.value;
+
+      try {
+        // 可达判定只在该消息真的属于一个频道时做（不存在 / thread 内消息的情形见 `owningChannelOfMessage`）：
+        // 两条降级路径都由 `createTask` 报服务层自己的错——措辞的单一来源在服务层，工具层不抄第二遍。
+        const channel = owningChannelOfMessage(messageId);
+        if (channel) {
+          // 授权 = 消息所属频道的生效首席（频道首席优先，无频道首席才回落全局）。
+          if (!isEffectiveChiefForChannel(channel.id, actorId)) {
+            return failure(TASK_CREATE_CHIEF_ERROR);
           }
-          const task = createTask({ messageId });
-          return success({ number: task.number, status: task.status, anchorSeq: task.anchor.seq });
-        } catch (error) {
-          // 重复转任务（TaskAlreadyExistsError）等错误原样透出：模型能据此改动作，不吞成通用错误。
-          return failure(reasonOf(error));
+          const accessError = channelAccessError(channel.id);
+          if (accessError) return failure(accessError);
         }
-      }),
+        const task = createTask({ messageId });
+        return success({ number: task.number, status: task.status, anchorSeq: task.anchor.seq });
+      } catch (error) {
+        // 重复转任务（TaskAlreadyExistsError）等错误原样透出：模型能据此改动作，不吞成通用错误。
+        return failure(reasonOf(error));
+      }
+    },
   };
 
-  const definitions: ToolDefinition[] = [
+  const allDefinitions: ToolDefinition[] = [
     listChannelsTool,
     listMembersTool,
     listTasksTool,
@@ -414,25 +449,34 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
     agentCreateTool,
     taskCreateTool,
   ];
-  assertPolicyCoverage(definitions);
+  const expectedNames =
+    surface === "channel" ? CHANNEL_CHIEF_TOOL_NAMES : CHIEF_DOMAIN_TOOL_NAMES;
+  // 按 surface 取**完整的定义数组**再做双向校验：若先按期望清单过滤，extra 永远为空，
+  // 「注册了但永远不激活」就从守卫里消失了。channel 面只登记 task_create 一个定义。
+  const definitions = surface === "channel" ? [taskCreateTool] : allDefinitions;
+  assertPolicyCoverage(definitions, expectedNames);
   return definitions;
 }
 
 /**
- * 注册面与激活面必须逐字对齐（`CHIEF_DOMAIN_TOOL_NAMES` 是唯一来源）。
+ * 注册面与当前 surface 的激活清单必须逐字对齐（`CHIEF_DOMAIN_TOOL_NAMES` /
+ * `CHANNEL_CHIEF_TOOL_NAMES` 是唯一来源）。
  *
  * 对不齐的后果是**静默**的：定义注册了但名字不在激活清单里 → 工具永远不可用；反过来
  * 激活清单里写了个没注册的名字 → 调用时报 tool not found。这两种都不是崩溃，只是「半开」，
  * 而这是给 agent 开系统操作权限的口子——半开也要当缺陷。于是注册那一刻就抛。
  */
-function assertPolicyCoverage(definitions: readonly ToolDefinition[]): void {
+function assertPolicyCoverage(
+  definitions: readonly ToolDefinition[],
+  expectedNames: readonly string[],
+): void {
   const names = definitions.map((definition) => definition.name);
-  const missing = CHIEF_DOMAIN_TOOL_NAMES.filter((name) => !names.includes(name));
-  const extra = names.filter((name) => !CHIEF_DOMAIN_TOOL_NAMES.includes(name));
+  const missing = expectedNames.filter((name) => !names.includes(name));
+  const extra = names.filter((name) => !expectedNames.includes(name));
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
-      `chief tool surface drifted from CHIEF_DOMAIN_TOOL_NAMES: missing [${missing.join(", ")}], ` +
-        `extra [${extra.join(", ")}]`,
+      `chief tool surface drifted from its policy: missing [${missing.join(", ")}], ` +
+        `extra [${extra.join(", ")}], expected [${expectedNames.join(", ")}]`,
     );
   }
 }
@@ -440,7 +484,7 @@ function assertPolicyCoverage(definitions: readonly ToolDefinition[]): void {
 /** 内联扩展名；`builtin:` 前缀使它在诊断里读起来就是 worksplice 自己的东西。 */
 export const CHIEF_TOOL_EXTENSION = "builtin:worksplice-chief-tools";
 
-/** 注册六个领域工具（扩展工厂执行体）。 */
+/** 注册当前 surface 的领域工具（扩展工厂执行体）。 */
 export function registerChiefTools(pi: ExtensionAPI, options: ChiefToolsOptions): void {
   for (const definition of chiefToolDefinitions(options)) pi.registerTool(definition);
 }

@@ -161,6 +161,26 @@ export function isEffectiveChiefForChannel(
   return resolveEffectiveChief(channelId).chief?.id === memberId;
 }
 
+/**
+ * 这个成员是不是**至少一个未归档频道**的频道首席（票 #272 / ADR-0020）。
+ *
+ * 只回答「有没有频道首席身份」，不替代 `isEffectiveChiefForChannel` 的「是不是这个频道的
+ * 首席」：调用方要判某个具体频道的授权，仍必须用后者。全局回落不算这一档——即使全局首席
+ * 是某个无频道首席频道的生效首席，它也不是任何频道的「频道首席」。
+ *
+ * 不缓存、不重走回落链：每个频道都通过 `resolveEffectiveChief` 的唯一结论判断；归档频道
+ * 不参与（它的绑定不再构成活跃身份）。无参数校验 / 无静音判定——静音是可达性，不是身份。
+ */
+export function isChiefOfAnyChannel(memberId: string): boolean {
+  return getDb()
+    .listChannels()
+    .some((channel) => {
+      if (channel.archived === 1) return false;
+      const effective = resolveEffectiveChief(channel.id);
+      return effective.source === "channel" && effective.chief?.id === memberId;
+    });
+}
+
 /** 频道首席绑定的拒绝语义：路由按 `status` 映射稳定 4xx，`code` 给调用方与测试做稳定判据。 */
 export type ChannelChiefErrorCode =
   | "channel_not_found"

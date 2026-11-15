@@ -35,8 +35,8 @@ import {
  *
  * 分工照 `lib/tool-path-guard.ts` / `lib/pi-env-status.ts` 的同一套纪律：判定在纯函数里，
  * 副作用（读库、建频道、建 agent、投事件消息）留在 `lib/chief-tools/tools.ts` 的薄壳里。
- * 薄壳只做三件事：判 actor 是否仍是全局首席（唯一判据 `isSecretaryMember`）、把参数交给这里、
- * 把通过的值交给领域服务。
+ * 薄壳只做三件事：每次调用复判 actor 权限（五个读 / 管理员写面用 `isSecretaryMember`；
+ * `worksplice_task_create` 用消息所属频道的生效首席）、把参数交给这里、把通过的值交给领域服务。
  *
  * ## 为什么「不静默」是硬要求
  *
@@ -59,6 +59,12 @@ import {
 
 /** 首席复判失败的唯一文案（票据逐字要求）。薄壳在每次工具调用**重新**判定 actor 后返回它。 */
 export const CHIEF_ONLY_ERROR = "Only the global chief may use this tool";
+
+/**
+ * `worksplice_task_create` 的授权失败文案（票 #272 / ADR-0020）：五个管理员 / 读面仍用
+ * `CHIEF_ONLY_ERROR`，只有建任务按「消息所属频道的生效首席」授权，需要一句不同的拒绝。
+ */
+export const TASK_CREATE_CHIEF_ERROR = "Only the effective chief of this channel may create tasks";
 
 /** `worksplice_list_channels` 的默认条数与上限（bounded read：不给全量清单）。 */
 export const DEFAULT_LIST_CHANNELS_LIMIT = 20;

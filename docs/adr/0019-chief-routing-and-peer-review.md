@@ -42,3 +42,5 @@
 - **给频道首席开放全局建任务工具**：省一条 handoff 路径，却让「频道首席」与「全局工具面」两个概念重新混在一起；本决策只复用既有 handoff op。
 
 **Status**: accepted（#270 实施；文档落 `GLOSSARY.md`「首席 (Chief)」「唤醒 (Wake)」「回应判断 (Response Judgment)」，模块边界落 `AGENTS.md`）
+
+Superseded specific bullet: channel chief task_create is now allowed by ADR-0020
