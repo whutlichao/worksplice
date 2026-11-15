@@ -299,7 +299,7 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
 
         // 以成员 id 为锁键：并发请求合并、重启复用同一键，且 registry 卸载时按真实 id 清理
         //
-        // 工具面策略（票 chief-tool-surface / chief-tools）：全局首席 → `read` + 五个领域工具，
+        // 工具面策略（票 chief-tool-surface / chief-tools）：全局首席 → `read` + 六个领域工具，
         // 且不并回扩展工具；其余成员 → 空策略（options 里一个键都不加，与今天逐字节相同）。
         // 身份判据唯一来源是 `isSecretaryMember`，这里只算一次、两处共用（工具清单在
         // `lib/member-tool-policy.ts`，领域工具实现在 `lib/chief-tools/`，都是零依赖判定层）。
@@ -311,7 +311,7 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
           cwd,
           {
             ...memberToolPolicy,
-            // 领域工具只在首席会话注册（票 chief-tools）：传了 actorId 才有那五个工具的定义，
+            // 领域工具只在首席会话注册（票 chief-tools）：传了 actorId 才有那六个工具的定义，
             // 非首席**不注册**——不是注册了再停用，注册面越窄越好。
             ...(isChief ? { domainTools: { actorId: member.id } } : {}),
             // §3.10 per-agent runtime：覆盖全局默认（provider/modelId 成对；thinking 可单独）
