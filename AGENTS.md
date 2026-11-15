@@ -226,6 +226,17 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   并记一条退化日志（fail-closed，绝不退化成「跳过配额」）
   admission.ts                    轮次准入纯判定（#237）：decideRoundAdmission + ROUND_SKIP_REASONS
                                   （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵）
+  patrol.ts                       任务巡检的**判定层**（票 #267）：纯函数、零 IO。三个阈值 + 7 天窗口的
+                                  单一定义处（PATROL_UNCLAIMED_TODO_MS / PATROL_HANDOFF_BLOCKED_MS /
+                                  PATROL_IN_REVIEW_MS / PATROL_WINDOW_MS）+ findPatrolFindings（时间与任务快照注入）
+                                  + patrolSignatureOf（去重签名 = 任务+状态+详情，**不含时长**）
+                                  + buildPatrolSummary（每轮最多一条消息的正文；空发现 null = 沉默）
+  patrol-run.ts                   任务巡检的**接入层**（票 #267）：runPatrolOnce（读首席 / 频道范围 / 任务快照
+                                  / 投递器全可注入；tick 与测试共用）+ isPatrolDisabled（WORKSPLICE_PATROL_DISABLED=1，
+                                  现算不求值到常量）+ 进程内签名集（挂 `globalThis.__worksplicePatrolSignatures`，
+                                  setPatrolSignatureStore(null) 是测试接缝）。落点：她作为生效首席的频道 →
+                                  她所在的第一个公开频道 → 静默；投递走 `wake:false` + `roomNotice:true`
+                                  （系统事件，不占房间预算）
   room-budget.ts                  房间轮次预算（PR #218，设计记录 `.scratch/room-turn-budget/spec.md`）：
                                   createRoomTurnStore（场次状态机 / 选人水位线 / 迟到补充轮次）/ getRoomTurnStore
                                   （生产单例挂 `globalThis.__workspliceRoomTurns`）/ setRoomTurnStore(null)（测试接缝）
@@ -258,7 +269,8 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并
                                   assistant 回复按序补写
                                   + maintenance cron（§5.6 逐分钟）：tickReminderCron 扫描 scheduled 且
                                   fire_at<=now → fireDueReminders；同 tick 补发丢失的 handoff 定向唤醒
-                                  （启动一次 + 每 60s；每 task/target 每进程最多 3 次，60s/120s 退避）
+                                  （启动一次 + 每 60s；每 task/target 每进程最多 3 次，60s/120s 退避）；
+                                  同一节拍还跑一次任务巡检（#267：runPatrolOnce，见 collab/patrol-run.ts）
                                   + 公共接口 createAgentLoop() → { start, stop, tick }（start 幂等组装
                                   状态扫掠 + 补拉 + 驱动 + cron；tick 手动推进 cron 扫描）
   json-prologue.ts                回复 JSON 泄漏修复的四档判据唯一实现（prologue / raw-control / trailing-key /
@@ -676,7 +688,7 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 
 **会静默破坏它的纪律**（每条都是「踩了不报错，只会错」）：
 
-1. **「Owner 署名 + 系统事件」的消息必须 `roomNotice: true`**：`recordRoomTurn` 只看作者类型与开关，`OWNER_MEMBER_ID` 署名的系统消息在唯一漏斗里与人类消息**不可区分** ⇒ 开新房次、`lateTurns` 归零、把在跑的场次 supersede（违反禁止项 #5）。判据只有一句「这条消息是人类真的敲出来的吗」。现状：`event-messages.ts` 的 `notifyTaskCreated` / `deliverEventMessage` 已显式声明；`reminders.ts` 的 `fireReminder` 仍只靠 `wake: false` 被跳过、**未显式化**——这是遗留（不是 bug），后续票再补 `roomNotice`。
+1. **「Owner 署名 + 系统事件」的消息必须 `roomNotice: true`**：`recordRoomTurn` 只看作者类型与开关，`OWNER_MEMBER_ID` 署名的系统消息在唯一漏斗里与人类消息**不可区分** ⇒ 开新房次、`lateTurns` 归零、把在跑的场次 supersede（违反禁止项 #5）。判据只有一句「这条消息是人类真的敲出来的吗」。现状：`event-messages.ts` 的 `notifyTaskCreated` / `deliverEventMessage` / `notifyChiefSystemAction` 与巡检的 `patrol-run.ts`（#267，首席署名）已显式声明；`reminders.ts` 的 `fireReminder` 仍只靠 `wake: false` 被跳过、**未显式化**——这是遗留（不是 bug），后续票再补 `roomNotice`。
 2. **CP2 只收口场次记录，不中止、不 ack**：改成「中止 + ack」会静默消费掉尚未处理的任务创建事件（既有 `lib/agent-loop/loop-tasks.test.mjs` 的 R3b / R3c / R3d 契约守的正是「让路轮停在创建事件之前」）；I5 的**退出**语义落在 CP0（已被取代的场次进不来）与 CP3（回复照常落库、按 `stale` 记账、不续波）。
 3. **改 CP0 必须跑 `lib/agent-loop/room-gate.test.mjs`**：store 侧用例删掉 CP0 也全绿，只有这个文件能把「门真的接在轮次入口上」判成红（删掉那段 `return`，它的「未当选 ⇒ skipped」用例必红）。
 4. **回边抑制是切环的实际机制**：仅靠水位线比较不足以切断——后发言者的 `@` seq 必然晚于先发言者自己的发言 seq，A↔B 乒乓下水位数永远成立、环永远成立；删掉 `isBackEdge`，`lib/domain/collab/room-budget.test.mjs` 的 T2 必红（T2 把预算放大到 `MAX_ROUNDS: 50 / MAX_REPLIES: 100`，断言 `wave === 1`）。T1 仍可能被 I1 / I2 预算兜住——T1 守「预算兜得住」，T2 守「环在数据层就被切断」。
