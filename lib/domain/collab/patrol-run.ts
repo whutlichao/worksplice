@@ -1,5 +1,5 @@
 import { getDb } from "../../data/db-singleton.ts";
-import { getChannel, listChannelsWithMeta } from "./channels.ts";
+import { listChannelsWithMeta } from "./channels.ts";
 import { getGlobalChief } from "./chief.ts";
 import { sendMessage } from "./messages.ts";
 import {
@@ -18,9 +18,10 @@ import {
  * - 巡检只**报告**已有任务：不读消息内容、不建任务、不派活、不改任务状态（唯一写入是投递）。
  * - 每轮最多一条消息；无发现则完全沉默。
  * - 扫描范围 = 全局首席作为成员、未归档、非 DM 的频道。没有全局首席 ⇒ 整轮静默。
- * - 落点与可见面是两件事（见 `resolveDestination` / `visibleFindings`）：落点按「她作为首席的
- *   频道 → 第一个公开频道 → 静默」；内容只携带落点自己的发现 + 公开频道的发现，别的私有频道的
- *   发现不上报（汇总只有一条消息，不能把私有可见面带进公开频道）。
+ * - 落点与可见面是两件事（见 `resolveDestination` / `visibleFindings`）：落点按「她作为首席、
+ *   且自己频道里还有没报过的发现的频道（扫描顺序）→ 第一个公开频道 → 静默」逐个试，前一个
+ *   报过之后让给下一个；内容只携带落点自己的发现 + 公开频道的发现，别的私有频道的发现不上报
+ *   （汇总只有一条消息，不能把私有可见面带进公开频道）。
  * - 投递按**系统事件**语义（`roomNotice: true` + `wake: false`）：不得开房间场次、不得
  *   重置迟到名额、不得 supersede 在跑的场次——否则巡检会持续吃掉房间发言配额，把正常
  *   对话挤成沉默（spec #265 的承重约束）。
@@ -38,6 +39,11 @@ export interface PatrolChief {
 /** 扫描范围内的一个频道（已滤掉 DM / 归档 / 未加入）。 */
 export interface PatrolChannelScope {
   channelId: string;
+  /**
+   * 频道名（汇总正文里的 `in #name`）：随 scope 一起传下去，`readTasks` 不必自己 `getChannel`
+   * 回查一遍——扫描名单已经从同一个 `listChannelsWithMeta` 拿到了它。
+   */
+  channelName: string;
   /**
    * 该频道此刻生效的首席是不是本轮巡检的首席——落点优先级第一档的判据。
    * 直接取 `listChannelsWithMeta` 的 `chief`（`resolveEffectiveChief` 的结论），
@@ -66,7 +72,7 @@ export interface PatrolRunDeps {
   now?: () => Date;
   readChief?: () => PatrolChief | null;
   readChannels?: (chiefId: string) => PatrolChannelScope[];
-  readTasks?: (channelId: string) => PatrolTaskSnapshot[];
+  readTasks?: (channel: PatrolChannelScope) => PatrolTaskSnapshot[];
   deliver?: (input: { channelId: string; authorId: string; content: string }) => void;
   /** 上次上报签名集（测试注入；缺省用进程内单例）。 */
   signatures?: Set<string>;
@@ -110,6 +116,7 @@ function defaultReadChannels(chiefId: string): PatrolChannelScope[] {
     .filter((channel) => channel.joined && channel.archived !== 1 && channel.type !== "dm")
     .map((channel) => ({
       channelId: channel.id,
+      channelName: channel.name,
       chiefHere: channel.chief?.id === chiefId,
       isPublic: channel.type === "public",
     }));
@@ -123,18 +130,17 @@ function defaultReadChannels(chiefId: string): PatrolChannelScope[] {
  * `TaskRow` 没有 `created_at`（7 天窗口按**锚点消息**时间算，不按任务行时间），所以每条任务
  * 要额外取一次锚点消息；读的是同一个适配器实例，所以 `getDb()` 在函数顶取一次即可。
  */
-function defaultReadTasks(channelId: string): PatrolTaskSnapshot[] {
+function defaultReadTasks(channel: PatrolChannelScope): PatrolTaskSnapshot[] {
   const db = getDb();
-  const channelName = getChannel(channelId)?.name ?? channelId;
   return db
-    .listChannelTasks(channelId)
+    .listChannelTasks(channel.channelId)
     .map((task) => {
       const anchor = db.getMessage(task.message_id);
       if (!anchor) return null;
       return {
         taskId: task.id,
         channelId: anchor.target_id,
-        channelName,
+        channelName: channel.channelName,
         number: task.number,
         status: task.status,
         ownerId: task.owner_id,
@@ -162,25 +168,39 @@ function defaultDeliver(input: {
 }
 
 /**
- * 落点解析（**本 spec 新引入的兜底语义**，既有代码只回答「谁是首席」、不回答「落在哪」）：
- * ① 第一个「她是生效首席」的频道里有发现 ⇒ 落在那个频道（私有也行——她就是那个频道的首席）；
- * ② 否则退到她所在的第一个**公开**频道（`isPublic`）：私有频道不是兜底——她只是成员的私有
- *    频道不能成为「一条系统消息」的去处；
- * ③ 扫描范围为空、或范围内没有任何公开频道 ⇒ `null` = 静默。不广播、不私信人类。
+ * 落点解析 + 本轮要报的新发现。两个档次（前者是**本 spec 新引入的兜底语义**，既有代码只回答
+ * 「谁是首席」、不回答「落在哪」）：
+ * ① 她作为生效首席、且**自己频道里**还有没报过的发现的频道（扫描顺序）——落点就是发现所在的
+ *    频道（私有也行：她就是那个频道的首席）；
+ * ② 否则是她所在的第一个**公开**频道（`isPublic`）：私有频道不是兜底——她只是成员的私有频道
+ *    不能成为「一条系统消息」的去处；
+ * ③ 都没有 ⇒ `null` = 静默。不广播、不私信人类。
  *
- * 判据用的是**全部发现**（不是去重后的新发现）：落点是「这批发现该投到哪」，与「哪几条还没报过」
- * 是两件事——已报过的发现占着的首席频道仍然是它自己那批发现的自然落点。
+ * ① 的判据是「**自己的**发现」而不是「该频道可上报的发现」：全局首席在**每个她加入的频道**上都是
+ * 生效首席（`resolveEffectiveChief` 的回落），所以后者会让扫描名单里的第一个（通常是 `#all`）
+ * 永远截走所有公开频道的发现，报告再也落不到任务所在频道。
+ *
+ * 逐个试而不是只取第一个：多个首席频道都卡着时，排在前面那个报过之后要让给下一个，否则它会
+ * 把后面的永久哑掉。`reported` = 已报过且仍检出的签名。
  */
 function resolveDestination(
   findings: PatrolFinding[],
   channels: PatrolChannelScope[],
-): string | null {
-  const chiefChannels = new Set(
-    channels.filter((channel) => channel.chiefHere).map((channel) => channel.channelId),
-  );
-  const chiefHere = findings.find((finding) => chiefChannels.has(finding.channelId));
-  if (chiefHere) return chiefHere.channelId;
-  return channels.find((channel) => channel.isPublic)?.channelId ?? null;
+  reported: ReadonlySet<string>,
+): { channelId: string; fresh: PatrolFinding[] } | null {
+  const pending = findings.filter((finding) => !reported.has(patrolSignatureOf(finding)));
+  const reportableAt = (channelId: string) => visibleFindings(pending, channelId, channels);
+
+  for (const channel of channels) {
+    if (!channel.chiefHere) continue;
+    if (!pending.some((finding) => finding.channelId === channel.channelId)) continue;
+    return { channelId: channel.channelId, fresh: reportableAt(channel.channelId) };
+  }
+
+  const fallback = channels.find((channel) => channel.isPublic);
+  if (!fallback) return null;
+  const fresh = reportableAt(fallback.channelId);
+  return fresh.length > 0 ? { channelId: fallback.channelId, fresh } : null;
 }
 
 /**
@@ -231,25 +251,21 @@ export function runPatrolOnce(deps: PatrolRunDeps = {}): PatrolRunResult {
   const channels = readChannels(chief.id);
   const findings: PatrolFinding[] = [];
   for (const channel of channels) {
-    findings.push(...findPatrolFindings({ now, tasks: readTasks(channel.channelId) }));
+    findings.push(...findPatrolFindings({ now, tasks: readTasks(channel) }));
   }
 
-  const channelId = resolveDestination(findings, channels);
-  const reportable = channelId === null ? [] : visibleFindings(findings, channelId, channels);
-  // 签名集**只记可上报的发现**：私有且非落点的发现不写进去，将来她成为那个频道的首席时才报得出来。
-  const current = new Set(reportable.map((finding) => patrolSignatureOf(finding)));
-  const fresh = reportable.filter((finding) => !signatures.has(patrolSignatureOf(finding)));
-  if (channelId === null || fresh.length === 0) {
-    // 签名集随扫描结论一起淡出：修好的任务不再占位，之后重新卡住算新事件。
-    replaceSignatures(signatures, current);
-    return { status: "silent", findings: findings.length, reported: 0, channelId: null };
-  }
+  // 签名集语义：`prior` = 已报过且本轮仍检出的（不再检出的随扫描结论淡出，之后重新卡住算新事件）。
+  // 它就是「哪些已经报过」的唯一判据，也是本轮落点轮转的输入。
+  const detected = new Set(findings.map((finding) => patrolSignatureOf(finding)));
+  const prior = new Set([...signatures].filter((signature) => detected.has(signature)));
 
-  const content = buildPatrolSummary(fresh);
-  if (content === null) {
-    replaceSignatures(signatures, current);
+  const destination = resolveDestination(findings, channels, prior);
+  const content = destination === null ? null : buildPatrolSummary(destination.fresh);
+  if (destination === null || content === null) {
+    replaceSignatures(signatures, prior);
     return { status: "silent", findings: findings.length, reported: 0, channelId: null };
   }
+  const { channelId, fresh } = destination;
 
   try {
     deliver({ channelId, authorId: chief.id, content });
@@ -262,7 +278,11 @@ export function runPatrolOnce(deps: PatrolRunDeps = {}): PatrolRunResult {
     return { status: "failed", findings: findings.length, reported: 0, channelId };
   }
 
-  replaceSignatures(signatures, current);
+  // 只把**进了这条消息**的签名记为已报：没进消息的（别的私有频道的发现）不写进签名集，
+  // 将来它成为落点时还要能报出来。
+  const reportedSignatures = new Set(prior);
+  for (const finding of fresh) reportedSignatures.add(patrolSignatureOf(finding));
+  replaceSignatures(signatures, reportedSignatures);
   return { status: "reported", findings: findings.length, reported: fresh.length, channelId };
 }
 
