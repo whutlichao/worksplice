@@ -1,9 +1,20 @@
+import type {
+  ChannelRow,
+  ChannelType,
+  MemberRow,
+  MemberStatus,
+  MemberType,
+  MessageRow,
+  TaskRow,
+  TaskStatus,
+} from "../data/types.ts";
 import { previewLine } from "../preview.ts";
 
 /**
  * 首席领域工具的**判定层**（票 chief-tools）：参数校验、配额、可见面、读面摘要与事件文案。
- * 纯函数 + 零领域依赖（只引入 `lib/preview.ts` 这一个纯工具模块）——所以每条规则都能用一次
- * 调用取证，不需要 SDK、不需要数据库，也不需要起会话。
+ * 纯函数 + 零领域依赖：运行时只引入 `lib/preview.ts` 这一个纯工具模块，其余 import 全是
+ * `import type`（数据层的共享词表 `lib/data/types.ts`，编译后不留运行时依赖）——所以每条规则
+ * 都能用一次调用取证，不需要 SDK、不需要数据库，也不需要起会话。
  *
  * 分工照 `lib/tool-path-guard.ts` / `lib/pi-env-status.ts` 的同一套纪律：判定在纯函数里，
  * 副作用（读库、建频道、建 agent、投事件消息）留在 `lib/chief-tools/tools.ts` 的薄壳里。
@@ -39,9 +50,18 @@ export const MAX_LIST_CHANNELS_LIMIT = 50;
 /** 任务摘要里 preview 的上限（字符）。 */
 export const TASK_PREVIEW_MAX_LENGTH = 120;
 
-/** 任务五态（与 `lib/data/types.ts` 的 `TaskStatus` 同值；判定层不引数据层，故就地声明）。 */
-export type TaskStatus = "todo" | "in_progress" | "in_review" | "done" | "closed";
-export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "in_progress", "in_review", "done", "closed"];
+/**
+ * 任务五态：类型从数据层共享词表 import（`import type`，编译后零运行时依赖），
+ * 运行期的取值表留在这里——`lib/data/types.ts` 只有类型、没有运行期元组。
+ * 两边靠注解对齐：数据层改名字，这里 tsc 立刻红。
+ */
+export const TASK_STATUSES: readonly TaskStatus[] = [
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+  "closed",
+];
 
 /**
  * `worksplice_agent_create` 的名字形状：`ops-` 前缀 + 小写字母 / 数字 / 连字符，总长 ≤ 32。
@@ -141,7 +161,10 @@ export function decideListChannelsInput(input: unknown): Decision<{ limit: numbe
 }
 
 /** 可见面判定：公开频道人人可见；私有 / DM 频道只对成员可见（§3.2）。 */
-export function isChannelVisibleToActor(channel: { type: string }, isMember: boolean): boolean {
+export function isChannelVisibleToActor(
+  channel: Pick<ChannelRow, "type">,
+  isMember: boolean,
+): boolean {
   return channel.type === "public" || isMember;
 }
 
@@ -149,13 +172,13 @@ export function isChannelVisibleToActor(channel: { type: string }, isMember: boo
 export interface ChannelSummary {
   id: string;
   name: string;
-  type: string;
+  type: ChannelType;
   archived: boolean;
   memberCount: number;
 }
 
 export function channelSummary(
-  channel: { id: string; name: string; type: string; archived: number },
+  channel: Pick<ChannelRow, "id" | "name" | "type" | "archived">,
   memberCount: number,
 ): ChannelSummary {
   return {
@@ -184,16 +207,13 @@ export function decideListMembersInput(input: unknown): Decision<{ channelId: st
 export interface MemberSummary {
   id: string;
   name: string;
-  type: string;
-  status: string;
+  type: MemberType;
+  status: MemberStatus;
 }
 
-export function memberSummary(member: {
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-}): MemberSummary {
+export function memberSummary(
+  member: Pick<MemberRow, "id" | "name" | "type" | "status">,
+): MemberSummary {
   return { id: member.id, name: member.name, type: member.type, status: member.status };
 }
 
@@ -221,25 +241,33 @@ export function decideListTasksInput(
   return accept({ channelId: channelId.value, status: status as TaskStatus });
 }
 
-/** 任务摘要：只带四字段，preview 截断到 120 字符（全文留在频道/线程里）。 */
+/**
+ * 任务摘要：只带四字段，preview 截断到 {@link TASK_PREVIEW_MAX_LENGTH} 字符（全文留在频道/线程里）。
+ *
+ * `previewLine` 的 `maxLength` 是**内容**上限、截断后会再补一个省略号，所以内容取 `上限 - 1`
+ * ——输出才真的落在 120 字符以内（票据写的是「截断到 120 字符」，说的是输出长度）。
+ */
 export interface TaskSummary {
   number: number;
-  status: string;
+  status: TaskStatus;
   ownerName: string | null;
   preview: string;
 }
 
-export function taskSummary(task: {
-  number: number;
-  status: string;
-  owner: { name: string } | null;
-  anchor: { content: string };
-}): TaskSummary {
+/** `previewLine` 补的那个省略号占一位。 */
+const TASK_PREVIEW_CONTENT_LIMIT = TASK_PREVIEW_MAX_LENGTH - 1;
+
+export function taskSummary(
+  task: Pick<TaskRow, "number" | "status"> & {
+    owner: Pick<MemberRow, "name"> | null;
+    anchor: Pick<MessageRow, "content">;
+  },
+): TaskSummary {
   return {
     number: task.number,
     status: task.status,
     ownerName: task.owner?.name ?? null,
-    preview: previewLine(task.anchor.content, TASK_PREVIEW_MAX_LENGTH),
+    preview: previewLine(task.anchor.content, TASK_PREVIEW_CONTENT_LIMIT),
   };
 }
 
@@ -315,6 +343,27 @@ function readMemberIds(value: unknown): Decision<string[]> {
   return accept(ids);
 }
 
+/**
+ * `memberIds` 的准入判据（纯函数，薄壳逐项取证）：只允许**存活的 agent 成员**。
+ *
+ * 票据的括号说「`createChannel` 已有的 `assertMember` 会拦，别重复实现」——实测那句前提不成立：
+ * `assertMember` 只查「这一行在不在」（`getDb().getMember` 连软删行一起返回，也不看 `type`），
+ * 所以软删身份和人类 id 都能被塞进新频道。软删身份重新出现在频道里违反 §3.6「删除即移出全部
+ * channel」；人类 id 该走「Owner 自动加入」那条既有语义，不该由 `memberIds` 决定。
+ * 于是这里按票据**第一句**的要求（只允许存活 agent 成员）就地判，并留这条注释说明偏离。
+ */
+export function memberIdRejection(
+  member: Pick<MemberRow, "type" | "deleted"> | null | undefined,
+  memberId: string,
+): string | null {
+  if (!member) return `member not found: ${memberId}`;
+  if (member.deleted === 1) return `member ${memberId} is deleted; memberIds accept live agent ids only`;
+  if (member.type !== "agent") {
+    return `member ${memberId} is not an agent; memberIds accept live agent ids only`;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // 写面 2：worksplice_agent_create —— *只有* { name, description?, channelId? }
 // ---------------------------------------------------------------------------
@@ -338,7 +387,7 @@ export function decideAgentCreateInput(input: unknown): Decision<AgentCreateInte
   const name = params.value.name;
   if (typeof name !== "string" || !AGENT_NAME_PATTERN.test(name)) {
     return reject(
-      'agent name must match /^ops-[a-z0-9][a-z0-9-]{1,27}$/ — start with "ops-", then 1-28 ' +
+      `agent name must match /${AGENT_NAME_PATTERN.source}/ — start with "ops-", then 1-28 ` +
         `lowercase letters, digits or hyphens (32 characters at most) (received ${describeValue(name)})`,
     );
   }

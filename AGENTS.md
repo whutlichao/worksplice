@@ -304,6 +304,12 @@ lib/
                        + shallowEqualChannel（含 chief / chiefSource / chiefAvailable：结论变了行就换新引用）
   chief-failure.ts     首席写入失败码 → i18n key 的唯一映射（client-safe）：chiefFailureText /
                        isChiefFailureCode；频道设置与建频道弹窗共用，不再前缀猜码
+  chief-tools/         首席领域工具（票 chief-tools，薄壳 + 判定层）：
+                       decisions.ts = 判定层（参数校验 / 配额 / 可见面 / 读面摘要 / 事件文案，纯函数，
+                       运行时只依赖 lib/preview.ts）；tools.ts = 扩展工厂薄壳（五个 `worksplice_*`
+                       工具经 `extensionFactories` 注册，每次调用复判 `isSecretaryMember`）
+  member-tool-policy.ts 成员会话的工具面策略判定层（零依赖）：CHIEF_DOMAIN_TOOL_NAMES / CHIEF_TOOL_NAMES
+                       （首席 = `read` + 五个领域工具）与 resolveMemberToolPolicy（非首席 → `{}` 不表态）
   secretary-name.ts    引导期默认秘书名字的唯一字面来源（零依赖、client-safe；数据层迁移常量 /
                        协作域身份名 / UI 启动助手判定都从这儿取）
   npx.ts               npx runner used by skill install
@@ -572,6 +578,7 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **可达是另一件事（投递判定）**：`canRouteToChief(channelId, memberId)`（本频道未软删 agent 成员 + 未静音）是唯一结论，`selectChiefRecipient`（谁接这条消息）、wake 的定向唤醒、`listChannelsWithMeta` 的 `chiefAvailable` 三处共用；composer 提示只读 `chiefAvailable`（`false` ⇒ 说「没有默认收件人」），客户端不重新推导——否则提示会承诺一次不会发生的投递（可达反例：私有频道不自动加全局首席、频道首席被静音）。
 - **收件人只多一条分支**：既有四条路径（个人点名 / `@all` / 任务线程裁决 / 任务创建事件 handoff）全都不成立时，才把生效首席加入候选**一次**；静音优先于首席（静音 ⇒ 不可达，不回落、不换人）。「涉及任务」复用 `task-reference.ts` 的 `hasTaskReference`（单一来源，不再单独解析创建事件正文）。
 - **秘书 = 全局首席**：不是独立角色，是它在下沉 handoff 职责时的称呼（`isSecretaryMember`）；引导期默认名只用于 v19 迁移与「启动助手」入口。
+- **领域工具面（票 chief-tools）**：首席会话 = `read` + 五个 `worksplice_*` 工具，清单只有 `member-tool-policy.ts` 的 `CHIEF_DOMAIN_TOOL_NAMES` 一份（注册面与激活面共用，`lib/chief-tools/tools.ts` 注册时 `assertPolicyCoverage` 防漂移——名字对不上会静默变成「注册了但永不激活」）。五个工具**只在首席会话注册**（`RpcSessionStartOptions.domainTools` 不在场 ⇒ 工厂不进 `extensionFactories`，不是「注册了再停用」），且**每次调用重新复判** `isSecretaryMember`：换人 / 软删之后旧会话里的工具立即失效（会话创建时判定过不算数）。写面两个：`worksplice_channel_create`（私有频道必须把 actor 放进 `memberIds`；`memberIds` 只收**存活 agent**——`createChannel` 的 `assertMember` 只查存在性、`getMember` 连软删行一起返回，所以这层自己判）；`worksplice_agent_create`（只收 `name` / `description` / `channelId`，模型一律 `provider: null` 继承全局默认；名字 `^ops-[a-z0-9][a-z0-9-]{1,27}$`；每会话至多 1 次成功创建，配额挂在工厂实例上、失败不消耗）。写操作留痕走 `notifyChiefSystemAction`（**actor 署名** + `wake:false` + `roomNotice:true`——系统事件不得开房间场次、不得重置 `lateTurns`）。三个读面都有界：只回约定字段（任务 preview ≤ 120 字符），可见面 = 公开频道 + 本人成员。
 - **schema v19 三列 + 两档幂等迁移**：`members.global_chief`（补列时把存活同名 agent 标一次；用户事后清空后不在开库时复活）/ `channels.chief_member_id`（纯补列，存量 NULL = 回落全局）/ `round_logs.role`（准入角色，可空，历史行 = 未记录）。三列都靠 `PRAGMA table_info` 检查式 ALTER，重复开库幂等。
 
 ### Agent 成员与生命周期（ticket 05，§3.6）

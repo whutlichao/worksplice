@@ -30,6 +30,7 @@ import {
 } from "../domain/collab/index.ts";
 import {
   AGENT_CREATE_QUOTA_ERROR,
+  AGENT_NAME_PATTERN,
   CHIEF_ONLY_ERROR,
   agentCreateEventContent,
   channelCreateEventContent,
@@ -41,6 +42,7 @@ import {
   decideListMembersInput,
   decideListTasksInput,
   isChannelVisibleToActor,
+  memberIdRejection,
   memberSummary,
   taskSummary,
 } from "./decisions.ts";
@@ -88,6 +90,18 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
     isSecretaryMember(getMember(actorId)) ? run() : failure(CHIEF_ONLY_ERROR);
 
   const actorName = () => getMember(actorId)?.name ?? actorId;
+
+  /**
+   * 频道可达判定的唯一一处（三个读面 + 两个写面共用）：不存在 → 报错；actor 不是成员 → 报错。
+   * 两条都是「拒绝」而不是「换个频道」（不静默改投）。
+   */
+  const channelAccessError = (channelId: string): string | null => {
+    if (!getChannel(channelId)) return `Channel not found: ${channelId}`;
+    if (!isChannelMember(channelId, actorId)) {
+      return `The global chief is not a member of channel ${channelId}`;
+    }
+    return null;
+  };
 
   const listChannelsTool: ToolDefinition = {
     name: "worksplice_list_channels",
@@ -149,10 +163,8 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
         if (!decision.ok) return failure(decision.error);
         const { channelId } = decision.value;
         if (channelId !== null) {
-          if (!getChannel(channelId)) return failure(`Channel not found: ${channelId}`);
-          if (!isChannelMember(channelId, actorId)) {
-            return failure(`The global chief is not a member of channel ${channelId}`);
-          }
+          const accessError = channelAccessError(channelId);
+          if (accessError) return failure(accessError);
         }
 
         // 存活 agent 来自 listAgents（软删不在清单里）；Owner 是人类，单独补进来。
@@ -194,10 +206,8 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
         const decision = decideListTasksInput(input);
         if (!decision.ok) return failure(decision.error);
         const { channelId, status } = decision.value;
-        if (!getChannel(channelId)) return failure(`Channel not found: ${channelId}`);
-        if (!isChannelMember(channelId, actorId)) {
-          return failure(`The global chief is not a member of channel ${channelId}`);
-        }
+        const accessError = channelAccessError(channelId);
+        if (accessError) return failure(accessError);
         const tasks = listChannelTasks(channelId).filter(
           (task) => status === null || task.status === status,
         );
@@ -234,6 +244,11 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
       chiefOnly(() => {
         const decision = decideChannelCreateInput(input, actorId);
         if (!decision.ok) return failure(decision.error);
+        // memberIds 的准入在写之前判：只允许存活 agent 成员（判据见 decisions.ts 的 memberIdRejection）。
+        for (const memberId of decision.value.memberIds) {
+          const rejection = memberIdRejection(getMember(memberId), memberId);
+          if (rejection) return failure(rejection);
+        }
         try {
           const channel = createChannel({
             name: decision.value.name,
@@ -259,7 +274,7 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
     description:
       "Create one agent identity per session; it inherits the global default model " +
       "(no provider / modelId / thinkingLevel parameter is accepted). " +
-      '`name` must match /^ops-[a-z0-9][a-z0-9-]{1,27}$/. ' +
+      `\`name\` must match /${AGENT_NAME_PATTERN.source}/. ` +
       "On success a channel system event signed by the chief is posted to `channelId` (default #all); " +
       "the chief must be a member of it.",
     promptSnippet: "Create one `ops-*` agent identity per session (inherits the default model)",
@@ -268,7 +283,7 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
       properties: {
         name: {
           type: "string",
-          description: 'Agent name: /^ops-[a-z0-9][a-z0-9-]{1,27}$/ (lowercase, hyphens, at most 32 characters)',
+          description: `Agent name: /${AGENT_NAME_PATTERN.source}/ (lowercase, hyphens, at most 32 characters)`,
         },
         description: { type: "string", description: "Optional agent description" },
         channelId: {
@@ -288,10 +303,8 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
 
         // 缺省目标 = #all；给了 channelId 就必须可达（不静默改投到别处）。
         const channelId = decision.value.channelId ?? BUILTIN_CHANNEL_ID;
-        if (!getChannel(channelId)) return failure(`Channel not found: ${channelId}`);
-        if (!isChannelMember(channelId, actorId)) {
-          return failure(`The global chief is not a member of channel ${channelId}`);
-        }
+        const accessError = channelAccessError(channelId);
+        if (accessError) return failure(accessError);
 
         try {
           const agent = createAgent({
@@ -349,11 +362,6 @@ export function registerChiefTools(pi: ExtensionAPI, options: ChiefToolsOptions)
   for (const definition of chiefToolDefinitions(options)) pi.registerTool(definition);
 }
 
-/** 经 `resourceLoaderOptions.extensionFactories` 注册的扩展工厂。 */
-export function chiefToolsExtensionFactory(options: ChiefToolsOptions): ExtensionFactory {
-  return (pi) => registerChiefTools(pi, options);
-}
-
 /**
  * `resourceLoaderOptions.extensionFactories` 的 `InlineExtension` 条目；hidden 不进扩展列表。
  * 只在首席会话里挂（`lib/rpc/caller.ts` 按 `domainTools` 在场与否决定），非首席**不注册**。
@@ -363,9 +371,10 @@ export function chiefToolsExtension(options: ChiefToolsOptions): {
   factory: ExtensionFactory;
   hidden: boolean;
 } {
+  const factory: ExtensionFactory = (pi) => registerChiefTools(pi, options);
   return {
     name: CHIEF_TOOL_EXTENSION,
-    factory: chiefToolsExtensionFactory(options),
+    factory,
     hidden: true,
   };
 }
