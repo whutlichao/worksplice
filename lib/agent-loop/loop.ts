@@ -40,6 +40,7 @@ import {
   readDefaultModelFromSettings,
   recoverHandoffWakes,
   resolveTargetChannel,
+  runPatrolOnce,
   selectChiefRecipient,
   selectSecretaryHandoffTask,
   sendMessage,
@@ -48,6 +49,7 @@ import {
   type AdmissionRole,
   type RoundUsage,
   type HandoffWakeEmitter,
+  type PatrolRunResult,
 } from "../domain/collab/index.ts";
 import { hasAllMention } from "../mention.ts";
 import {
@@ -4257,13 +4259,14 @@ export function tickReminderCron(now: Date = new Date()): number {
 }
 
 /**
- * 低频维护 tick（票 #242）：提醒 cron + handoff 恢复扫描共用同一个低频节拍。
- * 恢复扫描只读任务与游标；补发本身不 claim、不改 owner、不写通知。
+ * 低频维护 tick（票 #242 / #267）：提醒 cron + handoff 恢复扫描 + 任务巡检共用同一个
+ * 每分钟节拍（不新起定时器）。三件事都只读任务 / 游标 / 消息；补发不 claim，巡检不建任务、
+ * 不改任务状态（唯一写入是它自己那一条汇总消息）。
  */
 export function tickAgentLoopMaintenance(
   now: Date = new Date(),
   deps: { emitWake?: HandoffWakeEmitter } = {},
-): { reminders: number; recoveryWakes: number } {
+): { reminders: number; recoveryWakes: number; patrol: PatrolRunResult } {
   const reminders = tickReminderCron(now);
   let recoveryWakes = 0;
   try {
@@ -4277,7 +4280,18 @@ export function tickAgentLoopMaintenance(
       error instanceof Error ? error.message : String(error),
     );
   }
-  return { reminders, recoveryWakes };
+  let patrol: PatrolRunResult = { status: "silent", findings: 0, reported: 0, channelId: null };
+  try {
+    // 巡检的开关 / 扫描范围 / 去重 / 系统事件语义全在 patrol-run（tick 只负责搭节拍）。
+    patrol = runPatrolOnce({ now: () => now });
+  } catch (error) {
+    console.error(
+      "[worksplice] task patrol tick failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    patrol = { status: "failed", findings: 0, reported: 0, channelId: null };
+  }
+  return { reminders, recoveryWakes, patrol };
 }
 
 // ----------------------------------------------------------------------------

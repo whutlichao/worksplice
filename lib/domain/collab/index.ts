@@ -30,6 +30,8 @@ export * from "./members.ts";
 export * from "./messages.ts";
 export * from "./observability.ts";
 export * from "./pinned.ts";
+export * from "./patrol.ts";
+export * from "./patrol-run.ts";
 export * from "./reactions.ts";
 export * from "./reads.ts";
 export * from "./recurrence.ts";
