@@ -76,8 +76,18 @@
 | 创建类 | 发消息 / 建频道 / 建 agent / 设提醒 | `reply`（本轮 target）/ `post`（跨 target 指针）、`createChannel`、`createAgent`、`remind`（均含 baseSeq 与 held 语义） |
 
 - 建 agent 前先取可用 provider/modelId：默认模型由每轮语境给出（`Default model for new agents:`），现选现报；要换模型让 Owner 在 UI 配置。**[锁定]**（03 确认，manual-outline.md D-2；2026-10-06 按 ADR-0013 改写：不再走 `GET /api/models`）
-  - **能力收窄（如实标注）**：旧速查的「先 `GET /api/models` 取可用 provider/modelId 现选现报」在成员面不再成立——op 只带默认模型或显式传值，**完整模型目录只有人类面（UI）可见**；这是「成员面整体移出 HTTP + 默认拒绝」的直接后果，不是实现遗漏。
+  - **能力收窄（如实标注）**：旧速查的「先 `GET /api/models` 取可用 provider/modelId 现选现报」在成员面不再成立——op **不接受按次指定模型**（新身份继承全局默认，见本节「执行约束」），**完整模型目录只有人类面（UI）可见**；这是「成员面整体移出 HTTP + 默认拒绝」的后果，不是实现遗漏。
 - 创建类操作执行后给**一行式回执**（建了什么 / 关键属性）；请求缺关键参数（公开/私有、描述、初始成员）**先问后做**——秘书无归档/删除权限，建错只能 Owner 手动清。**[锁定]**（02 契约 §3）
+
+**执行约束（形状，不是权限）**：上表只回答「这条 op 开不开」；两条会**造出新对象**的 op（`createChannel` / `createAgent`）另有形状约束。判据与拒绝文案的**单一来源**是 `lib/domain/collab/member-capabilities.ts` 的 `memberOpConstraint` + 四条判据函数——ops 面执行器与首席领域工具读的是同一份，本文**不复抄常量值**（复制一份就会漂移，改约束只改那里）：
+
+| op | 约束 | 判据（同一来源） |
+|---|---|---|
+| `createAgent` | 名字必须是指定的 `ops-` 形状（小写字母 / 数字 / 连字符）；同一 agent 的**同一会话**内成功创建次数有上限（失败不消耗）；不接受 `provider` / `modelId` / `thinkingLevel`——新身份一律继承全局默认模型 | `agentNameRejection` / `modelSelectionRejection` + 进程级配额 store（`lib/domain/collab/member-op-quota.ts`，两条路径共享同一实例） |
+| `createChannel` | 私有频道必须把**创建者自己**写进 `memberIds`（判的是**声明值**，不能靠公开频道的「创建者自动加入」）；`memberIds` 只收**存活的 agent**（软删身份 / 人类 / 不存在的 id 一律拒绝） | `privateChannelActorRejection` / `memberIdRejection` |
+
+- 其余五条 op（`post` / `react` / `pin` / `remind` / `search`）没有形状约束。
+- 越界的拒绝走**可读拒绝通道**（`denied`），既**不抛通用错误、也不静默改写**——「替私有频道自动补上创建者」正是绕过的成因，所以判的是声明值。
 
 ### 3.2 不可做（一律引导 Owner UI）**[锁定]**（map 决策 11 + 02 契约 §4）
 

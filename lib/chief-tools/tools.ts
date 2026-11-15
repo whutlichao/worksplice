@@ -22,7 +22,7 @@ import {
   getChannel,
   getMember,
   getMemberOpQuotaStore,
-  getMessageWithAuthor,
+  getMessage,
   isChannelMember,
   isSecretaryMember,
   listAgents,
@@ -70,6 +70,20 @@ function failure(message: string): ChiefToolResult {
 function reasonOf(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return String(error);
+}
+
+/**
+ * 消息所属的频道（`null` = 不判可达，交给 `createTask` 报错）：`task_create` 的两条既有分工
+ * 就写在这里——不存在 ⇒ `Message not found`；thread 内消息（`target_id` 是锚点消息 id）⇒
+ * `Only top-level messages can become tasks`。两者都是**服务层**的措辞，工具层不另写一套，
+ * 也不在这里实现锚点归一化。
+ *
+ * 存在性判断只需要行本身：`getMessage` 是轻量读取，不做 author 联表 / reaction / 附件。
+ */
+function owningChannelOfMessage(messageId: string) {
+  const message = getMessage(messageId);
+  if (!message) return null;
+  return getChannel(message.target_id) ?? null;
 }
 
 export interface ChiefToolsOptions {
@@ -376,12 +390,9 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
         const { messageId } = decision.value;
 
         try {
-          // 消息存在性用服务层的同一措辞（Message not found），不在这里另写一套。
-          const message = getMessageWithAuthor(messageId);
-          // 顶层消息的 target_id 就是频道；thread 内消息的 target_id 是锚点消息——那条路径的
-          // 锚点归一化**不在这里实现**，直接让 `createTask` 抛
-          // "Only top-level messages can become tasks"。
-          const channel = getChannel(message.target_id);
+          // 可达判定只在该消息真的属于一个频道时做（不存在 / thread 内消息的情形见 `owningChannelOfMessage`）：
+          // 两条降级路径都由 `createTask` 报服务层自己的错——措辞的单一来源在服务层，工具层不抄第二遍。
+          const channel = owningChannelOfMessage(messageId);
           if (channel) {
             const accessError = channelAccessError(channel.id);
             if (accessError) return failure(accessError);

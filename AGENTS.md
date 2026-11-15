@@ -173,7 +173,9 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   index.ts                      协作域唯一对外导入面：`export *` 汇合全部子模块（channels/members/
                                 messages/tasks/inbox/wake/…），消费方只 `from "@/lib/domain/collab"` 一条
                                 import；`getDb()` 不在此面（归 lib/data/db-singleton.ts）。子模块内部
-                                互相用相对路径直引，不经索引回环（测试在一个 seam mock 整个 协作域）。
+                                互相用相对路径直引，不经索引回环（测试在一个 seam mock 整个 协作域）；
+                                `index.test.mjs` **动态发现**子模块（目录里的 `*.ts`，排除测试与自身）并与
+                                `export *` 清单**双向比对**——清单不再手抄，新模块不会静默不设防。
   channels.ts                     create/join/leave/archive/members + mute/unmute/getChannelMute（§3.2 mute）
                                   + CURRENT_MEMBER_ID（恒为 owner）
   chief.ts                        首席身份的唯一解析口（#248–#252）：getGlobalChief / setGlobalChief
@@ -189,6 +191,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   RoundLogView）+ v19 `role`（这一轮怎么进来的：chief / 点名 / 任务 / 提醒 / DM）
   messages.ts                     sendMessage（freshness + thread 校验 + quote + 附件落盘 + 提交后发 wake）
                                   / listMessages / getThreadInfo / messageWithAuthor（附 reactions+attachments）
+                                  / getMessage（**轻量读取**：不联表、不抛错；存在性判断用它，展示面仍走 messageWithAuthor）
                                   / summarizeChanges（held 摘要，任务 claim/updateStatus 复用）
   reactions.ts                    §3.4 toggleReaction（存在即删，UNIQUE 先查后写；channel 成员才可点，无通知）
                                   / listReactionSummaries（count 降序 + memberIds）
