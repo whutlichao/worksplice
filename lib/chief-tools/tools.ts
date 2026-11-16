@@ -451,10 +451,11 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
   ];
   const expectedNames =
     surface === "channel" ? CHANNEL_CHIEF_TOOL_NAMES : CHIEF_DOMAIN_TOOL_NAMES;
+  const expectedDefaultActive = surface === "channel";
   // 按 surface 取**完整的定义数组**再做双向校验：若先按期望清单过滤，extra 永远为空，
   // 「注册了但永远不激活」就从守卫里消失了。channel 面只登记 task_create 一个定义。
   const definitions = surface === "channel" ? [taskCreateTool] : allDefinitions;
-  assertPolicyCoverage(definitions, expectedNames);
+  assertPolicyCoverage(definitions, expectedNames, expectedDefaultActive);
   return definitions;
 }
 
@@ -469,14 +470,22 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
 function assertPolicyCoverage(
   definitions: readonly ToolDefinition[],
   expectedNames: readonly string[],
+  expectedDefaultActive: boolean,
 ): void {
   const names = definitions.map((definition) => definition.name);
   const missing = expectedNames.filter((name) => !names.includes(name));
   const extra = names.filter((name) => !expectedNames.includes(name));
-  if (missing.length > 0 || extra.length > 0) {
+  // 注册 ≠ 激活：global 面由 CHIEF_TOOL_NAMES 显式激活，定义必须 defaultActive:false；
+  // channel 面没有 toolNames 清单，只能靠 defaultActive:true 进入普通工具面。名字对上但
+  // 激活态反了，仍然是「注册了但永远不激活」或「悄悄默认激活」，必须在这里抛。
+  const wrongActivation = definitions
+    .filter((definition) => definition.defaultActive !== expectedDefaultActive)
+    .map((definition) => definition.name);
+  if (missing.length > 0 || extra.length > 0 || wrongActivation.length > 0) {
     throw new Error(
       `chief tool surface drifted from its policy: missing [${missing.join(", ")}], ` +
-        `extra [${extra.join(", ")}], expected [${expectedNames.join(", ")}]`,
+        `extra [${extra.join(", ")}], wrong defaultActive [${wrongActivation.join(", ")}], ` +
+        `expected defaultActive=${expectedDefaultActive}, expected [${expectedNames.join(", ")}]`,
     );
   }
 }
