@@ -6,6 +6,7 @@ import { getDb } from "./data/db-singleton.ts";
 import {
   agentHomePath,
   getMember,
+  isChiefOfAnyChannel,
   isSecretaryMember,
   normalizeWorkspacePath,
   setAgentSessionFile,
@@ -299,21 +300,28 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
 
         // 以成员 id 为锁键：并发请求合并、重启复用同一键，且 registry 卸载时按真实 id 清理
         //
-        // 工具面策略（票 chief-tool-surface / chief-tools）：全局首席 → `read` + 六个领域工具，
-        // 且不并回扩展工具；其余成员 → 空策略（options 里一个键都不加，与今天逐字节相同）。
-        // 身份判据唯一来源是 `isSecretaryMember`，这里只算一次、两处共用（工具清单在
-        // `lib/member-tool-policy.ts`，领域工具实现在 `lib/chief-tools/`，都是零依赖判定层）。
-        const isChief = isSecretaryMember(member);
-        const memberToolPolicy = resolveMemberToolPolicy({ isChief });
+        // 工具面策略（票 chief-tool-surface / chief-tools / #272）：
+        // - 全局首席 → `read` + 六个领域工具，且不并回扩展工具；
+        // - 频道首席 → 空策略（普通工具面不收窄），额外注册 channel surface 的 task_create；
+        // - 其余成员 → 空策略（options 里一个键都不加，与今天逐字节相同）。
+        // 身份判据唯一来源是 `isSecretaryMember` / `isChiefOfAnyChannel`，这里只算一次、
+        // 三处共用（工具清单在 `lib/member-tool-policy.ts`，领域工具实现在
+        // `lib/chief-tools/`，都是零依赖判定层）。角色变化后需重启会话才拿到新工具面。
+        const isGlobalChief = isSecretaryMember(member);
+        const isChannelChief = !isGlobalChief && isChiefOfAnyChannel(member.id);
+        const chiefScope = isGlobalChief ? "global" : isChannelChief ? "channel" : "none";
+        const memberToolPolicy = resolveMemberToolPolicy({ chiefScope });
         const { session, realSessionId } = await startRpcSession(
           `agent-${member.id}`,
           sessionFile ?? "",
           cwd,
           {
             ...memberToolPolicy,
-            // 领域工具只在首席会话注册（票 chief-tools）：传了 actorId 才有那六个工具的定义，
-            // 非首席**不注册**——不是注册了再停用，注册面越窄越好。
-            ...(isChief ? { domainTools: { actorId: member.id } } : {}),
+            // 领域工具只在首席会话注册（票 chief-tools / #272）：传了 actorId + surface 才有
+            // 该面的工具定义；非首席**不注册**——不是注册了再停用，注册面越窄越好。
+            ...(chiefScope !== "none"
+              ? { domainTools: { actorId: member.id, surface: chiefScope } }
+              : {}),
             // §3.10 per-agent runtime：覆盖全局默认（provider/modelId 成对；thinking 可单独）
             ...(member.model_provider && member.model_id
               ? { initialModel: { provider: member.model_provider, modelId: member.model_id } }

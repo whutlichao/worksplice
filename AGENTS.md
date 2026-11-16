@@ -181,6 +181,8 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   chief.ts                        首席身份的唯一解析口（#248–#252）：getGlobalChief / setGlobalChief
                                   （GlobalChiefError）/ resolveEffectiveChief（频道 → 全局 → 无）
                                   / isEffectiveChiefForChannel（只回答某成员是否是该频道此刻的生效首席）
+                                  / isChiefOfAnyChannel（只回答是否有未归档频道的频道首席身份；
+                                  不缓存、不重走回落链，也不把全局回落算进这一档）
                                   / setChannelChief（ChannelChiefError）/ canRouteToChief（对本频道是否
                                   可达：成员 + 未静音，选人 · wake · 频道行共用）/ chiefRefOf（ChiefRef）
   secretary-identity.ts           秘书身份判定源（#248 起是角色判定）：isSecretaryMember = 是不是当前
@@ -275,7 +277,8 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并
                                   "task":{"number":N,"op":"claim"|"complete"|"unclaim"|"handoff"}}
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
                                   + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
-                                  + handoff 授权 = 本频道生效首席；`recipient.canHandoff` 仍只表示全局工具面
+                                  + handoff 授权 = 本频道生效首席；`recipient.canHandoff` 表示生效首席
+                                  （global 或 channel），只控制「建完即派」提示
                                   + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
                                   + §3.2 mention 穿透：非成员被**人类正文** @mention 推进本轮（#237），回复公开 channel 时自行加入
                                   + in_review 任务 owner（agent 成员）最新消息的 @：只放开 task-reviewer 准入，
@@ -333,7 +336,8 @@ lib/
                         nextTabTarget（边界回绕、子浮层让路）+ collectTabbables；BrutalModal 是唯一消费方
                         （行为面由浏览器实测 + lib/modal-focus.test.mjs 守）
   agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import lib/rpc/SDK）+ deriveLiveAgentStatus
-                      + startSession 应用 per-agent 模型覆盖（§3.10）
+                      + startSession 应用 per-agent 模型覆盖（§3.10）+ 计算 chiefScope（global / channel /
+                      none）并据此传 domainTools.surface + 工具面策略（#272）
   agent-lifecycle.ts  Restart / Session reset / Full reset（仅家目录）/ 换 workspace / 删除身份（只 rm 家目录，fs + 运行时 + DB 编排）
   agent-recovery.ts   出错状态点恢复服务层（深模块）：saveAgentRuntime = [应用存活会话命令 → 持久化覆盖 → 触发判定
                       → per-agent FIFO 探测 → 发布前置两条 → 结论]；判定与映射为纯函数（shouldProbeOnRuntimeSave /
@@ -361,10 +365,14 @@ lib/
                        decisions.ts = 判定层（参数校验 / 可见面 / 读面摘要 / 事件文案，纯函数，运行时只依赖
                        lib/preview.ts 与能力表 member-capabilities.ts）；约束常量与配额**都不再住在这里**（名字正则与
                        配额文案是能力表的别名，计数走 member-op-quota 的单例）；tools.ts = 扩展工厂薄壳（六个
-                       `worksplice_*` 工具经 `extensionFactories` 注册，每次调用复判 `isSecretaryMember`，
-                       拿 `actorId` + `sessionKey` 两样身份）
+                       `worksplice_*` 工具经 `extensionFactories` 按 surface 注册：global 六个、channel 只
+                       `worksplice_task_create` 且 `defaultActive:true`；五个读 / 管理员写面每次调用复判
+                       `isSecretaryMember`，task_create 复判「消息所属频道的生效首席」；拿 `actorId` +
+                       `sessionKey` + `surface` 三样身份）
   member-tool-policy.ts 成员会话的工具面策略判定层（零依赖）：CHIEF_DOMAIN_TOOL_NAMES / CHIEF_TOOL_NAMES
-                       （首席 = `read` + 六个领域工具）与 resolveMemberToolPolicy（非首席 → `{}` 不表态）
+                       （global = `read` + 六个领域工具）/ CHANNEL_CHIEF_TOOL_NAMES（channel 只
+                       `worksplice_task_create`）与 resolveMemberToolPolicy（global → 窄面；channel /
+                       none → `{}` 不表态，频道首席普通工具面不收窄）
   secretary-name.ts    引导期默认秘书名字的唯一字面来源（零依赖、client-safe；数据层迁移常量 /
                        协作域身份名 / UI 启动助手判定都从这儿取）
   npx.ts               npx runner used by skill install
@@ -373,7 +381,8 @@ lib/
   pi-types.ts          local structural types for pi SDK objects
   rpc/                RPC 会话管理四模块 + 出口：session.ts（AgentSessionWrapper）/ registry.ts（RpcRegistry
                       注册表 + busy-cwd）/ caller.ts（RpcCaller.start = startRpcSession）/ events.ts（运行状态
-                      订阅集合 + 快照去重广播）/ index.ts（公共 API 面 = 原 rpc-manager.ts 11 导出 + 4 个模块类）
+                      订阅集合 + 快照去重广播）/ index.ts（公共 API 面 = 原 rpc-manager.ts 11 导出 + 4 个模块类）；
+                      caller 把 domainTools.surface 原样传给 chiefToolsExtension
   session-reader.ts   SessionManager wrappers + path cache + buildSessionContext adapter
   session-stats.ts    §6.5 session jsonl 只读解析（token/cost/compaction，与 SDK getSessionStats 同口径，不落库）
                       + listAgentSessionFiles（pi_session_file 精确 + workspace cwd 下全部会话）+ aggregateAgentUsage
@@ -632,11 +641,11 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 - **身份 = 角色，不是名字**：频道首席（`channels.chief_member_id`）→ 全局首席（`members.global_chief`，同一时刻至多一位）→ 无，三档回落；解析口 `resolveEffectiveChief`（`lib/domain/collab/chief.ts`）不缓存、每次现算，绑定失效（离场 / 软删 / 非 agent）按「未设置」处理且**不改写**绑定；`isEffectiveChiefForChannel` 只比较这个唯一结论，调用点不重走回落链。名字不参与任何判定——引导期默认名只有 `lib/secretary-name.ts` 一份字面来源。
 - **可达是另一件事（投递判定）**：`canRouteToChief(channelId, memberId)`（本频道未软删 agent 成员 + 未静音）是唯一结论，`selectChiefRecipient`（谁接这条消息）、wake 的定向唤醒、`listChannelsWithMeta` 的 `chiefAvailable` 三处共用；composer 提示只读 `chiefAvailable`（`false` ⇒ 说「没有默认收件人」），客户端不重新推导——否则提示会承诺一次不会发生的投递（可达反例：私有频道不自动加全局首席、频道首席被静音）。
 - **收件人只多一条分支**：既有四条路径（个人点名 / `@all` / 任务线程裁决 / 任务创建事件 handoff）全都不成立时，才把生效首席加入候选**一次**；静音优先于首席（静音 ⇒ 不可达，不回落、不换人）。任务事件与明确任务关联不走收件人分支，而是由同一个生效首席走 handoff。「涉及任务」复用 `task-reference.ts` 的 `hasTaskReference`（单一来源，不再单独解析创建事件正文）。
-- **全局工具面 = 全局首席；任务分流授权 = 生效首席**：`isSecretaryMember` 只判定当前全局首席，继续守六个 `worksplice_*` 工具与巡检接入面；它不再决定谁能执行任务 handoff。频道首席与全局回落首席都可执行既有 handoff 动作，但频道首席**不**获得建任务 / 建 agent 工具。`isEffectiveChiefForChannel` 只回答身份问题，不判静音；可达性仍由 `canRouteToChief` 单独回答。
-- **默认收件人只路由 / 建完即派（票 chief-recipient-router）**：两段固定骨架行都**只是 prompt**（`loop.ts` 的 `DEFAULT_RECIPIENT_RULE` / `CREATE_THEN_HANDOFF_RULE`）——`handoff` 不受轮次准入约束（准入只决定「这一轮要不要起来」），所以「建完即派」缺的只是告知。注入条件各一条、互不蕴含：A 只在 `role === "chief"` 的轮次（无点名、无任务关联的人类消息 ⇒ 只分流、短答仍走 `action: "reply"` 而非 `ignore`）；B 只对**全局工具面**（六个 `worksplice_*` 工具只在全局首席会话注册）注入；频道首席可走任务事件自己的 handoff prompt，但不因频道身份获得这段工具提示。
-- **一个身份、两个职责（#268 / #270）**：身份仍只有一条回落链（上一段），**不因职责分工产生第二个身份、也不新增判定入口**。两个职责各自可判定、可记账，对应 `round_logs.role` 的两个取值（`AdmissionRole`，`lib/data/types.ts`）：**收件人** = `chief`（`admission.ts` 的 `chiefInvited` 分支：无点名、无 `@all`、不涉及任务时接住这条消息，走房间门）；**路由者** = `secretary-handoff`（`isEffectiveChief` ∧ `secretaryHandoff`：本频道生效首席把未认领任务下沉 handoff，无房间门）。频道首席在场时不再同时叫全局首席；全局首席只在频道档缺失时回落。路由者的「把需求变成任务」仍受全局工具面限制（频道首席不能从无点名消息建任务），「发现卡住的事」由巡检承担且仍按现有全局首席接入面运行。术语与取舍见 `GLOSSARY.md`「首席 (Chief)」与 ADR-0019。
+- **工具面按 surface 非对称；任务分流授权 = 生效首席**：`global`（全局首席）= `read` + 六个领域工具的窄面、不并回扩展工具；`channel`（频道首席）= 保留自己的普通工具面（内置 + 扩展，**不收窄**）+ `worksplice_task_create` 一个最小写面。三个读面 / 建频道 / 建 agent 仍只注册在 global surface，频道首席**不**获得。`isSecretaryMember` 只判定当前全局首席，继续守巡检接入面；`isEffectiveChiefForChannel` 只回答身份问题，不判静音；可达性仍由 `canRouteToChief` 单独回答。
+- **默认收件人只路由 / 建完即派（票 chief-recipient-router / #272）**：两段固定骨架行都**只是 prompt**（`loop.ts` 的 `DEFAULT_RECIPIENT_RULE` / `CREATE_THEN_HANDOFF_RULE`）——`handoff` 不受轮次准入约束（准入只决定「这一轮要不要起来」），所以「建完即派」缺的只是告知。注入条件各一条、互不蕴含：A 只在 `role === "chief"` 的轮次（无点名、无任务关联的人类消息 ⇒ 只分流、短答仍走 `action: "reply"` 而非 `ignore`）；B 对**生效首席**（global 或 channel）的任何轮次注入；频道首席没有读面，候选提示先指向轮次里的 member context。
+- **一个身份、两个职责（#268 / #270 / #272）**：身份仍只有一条回落链（上一段），**不因职责分工产生第二个身份、也不新增判定入口**。两个职责各自可判定、可记账，对应 `round_logs.role` 的两个取值（`AdmissionRole`，`lib/data/types.ts`）：**收件人** = `chief`（`admission.ts` 的 `chiefInvited` 分支：无点名、无 `@all`、不涉及任务时接住这条消息，走房间门）；**路由者** = `secretary-handoff`（`isEffectiveChief` ∧ `secretaryHandoff`：本频道生效首席把未认领任务下沉 handoff，无房间门）。频道首席在场时不再同时叫全局首席；全局首席只在频道档缺失时回落。路由者的「把需求变成任务」从 #272 起对频道首席也成立：`worksplice_task_create` 按消息所属频道的生效首席授权；「发现卡住的事」由巡检承担且仍按现有全局首席接入面运行。术语与取舍见 `GLOSSARY.md`「首席 (Chief)」、ADR-0019 与 ADR-0020。
 - **消息指认（#266，ADR-0018 决策一）**：她读到的每条消息都带**完整消息 id**。形状只有一处字面来源：`injection-budget.ts` 的 `messageIdTag` → `(messageId <完整 uuid>)`；两个渲染入口同形——轮次注入行由 `projectMessages` 行尾追加（`#seq @author: 正文 (messageId <id>)`，渲染点唯一 ⇒ decide / revise 两个 prompt 自动一致），搜索命中行由 `member-ops.ts` 的 `formatSearchObservation` 用**同一个函数**加句柄（频道命中与线程命中同形）。`InjectableMessage.id` 必填。于是 `worksplice_task_create` 的**参数形状一字未动**（仍只收 `messageId`），也不需要 seq→id 映射。行首 `#seq` 保留（react / pin 的句柄，只在自己 target 内唯一），两者并存。**预算没放宽**：行尾 id 是固定开销，三个上界（`ROUND_INJECTION_BUDGET_CHARS` / `INJECTION_MESSAGE_WINDOW` / `MESSAGE_CONTENT_CAP`）一个没调；截断只吃正文，行首句柄与行尾 id 先占住。归档命中是 session 归档条目、没有频道消息 id —— 保留 archive / entry 定位，**不硬造 messageId**。
-- **领域工具面（票 chief-tools）**：首席会话 = `read` + 六个 `worksplice_*` 工具，清单只有 `member-tool-policy.ts` 的 `CHIEF_DOMAIN_TOOL_NAMES` 一份（注册面与激活面共用，`lib/chief-tools/tools.ts` 注册时 `assertPolicyCoverage` 防漂移——名字对不上会静默变成「注册了但永不激活」）。六个工具**只在首席会话注册**（`RpcSessionStartOptions.domainTools` 不在场 ⇒ 工厂不进 `extensionFactories`，不是「注册了再停用」），且**每次调用重新复判** `isSecretaryMember`：换人 / 软删之后旧会话里的工具立即失效（会话创建时判定过不算数）。写面三个：`worksplice_channel_create`（私有频道必须把 actor 放进 `memberIds`；`memberIds` 只收**存活 agent**——`createChannel` 的 `assertMember` 只查存在性、`getMember` 连软删行一起返回，所以这层自己判；两条判据自票 chief-capability-converge 起住在能力表，见下节）；`worksplice_agent_create`（只收 `name` / `description` / `channelId`，模型一律 `provider: null` 继承全局默认；名字 `^ops-[a-z0-9][a-z0-9-]{1,27}$`；每会话至多 1 次成功创建、失败不消耗——上限与计数都在能力表 + 跨路径共享的配额 store 里）；`worksplice_task_create`（票 chief-task-create：参数**只有** `messageId`——把一条**既有**顶层消息转成任务，校验 / 取号 / `TaskAlreadyExistsError` 全复用 `createTask`，thread 内消息由它自己抛错；actor 须是该消息所在频道的成员；成功回 `{ number, status, anchorSeq }`。**有意例外：不补 actor 署名事件**——`createTask` 内部已投 Owner 署名的 `Task #N created`（`roomNotice: true` + `wake: true` 全频道扇出），那条既是频道留痕、也是下一轮 handoff 的准入触发）。写操作留痕走 `notifyChiefSystemAction`（**actor 署名** + `wake:false` + `roomNotice:true`——系统事件不得开房间场次、不得重置 `lateTurns`；仅前两个 `*_create` 工具使用）。三个读面都有界：只回约定字段（任务 preview ≤ 120 字符），可见面 = 公开频道 + 本人成员。
+- **领域工具面（票 chief-tools / #272）**：`global` surface = `read` + 六个 `worksplice_*` 工具；`channel` surface = 只 `worksplice_task_create`（`defaultActive:true`，随频道首席不收窄的普通工具面激活）。清单只有 `member-tool-policy.ts` 的两份常量（`CHIEF_DOMAIN_TOOL_NAMES` / `CHANNEL_CHIEF_TOOL_NAMES`；注册面与激活面共用，`lib/chief-tools/tools.ts` 注册时 `assertPolicyCoverage` 按当前 surface 防漂移——名字对不上会静默变成「注册了但永不激活」）。工具面**只在首席会话注册**（`RpcSessionStartOptions.domainTools` 不在场 ⇒ 工厂不进 `extensionFactories`，不是「注册了再停用」），五个读 / 管理员写面**每次调用重新复判** `isSecretaryMember`；`worksplice_task_create` 先复判「任一频道生效首席」，再按消息所属频道复判 `isEffectiveChiefForChannel`——频道已有频道首席时全局首席被拒，没有频道首席时全局首席仍可回落。写面三个：`worksplice_channel_create`（私有频道必须把 actor 放进 `memberIds`；`memberIds` 只收**存活 agent**——`createChannel` 的 `assertMember` 只查存在性、`getMember` 连软删行一起返回，所以这层自己判；两条判据自票 chief-capability-converge 起住在能力表，见下节）；`worksplice_agent_create`（只收 `name` / `description` / `channelId`，模型一律 `provider: null` 继承全局默认；名字 `^ops-[a-z0-9][a-z0-9-]{1,27}$`；每会话至多 1 次成功创建、失败不消耗——上限与计数都在能力表 + 跨路径共享的配额 store 里）；`worksplice_task_create`（票 chief-task-create / #272：参数**只有** `messageId`——把一条**既有**顶层消息转成任务，校验 / 取号 / `TaskAlreadyExistsError` 全复用 `createTask`，thread 内消息由它自己抛错；授权 = 消息所属频道的生效首席 + 该频道成员；成功回 `{ number, status, anchorSeq }`。**有意例外：不补 actor 署名事件**——`createTask` 内部已投 Owner 署名的 `Task #N created`（`roomNotice: true` + `wake: true` 全频道扇出），那条既是频道留痕、也是下一轮 handoff 的准入触发）。写操作留痕走 `notifyChiefSystemAction`（**actor 署名** + `wake:false` + `roomNotice:true`——系统事件不得开房间场次、不得重置 `lateTurns`；仅前两个 `*_create` 工具使用）。三个读面都有界：只回约定字段（任务 preview ≤ 120 字符），可见面 = 公开频道 + 本人成员。**角色变化后需重启该 agent 的会话**才拿到新 surface，不做动态热更新。
 - **巡检（#267，ADR-0018 决策二）**：路由者职责的第三件事，每分钟一次、有界。判定层 `lib/domain/collab/patrol.ts`（纯函数 / 零 IO，时间与任务快照注入）只认**已有任务**的三类卡住——未认领 `todo` 30 分（`PATROL_UNCLAIMED_TODO_MS`）/ `status` 仍为 `todo` 且 `handoff_state=blocked` 30 分（`PATROL_HANDOFF_BLOCKED_MS`；`claimTask` 不清 `handoff_state`，认领过的 blocked 是历史标记、不算卡住）/ `in_review` 24 小时（`PATROL_IN_REVIEW_MS`），7 天窗口（`PATROL_WINDOW_MS`，按锚点 `created_at`；卡住时长按任务行 `updated_at`）；去重签名 = 任务+状态+详情、**不含时长**（状态变了才重报，不按时间冷却）。接入层 `patrol-run.ts` 的 `runPatrolOnce` 搭 `tickAgentLoopMaintenance` 的同一分钟节拍（`WORKSPLICE_PATROL_DISABLED=1` 关闭，现算），每轮**最多一条**汇总、无发现完全沉默；**不读消息内容、不建任务、不派活、不改任务状态**（唯一写入是投递，投递失败不消耗签名）。投递 `wake:false` + `roomNotice:true`（系统事件：不进房间场次、不动迟到名额、不 supersede 在跑场次），只扫她作为成员、未归档、非 DM 的频道；签名集只在进程内（重启后同一批卡住再报一次），语义是 `prior = 已报过 ∧ 本轮仍检出`（淡出不再检出的），投递成功后 `= prior ∪ 进了这条消息的签名`——没进消息的私有发现不被吞掉，将来成为落点还能报出来；投递失败不写签名。落点与可见面：她作为生效首席、且**自己频道里**还有没报过的发现的频道（扫描顺序**逐个试**：前一个报过之后让给下一个，否则两个首席频道都有发现时后面那个会被永久哑掉；判据取「自己的发现」而不是「该频道可上报的发现」，否则全局首席让扫描名单第一个——通常是 `#all`——永远截走所有公开频道的发现）→ 她所在的第一个**公开**频道（`isPublic`，私有频道不参与兜底）→ 静默，不广播、不私信人类；汇总只携带落点自己的发现 + 公开频道的发现，**落在别的私有频道的发现不上报**（否则「私有频道名 + 任务号」会跟着公开落点泄露进更大的可见面；落点是私有频道时聚合公开发现是安全的）。兜底是本轮**新引入**的语义（既有代码只回答「谁是首席」不回答「落在哪」）。
 - **schema v19 三列 + 两档幂等迁移**：`members.global_chief`（补列时把存活同名 agent 标一次；用户事后清空后不在开库时复活）/ `channels.chief_member_id`（纯补列，存量 NULL = 回落全局）/ `round_logs.role`（准入角色，可空，历史行 = 未记录）。三列都靠 `PRAGMA table_info` 检查式 ALTER，重复开库幂等。
 
@@ -649,12 +658,13 @@ WEBPACK_LAYERS.middleware : …`）——**没有配置项能关掉**，两份�
 
 **为什么上移**：同一个动作本来有两条执行路径、规则各写一份——结果被约束的角色（全局首席）反而比任何 agent 更受限，而同样的事换个写法就绕过去了。约束面把**不矛盾的那部分**收到一处，两条路径同口径；不退役任何一条面，也不动不矛盾的项。
 
-| 动作 | ops 面（任何 agent，`{"ops":[...]}`） | 首席 tools 面（只有全局首席） | 口径 |
+| 动作 | ops 面（任何 agent，`{"ops":[...]}`） | 首席 tools 面（按 surface） | 口径 |
 | --- | --- | --- | --- |
 | `post` / `react` / `pin` / `remind` / `search` | ✅ | — | 本票不动（与今天逐字节相同） |
 | `reply` / `task`（claim / complete / unclaim / handoff） | ✅ | — | 协议字段，不动 |
 | `createAgent` | ✅ 受约束 | ✅ 受约束 | **同口径**：同一名字正则、同一配额 store、同一句拒绝文案 |
 | `createChannel` | ✅ 受约束 | ✅ 受约束 | **同口径**：私有必须含 actor；`memberIds` 只收存活 agent |
+| 建任务（`worksplice_task_create`） | ❌（协议 `task` 只做 claim / complete / unclaim / handoff） | ✅ 仅生效首席（global 窄面 / channel 补面） | 授权按消息所属频道的生效首席；频道已有首席时全局首席不越权 |
 | 频道 / 成员 / 任务读面 | 走每轮语境注入（不占 op） | ✅ 三个有界读面 | 只有 tools 面有显式读工具 |
 | 归档 / 删除身份 / 三种 reset / 改 runtime / 改 workspace | ❌（`HUMAN_ONLY_OPERATIONS`） | ❌ | 人类专属，两条面都不开 |
 

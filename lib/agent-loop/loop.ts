@@ -29,7 +29,6 @@ import {
   isChannelMember,
   isDM,
   isEffectiveChiefForChannel,
-  isSecretaryMember,
   joinChannel,
   listAgents,
   listChannels,
@@ -521,17 +520,18 @@ export const DEFAULT_RECIPIENT_RULE: readonly string[] = [
 ];
 
 /**
- * 建完即派（票 chief-recipient-router，用户裁决 ①）：**首席会话的任何一轮**都注入。
+ * 建完即派（票 chief-recipient-router / #272，用户裁决 ①）：**生效首席的任何一轮**都注入。
  *
- * 为什么是「全局首席会话」而不是「所有会话」：六个 `worksplice_*` 工具只注册在全局首席会话里，
- * `handoff` op 则对本频道的生效首席开放（频道首席或全局回落）。普通成员没有这套工具，给它们
- * 注入这段 prompt 等于教一个不存在的入口；频道首席也不得因此升格为全局工具面。
+ * 为什么是「生效首席」而不是「所有会话」：全局首席有六个 `worksplice_*` 工具；频道首席从
+ * #272 起有 `worksplice_task_create`（但没有读面），`handoff` op 也早已对本频道生效首席开放。
+ * 普通成员没有这套工具，给它们注入这段 prompt 等于教一个不存在的入口。频道首席的候选提示
+ * 因此先指向轮次里的 member context——它没有 `worksplice_list_members`。
  *
  * 为什么是 prompt 而不是 loop 逻辑：`handoff` 不受轮次准入约束——准入只决定「这一轮要不要起来」，
  * 派哪个任务由 `handoffTask` 的资格判定决定。所以「建完即派」缺的只是「同一轮可以接着派」这句告知。
  */
 export const CREATE_THEN_HANDOFF_RULE: readonly string[] = [
-  '- Create and hand off in the same round: when worksplice_task_create returns a number in this round and exactly one member is clearly the right owner, add {"task":{"number":N,"op":"handoff","assignee":"@Name"}} to your JSON — no need to wait for the next round. If you cannot tell who the candidates are, look with worksplice_list_members or the member context above first.',
+  '- Create and hand off in the same round: when worksplice_task_create returns a number in this round and exactly one member is clearly the right owner, add {"task":{"number":N,"op":"handoff","assignee":"@Name"}} to your JSON — no need to wait for the next round. If you cannot tell who the candidates are, use the member context above (if this session has worksplice_list_members, you can also use it).',
   "- If no single member clearly fits (a tie, nobody suitable, or the Owner has to decide), do not force a handoff: leave the task unclaimed and say in your reply what is blocking. A refused handoff (blocked or held) does not roll back the task — it still exists and is still unclaimed, so never write that it was assigned.",
 ];
 
@@ -574,8 +574,8 @@ export function buildReplyPrompt(input: {
   /**
    * 本轮的收件人身份（票 chief-recipient-router）：只决定两段固定骨架行，不参与任何判定。
    * - `role`：本轮是怎么进来的（与 `round_logs.role` 同一份取值）；`"chief"` ⇒ 默认收件人轮。
-   * - `canHandoff`：本会话属于**全局首席工具面**（`isSecretaryMember`），只控制
-   *   「建完即派」提示；频道首席可以执行已有的 handoff op，但不拿到建任务工具。
+   * - `canHandoff`：本会话属于**生效首席**（全局或频道），只控制「建完即派」提示。
+   *   频道首席从 #272 起有 `worksplice_task_create`；普通成员没有这套工具。
    * 缺省 = 不适用：prompt 与今天逐字节相同（非首席成员 / 直调本函数的单测）。
    */
   recipient?: { role: AdmissionRole; canHandoff: boolean };
@@ -2328,7 +2328,6 @@ export async function runAgentRound(
   })();
   // 票 #240 / #270：任务 handoff 只自动准入本频道的生效首席——频道首席在场时不再叫
   // 全局回落首席。多任务命中、无关联、任意闲聊、已分流、已有 owner、reopened 都由触发判定拒绝。
-  const isGlobalChief = isSecretaryMember(agent);
   const isEffectiveChief = isEffectiveChiefForChannel(channel.id, agent.id);
   const handoffSelection = isEffectiveChief
     ? selectSecretaryHandoffTask({
@@ -2564,9 +2563,9 @@ export async function runAgentRound(
           })),
         }
       : undefined,
-    // 收件人身份（票 chief-recipient-router）：角色取准入的唯一结论；`canHandoff` 仍表示
-    // 全局首席工具面（本票不扩工具面），不能拿来判断频道首席能否执行既有 handoff op。
-    recipient: { role: admittedRole, canHandoff: isGlobalChief },
+    // 收件人身份（票 chief-recipient-router / #272）：角色取准入的唯一结论；`canHandoff`
+    // 表示本会话属于生效首席（全局或频道），只控制「建完即派」提示。
+    recipient: { role: admittedRole, canHandoff: isEffectiveChief },
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
