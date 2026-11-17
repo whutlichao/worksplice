@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAgentTranscriptPage, TranscriptCursorError } from '@/lib/session-transcript';
-import { isDomainError, jsonError } from '@/lib/domain/errors';
+import { DomainError, jsonError } from '@/lib/domain/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,15 +17,12 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof TranscriptCursorError) {
-      return NextResponse.json(
-        { error: error.message, code: 'transcript_cursor_expired' },
-        { status: 409 },
+      return jsonError(
+        new DomainError(409, 'transcript_cursor_expired', error.message),
       );
     }
-    if (isDomainError(error)) return jsonError(error);
-    return NextResponse.json(
-      { error: 'Unable to read agent transcript' },
-      { status: 500 },
-    );
+    return jsonError(error, 500, {
+      fallbackMessage: 'Unable to read agent transcript',
+    });
   }
 }

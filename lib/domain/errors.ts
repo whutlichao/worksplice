@@ -46,9 +46,10 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** 领域错误判定：只认本进程内 DomainError 继承链上的实例。 */
-export function isDomainError(error: unknown): error is DomainError {
-  return error instanceof DomainError;
+/** `jsonError` 的未知错误选项：路由可要求对外文案不透明（例如不泄漏文件路径）。 */
+export interface JsonErrorOptions {
+  /** 未知错误的对外文案；领域错误始终使用自己的 message。 */
+  fallbackMessage?: string;
 }
 
 /**
@@ -59,12 +60,19 @@ export function isDomainError(error: unknown): error is DomainError {
  *
  * `fallbackStatus` 只表达「这条路由的其余异常按什么码兜底」，不参与领域错误的判定。
  */
-export function jsonError(error: unknown, fallbackStatus: DomainErrorStatus = 500): Response {
+export function jsonError(
+  error: unknown,
+  fallbackStatus: DomainErrorStatus = 500,
+  options: JsonErrorOptions = {},
+): Response {
   if (error instanceof DomainError) {
     return Response.json(
       { ...error.details, error: error.message, code: error.code },
       { status: error.status },
     );
   }
-  return Response.json({ error: errorMessage(error) }, { status: fallbackStatus });
+  return Response.json(
+    { error: options.fallbackMessage ?? errorMessage(error) },
+    { status: fallbackStatus },
+  );
 }

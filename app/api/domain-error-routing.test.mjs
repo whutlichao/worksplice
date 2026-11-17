@@ -223,6 +223,10 @@ test("jsonError keeps the route fallback for unknown errors (default 500)", asyn
 
   const fallback = jsonError(new Error("bad input"), 400);
   assert.equal(fallback.status, 400);
+  const opaque = await jsonError(new Error("/secret/path"), 500, {
+    fallbackMessage: "Unable to read agent transcript",
+  }).json();
+  assert.deepEqual(opaque, { error: "Unable to read agent transcript" });
   const domain = jsonError(new collab.AgentNotFoundError("x"), 400);
   assert.equal(domain.status, 404, "domain status wins over the route fallback");
 });

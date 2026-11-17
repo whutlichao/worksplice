@@ -260,6 +260,7 @@ test('transcript cursors are bound to the member and its currently registered se
     `?cursor=${encodeURIComponent(firstPage.cursor)}`,
   );
   assert.equal(crossMemberResponse.status, 409);
+  assert.equal((await crossMemberResponse.json()).code, 'transcript_cursor_expired');
 
   globalThis.__workspliceDb.setMemberPiSessionFile(firstAgent.id, createSession(106));
   const staleSessionResponse = await getTranscript(
@@ -267,6 +268,7 @@ test('transcript cursors are bound to the member and its currently registered se
     `?cursor=${encodeURIComponent(firstPage.cursor)}`,
   );
   assert.equal(staleSessionResponse.status, 409);
+  assert.equal((await staleSessionResponse.json()).code, 'transcript_cursor_expired');
 });
 
 test('unknown members return not found', async () => {
