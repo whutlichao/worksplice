@@ -9,6 +9,7 @@ import {
   parseTaskCreationEventNumber,
   type MessageInvitations,
 } from "./invitations.ts";
+import type { WakeReason } from "./wake.ts";
 
 /**
  * `AdmissionRole`（本轮**怎么进来的**）的取值定义在数据层词表（`lib/data/types.ts`）：
@@ -58,7 +59,7 @@ export interface RoundAdmissionInput {
   isMember: boolean;
   isTaskThread: boolean;
   task: AdmissionTaskSnapshot | null;
-  reason: "message" | "reminder" | "task-status";
+  reason: WakeReason;
   continuing: boolean;
   /** 当轮 incoming 里是否有任何人类正文个人点名了本 agent。 */
   humanMentioned: boolean;
@@ -82,8 +83,8 @@ export interface RoundAdmissionInput {
   isEffectiveChief: boolean;
   /** 生效首席本轮是否被一个唯一的未认领任务明确关联（创建事件 / 任务线程 / 唯一引用）。 */
   secretaryHandoff: boolean;
-  /** 本成员是否当前任务状态权威（人类 Owner 或当前全局首席）；只用于 task-status 唤醒。 */
-  taskStatusAuthority?: boolean;
+  /** 本成员是否当前任务状态权威（人类 Owner 或当前全局首席）。 */
+  canChangeTaskStatus?: boolean;
   /**
    * 任务创建事件旁边的人类任务锚点是否明确点名了本 agent / @all。
    * 这是「人类已经直接叫人」的信号，不是事件预览里的 @；用于保留显式邀请。
@@ -107,12 +108,27 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
   if (input.isTaskThread && input.task) {
     const task = input.task;
     if (isReopenedTask(task)) {
+      if (
+        input.canChangeTaskStatus &&
+        (input.reason === "task-status" ||
+          input.humanMentioned ||
+          input.humanAllMentioned)
+      ) {
+        return {
+          admit: true,
+          role:
+            input.reason === "task-status"
+              ? "task-status-authority"
+              : "human-mention",
+          useRoomGate: false,
+        };
+      }
       return { admit: false, reason: ROUND_SKIP_REASONS.taskReopened };
     }
     const owner = task.ownerId === input.agentId;
     switch (task.status) {
       case "in_progress":
-        if (input.reason === "task-status" && input.taskStatusAuthority) {
+        if (input.reason === "task-status" && input.canChangeTaskStatus) {
           return {
             admit: true,
             role: "task-status-authority",
@@ -167,7 +183,7 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
     }
     return {
       admit: false,
-      reason: input.isEffectiveChief || input.taskStatusAuthority
+      reason: input.isEffectiveChief || input.canChangeTaskStatus
         ? ROUND_SKIP_REASONS.handoffNotTriggered
         : ROUND_SKIP_REASONS.taskEventHandoffOnly,
     };

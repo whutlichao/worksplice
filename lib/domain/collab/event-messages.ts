@@ -2,8 +2,12 @@ import { getChannel, isChannelMember } from "./channels.ts";
 import { getMember } from "./members.ts";
 import { sendMessage } from "./messages.ts";
 import { emitWake } from "./wake.ts";
-import { canRouteToChief, getGlobalChief } from "./chief.ts";
-import { SUSAN_MEMBER_NAME, isSecretaryMember } from "./secretary-identity.ts";
+import { getGlobalChief } from "./chief.ts";
+import {
+  SUSAN_MEMBER_NAME,
+  getReachableGlobalChief,
+  isSecretaryMember,
+} from "./secretary-identity.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../../data/schema.ts";
 import { previewLine } from "../../preview.ts";
 import { getDb } from "../../data/db-singleton.ts";
@@ -217,6 +221,10 @@ export interface TaskCompletionRequestResult {
  * - 提交后仅定向唤醒**当前全局首席**（reason=`task-status`）。全局首席不存在 / 非频道成员 /
  *   静音时只留事件、不降级给频道首席或普通 agent；
  * - 同一 `requestKey` 在线程内至多一条事件；重复调用返回既有事件且不重复唤醒。
+ *
+ * 触发频率 / 成本上限：一次非权威完成报告至多产生一条事件与一次 `task-status` 唤醒
+ * （即至多一轮全局首席模型调用）；没有定时器、没有按秒重试，重复报告按 `requestKey`
+ * 去重。这是新增 LLM 调用路径的成本边界，不随房间消息量增长。
  */
 export function notifyTaskCompletionRequest(input: {
   task: TaskRow;
@@ -259,13 +267,9 @@ export function notifyTaskCompletionRequest(input: {
   });
   if (sent.held) throw new Error("Task completion request was held");
 
-  const chief = getGlobalChief();
+  const chief = getReachableGlobalChief(channel.id);
   const chiefId =
-    chief &&
-    chief.id !== input.requester.id &&
-    canRouteToChief(channel.id, chief.id)
-      ? chief.id
-      : null;
+    chief && chief.id !== input.requester.id ? chief.id : null;
   if (
     chiefId &&
     getDb().getConsumedSeq(chiefId, input.task.message_id) < sent.message.seq

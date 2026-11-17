@@ -104,7 +104,8 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   可达：成员 + 未静音，选人 · wake · 频道行共用）/ chiefRefOf（ChiefRef）
   secretary-identity.ts           秘书身份判定源（#248 起是角色判定）：isSecretaryMember = 是不是当前
                                   全局首席；isTaskStatusAuthority = 人类 Owner 或当前全局首席（#295 任务
-                                  状态写权唯一入口）；SUSAN_MEMBER_NAME 只是引导期默认名（不参与判定）
+                                  状态写权唯一入口）；getReachableGlobalChief = 全局首席对本频道可达性
+                                  的唯一解析口；SUSAN_MEMBER_NAME 只是引导期默认名（不参与判定）
   task-reference.ts               「正文提到了哪些任务」的共享纯判定（parseTaskReferenceNumbers /
                                   hasTaskReference）：handoff 触发与选人共用，断开 handoff-trigger ← invitations
                                   的反向依赖；引用块 / 代码块里的 Task #N 不算
@@ -133,7 +134,8 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按 channel 递增）/ claimTask
                                   （#295：仅人类 Owner / 当前全局首席；重开封锁由同一权威接管）/
                                   updateTaskStatus（状态机 + isTaskStatusAuthority + freshness-hold +
-                                  reopen 置 reopened 标记）/ reachableStatuses（非权威为空）/ listChannelTasks / getTaskView
+                                  reopen 置 reopened 标记）/ reachableStatuses（非权威为空）/
+                                  listChannelTasks(actorId) / getTaskView(actorId)（视图按调用者权威给出 reachable）
   inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
                                   （§3.2 mute 过滤：静音后普通消息不进 inbox、@mention 穿透）/ listRelatedTasks
                                   / resolveTargetChannel（§5.5 本地实现形态）
@@ -189,8 +191,9 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   wake.ts                         wake 事件总线（§5.4/§5.5）：WakeHint（只含 agentId/targetId/seq/reason
                                   + 可选 recovery，不含正文）；
                                   subscribeWake/emitWake；notifyMessageWakes（#237：人类正文点名 / @all 候选；
-                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件 / 明确任务关联只定向当前
-                                  全局首席，一个事件最多一个收件人，不可达则静默）；§3.7 任务延续自醒；
+                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件 / 明确任务关联只定向
+                                  getReachableGlobalChief 解析出的当前全局首席，一个事件最多一个收件人，
+                                  不可达则静默）；§3.7 任务延续自醒；
                                   @mention 解析 re-export（协作服务层发，agent-loop 驱动订阅）
 
 lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并为单文件深模块）

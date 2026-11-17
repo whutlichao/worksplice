@@ -169,7 +169,7 @@ export function transitionEdges(): Array<{ from: TaskStatus; to: TaskStatus }> {
 /**
  * 看板拖拽的可达落点（§3.7/ADR-0002）：从当前状态、以 actorId 的身份可发起的合法转移。
  * 状态机转移表是唯一裁决者；todo 的 claim 是独立操作（claimTask），此处合成该边——
- * 重开封锁（reopened）下仅人类（CURRENT_MEMBER_ID）可认领，与 claimTask 的封锁一致。
+ * 重开封锁（reopened）下仅任务状态权威可认领，与 claimTask 的封锁一致。
  */
 export function reachableStatuses(
   task: TaskRow,
@@ -285,8 +285,8 @@ export function createTask(input: { messageId: string }): TaskView {
 /**
  * 认领（§3.7）：同一任务同时只有一个 owner；claim 即"我负责"。
  * 已认领（conflict）或房间变化（held）都不写入；claim 失败方让路。
- * 重开封锁：reopened 标记下仅人类（CURRENT_MEMBER_ID）可认领（= 接管并清标），
- * agent-loop 等非人类认领返回 blocked（§3.7 重开后不可自动认领）。
+ * 重开封锁：reopened 标记下仅任务状态权威可认领（= 接管并清标），
+ * 普通 agent 一律在权限复核处被拒绝（§3.7）。
  */
 export function claimTask(input: {
   channelId: string;
@@ -412,8 +412,14 @@ export function updateTaskStatus(input: {
   });
 }
 
-/** channel 任务板（§3.7 视图）：按 number 升序；任务 thread 承载进展、board 只显示状态。 */
-export function listChannelTasks(channelId: string): TaskView[] {
+/**
+ * channel 任务板（§3.7 视图）：按 number 升序；任务 thread 承载进展、board 只显示状态。
+ * actorId 决定 `reachable`；HTTP 人类面沿用默认 Owner，agent-loop / 测试可传 agent id。
+ */
+export function listChannelTasks(
+  channelId: string,
+  actorId: string = CURRENT_MEMBER_ID,
+): TaskView[] {
   const channel = getChannel(channelId);
   if (!channel) throw new Error("Channel not found");
   const tasks = getDb().listChannelTasks(channelId);
@@ -432,18 +438,21 @@ export function listChannelTasks(channelId: string): TaskView[] {
       return toTaskView(
         task,
         anchor,
-        CURRENT_MEMBER_ID,
+        actorId,
         replyCounts.get(task.message_id) ?? 0,
       );
     })
     .filter((view): view is TaskView => view !== null);
 }
 
-export function getTaskView(id: string): TaskView {
+export function getTaskView(
+  id: string,
+  actorId: string = CURRENT_MEMBER_ID,
+): TaskView {
   const task = getDb().getTaskById(id);
   if (!task) throw new DomainError(404, "task_not_found", "Task not found");
   const { anchor } = channelOfTask(task);
-  return toTaskView(task, anchor);
+  return toTaskView(task, anchor, actorId);
 }
 
 export interface TaskThreadReadView {
@@ -479,10 +488,13 @@ export function markTaskThreadRead(input: {
 }
 
 /** 辅助：某 target（channel 或 thread 锚点）内的任务视图（agent-loop decide 语境复用）。 */
-export function listTasksForTarget(targetId: string): TaskView[] {
+export function listTasksForTarget(
+  targetId: string,
+  actorId: string = CURRENT_MEMBER_ID,
+): TaskView[] {
   const channel = resolveChannelForTarget(targetId);
   if (!channel) return [];
-  return listChannelTasks(channel.id).filter(
+  return listChannelTasks(channel.id, actorId).filter(
     (task) => task.anchor.id === targetId || task.anchor.target_id === targetId,
   );
 }

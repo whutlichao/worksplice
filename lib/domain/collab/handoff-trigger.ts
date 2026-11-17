@@ -7,7 +7,7 @@ import { isTaskActionableForActor } from "./admission.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../../data/types.ts";
 
 /**
- * 生效首席自动 handoff 的触发判定（票 #240 / #270，纯读判定层）：
+ * 当前全局首席自动 handoff 的触发判定（票 #240 / #270 / #295，纯读判定层）：
  * 只认两种明确关联——
  * ① 任务创建事件（`Task #N created`）；
  * ② 与既有未认领任务明确关联的人类消息：任务锚点 / 任务线程 / 唯一 `Task #N` 引用。
