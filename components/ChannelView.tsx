@@ -3697,17 +3697,6 @@ export function ChannelView({
     if (tab === "tasks") loadTasks();
   }, [tab, loadTasks]);
 
-  // Tasks tab 顺带刷新任务板（消息轮询由 useChannelData 持有）。
-  useEffect(() => {
-    if (!channel || tab !== "tasks") return;
-    const timer = setInterval(() => {
-      if (document.hidden) return;
-      loadTasks();
-    }, 3000);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel?.id, tab]);
-
   // 新消息到达滚到底部；切换频道时不抢滚（由下面的 channel 恢复 effect 接管），
   // 否则缓存快照替换 + 底部滚动两帧叠加 = 可见跳动。
   const activeIdForScroll = channel?.id;

@@ -8,6 +8,7 @@ import {
   taskActionRequest,
   type TaskAction,
 } from "@/lib/task-edges";
+import { usePollingResource } from "./usePollingResource";
 
 /** §3.5 pinned 项（与 GET /api/channels/[id]/pinned 返回形态同形；
  *  ChannelView 旧内联定义的上游，避免 ChannelView ↔ hook 循环 import）。 */
@@ -626,61 +627,21 @@ export async function postChannelMessage(
   throw new Error("POST messages: empty response");
 }
 
-/**
- * 频道消息数据循环（01 票：轮询 + merge + maxSeq/hasMore；02 票：发送 + held + busyAction；
- * 03 票：pinned 数据循环 + 附属区 mute/members；04 票：任务板数据循环 + 转移序列）。
+/** 数据集 hook：消息（messages）。
  *
- * ChannelView 只做排版：消息状态、分页、轮询合并、发送通道、pinned/附属区、任务板全部经此 hook。
- * 缓存按频道分桶（切回看过的频道直接命中快照），请求代际丢弃迟到响应。
- *
- * 02 票语义（与 ChannelView 旧内联实现一致）：
- * - `send` 携带 baseSeq（调用时的 maxSeq）；held 后置 heldNotice + 重拉（loadLatest）+ 抛 held 文案。
- * - 发送成功后经 loadLatest 重拉收敛（append 入口是后续票的事，本票不做乐观追加）。
- * - `send` 只管发送与 held 收敛：quoting 清理与 As Task 转化留视图侧（handleSend 内），hook 不持有引用/As Task 状态。
- * - `busyAction` 沿旧语义由视图侧任务动作（runTaskAction）驱动（与旧内联 useState 同一共享锁）；
- *   `send` 本体不加锁（与旧 handleSend 一致，Composer 的 busy 态只反映任务动作）。
- *
- * 03 票语义（与 ChannelView 旧内联实现一致）：
- * - `pinnedItems / pinnedSort / setPinnedSort / reorderPinned` 持有 pinned 数据循环：
- *   切换频道或排序变化时重拉（loadPinnedPage 经服务端 sort），Manual 排序下 ↑/↓ 重排
- *   经 postPinnedOrder 提交后重拉收敛；pin/unpin 经 togglePin 切换后重拉收敛。
- * - `mutes / channelMemberIds` 持有附属区：切换频道时重拉（loadMutesPage / loadChannelMemberIds）；
- *   成员集合另由 `membersVersion` 显式失效（新建 agent 自动加入 #all 后外部成员集已变，
- *   不切频道时也需重拉——旧语义只在 channelId 变化时加载，新成员恒 stale）。
- * - `togglePin / toggleMute` 只管切换与重拉收敛：toast 文案（mute.toastMuted 等）与
- *   成员增删（addChannelMember/removeChannelMember）留视图侧，hook 不持有 i18n/成员行状态。
- *   loadPinned 是 hook 内部私有的重拉原语（togglePin / reorderPinned / 切频道共用），不再导出。
- *
- * 04 票语义（与 ChannelView 旧内联实现一致）：
- * - `tasks / tasksError / taskNotice` 持有任务板数据循环：切换频道时重拉
- *   （loadTasksPage 经服务端按 number 升序），旧频道任务先清空避免闪现。
- * - `taskOps{claim,complete,unclaim,close,approve,reject,reopen}` 持有转移序列，
- *   动作名 → 请求与 `lib/task-edges.ts` 边表同源（#275，不再各自维护映射）：
- *   claim 经 claimChannelTask（held/conflict/blocked 让路：提示 + 重拉，不抛错）；
- *   其余转移经 updateChannelTaskStatus 发到边表声明的目标状态；成功后重拉收敛。
- *   需要「先落线程回复再置 in_review」的调用方仍走独立的 `completeTask`
- *   （completeTaskWithReply，线程版本 baseSeq + 频道版本 baseSeq）。
- * - 创建两途径（convert/createBoard）与 reopen 封锁标记透出在纯函数层：
- *   convert 走 convertMessageToTaskRow（409 抛错由调用方提示），board 创建走
- *   createBoardTaskRow（服务端先发消息再建任务）；reopened=1 的行经 loadTasksPage
- *   原样返回，视图只做徽标展示（TaskCard 已有），claim 让路由 blocked 返回。
- * - toast 文案（tasks.held/tasks.denied/converted/created）与 invalid-drop 提示留视图侧，
- *   hook 只暴露 taskNotice/tasksError 状态与 setter 供视图写文案。
+ * 持消息 state / error / 分页 / 频道缓存与 3s 轮询；轮询纪律委托 usePollingResource。
+ * `getMaxSeq` 只供同一组合根里的任务数据集读取发送/转移时的频道版本，不对外返回。
  */
-export function useChannelData(
+function useChannelMessagesData(
   channelId: string | undefined,
-  t?: (key: string, params?: Record<string, string | number>) => string,
-  membersVersion?: number,
+  t: ((key: string, params?: Record<string, string | number>) => string) | undefined,
+  setHeldNotice: (notice: string | null) => void,
 ) {
   const latestRequestRef = useRef(0);
   const channelGenerationRef = useRef(0);
   const cacheRef = useRef(new Map<string, ChannelMessagesPage>());
-  /** 附属区分桶缓存：成员/mute/pinned/任务切回看过的频道直接命中快照，避免计数先空后闪。
-   * pinned 缓存键含 sort（`cid:sort`），与服务端排序语义对齐。 */
-  const membersCacheRef = useRef(new Map<string, Set<string>>());
-  const mutesCacheRef = useRef(new Map<string, ChannelMuteRow[]>());
-  const pinnedCacheRef = useRef(new Map<string, PinnedItem[]>());
-  const tasksCacheRef = useRef(new Map<string, ChannelTask[]>());
+  const channelIdRef = useRef(channelId);
+  channelIdRef.current = channelId;
 
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -689,32 +650,6 @@ export function useChannelData(
   /** 消息加载态：区分“正在拉新频道首屏”与“该频道真没消息”，避免切换时闪一下空态。
    * 缓存命中时为 false（直接画快照）；仅缓存未命中等待首包时为 true。 */
   const [messagesLoading, setMessagesLoading] = useState(true);
-  // 02 票：发送通道状态——held 提示与发送并发锁。
-  const [heldNotice, setHeldNotice] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState(false);
-  // 03 票：pinned 数据循环 + 附属区状态。
-  const [pinnedSort, setPinnedSort] = useState<PinnedSort>("manual");
-  const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
-  const [pinnedError, setPinnedError] = useState<string | null>(null);
-  const [mutes, setMutes] = useState<ChannelMuteRow[]>([]);
-  const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [membersError, setMembersError] = useState<string | null>(null);
-  /** 附属区加载态：首包回来前头部计数位显示占位符，不先画空再闪出数字。 */
-  const [membersLoading, setMembersLoading] = useState(true);
-  const [mutesLoading, setMutesLoading] = useState(true);
-  const [pinnedLoading, setPinnedLoading] = useState(true);
-  const [tasksLoading, setTasksLoading] = useState(true);
-  // 04 票：任务板数据循环状态。
-  const [tasks, setTasks] = useState<ChannelTask[]>([]);
-  const [tasksError, setTasksError] = useState<string | null>(null);
-  const [taskNotice, setTaskNotice] = useState<string | null>(null);
-  // 03 票：迟到响应守卫——pinned/mutes/members 重拉与频道切换竞速时丢弃旧频道响应。
-  const channelIdRef = useRef(channelId);
-  channelIdRef.current = channelId;
-  const pinnedSortRef = useRef(pinnedSort);
-  pinnedSortRef.current = pinnedSort;
 
   const loadPage = useCallback(
     (targetId: string, before?: number) => loadMessagesPage(targetId, before),
@@ -741,6 +676,451 @@ export function useChannelData(
       });
   }, [channelId, loadPage]);
 
+  // 切换频道：缓存快照式替换 + 后台重拉；迟到响应由 requestId 丢弃。
+  useEffect(() => {
+    channelGenerationRef.current += 1;
+    latestRequestRef.current += 1;
+    const requestId = latestRequestRef.current;
+    const cid = channelId ?? "";
+    const cached = cacheRef.current.get(cid);
+    if (cached) {
+      setMessages(cached.messages);
+      setHasMore(cached.hasMore);
+      setMaxSeq(cached.maxSeq);
+      setLoadError(null);
+      setMessagesLoading(false);
+    } else {
+      // 缓存未命中：先清空旧频道内容（避免把 A 频道的消息顶着 B 频道的标题展示），
+      // 首包回来前只亮加载态，不画“该频道还没有消息”空态。
+      setMessages([]);
+      setHasMore(false);
+      setMaxSeq(0);
+      setMessagesLoading(true);
+      setLoadError(null);
+    }
+    void loadPage(cid)
+      .then((page) => {
+        if (latestRequestRef.current !== requestId) return;
+        const prev = cacheRef.current.get(cid);
+        cacheRef.current.set(cid, page);
+        setMessagesLoading(false);
+        // 后台刷新与缓存一致时跳过 setState，避免重复 commit 造成的闪动。
+        if (prev && isSameMessagesPage(prev, page)) return;
+        setMessages(page.messages);
+        setHasMore(page.hasMore);
+        setMaxSeq(page.maxSeq);
+      })
+      .catch((e) => {
+        if (latestRequestRef.current !== requestId) return;
+        setMessagesLoading(false);
+        setLoadError(e instanceof Error ? e.message : String(e));
+      });
+    // loadPage 稳定引用，仅 channelId 变化时重跑。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId]);
+
+  // agent-loop 回复轮询（§5.4）：增量合并新消息；合并出新消息时推进已读游标
+  // （BAI-6：打开频道期间持续 /read，否则切走后残留陈旧角标）。
+  // 后台 tab 暂停、计时器注入与卸载清理由 usePollingResource 持有。
+  usePollingResource({
+    scopeKey: channelId,
+    intervalMs: CHANNEL_POLL_MS,
+    load: (cid) => loadPage(cid),
+    merge: (page, cid) => {
+      if (channelIdRef.current !== cid) return;
+      const prev = cacheRef.current.get(cid);
+      const base: ChannelMessagesPage = prev ?? {
+        messages: [],
+        hasMore: false,
+        maxSeq: 0,
+      };
+      const next = applyPollPage(base, page);
+      if (next === base) return;
+      cacheRef.current.set(cid, next);
+      setMessages(next.messages);
+      setHasMore(next.hasMore);
+      setMaxSeq(next.maxSeq);
+      // 打开中语义：本 hook 只为当前选中频道挂载，合并出新消息即 fire-and-forget
+      // 推进已读游标（服务端幂等只前进；失败吞掉，不干扰消息合并）。
+      void markChannelRead(cid).catch(() => undefined);
+    },
+  });
+
+  const loadEarlier = useCallback(() => {
+    if (!channelId || !hasMore || messages.length === 0)
+      return Promise.resolve();
+    const requestChannelId = channelId;
+    const requestGeneration = channelGenerationRef.current;
+    const isCurrentRequest = () =>
+      isCurrentChannelRequest(
+        requestChannelId,
+        channelIdRef.current,
+        requestGeneration,
+        channelGenerationRef.current,
+      );
+    const before = messages[0].seq;
+    return loadPage(requestChannelId, before)
+      .then((page) => {
+        if (!isCurrentRequest()) return;
+        setMessages((prev) => prependPageMessages(prev, page.messages));
+        setHasMore(page.hasMore);
+      })
+      .catch((e) => {
+        if (!isCurrentRequest()) return;
+        setLoadError(e instanceof Error ? e.message : String(e));
+      });
+  }, [channelId, hasMore, messages, loadPage]);
+
+  // 02 票：发送通道——baseSeq 携带、held 后重拉提示、成功后重拉收敛。
+  // maxSeq 读 ref 快照：并发发送取调用时版本，避免闭包拿到旧 maxSeq。
+  const maxSeqRef = useRef(maxSeq);
+  maxSeqRef.current = maxSeq;
+  const getMaxSeq = useCallback(() => maxSeqRef.current, []);
+
+  const send = useCallback(
+    async (
+      targetId: string,
+      content: string,
+      quoteId?: string,
+      files?: File[],
+    ): Promise<ChannelMessage | null> => {
+      if (!channelId) return null;
+      const baseSeq = maxSeqRef.current;
+      const result = await postChannelMessage(
+        targetId,
+        content,
+        quoteId,
+        baseSeq,
+        files,
+      );
+      if (result.kind === "held") {
+        // held 语义与旧内联实现一致：记摘要 + 重拉提示 + 抛 held 文案（Composer 显示）。
+        setHeldNotice(result.whatHappened);
+        loadLatest();
+        throw new Error(t ? t("message.held") : "message held");
+      }
+      loadLatest();
+      return result.message;
+    },
+    [channelId, loadLatest, t, setHeldNotice],
+  );
+
+  return {
+    messages,
+    messagesLoading,
+    maxSeq,
+    hasMore,
+    loadError,
+    loadPage,
+    loadLatest,
+    loadEarlier,
+    send,
+    getMaxSeq,
+  };
+}
+
+/** 数据集 hook：任务板（tasks）。
+ *
+ * 持任务 state / error / notice / 频道缓存与 3s 轮询；转移序列与创建两途径同源。
+ * `getChannelSeq` / `reloadMessages` 由组合根从消息数据集注入，保持旧 baseSeq 与
+ * held 后重拉语义不变。
+ */
+function useChannelTasksData(
+  channelId: string | undefined,
+  t: ((key: string, params?: Record<string, string | number>) => string) | undefined,
+  setHeldNotice: (notice: string | null) => void,
+  busyAction: boolean,
+  setBusyAction: (busy: boolean) => void,
+  getChannelSeq: () => number,
+  reloadMessages: () => void,
+) {
+  const tasksCacheRef = useRef(new Map<string, ChannelTask[]>());
+  const channelIdRef = useRef(channelId);
+  channelIdRef.current = channelId;
+
+  const [tasks, setTasks] = useState<ChannelTask[]>([]);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [taskNotice, setTaskNotice] = useState<string | null>(null);
+
+  // 04 票：任务板加载（服务端按 number 升序，含 reachable/reopened 视图附料）。
+  // 写 tasksCache，供切换/切回直接命中快照。
+  const loadTasks = useCallback(() => {
+    const id = channelId;
+    if (!id) {
+      setTasks([]);
+      setTasksLoading(false);
+      return;
+    }
+    void loadTasksPage(id)
+      .then((rows) => {
+        if (channelIdRef.current !== id) return;
+        tasksCacheRef.current.set(id, rows);
+        setTasks(rows);
+        setTasksError(null);
+        setTasksLoading(false);
+      })
+      .catch((e) => {
+        if (channelIdRef.current !== id) return;
+        setTasksError(e instanceof Error ? e.message : String(e));
+        setTasksLoading(false);
+      });
+  }, [channelId]);
+
+  // 切换频道：旧频道任务先清空（messages tab 右键 Convert 判定依赖），命中缓存再覆盖，
+  // 然后后台重拉收敛。
+  useEffect(() => {
+    const cid = channelId ?? "";
+    const cachedTasks = tasksCacheRef.current.get(cid);
+    setTasks([]);
+    setTasksError(null);
+    setTasksLoading(true);
+    if (cachedTasks) {
+      setTasks(cachedTasks);
+      setTasksLoading(false);
+    }
+    let cancelled = false;
+    void loadTasksPage(cid)
+      .then((rows) => {
+        if (cancelled || channelIdRef.current !== channelId) return;
+        tasksCacheRef.current.set(cid, rows);
+        setTasks(rows);
+        setTasksLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled || channelIdRef.current !== channelId) return;
+        setTasksError(e instanceof Error ? e.message : String(e));
+        setTasksLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [channelId]);
+
+  // 任务板整行刷新独立于主序列是否有新消息（未读计数、状态、属主、可达落点同源，
+  // 旅程卡/徽标才不陈旧）；轮询纪律由 usePollingResource 持有。
+  usePollingResource({
+    scopeKey: channelId,
+    intervalMs: CHANNEL_POLL_MS,
+    load: (cid) => loadTasksPage(cid),
+    merge: (rows, cid) => {
+      if (channelIdRef.current !== cid) return;
+      setTasks((current) => {
+        const refreshed = mergeTaskPollRows(current, rows);
+        if (refreshed !== current) tasksCacheRef.current.set(cid, refreshed);
+        return refreshed;
+      });
+    },
+  });
+
+  // 04 票：任务动作（claim / 转移序列）——与 ChannelView 旧内联 runTaskAction 同语义：
+  // busyAction 沿旧语义是共享锁（channel 加入/离开/归档同锁）；held 后置 heldNotice +
+  // taskNotice 摘要 + 重拉（loadTasks + reloadMessages）；conflict/blocked 让路记 reason +
+  // taskNotice，重拉不抛错。busy 时直接返回（与旧 `if (!channel || busyAction) return` 一致）。
+  const runTaskTransition = useCallback(
+    async (
+      task: ChannelTask,
+      action: "claim" | "updateStatus",
+      status?: TaskStatus,
+    ): Promise<void> => {
+      if (!channelId || busyAction) return;
+      setBusyAction(true);
+      setTasksError(null);
+      setTaskNotice(null);
+      try {
+        const baseSeq = getChannelSeq();
+        const result =
+          action === "claim"
+            ? await claimChannelTask(task.id, baseSeq)
+            : await updateChannelTaskStatus(task.id, status ?? "todo", baseSeq);
+        if (result.kind === "held") {
+          setHeldNotice(t ? t("tasks.held") : "task held");
+          // task 槽的 notice 已上屏给用户 ⇒ 只能放 UI 文案；英文的 `whatHappened`
+          // 是产品内容（进模型上下文），另由 held 槽的本地化提示承担（界面评审 D2）。
+          setTaskNotice(t ? t("tasks.held") : "task held");
+        } else if (result.kind === "conflict" || result.kind === "blocked") {
+          setTasksError(result.reason);
+        }
+        loadTasks();
+        reloadMessages();
+      } catch (e) {
+        setTasksError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusyAction(false);
+      }
+    },
+    [
+      channelId,
+      busyAction,
+      setBusyAction,
+      setHeldNotice,
+      getChannelSeq,
+      loadTasks,
+      reloadMessages,
+      t,
+    ],
+  );
+
+  // 04 票：complete 两步（先落线程回复再置 in_review）——与 agent-loop runTaskOperation
+  // 的 complete 同语义：线程回复用线程版本 baseSeq（调用方传入任务线程最后一条 seq），
+  // 状态更新用频道版本（getChannelSeq 快照）；busy 沿旧 runTaskAction 同一共享锁；
+  // held 即停并提示 + 重拉。
+  const completeTask = useCallback(
+    async (
+      task: ChannelTask,
+      replyContent: string,
+      threadBaseSeq: number,
+    ): Promise<void> => {
+      if (!channelId || busyAction) return;
+      setBusyAction(true);
+      setTasksError(null);
+      setTaskNotice(null);
+      try {
+        const result = await completeTaskWithReply(
+          task.id,
+          task.message_id,
+          replyContent,
+          threadBaseSeq,
+          getChannelSeq(),
+        );
+        if (result.kind === "held") {
+          setHeldNotice(t ? t("tasks.held") : "task held");
+          // task 槽的 notice 已上屏给用户 ⇒ 只能放 UI 文案；英文的 `whatHappened`
+          // 是产品内容（进模型上下文），另由 held 槽的本地化提示承担（界面评审 D2）。
+          setTaskNotice(t ? t("tasks.held") : "task held");
+        } else if (result.kind === "conflict" || result.kind === "blocked") {
+          setTasksError(result.reason);
+        }
+        loadTasks();
+        reloadMessages();
+      } catch (e) {
+        setTasksError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusyAction(false);
+      }
+    },
+    [
+      channelId,
+      busyAction,
+      setBusyAction,
+      setHeldNotice,
+      getChannelSeq,
+      loadTasks,
+      reloadMessages,
+      t,
+    ],
+  );
+
+  // 04 票：创建两途径——convert 已有消息（409 抛错由调用方提示，与旧内联同语义：
+  // tasks.alreadyTask 文案在视图侧组装，hook 只透出 tasksError/taskNotice 状态更新）；
+  // board 创建走服务端先发消息再建任务；成功后重拉收敛（旧内联同语义：
+  // convert 本地 append + notice，board 创建 notice + 双重拉——此处统一重拉收敛到服务端事实）。
+  const convertToTask = useCallback(
+    async (message: ChannelMessage): Promise<ChannelTask | null> => {
+      if (!channelId) return null;
+      try {
+        const created = await convertMessageToTaskRow(message.id);
+        if (channelId) {
+          const prev = tasksCacheRef.current.get(channelId) ?? [];
+          tasksCacheRef.current.set(channelId, [...prev, created]);
+        }
+        setTasks((prev) => [...prev, created]);
+        setTaskNotice(
+          t
+            ? t("tasks.converted", { number: String(created.number) })
+            : `task #${created.number}`,
+        );
+        return created;
+      } catch (e) {
+        const text = e instanceof Error ? e.message : String(e);
+        setTasksError(text);
+        setTaskNotice(text);
+        return null;
+      }
+    },
+    [channelId, t],
+  );
+
+  const createTaskFromBoard = useCallback(
+    async (contentInput: string): Promise<void> => {
+      if (!channelId) return;
+      const content = contentInput.trim();
+      if (!content) return;
+      setTasksError(null);
+      setTaskNotice(null);
+      try {
+        const created = await createBoardTaskRow(channelId, content);
+        setTaskNotice(
+          t
+            ? t("tasks.created", { number: String(created.number) })
+            : `task #${created.number}`,
+        );
+        loadTasks();
+        reloadMessages();
+      } catch (e) {
+        setTasksError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [channelId, loadTasks, reloadMessages, t],
+  );
+
+  // 04 票 / #275：任务转移入口按动作名收敛，动作名 → 请求与边表同源
+  // （`lib/task-edges.ts`）——这里不再各自维护一份 switch/映射。
+  const taskOps = useMemo(
+    () => {
+      const ops: Partial<
+        Record<TaskAction, (task: ChannelTask) => Promise<void>>
+      > = {};
+      for (const action of TASK_ACTIONS) {
+        const request = taskActionRequest(action);
+        if (!request) continue;
+        ops[action] =
+          request.kind === "claim"
+            ? (task) => runTaskTransition(task, "claim")
+            : (task) =>
+                runTaskTransition(task, "updateStatus", request.status);
+      }
+      return ops as Record<
+        TaskAction,
+        (task: ChannelTask) => Promise<void>
+      >;
+    },
+    [runTaskTransition],
+  );
+
+  return {
+    tasks,
+    tasksLoading,
+    tasksError,
+    taskNotice,
+    setTasksError,
+    setTaskNotice,
+    loadTasks,
+    runTaskTransition,
+    completeTask,
+    convertToTask,
+    createTaskFromBoard,
+    taskOps,
+  };
+}
+
+/** 数据集 hook：置顶（pinned）。
+ *
+ * 持 pinned state / error / sort / 频道+排序缓存；切频道与排序变化时重拉，
+ * toggle / reorder 成功后重拉收敛。无周期轮询（与旧实现一致）。
+ */
+function useChannelPinnedData(channelId: string | undefined) {
+  const pinnedCacheRef = useRef(new Map<string, PinnedItem[]>());
+  const channelIdRef = useRef(channelId);
+  channelIdRef.current = channelId;
+
+  const [pinnedSort, setPinnedSort] = useState<PinnedSort>("manual");
+  const pinnedSortRef = useRef(pinnedSort);
+  pinnedSortRef.current = pinnedSort;
+  const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
+  const [pinnedError, setPinnedError] = useState<string | null>(null);
+  const [pinnedLoading, setPinnedLoading] = useState(true);
+
   // 03 票：pinned 列表加载（当前成员的个性化 pinned，排序三选一经服务端）。
   // 写 pinnedCache（键含 sort），供切换/切回直接命中快照。
   const loadPinned = useCallback(() => {
@@ -766,29 +1146,137 @@ export function useChannelData(
       });
   }, [channelId]);
 
-  // 04 票：任务板加载（服务端按 number 升序，含 reachable/reopened 视图附料）。
-  // 写 tasksCache，供切换/切回直接命中快照。
-  const loadTasks = useCallback(() => {
-    const id = channelId;
-    if (!id) {
-      setTasks([]);
-      setTasksLoading(false);
-      return;
+  // 切换频道：缓存命中直接画快照（不闪空）；未命中才清空旧值 + 亮 loading + 后台重拉
+  // （旧频道状态先清空，避免旧内容闪现）。
+  useEffect(() => {
+    const cid = channelId ?? "";
+    const sortAtSwitch = pinnedSortRef.current;
+    const cachedPinned = pinnedCacheRef.current.get(`${cid}:${sortAtSwitch}`);
+    if (cachedPinned) {
+      setPinnedItems(cachedPinned);
+      setPinnedError(null);
+      setPinnedLoading(false);
+    } else {
+      setPinnedItems([]);
+      setPinnedError(null);
+      setPinnedLoading(true);
     }
-    void loadTasksPage(id)
-      .then((rows) => {
-        if (channelIdRef.current !== id) return;
-        tasksCacheRef.current.set(id, rows);
-        setTasks(rows);
-        setTasksError(null);
-        setTasksLoading(false);
+    let cancelled = false;
+    void loadPinnedPage(cid, sortAtSwitch)
+      .then((items) => {
+        if (cancelled || channelIdRef.current !== channelId) return;
+        pinnedCacheRef.current.set(`${cid}:${pinnedSortRef.current}`, items);
+        setPinnedItems(items);
+        setPinnedLoading(false);
       })
       .catch((e) => {
-        if (channelIdRef.current !== id) return;
-        setTasksError(e instanceof Error ? e.message : String(e));
-        setTasksLoading(false);
+        if (cancelled || channelIdRef.current !== channelId) return;
+        setPinnedError(e instanceof Error ? e.message : String(e));
+        setPinnedLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [channelId]);
+
+  // 03 票：排序变化时重拉 pinned（与旧内联 `loadPinned` 依赖 [channel?.id, pinnedSort] 同语义）。
+  useEffect(() => {
+    if (!channelId) return;
+    const id = channelId;
+    let cancelled = false;
+    void loadPinnedPage(id, pinnedSort)
+      .then((items) => {
+        if (
+          cancelled ||
+          channelIdRef.current !== id ||
+          pinnedSortRef.current !== pinnedSort
+        )
+          return;
+        setPinnedItems(items);
+        setPinnedError(null);
+      })
+      .catch((e) => {
+        if (
+          cancelled ||
+          channelIdRef.current !== id ||
+          pinnedSortRef.current !== pinnedSort
+        )
+          return;
+        setPinnedError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [channelId, pinnedSort]);
+
+  const pinnedItemsRef = useRef(pinnedItems);
+  pinnedItemsRef.current = pinnedItems;
+
+  // 03 票：pin/unpin 切换 + Manual 重排——切换后重拉收敛
+  // （与 ChannelView 旧内联 togglePin/movePinned 同语义，toast 文案留视图侧）。
+  const togglePin = useCallback(
+    async (messageId: string): Promise<void> => {
+      if (!channelId) return;
+      const alreadyPinned = pinnedItemsRef.current.some(
+        (item) => item.message.id === messageId,
+      );
+      await togglePinnedMessage(channelId, messageId, alreadyPinned);
+      loadPinned();
+    },
+    [channelId, loadPinned],
+  );
+
+  const reorderPinned = useCallback(
+    async (index: number, direction: -1 | 1): Promise<void> => {
+      if (!channelId) return;
+      const items = pinnedItemsRef.current;
+      const target = index + direction;
+      if (target < 0 || target >= items.length) return;
+      const reordered = [...items];
+      const [moved] = reordered.splice(index, 1);
+      reordered.splice(target, 0, moved);
+      await postPinnedOrder(
+        channelId,
+        reordered.map((item) => item.message.id),
+      );
+      loadPinned();
+    },
+    [channelId, loadPinned],
+  );
+
+  return {
+    pinnedItems,
+    pinnedSort,
+    setPinnedSort,
+    pinnedError,
+    pinnedLoading,
+    togglePin,
+    reorderPinned,
+  };
+}
+
+/** 数据集 hook：成员元数据（memberMeta：mute 列表 + 频道成员 id 集合）。
+ *
+ * 持两组 state / error / 频道缓存；切频道时重拉，成员集合另由 membersVersion 显式失效。
+ * 无周期轮询（与旧实现一致）。
+ */
+function useChannelMemberMetaData(
+  channelId: string | undefined,
+  membersVersion?: number,
+) {
+  const membersCacheRef = useRef(new Map<string, Set<string>>());
+  const mutesCacheRef = useRef(new Map<string, ChannelMuteRow[]>());
+  const channelIdRef = useRef(channelId);
+  channelIdRef.current = channelId;
+
+  const [mutes, setMutes] = useState<ChannelMuteRow[]>([]);
+  const [channelMemberIds, setChannelMemberIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [membersError, setMembersError] = useState<string | null>(null);
+  /** 附属区加载态：首包回来前头部计数位显示占位符，不先画空再闪出数字。 */
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [mutesLoading, setMutesLoading] = useState(true);
 
   // 03 票：附属区加载（mute 列表 + 频道成员 id 集合）。写对应缓存，供切换/切回命中快照。
   const loadMutes = useCallback(() => {
@@ -842,63 +1330,11 @@ export function useChannelData(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [membersVersion]);
 
-  // 切换频道：缓存快照式替换 + 后台重拉；迟到响应由 requestId 丢弃。
-  // 03 票：pinned/附属区随频道切换重拉（旧频道状态先清空，避免旧内容闪现）。
+  // 切换频道：缓存命中画快照，未命中清空 + 亮 loading，然后后台重拉。
   useEffect(() => {
-    channelGenerationRef.current += 1;
-    latestRequestRef.current += 1;
-    const requestId = latestRequestRef.current;
     const cid = channelId ?? "";
-    const cached = cacheRef.current.get(cid);
-    if (cached) {
-      setMessages(cached.messages);
-      setHasMore(cached.hasMore);
-      setMaxSeq(cached.maxSeq);
-      setLoadError(null);
-      setMessagesLoading(false);
-    } else {
-      // 缓存未命中：先清空旧频道内容（避免把 A 频道的消息顶着 B 频道的标题展示），
-      // 首包回来前只亮加载态，不画“该频道还没有消息”空态。
-      setMessages([]);
-      setHasMore(false);
-      setMaxSeq(0);
-      setMessagesLoading(true);
-      setLoadError(null);
-    }
-    void loadPage(cid)
-      .then((page) => {
-        if (latestRequestRef.current !== requestId) return;
-        const prev = cacheRef.current.get(cid);
-        cacheRef.current.set(cid, page);
-        setMessagesLoading(false);
-        // 后台刷新与缓存一致时跳过 setState，避免重复 commit 造成的闪动。
-        if (prev && isSameMessagesPage(prev, page)) return;
-        setMessages(page.messages);
-        setHasMore(page.hasMore);
-        setMaxSeq(page.maxSeq);
-      })
-      .catch((e) => {
-        if (latestRequestRef.current !== requestId) return;
-        setMessagesLoading(false);
-        setLoadError(e instanceof Error ? e.message : String(e));
-      });
-    // 03 票：pinned/附属区随频道切换重拉。缓存命中直接画快照（不闪空）；
-    // 未命中才清空旧值 + 亮 loading + 后台重拉（旧频道状态先清空，避免旧内容闪现）。
-    // 04 票：任务板同策略（右键 Convert 判定依赖旧频道任务清空，仍先清空再快照覆盖）。
-    const sortAtSwitch = pinnedSortRef.current;
-    const cachedPinned = pinnedCacheRef.current.get(`${cid}:${sortAtSwitch}`);
     const cachedMutes = mutesCacheRef.current.get(cid);
     const cachedMembers = membersCacheRef.current.get(cid);
-    const cachedTasks = tasksCacheRef.current.get(cid);
-    if (cachedPinned) {
-      setPinnedItems(cachedPinned);
-      setPinnedError(null);
-      setPinnedLoading(false);
-    } else {
-      setPinnedItems([]);
-      setPinnedError(null);
-      setPinnedLoading(true);
-    }
     if (cachedMutes) {
       setMutes(cachedMutes);
       setMutesLoading(false);
@@ -915,231 +1351,37 @@ export function useChannelData(
       setMembersError(null);
       setMembersLoading(true);
     }
-    // 任务板：旧频道任务先清空（messages tab 右键 Convert 判定依赖），命中再覆盖。
-    setTasks([]);
-    setTasksError(null);
-    setTasksLoading(true);
-    if (cachedTasks) {
-      setTasks(cachedTasks);
-      setTasksLoading(false);
-    }
-    void loadPinnedPage(cid, pinnedSortRef.current)
-      .then((items) => {
-        if (latestRequestRef.current !== requestId) return;
-        pinnedCacheRef.current.set(`${cid}:${pinnedSortRef.current}`, items);
-        setPinnedItems(items);
-        setPinnedLoading(false);
-      })
-      .catch((e) => {
-        if (latestRequestRef.current !== requestId) return;
-        setPinnedError(e instanceof Error ? e.message : String(e));
-        setPinnedLoading(false);
-      });
+    let cancelled = false;
     void loadMutesPage(cid)
       .then((rows) => {
-        if (latestRequestRef.current !== requestId) return;
+        if (cancelled || channelIdRef.current !== channelId) return;
         mutesCacheRef.current.set(cid, rows);
         setMutes(rows);
         setMutesLoading(false);
       })
       .catch(() => {
-        if (latestRequestRef.current !== requestId) return;
+        if (cancelled || channelIdRef.current !== channelId) return;
         setMutesLoading(false);
-      });
-    // 04 票：任务板随频道切换重拉（旧频道任务已清空，重拉收敛到服务端事实）。
-    void loadTasksPage(cid)
-      .then((rows) => {
-        if (latestRequestRef.current !== requestId) return;
-        tasksCacheRef.current.set(cid, rows);
-        setTasks(rows);
-        setTasksLoading(false);
-      })
-      .catch((e) => {
-        if (latestRequestRef.current !== requestId) return;
-        setTasksError(e instanceof Error ? e.message : String(e));
-        setTasksLoading(false);
       });
     void loadChannelMemberIds(cid)
       .then((ids) => {
-        if (latestRequestRef.current !== requestId) return;
+        if (cancelled || channelIdRef.current !== channelId) return;
         membersCacheRef.current.set(cid, ids);
         setChannelMemberIds(ids);
         setMembersLoading(false);
       })
       .catch((e) => {
-        if (latestRequestRef.current !== requestId) return;
+        if (cancelled || channelIdRef.current !== channelId) return;
         setMembersError(e instanceof Error ? e.message : String(e));
         setMembersLoading(false);
       });
-    // loadPage 稳定引用，仅 channelId 变化时重跑。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId]);
-
-  // 03 票：排序变化时重拉 pinned（与旧内联 `loadPinned` 依赖 [channel?.id, pinnedSort] 同语义）。
-  const pinnedSortForEffect = pinnedSort;
-  useEffect(() => {
-    if (!channelId) return;
-    const id = channelId;
-    void loadPinnedPage(id, pinnedSortForEffect)
-      .then((items) => {
-        if (
-          channelIdRef.current !== id ||
-          pinnedSortRef.current !== pinnedSortForEffect
-        )
-          return;
-        setPinnedItems(items);
-        setPinnedError(null);
-      })
-      .catch((e) => {
-        if (
-          channelIdRef.current !== id ||
-          pinnedSortRef.current !== pinnedSortForEffect
-        )
-          return;
-        setPinnedError(e instanceof Error ? e.message : String(e));
-      });
-  }, [channelId, pinnedSortForEffect]);
-
-  // agent-loop 回复轮询（§5.4）：增量合并新消息；合并出新消息时推进已读游标
-  // （BAI-6：打开频道期间持续 /read，否则切走后残留陈旧角标）；后台 tab 暂停；卸载清理。
-  useEffect(() => {
-    if (!channelId) return;
-    const cid = channelId;
-    let cancelled = false;
-    const timer = setInterval(() => {
-      if (cancelled || document.hidden) return;
-      // Thread 回复不改变 Channel maxSeq；任务板整行刷新独立于主序列是否有新消息
-      // （未读计数、状态、属主、可达落点同源，旅程卡/徽标才不陈旧）。
-      void loadTasksPage(cid)
-        .then((rows) => {
-          if (cancelled || channelIdRef.current !== cid) return;
-          setTasks((current) => {
-            const refreshed = mergeTaskPollRows(current, rows);
-            if (refreshed !== current) tasksCacheRef.current.set(cid, refreshed);
-            return refreshed;
-          });
-        })
-        .catch(() => undefined);
-      void loadPage(cid)
-        .then((page) => {
-          if (cancelled) return;
-          const prev = cacheRef.current.get(cid);
-          const base: ChannelMessagesPage = prev ?? {
-            messages: [],
-            hasMore: false,
-            maxSeq: 0,
-          };
-          const next = applyPollPage(base, page);
-          if (next === base) return;
-          cacheRef.current.set(cid, next);
-          setMessages(next.messages);
-          setHasMore(next.hasMore);
-          setMaxSeq(next.maxSeq);
-          // 打开中语义：本 hook 只为当前选中频道挂载，合并出新消息即 fire-and-forget
-          // 推进已读游标（服务端幂等只前进；失败吞掉，不干扰消息合并）。
-          void markChannelRead(cid).catch(() => undefined);
-        })
-        .catch(() => undefined);
-    }, CHANNEL_POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(timer);
     };
-  }, [channelId, loadPage]);
+  }, [channelId]);
 
-  const loadEarlier = useCallback(() => {
-    if (!channelId || !hasMore || messages.length === 0)
-      return Promise.resolve();
-    const requestChannelId = channelId;
-    const requestGeneration = channelGenerationRef.current;
-    const isCurrentRequest = () =>
-      isCurrentChannelRequest(
-        requestChannelId,
-        channelIdRef.current,
-        requestGeneration,
-        channelGenerationRef.current,
-      );
-    const before = messages[0].seq;
-    return loadPage(requestChannelId, before)
-      .then((page) => {
-        if (!isCurrentRequest()) return;
-        setMessages((prev) => prependPageMessages(prev, page.messages));
-        setHasMore(page.hasMore);
-      })
-      .catch((e) => {
-        if (!isCurrentRequest()) return;
-        setLoadError(e instanceof Error ? e.message : String(e));
-      });
-  }, [channelId, hasMore, messages, loadPage]);
-
-  // 02 票：发送通道——baseSeq 携带、held 后重拉提示、成功后重拉收敛。
-  // maxSeq 读 ref 快照：并发发送取调用时版本，避免闭包拿到旧 maxSeq。
-  // 03 票同理：pinnedItems/mutes 读 ref 快照，避免 toggle/reorder 闭包拿到旧列表。
-  const maxSeqRef = useRef(maxSeq);
-  maxSeqRef.current = maxSeq;
-  const pinnedItemsRef = useRef(pinnedItems);
-  pinnedItemsRef.current = pinnedItems;
   const mutesRef = useRef(mutes);
   mutesRef.current = mutes;
-  const send = useCallback(
-    async (
-      targetId: string,
-      content: string,
-      quoteId?: string,
-      files?: File[],
-    ): Promise<ChannelMessage | null> => {
-      if (!channelId) return null;
-      const baseSeq = maxSeqRef.current;
-      const result = await postChannelMessage(
-        targetId,
-        content,
-        quoteId,
-        baseSeq,
-        files,
-      );
-      if (result.kind === "held") {
-        // held 语义与旧内联实现一致：记摘要 + 重拉提示 + 抛 held 文案（Composer 显示）。
-        setHeldNotice(result.whatHappened);
-        loadLatest();
-        throw new Error(t ? t("message.held") : "message held");
-      }
-      loadLatest();
-      return result.message;
-    },
-    [channelId, loadLatest, t],
-  );
-
-  // 03 票：pin/unpin 切换 + Manual 重排 + mute 开关——切换后重拉收敛
-  // （与 ChannelView 旧内联 togglePin/movePinned/toggleMute 同语义，toast 文案留视图侧）。
-  const togglePin = useCallback(
-    async (messageId: string): Promise<void> => {
-      if (!channelId) return;
-      const alreadyPinned = pinnedItemsRef.current.some(
-        (item) => item.message.id === messageId,
-      );
-      await togglePinnedMessage(channelId, messageId, alreadyPinned);
-      loadPinned();
-    },
-    [channelId, loadPinned],
-  );
-
-  const reorderPinned = useCallback(
-    async (index: number, direction: -1 | 1): Promise<void> => {
-      if (!channelId) return;
-      const items = pinnedItemsRef.current;
-      const target = index + direction;
-      if (target < 0 || target >= items.length) return;
-      const reordered = [...items];
-      const [moved] = reordered.splice(index, 1);
-      reordered.splice(target, 0, moved);
-      await postPinnedOrder(
-        channelId,
-        reordered.map((item) => item.message.id),
-      );
-      loadPinned();
-    },
-    [channelId, loadPinned],
-  );
 
   const toggleMute = useCallback(
     async (memberId: string): Promise<boolean | null> => {
@@ -1157,184 +1399,7 @@ export function useChannelData(
     [channelId],
   );
 
-  // 04 票：任务动作（claim / 转移序列）——与 ChannelView 旧内联 runTaskAction 同语义：
-  // busyAction 沿旧语义是共享锁（channel 加入/离开/归档同锁）；held 后置 heldNotice +
-  // taskNotice 摘要 + 重拉（loadTasks + loadLatest）；conflict/blocked 让路记 reason +
-  // taskNotice，重拉不抛错。busy 时直接返回（与旧 `if (!channel || busyAction) return` 一致）。
-  const runTaskTransition = useCallback(
-    async (
-      task: ChannelTask,
-      action: "claim" | "updateStatus",
-      status?: TaskStatus,
-    ): Promise<void> => {
-      if (!channelId || busyAction) return;
-      setBusyAction(true);
-      setTasksError(null);
-      setTaskNotice(null);
-      try {
-        const baseSeq = maxSeqRef.current;
-        const result =
-          action === "claim"
-            ? await claimChannelTask(task.id, baseSeq)
-            : await updateChannelTaskStatus(task.id, status ?? "todo", baseSeq);
-        if (result.kind === "held") {
-          setHeldNotice(t ? t("tasks.held") : "task held");
-          // task 槽的 notice 已上屏给用户 ⇒ 只能放 UI 文案；英文的 `whatHappened`
-          // 是产品内容（进模型上下文），另由 held 槽的本地化提示承担（界面评审 D2）。
-          setTaskNotice(t ? t("tasks.held") : "task held");
-        } else if (result.kind === "conflict" || result.kind === "blocked") {
-          setTasksError(result.reason);
-        }
-        loadTasks();
-        loadLatest();
-      } catch (e) {
-        setTasksError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusyAction(false);
-      }
-    },
-    [channelId, busyAction, loadTasks, loadLatest, t],
-  );
-
-  // 04 票：complete 两步（先落线程回复再置 in_review）——与 agent-loop runTaskOperation
-  // 的 complete 同语义，依赖 hook 内已有 postChannelMessage 发送通道：
-  // 线程回复用线程版本 baseSeq（调用方传入任务线程最后一条 seq），状态更新用
-  // 频道版本（maxSeqRef 快照）；busy 沿旧 runTaskAction 同一共享锁；held 即停并提示 + 重拉。
-  const completeTask = useCallback(
-    async (
-      task: ChannelTask,
-      replyContent: string,
-      threadBaseSeq: number,
-    ): Promise<void> => {
-      if (!channelId || busyAction) return;
-      setBusyAction(true);
-      setTasksError(null);
-      setTaskNotice(null);
-      try {
-        const result = await completeTaskWithReply(
-          task.id,
-          task.message_id,
-          replyContent,
-          threadBaseSeq,
-          maxSeqRef.current,
-        );
-        if (result.kind === "held") {
-          setHeldNotice(t ? t("tasks.held") : "task held");
-          // task 槽的 notice 已上屏给用户 ⇒ 只能放 UI 文案；英文的 `whatHappened`
-          // 是产品内容（进模型上下文），另由 held 槽的本地化提示承担（界面评审 D2）。
-          setTaskNotice(t ? t("tasks.held") : "task held");
-        } else if (result.kind === "conflict" || result.kind === "blocked") {
-          setTasksError(result.reason);
-        }
-        loadTasks();
-        loadLatest();
-      } catch (e) {
-        setTasksError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusyAction(false);
-      }
-    },
-    [channelId, busyAction, loadTasks, loadLatest, t],
-  );
-
-  // 04 票：创建两途径——convert 已有消息（409 抛错由调用方提示，与旧内联同语义：
-  // tasks.alreadyTask 文案在视图侧组装，hook 只透出 tasksError/taskNotice 状态更新）；
-  // board 创建走服务端先发消息再建任务；成功后重拉收敛（旧内联同语义：
-  // convert 本地 append + notice，board 创建 notice + 双重拉——此处统一重拉收敛到服务端事实）。
-  const convertToTask = useCallback(
-    async (message: ChannelMessage): Promise<ChannelTask | null> => {
-      if (!channelId) return null;
-      try {
-        const created = await convertMessageToTaskRow(message.id);
-        if (channelId) {
-          const prev = tasksCacheRef.current.get(channelId) ?? [];
-          tasksCacheRef.current.set(channelId, [...prev, created]);
-        }
-        setTasks((prev) => [...prev, created]);
-        setTaskNotice(
-          t
-            ? t("tasks.converted", { number: String(created.number) })
-            : `task #${created.number}`,
-        );
-        return created;
-      } catch (e) {
-        const text = e instanceof Error ? e.message : String(e);
-        setTasksError(text);
-        setTaskNotice(text);
-        return null;
-      }
-    },
-    [channelId, t],
-  );
-
-  const createTaskFromBoard = useCallback(
-    async (contentInput: string): Promise<void> => {
-      if (!channelId) return;
-      const content = contentInput.trim();
-      if (!content) return;
-      setTasksError(null);
-      setTaskNotice(null);
-      try {
-        const created = await createBoardTaskRow(channelId, content);
-        setTaskNotice(
-          t
-            ? t("tasks.created", { number: String(created.number) })
-            : `task #${created.number}`,
-        );
-        loadTasks();
-        loadLatest();
-      } catch (e) {
-        setTasksError(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [channelId, loadTasks, loadLatest, t],
-  );
-
-  // 04 票 / #275：任务转移入口按动作名收敛，动作名 → 请求与边表同源
-  // （`lib/task-edges.ts`）——这里不再各自维护一份 switch/映射。
-  const taskOps = useMemo(
-    () => {
-      const ops: Partial<
-        Record<TaskAction, (task: ChannelTask) => Promise<void>>
-      > = {};
-      for (const action of TASK_ACTIONS) {
-        const request = taskActionRequest(action);
-        if (!request) continue;
-        ops[action] =
-          request.kind === "claim"
-            ? (task) => runTaskTransition(task, "claim")
-            : (task) =>
-                runTaskTransition(task, "updateStatus", request.status);
-      }
-      return ops as Record<
-        TaskAction,
-        (task: ChannelTask) => Promise<void>
-      >;
-    },
-    [runTaskTransition],
-  );
-
   return {
-    messages,
-    messagesLoading,
-    maxSeq,
-    hasMore,
-    loadError,
-    loadPage,
-    loadLatest,
-    loadEarlier,
-    send,
-    heldNotice,
-    busyAction,
-    setBusyAction,
-    setHeldNotice,
-    pinnedItems,
-    pinnedSort,
-    setPinnedSort,
-    pinnedError,
-    pinnedLoading,
-    togglePin,
-    reorderPinned,
     mutes,
     mutesLoading,
     loadMutes,
@@ -1343,17 +1408,119 @@ export function useChannelData(
     membersLoading,
     membersError,
     loadMembers,
-    tasks,
-    tasksLoading,
-    tasksError,
-    taskNotice,
-    setTasksError,
-    setTaskNotice,
-    loadTasks,
-    runTaskTransition,
-    completeTask,
-    convertToTask,
-    createTaskFromBoard,
-    taskOps,
   };
 }
+
+/**
+ * 频道消息数据循环（01 票：轮询 + merge + maxSeq/hasMore；02 票：发送 + held + busyAction；
+ * 03 票：pinned 数据循环 + 附属区 mute/members；04 票：任务板数据循环 + 转移序列）。
+ *
+ * #278 第一步：内部按数据集拆成 messages / tasks / pinned / memberMeta 四个 hook，
+ * 各自持自己的 state、error、缓存与轮询；轮询纪律收进 usePollingResource。
+ * 对外返回字段名、顺序与类型保持逐字不变（第二步再收敛接口）。
+ * heldNotice / busyAction 是跨数据集共享的 UI 槽（发送与任务动作共用），留在组合根。
+ *
+ * ChannelView 只做排版：消息状态、分页、轮询合并、发送通道、pinned/附属区、任务板全部经此 hook。
+ * 缓存按频道分桶（切回看过的频道直接命中快照），请求代际丢弃迟到响应。
+ *
+ * 02 票语义（与 ChannelView 旧内联实现一致）：
+ * - `send` 携带 baseSeq（调用时的 maxSeq）；held 后置 heldNotice + 重拉（loadLatest）+ 抛 held 文案。
+ * - 发送成功后经 loadLatest 重拉收敛（append 入口是后续票的事，本票不做乐观追加）。
+ * - `send` 只管发送与 held 收敛：quoting 清理与 As Task 转化留视图侧（handleSend 内），hook 不持有引用/As Task 状态。
+ * - `busyAction` 沿旧语义由视图侧任务动作（runTaskAction）驱动（与旧内联 useState 同一共享锁）；
+ *   `send` 本体不加锁（与旧 handleSend 一致，Composer 的 busy 态只反映任务动作）。
+ *
+ * 03 票语义（与 ChannelView 旧内联实现一致）：
+ * - `pinnedItems / pinnedSort / setPinnedSort / reorderPinned` 持有 pinned 数据循环：
+ *   切换频道或排序变化时重拉（loadPinnedPage 经服务端 sort），Manual 排序下 ↑/↓ 重排
+ *   经 postPinnedOrder 提交后重拉收敛；pin/unpin 经 togglePin 切换后重拉收敛。
+ * - `mutes / channelMemberIds` 持有附属区：切换频道时重拉（loadMutesPage / loadChannelMemberIds）；
+ *   成员集合另由 `membersVersion` 显式失效（新建 agent 自动加入 #all 后外部成员集已变，
+ *   不切频道时也需重拉——旧语义只在 channelId 变化时加载，新成员恒 stale）。
+ * - `togglePin / toggleMute` 只管切换与重拉收敛：toast 文案（mute.toastMuted 等）与
+ *   成员增删（addChannelMember/removeChannelMember）留视图侧，hook 不持有 i18n/成员行状态。
+ *   loadPinned 是 pinned 数据集内部私有的重拉原语（togglePin / reorderPinned / 切频道共用），不再导出。
+ *
+ * 04 票语义（与 ChannelView 旧内联实现一致）：
+ * - `tasks / tasksError / taskNotice` 持有任务板数据循环：切换频道时重拉
+ *   （loadTasksPage 经服务端按 number 升序），旧频道任务先清空避免闪现。
+ * - `taskOps{claim,complete,unclaim,close,approve,reject,reopen}` 持有转移序列，
+ *   动作名 → 请求与 `lib/task-edges.ts` 边表同源（#275，不再各自维护映射）：
+ *   claim 经 claimChannelTask（held/conflict/blocked 让路：提示 + 重拉，不抛错）；
+ *   其余转移经 updateChannelTaskStatus 发到边表声明的目标状态；成功后重拉收敛。
+ *   需要「先落线程回复再置 in_review」的调用方仍走独立的 `completeTask`
+ *   （completeTaskWithReply，线程版本 baseSeq + 频道版本 baseSeq）。
+ * - 创建两途径（convert/createBoard）与 reopen 封锁标记透出在纯函数层：
+ *   convert 走 convertMessageToTaskRow（409 抛错由调用方提示），board 创建走
+ *   createBoardTaskRow（服务端先发消息再建任务）；reopened=1 的行经 loadTasksPage
+ *   原样返回，视图只做徽标展示（TaskCard 已有），claim 让路由 blocked 返回。
+ * - toast 文案（tasks.held/tasks.denied/converted/created）与 invalid-drop 提示留视图侧，
+ *   hook 只暴露 taskNotice/tasksError 状态与 setter 供视图写文案。
+ */
+export function useChannelData(
+  channelId: string | undefined,
+  t?: (key: string, params?: Record<string, string | number>) => string,
+  membersVersion?: number,
+) {
+  // 跨数据集共享的 UI 槽：发送（messages）与任务动作（tasks）都写同一个 held 提示；
+  // busyAction 同时被任务动作与视图侧的成员/频道操作当作共享锁使用。
+  const [heldNotice, setHeldNotice] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState(false);
+
+  const messagesData = useChannelMessagesData(channelId, t, setHeldNotice);
+  const tasksData = useChannelTasksData(
+    channelId,
+    t,
+    setHeldNotice,
+    busyAction,
+    setBusyAction,
+    messagesData.getMaxSeq,
+    messagesData.loadLatest,
+  );
+  const pinnedData = useChannelPinnedData(channelId);
+  const memberMetaData = useChannelMemberMetaData(channelId, membersVersion);
+
+  return {
+    messages: messagesData.messages,
+    messagesLoading: messagesData.messagesLoading,
+    maxSeq: messagesData.maxSeq,
+    hasMore: messagesData.hasMore,
+    loadError: messagesData.loadError,
+    loadPage: messagesData.loadPage,
+    loadLatest: messagesData.loadLatest,
+    loadEarlier: messagesData.loadEarlier,
+    send: messagesData.send,
+    heldNotice,
+    busyAction,
+    setBusyAction,
+    setHeldNotice,
+    pinnedItems: pinnedData.pinnedItems,
+    pinnedSort: pinnedData.pinnedSort,
+    setPinnedSort: pinnedData.setPinnedSort,
+    pinnedError: pinnedData.pinnedError,
+    pinnedLoading: pinnedData.pinnedLoading,
+    togglePin: pinnedData.togglePin,
+    reorderPinned: pinnedData.reorderPinned,
+    mutes: memberMetaData.mutes,
+    mutesLoading: memberMetaData.mutesLoading,
+    loadMutes: memberMetaData.loadMutes,
+    toggleMute: memberMetaData.toggleMute,
+    channelMemberIds: memberMetaData.channelMemberIds,
+    membersLoading: memberMetaData.membersLoading,
+    membersError: memberMetaData.membersError,
+    loadMembers: memberMetaData.loadMembers,
+    tasks: tasksData.tasks,
+    tasksLoading: tasksData.tasksLoading,
+    tasksError: tasksData.tasksError,
+    taskNotice: tasksData.taskNotice,
+    setTasksError: tasksData.setTasksError,
+    setTaskNotice: tasksData.setTaskNotice,
+    loadTasks: tasksData.loadTasks,
+    runTaskTransition: tasksData.runTaskTransition,
+    completeTask: tasksData.completeTask,
+    convertToTask: tasksData.convertToTask,
+    createTaskFromBoard: tasksData.createTaskFromBoard,
+    taskOps: tasksData.taskOps,
+  };
+}
+
