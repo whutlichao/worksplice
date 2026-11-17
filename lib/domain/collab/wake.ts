@@ -15,7 +15,7 @@ import {
 import { isHandoffEligibleTask, selectSecretaryHandoffTask } from "./handoff-trigger.ts";
 import { canRouteToChief, resolveEffectiveChief } from "./chief.ts";
 import {
-  analyzeMessageWindow,
+  messageWindowRecipients,
   type RoundWindowDirectory,
 } from "./admission.ts";
 import type { ChannelRow, MessageRow } from "../../data/types.ts";
@@ -42,7 +42,7 @@ export type WakeListener = (hint: WakeHint) => void;
 
 /**
  * 窗口级准入判定的生产读取面（票 #276）：把 DB / 成员解析绑给纯判定层。
- * `admission.ts` 只认这个接口，不 import 数据层或任何协作子模块。
+ * `admission.ts` 只认这个接口、不 import 数据层；判定函数本身不读库。
  */
 export function createRoundWindowDirectory(): RoundWindowDirectory {
   return {
@@ -60,6 +60,16 @@ export function createRoundWindowDirectory(): RoundWindowDirectory {
         content,
       }),
   };
+}
+
+/**
+ * 生产侧读取面的单一实例：目录无状态，方法每次现读 DB / 成员解析；
+ * 单例只是省掉各调用点各自装配（wake / loop 共用，票 #276）。
+ */
+let roundWindowDirectory: RoundWindowDirectory | null = null;
+
+export function getRoundWindowDirectory(): RoundWindowDirectory {
+  return (roundWindowDirectory ??= createRoundWindowDirectory());
 }
 
 /** 任务创建事件不是人类正文邀请：预览里的 @ 不产生候选。 */
@@ -214,16 +224,12 @@ export function notifyMessageWakes(message: MessageRow): void {
       }
     }
     // 票 #276：单条消息 = 窗口长度 1 的判定；唤醒候选由同一份结论给出。
-    const verdict = analyzeMessageWindow({
-      message: { ...message, author: author ?? null },
-      channel,
-      targetId: message.target_id,
-      task: getDb().getTaskByMessageId(message.target_id) ?? null,
+    // `task` 已在函数开头读取（任务延续自醒），这里直接复用，不再多读一次 DB。
+    const recipients = messageWindowRecipients({
       invitations,
       handoffChief,
-      directory: createRoundWindowDirectory(),
     });
-    for (const agentId of verdict.wakeRecipients) {
+    for (const agentId of recipients.wakeRecipients) {
       notify(agentId);
     }
     return;

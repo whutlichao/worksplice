@@ -70,8 +70,8 @@ export interface RoundAdmissionInput {
    * owner 的收束语 / 签退消息不计入（由 loop 的 `isPeerCloseText` 判据排除）。
    */
   taskOwnerMentioned: boolean;
-  /** 当轮 incoming 里是否有仍开放的 Owner `Task #N created` 事件。 */
-  hasOpenTaskEvent: boolean;
+  /** 当轮 incoming 里是否有对本 actor 可行动的 Owner `Task #N created` 事件。 */
+  hasActionableTaskEvent: boolean;
   /**
    * 本成员是否就是接住本轮人类消息的生效首席（#248）：人类正文无个人点名、无 `@all`、
    * 不涉及任务（含不涉及任务 handoff）且首席在本频道可用时才为 true。
@@ -104,7 +104,7 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
 
   if (input.isTaskThread && input.task) {
     const task = input.task;
-    if (task.reopened === 1) {
+    if (isReopenedTask(task)) {
       return { admit: false, reason: ROUND_SKIP_REASONS.taskReopened };
     }
     const owner = task.ownerId === input.agentId;
@@ -152,7 +152,7 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
   if (input.isEffectiveChief && input.secretaryHandoff) {
     return { admit: true, role: "secretary-handoff", useRoomGate: false };
   }
-  if (input.hasOpenTaskEvent) {
+  if (input.hasActionableTaskEvent) {
     if (input.taskEventAnchorInvited) {
       return { admit: true, role: "task-event", useRoomGate: false };
     }
@@ -177,6 +177,19 @@ export interface TaskActionabilitySnapshot {
 }
 
 /**
+ * 任务是否带「重开待接管」标记（`reopened`）。
+ *
+ * 状态机只在 `done` / `closed` → `todo` 的重开转移上置这个标记，人类认领即清除
+ * （`lib/domain/collab/tasks.ts`）。这里只回答标记本身；「对谁可行动」由
+ * `isTaskActionableForActor` 组合状态与 actor 回答。
+ */
+export function isReopenedTask(
+  task: TaskActionabilitySnapshot | null | undefined,
+): boolean {
+  return Boolean(task && task.reopened === 1);
+}
+
+/**
  * 一条任务此刻对**这个 actor** 是否可行动（票 #276 的单一定义处）。
  *
  * 它回答的不是「任务还 open 吗」：
@@ -194,8 +207,25 @@ export function isTaskActionableForActor(
 ): boolean {
   if (!task) return false;
   if (task.status === "done" || task.status === "closed") return false;
-  if (task.reopened === 1) return actor === "human";
+  if (isReopenedTask(task)) return actor === "human";
   return true;
+}
+
+/**
+ * 任务是否对**至少一个** actor 仍可行动（人类是 agent 的超集）。
+ *
+ * 这是 `isTaskActionableForActor` 的派生问法，只用于 actor 不在问题里的两处：
+ * - 窗口停窗边界：窗口里有没有值得一提的任务事件（reopened 事件对人类可行动 ⇒ 仍停窗，
+ *   保持既有窗口长度与时序，随后由准入以 `taskReopened` 让路）；
+ * - 任务线程投递目标：这条任务是否还存在、回复该不该投进它的线程（reopened 仍投线程，
+ *   由 claim `blocked` 让路，绝不落回 channel）。
+ *
+ * 它不是「任务还 open」的同义词，也不回答「当前 agent 能不能做」。
+ */
+export function isTaskActionableForSomeActor(
+  task: TaskActionabilitySnapshot | null | undefined,
+): boolean {
+  return isTaskActionableForActor(task, "human");
 }
 
 // ---------------------------------------------------------------------------
@@ -235,7 +265,7 @@ export interface RoundWindowMember {
 
 /**
  * 窗口判定的读取面：判定层不直接读写数据库，全部事实经此注入。
- * 生产实现由 `wake.ts` 的 `createRoundWindowDirectory()` 提供；测试给纯假实现。
+ * 生产实现由 `wake.ts` 的 `getRoundWindowDirectory()` 提供；测试给纯假实现。
  */
 export interface RoundWindowDirectory {
   /** 正文 → 被个人点名的成员 id（与 @mention 解析同一份）。 */
@@ -272,7 +302,7 @@ export interface RoundWindowSignals {
   /** 任务 owner 是本频道 agent，且最新一条 owner 消息点名了本 actor（in_review 互审）。 */
   taskOwnerMentioned: boolean;
   /** 窗口内存在对本 actor 可行动的 Owner 任务创建事件。 */
-  hasOpenTaskEvent: boolean;
+  hasActionableTaskEvent: boolean;
   /** 最新任务事件的锚点在同一窗口里，且直接点名了本 actor / `@all`。 */
   taskEventAnchorInvited: boolean;
   /** 最新一条人类消息的默认收件人就是本 actor。 */
@@ -302,8 +332,8 @@ export function hasHumanAllMentionInWindow(
  * `const` 收成一次纯判定。窗口长度、时序、mute 口径与房间门都不在这里改。
  *
  * 「窗口」与「单条」只在最新人类消息、跨作者 owner 消息与任务事件扫描范围上
- * 不同——这些是窗口语义本身，不是重复；`analyzeMessageWindow` 是窗口长度 1
- * 的入口，两者共用下面的判据。
+ * 不同——这些是窗口语义本身，不是重复；窗口长度 1 时 `messages: [message]`
+ * 即可得到单条结论，wake / beginTurn 的候选另由 `messageWindowRecipients` 给出。
  */
 export function selectRoundWindowSignals(input: {
   messages: RoundWindowMessage[];
@@ -361,8 +391,8 @@ export function selectRoundWindowSignals(input: {
       !isPeerCloseText(latestTaskOwnerMessage.content),
   );
   // 任务创建事件是系统消息：预览里即使带 @ 也不产生人类邀请；
-  // 是否「开放」由 actor-relative 的可行动性回答（reopened 对 agent 不开放）。
-  const hasOpenTaskEvent =
+  // 是否可行动由 actor-relative 的判定回答（reopened 对 agent 不开放）。
+  const hasActionableTaskEvent =
     targetId === channel.id &&
     messages.some((message) => {
       if (message.author?.type !== "human") return false;
@@ -413,53 +443,35 @@ export function selectRoundWindowSignals(input: {
     humanMentioned,
     humanAllMentioned,
     taskOwnerMentioned,
-    hasOpenTaskEvent,
+    hasActionableTaskEvent,
     taskEventAnchorInvited,
     chiefInvited,
   };
 }
 
 /**
- * 单条消息的「叫谁」结论：窗口长度 1 的入口（wake / beginTurn 共用）。
- * `invitations` 由 `selectMessageInvitations` 给出——单条邀请的唯一实现；
- * 这里只把「唤醒候选 = 房间候选 ∪ handoff 首席」这一条窗口结论补上。
+ * 单条消息（窗口长度 1）的候选结论：wake / beginTurn 共用。
+ *
+ * 候选的唯一来源是 `selectMessageInvitations`（单条邀请的唯一实现）；这里只补上
+ * 窗口结论的第二半——handoff 首席只进唤醒，不进房间第一波。准入信号由
+ * `selectRoundWindowSignals({ messages: [message] })` 回答；等价性用例把两者对同一
+ * 消息、同一 actor 集合的结论对齐，避免两套判据静默漂移。
  */
-export interface MessageWindowVerdict {
+export interface MessageWindowRecipients {
   /** 房间第一波候选（`beginTurn` 用；不含 wake 专属的 handoff 首席）。 */
   candidates: string[];
   /** 唤醒候选（`wake` 用）：房间候选 ∪ 本轮 handoff 首席。 */
   wakeRecipients: string[];
-  /** 同一窗口长度 1 的准入信号（等价性测试与诊断用）。 */
-  signalsFor(actor: RoundWindowActor): RoundWindowSignals;
 }
 
-export function analyzeMessageWindow(input: {
-  message: RoundWindowMessage;
-  channel: RoundWindowChannel;
-  targetId: string;
-  task: RoundWindowTask | null;
+export function messageWindowRecipients(input: {
   invitations: MessageInvitations;
-  handoffChief: string | null;
-  directory: RoundWindowDirectory;
-  isPeerCloseText?: (content: string) => boolean;
-}): MessageWindowVerdict {
+  handoffChief?: string | null;
+}): MessageWindowRecipients {
   const candidates = [...input.invitations.candidates];
   const wakeRecipients = [...candidates];
   if (input.handoffChief && !wakeRecipients.includes(input.handoffChief)) {
     wakeRecipients.push(input.handoffChief);
   }
-  return {
-    candidates,
-    wakeRecipients,
-    signalsFor: (actor) =>
-      selectRoundWindowSignals({
-        messages: [input.message],
-        channel: input.channel,
-        targetId: input.targetId,
-        task: input.task,
-        actor,
-        directory: input.directory,
-        isPeerCloseText: input.isPeerCloseText,
-      }),
-  };
+  return { candidates, wakeRecipients };
 }

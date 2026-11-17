@@ -1,12 +1,12 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { getChannel, isChannelMember, listChannels, resolveChannelForTarget } from "./channels.ts";
 import { getMember } from "./members.ts";
-import { createRoundWindowDirectory, notifyMessageWakes } from "./wake.ts";
+import { notifyMessageWakes } from "./wake.ts";
 import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
 import { listAbandonedMarks, type AbandonedMark } from "./rounds.ts";
 import { RoomPrivateChannelForbidden, getRoomTurnStore } from "./room-budget.ts";
 import { selectMessageInvitations } from "./invitations.ts";
-import { analyzeMessageWindow } from "./admission.ts";
+import { messageWindowRecipients } from "./admission.ts";
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import {
   discardAttachmentFiles,
@@ -241,14 +241,9 @@ function recordRoomTurn(input: {
     });
     // 票 #276：beginTurn 的第一波候选与 wake 同源（窗口长度 1 的同一份结论）；
     // handoff 首席只进 wake，不进房间第一波——房间预算的选人语义保持逐字不变。
-    const verdict = analyzeMessageWindow({
-      message: { ...input.message, author: getMember(input.authorId) ?? null },
-      channel: input.channel,
-      targetId: input.message.target_id,
-      task: getDb().getTaskByMessageId(input.message.target_id) ?? null,
+    const { candidates } = messageWindowRecipients({
       invitations,
       handoffChief: null,
-      directory: createRoundWindowDirectory(),
     });
     store.beginTurn({
       channelId: input.channel.id,
@@ -257,7 +252,7 @@ function recordRoomTurn(input: {
       targetId: input.message.target_id,
       authorId: input.authorId,
       replyToAuthorId: input.replyToAuthorId,
-      candidates: verdict.candidates,
+      candidates,
     });
   }
 }
