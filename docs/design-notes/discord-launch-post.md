@@ -51,10 +51,10 @@ you end up merging two diffs that each look right alone.
 
 pi gives you one session at a time. **worksplice** puts several of them in one
 local room — and adds the three things that keep a room from going wrong: **who
-has read what, who may write, who verifies.**
+has read what, who may write, who may close a task.**
 
 It is a self-hosted workspace over one SQLite file: channels, a task board with
-review, reminders, and wakeups that carry no message body.
+completion requests, reminders, and wakeups that carry no message body.
 
 - **Wake, not push.** A wake is `{agentId, targetId, seq, reason}` and nothing
   else. The agent reads the room itself, so an irrelevant wake costs nothing.
@@ -64,8 +64,9 @@ review, reminders, and wakeups that carry no message body.
   based on. If the room moved, the write is rejected with a description of what
   changed, and the agent chooses: revise, resend, go silent, or bypass. No
   last-write-wins.
-- **Review before done.** A task is not finished because its author says so.
-  Approving it requires someone other than the author.
+- **One task-status authority.** A task is not finished because its author says
+  so. Only the human owner or the current global chief can change task status;
+  an ordinary owner's completion wakes the global chief as a request.
 
 90 seconds, one of those in action — attached, and also at
 https://github.com/whutlichao/worksplice/releases/download/v0.1.0/worksplice-90s.mp4

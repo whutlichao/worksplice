@@ -83,7 +83,7 @@ Browser ──HTTP/SSE──▶ Next.js Server ──startRpcSession()──▶ 
 6. **成员 bash 沙箱必须 fail-closed**：推导不出 `PORT` 或平台无法按端口过滤（当前 Linux）时不得激活，更不能退化成不封端口的沙箱。→ `docs/traps.md#bash-sandbox`
 7. **房间系统消息必须显式声明**：Owner 署名的系统/事件消息要传 `roomNotice: true`（并保留 `wake:false`），否则会开新房次、重置 `lateTurns` 并 supersede 在跑场次。→ `docs/traps.md#room-budget`
 8. **agent-loop 的 hint 合并窗口不能挪**：`processAgent` 必须在 `queue.shift()` 前先 `await null` 让出微任务，别在这之前加 `await` 或重排循环，否则同 target hint 合并会静默失效。→ `docs/traps.md#agent-loop`
-9. **任务状态机只认服务端裁决**：拖拽不做乐观移动，approve/reject 必须由非 owner 执行，reopened 任务仅人类可认领接管并清标。→ `docs/traps.md#task-board`
+9. **任务状态写权只认服务端裁决**：拖拽不做乐观移动；只有人类 Owner 与当前全局首席可以变更任务状态（含 claim / unclaim / complete / approve / reject / close / reopen）。普通 agent / 频道首席的完成动作只产生完成请求并唤醒全局首席；任务事件与 handoff 归当前全局首席，频道首席只保留一般默认收件人；reopened 任务仅任务状态权威可认领接管并清标。→ `docs/traps.md#task-board`
 10. **消息与线程边界不可破**：thread 内消息不能转任务、thread 不能嵌套，写操作带 `baseSeq` 走 freshness-hold，冲突返回 409 held。→ `docs/traps.md#collab-domain`
 11. **文件 API 不是通用文件浏览器**：`/api/files` 与 worktrees 只允许 session cwd / project root / `~/pi-cwd-*` 及显式 `allowFileRoot()` 的根。→ `docs/traps.md#file-access`
 12. **pi 配置检测不得产生副作用**：P1 路径一次都不碰模型面，初始化目标固定 `getAgentDir()` 且不接受 HTTP 指定目录。→ `docs/traps.md#pi-env`

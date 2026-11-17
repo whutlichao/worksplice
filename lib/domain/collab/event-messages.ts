@@ -3,10 +3,20 @@ import { getMember } from "./members.ts";
 import { sendMessage } from "./messages.ts";
 import { emitWake } from "./wake.ts";
 import { getGlobalChief } from "./chief.ts";
-import { SUSAN_MEMBER_NAME, isSecretaryMember } from "./secretary-identity.ts";
+import {
+  SUSAN_MEMBER_NAME,
+  getReachableGlobalChief,
+  isSecretaryMember,
+} from "./secretary-identity.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID } from "../../data/schema.ts";
 import { previewLine } from "../../preview.ts";
-import type { ChannelRow } from "../../data/types.ts";
+import { getDb } from "../../data/db-singleton.ts";
+import type {
+  ChannelRow,
+  MemberRow,
+  MessageRow,
+  TaskRow,
+} from "../../data/types.ts";
 
 /**
  * 事件系统消息（spec-bootstrap-agent.md §4.2/§7，构建 effort ticket 01）：
@@ -92,8 +102,8 @@ export function notifyChannelCreated(channel: ChannelRow): void {
 
 /**
  * 任务创建事件消息（§3.7 可认领信号，构建本 effort 的 Convert-to-Task 票）：
- * 以 Owner 署名投到任务所属 channel，`wake: true` 走既有 `notifyMessageWakes` 扇出
- * 该 channel 的全部 agent 成员。
+ * 以 Owner 署名投到任务所属 channel，`wake: true` 进入既有 `notifyMessageWakes`；
+ * #295 起任务事件只定向唤醒当前全局首席，不再扇出该 channel 的全部 agent 成员。
  *
  * 为什么必须有：agent 认领任务的链路是 wake → drain 到新消息 → `buildReplyPrompt`
  * 的 Related open tasks → agent 回 `{"task":{"number":N,"op":"claim"}}`。而
@@ -102,12 +112,12 @@ export function notifyChannelCreated(channel: ChannelRow): void {
  * 板上 Create Task 途径碰巧是好的，只因为它先 `sendMessage` 才有消息可 drain。
  *
  * 与 `deliverEventMessage` 的差别只有 wake 策略：那里是 `wake: false` + 定向唤醒秘书
- * （欢迎路径专用语义）；这里是全 channel 扇出，抢占认领失败让路是既有语义（§3.7）。
+ * （欢迎路径专用语义）；这里保留 `wake: true` 让事件进入任务分流，由 wake 层只叫全局首席。
  * 故另起一个函数，不改也不复用 `deliverEventMessage` 的行为。
  *
  * `roomNotice: true`（房间轮次预算禁止项 #5）：`Task #N created` 是系统事件，Owner 署名只是
  * 沿用既有的事件署名约定——它**不得**开启新房次、不得重置 `lateTurns`、不得 supersede 在跑
- * 的场次。`wake: true` 保留：全 channel 扇出是既有语义（抢占认领失败让路，§3.7）。
+ * 的场次。`wake: true` 保留：任务事件仍需要一个定向轮次，但收件人只剩当前全局首席（#295）。
  *
  * 尽力而为：频道已归档 / Owner 不在频道 / 投递抛错 → 静默跳过或只记日志，绝不反向
  * 破坏调用方（任务已落库，事件消息不得让 `createTask` 失败）。
@@ -177,4 +187,106 @@ export function notifyChiefSystemAction(channelId: string, actorId: string, cont
   } catch (error) {
     console.error("[event-messages] chief system action delivery failed:", error);
   }
+}
+
+/**
+ * 完成请求事件的机器可识别形状（#295）：`Task #N completion requested by @name — preview
+ * (request:key)`。`key` 是同一次完成报告的稳定身份（通常为线程回复消息 id），用于线程内
+ * 幂等去重——同一份报告重试不会写出第二条事件。
+ */
+const TASK_COMPLETION_REQUEST_RE =
+  /^Task #(\d+) completion requested by @.+?(?: — .*?)? \(request:([^)]+)\)$/;
+
+export function parseTaskCompletionRequestEvent(
+  content: string,
+): { number: number; requestKey: string } | null {
+  const match = TASK_COMPLETION_REQUEST_RE.exec(content);
+  if (!match) return null;
+  const number = Number(match[1]);
+  if (!Number.isSafeInteger(number)) return null;
+  return { number, requestKey: match[2] };
+}
+
+export type TaskCompletionRequestResult =
+  | {
+      status: "created";
+      message: MessageRow;
+      /** 实际唤醒的当前全局首席；不可达 / 不存在时为 null（事件仍留在线程）。 */
+      chiefId: string | null;
+    }
+  | { status: "existing"; message: MessageRow }
+  | { status: "noop" };
+
+/**
+ * 非权威任务 owner 的完成请求（#295）：
+ * - 完成内容作为一条 **actor 署名**的系统事件落任务线程；
+ * - `wake:false` + `roomNotice:true`：不触发普通广播、不占房间轮次预算；
+ * - 提交后仅定向唤醒**当前全局首席**（reason=`task-status`）。全局首席不存在 / 非频道成员 /
+ *   静音时只留事件、不降级给频道首席或普通 agent；
+ * - 同一 `requestKey` 在线程内至多一条事件；重复调用返回既有事件且不重复唤醒。
+ *
+ * 触发频率 / 成本上限：一次非权威完成报告至多产生一条事件与一次 `task-status` 唤醒
+ * （即至多一轮全局首席模型调用）；没有定时器、没有按秒重试，重复报告按 `requestKey`
+ * 去重。这是新增 LLM 调用路径的成本边界，不随房间消息量增长。
+ */
+export function notifyTaskCompletionRequest(input: {
+  task: TaskRow;
+  requester: MemberRow;
+  requestKey: string;
+  completionContent?: string;
+}): TaskCompletionRequestResult {
+  if (
+    input.task.status !== "in_progress" ||
+    input.task.owner_id !== input.requester.id
+  ) {
+    return { status: "noop" };
+  }
+  const anchor = getDb().getMessage(input.task.message_id);
+  if (!anchor) return { status: "noop" };
+  const channel = getChannel(anchor.target_id);
+  if (!channel) return { status: "noop" };
+
+  const marker = `(request:${input.requestKey})`;
+  const existing = getDb()
+    .listMessages(input.task.message_id)
+    .find(
+      (message) =>
+        message.author_id === input.requester.id &&
+        parseTaskCompletionRequestEvent(message.content)?.requestKey ===
+          input.requestKey,
+    );
+  if (existing) {
+    return { status: "existing", message: existing };
+  }
+
+  const preview = input.completionContent
+    ? previewLine(input.completionContent, 240)
+    : "";
+  const content = `Task #${input.task.number} completion requested by @${input.requester.name}${
+    preview ? ` — ${preview}` : ""
+  } ${marker}`;
+  const sent = sendMessage({
+    targetId: input.task.message_id,
+    authorId: input.requester.id,
+    content,
+    wake: false,
+    roomNotice: true,
+  });
+  if (sent.held) throw new Error("Task completion request was held");
+
+  const chief = getReachableGlobalChief(channel.id);
+  const chiefId =
+    chief && chief.id !== input.requester.id ? chief.id : null;
+  if (
+    chiefId &&
+    getDb().getConsumedSeq(chiefId, input.task.message_id) < sent.message.seq
+  ) {
+    emitWake({
+      agentId: chiefId,
+      targetId: input.task.message_id,
+      seq: sent.message.seq,
+      reason: "task-status",
+    });
+  }
+  return { status: "created", message: sent.message, chiefId };
 }

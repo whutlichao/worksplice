@@ -11,7 +11,7 @@
 //     退出码恒为 0；标记缺失却已存在同名 agent —— 说明上次 seed 中途失败，脚本拒绝在
 //     半成品上叠加第二份数据，报错退出。
 //   - 只经 协作域层写入（createAgent / createChannel / sendMessage / createTask /
-//     claimTask / updateTaskStatus / toggleReaction / pinMessage / scheduleReminder），
+//     claimTaskForAssignee / updateTaskStatus / toggleReaction / pinMessage / scheduleReminder），
 //     不直接写数据层、不发 SQL；汇报数据同样走域层读接口。
 //   - 每条消息都带 wake:false —— 不触发 agent-loop、不发起任何模型请求，纯本地秒级完成。
 //
@@ -44,7 +44,7 @@ const { openDataDb } = await import("../lib/data/sqlite.ts");
 const { BUILTIN_CHANNEL_ID } = await import("../lib/data/schema.ts");
 const {
   CURRENT_MEMBER_ID,
-  claimTask,
+  claimTaskForAssignee,
   createAgent,
   createChannel,
   createTask,
@@ -425,9 +425,9 @@ const CONVERSATIONS = [
 /**
  * 任务剧本。
  *
- * 字段就是一条转移路径：claimer 认领（→ in_progress），complete 交付（→ in_review），
- * approver 由非构建者批准（→ done，落到互审的「构建者不验证」），
- * abandon 放弃（→ closed）。**顺序不可省**：closed 在 TRANSITIONS 里只挂在
+ * 字段就是一条转移路径：claimer 由人类 Owner 代认领为 owner（→ in_progress），
+ * complete 由 Owner 推进（→ in_review），approve 由 Owner 收口（→ done），
+ * abandon 由 Owner 放弃（→ closed）。**顺序不可省**：closed 在 TRANSITIONS 里只挂在
  * in_progress / in_review 上，todo 没有 close 边，所以每条 closed 任务都先认领再放弃。
  *
  * 任务刻意集中在 stream-sync —— 它是主频道，主题（SSE 重连 / 终止事件对账）也最贴看板。
@@ -448,12 +448,12 @@ const TASK_PLAN = [
   { key: "s15", claimer: "Marlow", complete: true },
   { key: "s16", claimer: "Rune", complete: true },
   { key: "s17", claimer: "Nova", abandon: true },
-  { key: "s18", claimer: "Quill", complete: true, approver: "Iris" },
+  { key: "s18", claimer: "Quill", complete: true, approve: true },
   { key: "s19", claimer: "Rune", abandon: true },
-  { key: "s20", claimer: "Iris", complete: true, approver: "Marlow" },
+  { key: "s20", claimer: "Iris", complete: true, approve: true },
   { key: "s21" },
   // ---- 其余频道各留 1-2 条 ----
-  { key: "b5", claimer: "Nova", complete: true, approver: "Iris" },
+  { key: "b5", claimer: "Nova", complete: true, approve: true },
   { key: "b6" },
   { key: "i4", claimer: "Rune" },
   { key: "a3", claimer: "Quill", complete: true },
@@ -606,19 +606,23 @@ function seedTasks(agents, refs) {
     const { id: anchorId, channel: channelId } = refs.get(plan.key);
     const task = createTask({ messageId: anchorId });
     if (!plan.claimer) continue;
-    const claimer = resolveMemberId(agents, plan.claimer);
-    const claimed = claimTask({ channelId, taskNumber: task.number, memberId: claimer });
+    const owner = resolveMemberId(agents, plan.claimer);
+    const claimed = claimTaskForAssignee({
+      channelId,
+      taskNumber: task.number,
+      actorId: CURRENT_MEMBER_ID,
+      assigneeId: owner,
+    });
     if (claimed.status !== "claimed") {
       throw new Error(`认领失败（${plan.key}）：${claimed.status}`);
     }
-    // 放弃（→ closed）：TRANSITIONS 的 in_progress 上挂着 closed 边且不校验 owner，
-    // 所以由认领人自己收口——语义上也更贴近「谁接的单谁决定不做」。
+    // 状态写权归人类 Owner；demo 不用普通 agent 冒充状态权威。
     if (plan.abandon) {
       const abandoned = updateTaskStatus({
         channelId,
         taskNumber: task.number,
         status: "closed",
-        memberId: claimer,
+        memberId: CURRENT_MEMBER_ID,
       });
       if (abandoned.status !== "updated") {
         throw new Error(`关闭失败（${plan.key}）：${abandoned.status}`);
@@ -630,17 +634,17 @@ function seedTasks(agents, refs) {
       channelId,
       taskNumber: task.number,
       status: "in_review",
-      memberId: claimer,
+      memberId: CURRENT_MEMBER_ID,
     });
     if (delivered.status !== "updated") {
       throw new Error(`交付失败（${plan.key}）：${delivered.status}`);
     }
-    if (!plan.approver) continue;
+    if (!plan.approve) continue;
     const approved = updateTaskStatus({
       channelId,
       taskNumber: task.number,
       status: "done",
-      memberId: resolveMemberId(agents, plan.approver),
+      memberId: CURRENT_MEMBER_ID,
     });
     if (approved.status !== "updated") {
       throw new Error(`批准失败（${plan.key}）：${approved.status}`);

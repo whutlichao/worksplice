@@ -34,7 +34,7 @@ founders, and it needs no Go toolchain:
 | Field | Value |
 | --- | --- |
 | Project name | `worksplice` |
-| What does it do? | `A local, self-hosted workspace that puts several persistent pi coding agents into shared channels over one SQLite file. Its useful behavior is the coordination semantics: a wake hint tells an agent that something moved without carrying the message body, an inbox is a cursor rather than a queue, a write based on a stale version of the room is held and handed back to its author instead of being merged, and a task can only be approved by a member other than its author. It helps developers who already run more than one coding-agent session against the same repository.` |
+| What does it do? | `A local, self-hosted workspace that puts several persistent pi coding agents into shared channels over one SQLite file. Its useful behavior is the coordination semantics: a wake hint tells an agent that something moved without carrying the message body, an inbox is a cursor rather than a queue, a write based on a stale version of the room is held and handed back to its author instead of being merged, and task status can only be changed by the human Owner or the current global chief. It helps developers who already run more than one coding-agent session against the same repository.` |
 | Public source repository | `https://github.com/whutlichao/worksplice` |
 | Recent substantive commit | `https://github.com/whutlichao/worksplice/commit/6790aad2733dd3cf9f9129cef1957b29fd73b7b9` — the held-write fix, with two regression tests. **Replace with the newest substantive commit at submission time** (do not cite a docs-only or version-bump commit). |
 | Evidence and how to try it | Seeded demo with no agents and no configuration — run `npx worksplice --demo`. Plus the design notes (`https://github.com/whutlichao/worksplice/blob/main/docs/design-notes/orchestrating-coding-agents.md`), a failure report with three runnable reproduction scripts (`.../when-a-held-write-could-not-be-revised.md`), and a 90-second screencast: `<SCREENCAST URL>` |
@@ -68,19 +68,19 @@ is theirs to choose):
   accent: "mint",
   mark: { kind: "image", src: "/logos/worksplice.png", label: "worksplice logo" },
   summary:
-    "A local, self-hosted workspace where several persistent pi coding agents share channels, claim and review tasks, and coordinate through held writes instead of last-write-wins.",
+    "A local, self-hosted workspace where several persistent pi coding agents share channels, claim tasks, request completion, and coordinate through held writes instead of last-write-wins.",
   note:
-    "Centers orchestration on shared-room semantics: wake hints without message bodies, an inbox that is a cursor, writes held on a stale room version, and review by someone other than the author.",
+    "Centers orchestration on shared-room semantics: wake hints without message bodies, an inbox that is a cursor, writes held on a stale room version, and a single task-status authority.",
   overview: [
     "worksplice puts several pi sessions into shared channels with a human owner, over one local SQLite file, and serves a browser workspace on loopback.",
-    "It belongs in Open Orchestrators because it treats agent coordination as a room with rules rather than as message passing: a wake tells an agent that something moved without carrying the body, reads are tracked by a durable cursor, a write based on a stale version of the room is rejected with a description of what changed, and a task cannot be approved by the member who did it."
+    "It belongs in Open Orchestrators because it treats agent coordination as a room with rules rather than as message passing: a wake tells an agent that something moved without carrying the body, reads are tracked by a durable cursor, a write based on a stale version of the room is rejected with a description of what changed, and only the human Owner or current global chief can change task status."
   ],
   bestFor: [
     "Several coding agents sharing one repository",
-    "Task handoff with review",
+    "Task handoff with completion requests",
     "Local, self-hosted agent workspaces"
   ],
-  tags: ["coding agents", "channels", "task review", "local workspace", "concurrency"],
+  tags: ["coding agents", "channels", "task status", "local workspace", "concurrency"],
   links: [
     { label: "GitHub", href: "https://github.com/whutlichao/worksplice", emphasis: "primary" },
     {

@@ -10,7 +10,7 @@ Opening a second terminal is not the hard part. Parallel-agent launchers answer 
 
 **Run it locally:** `npx worksplice` · [Star on GitHub](https://github.com/whutlichao/worksplice)
 
-It is a local workspace for collaborating with persistent [pi coding agent](https://github.com/earendil-works/pi) sessions: channels, a task board with review, reminders, and an inbox-cursor wake model — plus a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
+It is a local workspace for collaborating with persistent [pi coding agent](https://github.com/earendil-works/pi) sessions: channels, a task board with completion requests, reminders, and an inbox-cursor wake model — plus a browser workspace for session browsing, real-time chat, model configuration, skill management, and project file preview.
 
 ## What This Is
 
@@ -29,7 +29,7 @@ worksplice is deeply dependent on pi. It reads pi's session files, drives pi's a
 
 - You run more than one pi session against the same repository and they overwrite each other.
 - You want one agent to hand work to another without you relaying it by hand.
-- You want a review trail: who claimed a task, who approved it, what was decided and when.
+- You want a task trail: who owns a task, who requested completion, who closed it, and what was decided when.
 - You want a UI for a directory of existing pi sessions instead of reading `~/.pi/agent/sessions` by hand.
 
 ### When not to use it
@@ -48,7 +48,7 @@ worksplice sits at a different layer from tools you may already use. [`agent-cha
 | What does a wake carry? | The message body, pushed at the agent | A hint — `{agentId, targetId, seq}` — and the agent reads the room itself |
 | How does an agent know what it missed? | "The last message", or re-reading everything | A durable cursor: reading does not advance it, an ack does |
 | Two writers, one stale version | Last write wins, or an automatic merge | The write is **held**, with a description of what changed; the author chooses revise, resend, stay silent, or bypass |
-| Who may declare work done? | Whoever did the work | A state machine, and only someone other than the author can approve |
+| Who may declare work done? | Whoever did the work | A state machine; only the human Owner or current global chief changes status |
 | Where does it run? | Cloud, accounts | One local SQLite file, loopback by default |
 
 One honest note on overlap: pi's own roadmap includes a **pi server** that will cover part of what worksplice does. This is the version that exists today — local, one SQLite file, readable end to end — and if the official one makes it redundant, that is a good outcome.
@@ -190,7 +190,7 @@ All four shots are the seeded demo workspace (`npm run seed:demo`) with the Engl
 
 ## Design Notes
 
-- **Orchestrating coding agents**: [What "Just Let Them Message Each Other" Misses](./docs/design-notes/orchestrating-coding-agents.md) argues that the hard part of multi-agent work is not the transport but having a shared notion of what is true right now, then walks through how worksplice's wake hints, read cursors, freshness holds, and task review answer it, pointing at the code.
+- **Orchestrating coding agents**: [What "Just Let Them Message Each Other" Misses](./docs/design-notes/orchestrating-coding-agents.md) argues that the hard part of multi-agent work is not the transport but having a shared notion of what is true right now, then walks through how worksplice's wake hints, read cursors, freshness holds, and task-status authority answer it, pointing at the code.
 - **When one of those rules only worked in the happy path**: [A Held Write That Never Got Revised](./docs/design-notes/when-a-held-write-could-not-be-revised.md) is the failure report — the held-write path that failed in every real run while its tests stayed green, the SDK-level seam that injected fakes cannot see, and the fix. Three runnable reproduction scripts live in `scripts/evidence/`.
 
 ## License
@@ -201,7 +201,7 @@ MIT. The full text is in [LICENSE](./LICENSE).
 
 worksplice was bootstrapped from [agegr/pi-web](https://github.com/agegr/pi-web)'s source code. pi-web is MIT licensed, worksplice is MIT licensed as well, and pi-web's original copyright notice is preserved in [LICENSE](./LICENSE) at the repository root.
 
-The two have diverged since. pi-web is a browser for pi sessions, which is where worksplice began; worksplice is now a multi-agent collaboration layer with shared channels, wake hints, read cursors, freshness holds, and task review. It is not an official continuation of pi-web.
+The two have diverged since. pi-web is a browser for pi sessions, which is where worksplice began; worksplice is now a multi-agent collaboration layer with shared channels, wake hints, read cursors, freshness holds, and task-status authority. It is not an official continuation of pi-web.
 
 Separately, worksplice runs on [pi](https://github.com/earendil-works/pi) as its substrate. The two credits are not the same kind: pi-web is where the source came from, and pi is the runtime worksplice still reads and drives.
 

@@ -21,7 +21,7 @@
 
 ### 1.1 愿景
 
-**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照同类 agent 协作工作区（Discord 式）：agent 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 agent 在同一个 channel / thread 里对话、在同一张任务板上分活与互审。
+**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照同类 agent 协作工作区（Discord 式）：agent 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 agent 在同一个 channel / thread 里对话、在同一张任务板上分活与状态收口。
 
 核心工作循环（一切协作的通用模式）：**describe → hand off → let it run → review**（描述 → 交接 → 让它跑 → 审查）。多 agent 协作 = 同一循环并行运行。
 
@@ -44,7 +44,7 @@
 | 线程 | thread | 以某条顶层消息为锚点的子会话；不可嵌套；任务必有 thread |
 | 任务板 | task board | channel 级视图，按状态分组展示该 channel 的任务 |
 | 任务 | task | 一条消息 + 跟踪元数据（编号、状态、owner）；状态机 todo→in_progress→in_review→done/closed |
-| 认领 | claim | 任务 owner 的唯一确定方式；agent 自动认领，失败就让路 |
+| 认领 | claim | 任务 owner 的唯一确定方式；只有人类 Owner / 当前全局首席可认领，handoff 可把 owner 指派给普通 agent |
 | inbox | inbox | agent 的拉取式通知队列：按 seq 游标 drain，不进则推送 |
 | drain | drain | agent 拉取自上次以来全部新消息并按 seq 排序、推进游标的过程 |
 | wake hint | wake hint | 只含 seq/目标信息、不含正文的唤醒信号 |
@@ -65,7 +65,7 @@
 |---|---|---|
 | channels / threads | 频道消息流 + 消息级线程；`#all` 内建 | **[锁定]** 04 |
 | 持久 agent | 每 agent 绑定一个 cwd、一个 pi session；名字/描述/角色跨会话稳定；三种重置粒度 | **[锁定]** 01、04 |
-| 任务板 | channel 级 Tasks tab；状态机 + 自动认领 + 互审约定 | **[锁定]** 03、05 |
+| 任务板 | channel 级 Tasks tab；状态机 + 任务状态权威 + 完成请求 + 状态裁决讨论 | **[锁定]** 03、05、#295 |
 | inbox + 提醒 | agent 拉取式收件箱（seq 游标 + drain + wake）；reminder 服务端调度 + recurrence DSL | **[锁定]** 03、05 |
 | 历史与可观测性 | 消息即历史（不可变）；agent 详情面板：状态点 + token/成本 + 任务历史 | **[锁定]** 03、04、05 |
 | 消息增强 | emoji reaction、pinned、附件（≤50MB）、引用与 thread 修正 | **[展开]** 见 §3.3–3.5 |
@@ -128,7 +128,7 @@
   2. **send as-is**（原样发送）— 再次携带新版本号重试 freshness 检查；
   3. **stay silent**（静默放弃）— 沉默是合法结果；
   4. **send anyway**（`--anyway` 逃逸口）— 连续 hold 后的显式绕过。
-- **hold 重路由**（频道轮）：普通 `reply` 被 hold 后，在重发（resend）或重写（revise）之前，用写稿版本之后到达的新消息重跑自动认领裁决；若最新一条其他作者消息是任务创建事件，则按与普通路由轮**完全相同**的语义投递（无 owner 先 claim，再投任务锚点 thread；已有 owner 以参与者投线程）。revise 与 resend 都生效——内容由 agent 选择，目标由系统决定。裁决只认创建事件，不因频道存在开放任务就把普通回复改投线程；claim 失败 / 任务不存在 / 任务 done·closed 时保持既有 hold 处理，不向别处兜底。裁决输入与 drain 共用同一 mute 可见性口径（被静音的创建事件不触发路由）。频道游标照常推进到本轮实际读到的版本（至少包含命中的创建事件 seq，避免下一轮重复路由），线程投递不改写频道游标。
+- **hold 重路由**（频道轮）：普通 `reply` 被 hold 后，在重发（resend）或重写（revise）之前，用写稿版本之后到达的新消息重跑任务路由裁决；若最新一条其他作者消息是任务创建事件，则按与普通路由轮**完全相同**的语义投递（只有当前全局首席且任务无 owner 时先 claim；普通 agent / 频道首席以参与者身份投任务锚点 thread）。reopened 任务对非权威 agent 让路、不向频道兜底。revise 与 resend 都生效——内容由 agent 选择，目标由系统决定。裁决只认创建事件，不因频道存在开放任务就把普通回复改投线程；任务不存在或 done·closed 时保持既有 hold 处理。裁决输入与 drain 共用同一 mute 可见性口径。频道游标照常推进到本轮实际读到的版本，线程投递不改写频道游标。
 - 消息渲染：被修正消息不显示"已编辑"标记（不可编辑），修正关系通过 thread 结构自然表达。
 
 ### 3.4 Reaction **[展开]**
@@ -169,11 +169,14 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 |---|---|---|
 | 创建途径 | 右键消息 **Convert to Task**（顶层消息可转，thread 内不可）/ 发送时勾 **As Task** / Tasks tab **Create Task** | **[锁定]** 03 |
 | task = 消息 + 元数据 | `message_id`（锚点）、`number`（channel 内递增 #1 #2…）、`status`、`owner`；住在创建它的 channel 里，天然可搜索 | **[锁定]** 03、05 |
-| 认领 | 一个任务同时只有一个 owner；claim 即"我负责"，unclaim 释放回池子；已认领的其他人不碰 | **[锁定]** 03 |
-| **自动认领** | 频道目标的普通非空答复（无显式 `task` op）只以**本轮最新一条其他作者 incoming channel 消息**为裁决信号：当它是 Owner 发布、格式匹配 `Task #N created` 且与本频道开放任务 N 匹配的创建事件时，本轮回复必须投到任务 N 的锚点 thread；同轮更早的其他作者未读消息（混合活动）不阻断，本 agent 自己的历史消息不构成额外活动。任务已有 owner（自己或他人，in_progress / in_review）→ 不发起 claim，直接把回复作为参与者写入锚点 thread；任务无 owner → 先 claim，成功后回复落 thread；claim 因 freshness 返回 held → 同一轮按 held 的 roomSeq 重试，上限 3 次，成功仍回复 thread。重试耗尽才让路，且游标必须停在创建事件之前（事件保持未消费）；同一进程内记住该 agent+任务，下一轮若没有更新的任务信号则优先 claim（已被他人持有则按参与者回线程；任务 done/closed 则清除），不得静默消费成「永无 owner」；进程重启后 pending 丢失可接受——事件仍在游标之后，无更新消息时最新一条仍是创建事件，可重新收敛。claim 仍受唯一负责人、freshness-hold 与 reopened 封锁裁决：reopened 任务仅人类可接管，agent 让路且不在 channel 回复。最新一条不是创建事件、任务不存在或已 done/closed → 不路由，普通答复仍回频道；不得因频道存在开放任务就把普通回复改投线程，也不得批量认领历史开放任务。以上自动路由路径的频道顶层新增回复数为 0；`reply` 之外的 op（react / pin 等）目标不变；明确的 `task` op 仍按既有路径处理 | **[锁定]** 03 |
-| 互审 | "构建者不验证"：完成者置 in_review，审查者（另一 agent 或人）审核后置 done | **[锁定]** 03 |
+| 任务状态权威（#295） | **只有人类 Owner 与当前全局首席可以变更任务状态**：claim / unclaim / complete / approve / reject / close / reopen 全部在服务层复核 `isTaskStatusAuthority`。普通 agent 与频道首席一律得到 `TaskNotAuthorizedError`（403），数据库状态与 owner 不变；任务 owner 只是归属，不等于写权。全局首席可在合法状态机边上管理任意 owner 的任务，非法边仍拒绝。agent-loop 协议当前只暴露 claim / complete / unclaim / handoff；因此完成请求的自动收口入口是 `in_progress → in_review`，其余转移由服务层 / Owner UI 承担，不在 prompt 中冒充已有 op。 | **[锁定]** 03、#295 |
+| 认领 | 一个任务同时只有一个 owner；claim 即"我负责"、unclaim 释放回池子。只有任务状态权威可 claim / unclaim；被 handoff 指派为 owner 的普通 agent 不需要状态写权。重开标记下仅任务状态权威可认领接管并清标。 | **[锁定]** 03、#295 |
+| **自动认领** | 只有**当前全局首席**在「本轮最新一条其他作者 incoming channel 消息是 Owner 发布、格式匹配 `Task #N created`、且任务无 owner」时可自动 claim。普通 agent / 频道首席的普通回复**不再自动 claim**：若按既有路由进入未认领或已认领任务线程，只作为参与者回复，不写状态。已持有任务时直接回线程；claim 因 freshness 返回 held 时同轮按 roomSeq 重试（上限 3 次），重试耗尽才让路且游标停在创建事件之前；同进程 pending 只对权威有意义。reopened 任务对非权威 agent 一律拒绝，权威可依法接管。最新一条不是创建事件、任务不存在或已 done/closed → 不路由，普通答复仍回频道；不得因频道存在开放任务就把普通回复改投线程，也不得批量认领历史开放任务。自动路由路径的频道顶层新增回复数为 0。 | **[锁定]** 03、#295 |
+| **完成请求** | 非权威任务 owner 提交 `{"task":{"number":N,"op":"complete"}}` 时不改状态：任务保持 `in_progress`，完成回复以 `wake:false` 落任务线程（不广播、不自醒），并追加一条 **actor 署名**的系统事件（`roomNotice:true` + `wake:false`，不占房间预算）。同一份完成报告至多一条事件；提交后服务端只定向唤醒**当前全局首席**（`WakeHint.reason="task-status"`）；一次报告至多一轮全局首席 prompt，不依赖正文 @，不惊醒频道首席或普通 agent。全局首席不存在 / 非频道成员 / 已静音 ⇒ 只留事件、不唤醒、不降级给频道首席，任务保持原状态。全局首席准入后可在合法边上把他人 owner 的 `in_progress` 收口到 `in_review`。 | **[锁定]** #295 |
+| **handoff** | 任务 handoff 的**自动触发**只交给当前全局首席；服务层写权按任务状态权威复核（人类 Owner 也是权威）。频道首席保留一般默认收件人职责，但不再获得任务 handoff 授权或 prompt 暗示。执行者必须是该频道成员，chosen 必须是合法候选；被指派 owner 不需要自己拥有状态权威。通知由实际执行者署名。 | **[锁定]** #295 |
+| 状态裁决 | 状态写权只认任务状态权威；人类 Owner / 全局首席可 approve / reject 任意 owner 的任务，非法边仍拒绝。原「构建者不验证自己」保留为讨论与质量文化，但不再由普通 agent 持有的状态写权限承担。 | **[锁定]** 03、#295 |
 | 并发保护 | claim / updateStatus 均受 freshness-hold 保护（§6.3） | **[锁定]** 03、05 |
-| 视图 | 每个 channel 一个 Tasks tab，按 status 分组展示；任务 thread 承载全部进展，board 只显示状态 | **[锁定]** 03 |
+| 视图 | 每个 channel 一个 Tasks tab，按 status 分组展示；任务 thread 承载全部进展，board 只显示状态。`TaskView.reachable` 对非任务状态权威为空；对人类 Owner / 当前全局首席返回合法落点。 | **[锁定]** 03、#295 |
 
 ### 3.8 Inbox（agent 拉取）与 freshness-hold
 

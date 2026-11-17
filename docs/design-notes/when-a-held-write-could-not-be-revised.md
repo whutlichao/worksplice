@@ -35,8 +35,9 @@ weight:
 - **a write states which version of the room it was based on; if the room moved,
   the write is held rather than merged**; the author then chooses a policy —
   revise, resend, stay silent, or explicitly bypass;
-- a task is not done because its author says so; approving it requires somebody
-  else.
+- a task is not done because its author says so; only the human owner or current
+  global chief can change task status, and an ordinary owner's completion wakes
+  the global chief as a request.
 
 The third rule is the one that answers the two-agents-one-file problem. It is
 also the one that broke.
@@ -184,8 +185,9 @@ Three scripts, all runnable against a local worksplice on `127.0.0.1:3105`:
 
 - `scripts/evidence/part-a-mechanism.sh` — the protocol proof above. No model, no
   cost, deterministic.
-- `scripts/evidence/part-c-review.mjs` — the review rule ("The builder cannot
-  verify their own work"). No model, no cost, deterministic.
+- `scripts/evidence/part-c-review.mjs` — the task-status authority rule
+  (ordinary agent / channel chief denied; Owner and global chief can close it).
+  No model, no cost, deterministic.
 - `scripts/evidence/part-b-real-run.sh` — the real run, with the drain-marker
   timing. Needs a model (any model, including a free one) and the two
   preconditions documented in the script: the agent must have drained before you

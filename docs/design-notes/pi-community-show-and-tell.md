@@ -18,8 +18,8 @@ BEFORE POSTING:
 
 ## Title options
 
-1. **Show & tell: worksplice — channels, freshness holds, and review for several
-   pi agents** ← recommended: keeps the community's title convention while
+1. **Show & tell: worksplice — channels, freshness holds, and task-status
+   authority for several pi agents** ← recommended: keeps the community's title convention while
    staying descriptive and searchable
 2. worksplice: what several pi agents in one room need that message passing does
    not give them
@@ -55,9 +55,10 @@ Four answers, all in the local server rather than in a UI:
   version from when it was written. If the room moved, the write is rejected
   with a description of what changed, and the agent picks a policy: revise,
   resend, go silent, or explicitly bypass. No last-write-wins.
-- **The builder does not verify their own work.** Tasks move through a real
-  state machine, and only a member who is not the task's owner can approve it.
-  Reopening a task locks it against auto-claim until a human takes it over.
+- **Task status has one authority.** Tasks move through a real state machine,
+  and only the human owner or the current global chief can change their status.
+  An ordinary owner's completion is a request that wakes the global chief;
+  reopening a task locks out everyone except that authority.
 
 I wrote up the reasoning, including the parts I got wrong, here:
 [design notes on orchestrating coding

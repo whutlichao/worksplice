@@ -103,16 +103,18 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   / setChannelChief（ChannelChiefError）/ canRouteToChief（对本频道是否
                                   可达：成员 + 未静音，选人 · wake · 频道行共用）/ chiefRefOf（ChiefRef）
   secretary-identity.ts           秘书身份判定源（#248 起是角色判定）：isSecretaryMember = 是不是当前
-                                  全局首席；SUSAN_MEMBER_NAME 只是引导期默认名（不参与判定）
+                                  全局首席；isTaskStatusAuthority = 人类 Owner 或当前全局首席（#295 任务
+                                  状态写权唯一入口）；getReachableGlobalChief = 全局首席对本频道可达性
+                                  的唯一解析口；SUSAN_MEMBER_NAME 只是引导期默认名（不参与判定）
   task-reference.ts               「正文提到了哪些任务」的共享纯判定（parseTaskReferenceNumbers /
                                   hasTaskReference）：handoff 触发与选人共用，断开 handoff-trigger ← invitations
                                   的反向依赖；引用块 / 代码块里的 Task #N 不算
   handoff-trigger.ts              消息触发的任务分流判定（#240 / #270）：selectSecretaryHandoffTask
-                                  （授权 = 本频道生效首席；创建事件 / 任务锚点 / 任务线程 / 唯一引用；
+                                  （#295 授权 = 当前全局首席；创建事件 / 任务锚点 / 任务线程 / 唯一引用；
                                   多任务 / 无关联 / 已分流 / 有 owner / reopened / 非 todo 不选）+
-                                  isHandoffEligibleTask；内部 secretary 命名指生效首席，不是全局首席
-  handoff.ts                      handoff 写路径：handoffTask（授权 = 生效首席 → 频道首席或全局回落；
-                                  候选排除 / claim 事务 / freshness / blocked / 提交后定向唤醒 chosen）+
+                                  isHandoffEligibleTask；频道首席保留默认收件人，不再参与任务 handoff
+  handoff.ts                      handoff 写路径：handoffTask（授权 = 任务状态权威（全局首席 / 人类 Owner）；
+                                  候选排除 / 复用 claimTaskForAssignee 代认领 / freshness / blocked / 提交后定向唤醒 chosen）+
                                   listHandoffCandidates / recoverHandoffWakes；成功通知写明实际执行者
   rounds.ts                       §07 轮次结果服务层：logRoundOutcome / listRoundLogs（camelCase 出线
                                   RoundLogView）+ v19 `role`（这一轮怎么进来的：chief / 点名 / 任务 / 提醒 / DM）
@@ -120,6 +122,9 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   / listMessages / getThreadInfo / messageWithAuthor（附 reactions+attachments）
                                   / getMessage（**轻量读取**：不联表、不抛错；存在性判断用它，展示面仍走 messageWithAuthor）
                                   / summarizeChanges（held 摘要，任务 claim/updateStatus 复用）
+  event-messages.ts               Owner 署名事件（任务创建 / 入群 / 建频道 / 欢迎）+ actor 署名系统动作；
+                                  notifyTaskCompletionRequest（#295）：非权威完成请求事件（幂等 requestKey、
+                                  roomNotice:true + wake:false）并只定向唤醒当前全局首席（reason=task-status）
   reactions.ts                    §3.4 toggleReaction（存在即删，UNIQUE 先查后写；channel 成员才可点，无通知）
                                   / listReactionSummaries（count 降序 + memberIds）
   pinned.ts                       §3.5 个性化 pinned：pinMessage（order=max+1，幂等）/ unpinMessage / listPinned
@@ -127,8 +132,11 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   attachments.ts                  §3.5 附件：MAX_ATTACHMENT_BYTES=50MB / stageAttachmentFiles（随机名落盘 attachments/）
                                   / discardAttachmentFiles（held/抛错清理）/ getAttachmentRow
   tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按 channel 递增）/ claimTask
-                                  （重开封锁：reopened 下仅 Owner 认领接管）/ updateTaskStatus（状态机 + 互审授权
-                                  + freshness-hold + reopen 置 reopened 标记）/ listChannelTasks / getTaskView
+                                  （#295：仅人类 Owner / 当前全局首席；重开封锁由同一权威接管）/
+                                  updateTaskStatus（状态机 + isTaskStatusAuthority + freshness-hold +
+                                  reopen 置 reopened 标记）/ reachableStatuses（非权威为空）/
+                                  claimTaskForAssignee（handoff 专用代认领，actor 仍是权威）/
+                                  listChannelTasks(actorId) / getTaskView(actorId)（视图按调用者权威给出 reachable）
   inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
                                   （§3.2 mute 过滤：静音后普通消息不进 inbox、@mention 穿透）/ listRelatedTasks
                                   / resolveTargetChannel（§5.5 本地实现形态）
@@ -151,9 +159,10 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   __workspliceMemberOpQuota`）/ setMemberOpQuotaStore(null)（测试接缝）；
                                   键 = agentId + 会话标识；拿不到会话标识 ⇒ 退化为「该 agent 在本进程内至多 1 次」
                                   并记一条退化日志（fail-closed，绝不退化成「跳过配额」）
-  admission.ts                    轮次准入纯判定（#237）：decideRoundAdmission + ROUND_SKIP_REASONS
+  admission.ts                    轮次准入纯判定（#237/#295）：decideRoundAdmission + ROUND_SKIP_REASONS
                                   （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵；
-                                  in_review 非 owner 在人类或任务 owner @ 时以 task-reviewer 准入，仍非 must-respond）
+                                  in_review 非 owner 在人类或任务 owner @ 时以 task-reviewer 准入，仍非 must-respond；
+                                  reason=task-status 只对当前任务状态权威开放 in_progress 线程，复用 role=task-reviewer）
   patrol.ts                       任务巡检的**判定层**（票 #267）：纯函数、零 IO。三个阈值 + 7 天窗口的
                                   单一定义处（PATROL_UNCLAIMED_TODO_MS / PATROL_HANDOFF_BLOCKED_MS /
                                   PATROL_IN_REVIEW_MS / PATROL_WINDOW_MS）+ findPatrolFindings（时间与任务快照注入；
@@ -183,8 +192,9 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   wake.ts                         wake 事件总线（§5.4/§5.5）：WakeHint（只含 agentId/targetId/seq/reason
                                   + 可选 recovery，不含正文）；
                                   subscribeWake/emitWake；notifyMessageWakes（#237：人类正文点名 / @all 候选；
-                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件 / 明确任务关联只定向本频道
-                                  生效首席，一个事件最多一个收件人，不可达则静默）；§3.7 任务延续自醒；
+                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件 / 明确任务关联只定向
+                                  getReachableGlobalChief 解析出的当前全局首席，一个事件最多一个收件人，
+                                  不可达则静默）；§3.7 任务延续自醒；
                                   @mention 解析 re-export（协作服务层发，agent-loop 驱动订阅）
 
 lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并为单文件深模块）
@@ -193,9 +203,10 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并
                                   {"action":"reply"|"ignore","content":...,"onConflict":"revise"|"resend"|"silent"|"anyway",
                                   "task":{"number":N,"op":"claim"|"complete"|"unclaim"|"handoff"}}
                                   + buildReplyPrompt / buildRevisionPrompt / parseAgentAction / deliverWithFreshness
-                                  + runTaskOperation（先 claim 再开工，失败让路 → "yielded"；complete → in_review）
-                                  + handoff 授权 = 本频道生效首席；`recipient.canHandoff` 表示生效首席
-                                  （global 或 channel），只控制「建完即派」提示
+                                  + runTaskOperation（权威先 claim 再开工，失败让路 → "yielded"；权威 complete →
+                                  in_review；非权威 complete → 完成请求事件 + task-status 唤醒全局首席）
+                                  + handoff 授权 = 当前全局首席；`recipient.canHandoff` 只对当前全局首席为真，
+                                  只控制「建完即派」提示
                                   + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
                                   + §3.2 mention 穿透：非成员被**人类正文** @mention 推进本轮（#237），回复公开 channel 时自行加入
                                   + in_review 任务 owner（agent 成员）最新消息的 @：只放开 task-reviewer 准入，

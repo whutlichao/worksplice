@@ -30,8 +30,10 @@ import {
   isChannelMember,
   isDM,
   isEffectiveChiefForChannel,
+  isSecretaryMember,
   isTaskActionableForActor,
   isTaskActionableForSomeActor,
+  isTaskStatusAuthority,
   joinChannel,
   listAgents,
   listChannels,
@@ -39,6 +41,7 @@ import {
   listRelatedTasks,
   logRoundOutcome,
   normalizeWorkspacePath,
+  notifyTaskCompletionRequest,
   parseTaskCreationEventNumber,
   readDefaultModelFromSettings,
   recoverHandoffWakes,
@@ -53,6 +56,7 @@ import {
   type RoundUsage,
   type HandoffWakeEmitter,
   type PatrolRunResult,
+  TaskNotAuthorizedError,
 } from "../domain/collab/index.ts";
 import {
   publishAgentStatus,
@@ -518,15 +522,15 @@ export const CONTENT_PLACEMENT_RUBRIC: readonly string[] = [
  * 本段只加固定骨架行，与 `CONTENT_PLACEMENT_RUBRIC` 同一条纪律（不动消息块 / 预算 / 其余规则）。
  */
 export const DEFAULT_RECIPIENT_RULE: readonly string[] = [
-  "- This round you are the channel's default recipient: nobody was named, so the message landed on you. Your job is routing, not answering it in depth — if it can become a task, make it one with worksplice_task_create (handing it off when exactly one member is clearly the right owner); if it clearly belongs to one person or one task, say where it goes and hand it off when you can; if it is small talk or needs no action, reply with one or two sentences and say you are doing nothing.",
+  "- This round you are the channel's default recipient: nobody was named, so the message landed on you. Your job is routing, not answering it in depth — if it can become a task, make it one with worksplice_task_create; if it clearly belongs to one person or one task, say where it goes; if it is small talk or needs no action, reply with one or two sentences and say you are doing nothing.",
   '- No long analysis when you have no new facts — implementation detail belongs to whoever does the work. Still deliver that short answer with the normal "reply" action, never "ignore": silence would read as if you never saw the message.',
 ];
 
 /**
- * 建完即派（票 chief-recipient-router / #272，用户裁决 ①）：**生效首席的任何一轮**都注入。
+ * 建完即派（票 chief-recipient-router / #272、#295）：只对**当前全局首席**的轮次注入。
  *
- * 为什么是「生效首席」而不是「所有会话」：全局首席有六个 `worksplice_*` 工具；频道首席从
- * #272 起有 `worksplice_task_create`（但没有读面），`handoff` op 也早已对本频道生效首席开放。
+ * 为什么是「当前全局首席」而不是「所有会话」：任务 handoff 已收敛为全局首席职责；
+ * 频道首席保留建任务与默认收件人能力，但不再获得 handoff 授权或提示。
  * 普通成员没有这套工具，给它们注入这段 prompt 等于教一个不存在的入口。频道首席的候选提示
  * 因此先指向轮次里的 member context——它没有 `worksplice_list_members`。
  *
@@ -568,17 +572,22 @@ export function buildReplyPrompt(input: {
   joinBriefing?: JoinBriefing;
   /**
    * 首席 handoff 轮（票 #240 / #270）：本轮唯一关联的未认领任务 + 候选成员。
-   * 只有本频道的生效首席被明确关联时注入；普通轮次不出现 handoff 指令。
+   * 只有当前全局首席被明确关联时注入；普通轮次不出现 handoff 指令。
    */
   handoff?: {
     number: number;
     candidates: Array<{ name: string; description: string }>;
   };
   /**
+   * 本 agent 是否当前任务状态权威（人类 Owner 不跑 agent-loop，实际为当前全局首席）。
+   * 只决定任务协议文案，不参与判权；服务层仍独立复核。
+   */
+  canChangeTaskStatus?: boolean;
+  /**
    * 本轮的收件人身份（票 chief-recipient-router）：只决定两段固定骨架行，不参与任何判定。
    * - `role`：本轮是怎么进来的（与 `round_logs.role` 同一份取值）；`"chief"` ⇒ 默认收件人轮。
-   * - `canHandoff`：本会话属于**生效首席**（全局或频道），只控制「建完即派」提示。
-   *   频道首席从 #272 起有 `worksplice_task_create`；普通成员没有这套工具。
+   * - `canHandoff`：本会话属于**当前全局首席**，只控制「建完即派」提示。
+   *   频道首席保留默认收件人身份，但不再获得任务 handoff 提示（#295）。
    * 缺省 = 不适用：prompt 与今天逐字节相同（非首席成员 / 直调本函数的单测）。
    */
   recipient?: { role: AdmissionRole; canHandoff: boolean };
@@ -723,13 +732,16 @@ export function buildReplyPrompt(input: {
   if (input.recipient?.role === "chief") lines.push(...DEFAULT_RECIPIENT_RULE);
   if (input.recipient?.canHandoff) lines.push(...CREATE_THEN_HANDOFF_RULE);
   lines.push(
-    '- Task protocol: a non-empty ordinary reply auto-claims only when this round\'s only new channel activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
-    '  In both cases, claim first and post in the task thread; if claim fails (freshness hold, another owner, reopened block), yield without posting anywhere.',
-    '  Multiple task events, unmatched events, other channel activity, and ordinary messages do not auto-select a task.',
+    "- Task protocol: only the human Owner and the current global chief may claim, unclaim, hand off, or change task status. If you are not the global chief, do not claim and do not offer to change status yourself.",
+    '- If you are the global chief, a non-empty ordinary reply auto-claims only when this round\'s only new channel activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
+    "  In both cases, claim first and post in the task thread; if claim fails (freshness hold, another owner, reopened block), yield without posting anywhere.",
+    "  Multiple task events, unmatched events, other channel activity, and ordinary messages do not auto-select a task.",
     '  If other activity arrives, add an explicit {"task":{"number":N,"op":"claim"}} op only when choosing to claim that task; ordinary replies stay in the channel.',
   );
   lines.push(
-    '- When you finish a task you own: {"task":{"number":N,"op":"complete"}} — the task moves to in_review for someone else to verify (builders never verify their own work). To step away: {"task":{"number":N,"op":"unclaim"}}.',
+    input.canChangeTaskStatus
+      ? '- When a task reports completion: {"task":{"number":N,"op":"complete"}} — as the current global chief you may move in_progress to in_review even when the owner is someone else. You may manage any owner\'s legal task transitions; invalid edges still fail. To step away: {"task":{"number":N,"op":"unclaim"}}.'
+      : '- When you finish a task assigned to you: {"task":{"number":N,"op":"complete"}} — this is a completion request. The app keeps the task in_progress, records the completion in the task thread, and wakes the current global chief to close it out. Do not claim, unclaim, hand off, or say you changed the status yourself.',
   );
   lines.push(
     '  "task" is a top-level field of your JSON, never inside "ops" — at most one task operation per round.',
@@ -1151,6 +1163,8 @@ export type ReplySender = (opts: {
   authorId: string;
   content: string;
   baseSeq?: number;
+  /** false = 系统/事件型投递，不触发普通 message wake（完成请求专用）。 */
+  wake?: boolean;
   /** 房间回合语境（I6）：只在 `runAgentRound` 的投递路径上存在。 */
   roomContext?: { channelId: string; epoch?: number };
 }) => SendMessageResult;
@@ -1197,6 +1211,8 @@ export async function deliverWithFreshness(input: {
   send?: ReplySender;
   /** 房间回合语境（I6 房间可见性 + I5 epoch 记账）；缺省 = 不在房间回合里投递。 */
   roomContext?: { channelId: string; epoch?: number };
+  /** 缺省 = 既有普通回复（触发 wake）；完成请求传 false，只留任务线程事件唤醒。 */
+  wake?: boolean;
   /** hold 重路由裁决；返回 null 或缺省 = 保持既有 hold 处理。 */
   resolveHeldRoute?: (input: {
     newMessages: MessageWithAuthor[];
@@ -1259,6 +1275,7 @@ export async function deliverWithFreshness(input: {
       content: action.content,
       baseSeq,
       roomContext: input.roomContext,
+      ...(input.wake === undefined ? {} : { wake: input.wake }),
     });
     if (!result.held)
       return { status: "replied", message: result.message, ackSeq };
@@ -1272,6 +1289,7 @@ export async function deliverWithFreshness(input: {
           authorId: input.agent.id,
           content: action.content,
           roomContext: input.roomContext,
+          ...(input.wake === undefined ? {} : { wake: input.wake }),
         });
         if (forced.held)
           return {
@@ -1477,8 +1495,12 @@ function resolveTaskReplyRoute(input: {
     return {
       taskNumber,
       eventSeq: latest.seq,
-      // 有 owner（自己或他人）都不 claim：自己持有 → 回线程；他人持有 → 参与者回线程。
-      mode: task.owner_id === null ? "claim" : "thread",
+      // 只有任务状态权威才可能自动认领；普通 agent / 频道首席进入未认领线程时
+      // 只作为参与者回复，不写状态。
+      mode:
+        task.owner_id === null && isTaskStatusAuthority(agentId)
+          ? "claim"
+          : "thread",
     };
   }
   // 最新一条不是任务信号：只对曾经 held 耗尽的任务优先收敛（F 的新轮不受影响）。
@@ -1566,7 +1588,7 @@ function pendingTaskRoute(
   candidates.sort((a, b) => b.claim.eventSeq - a.claim.eventSeq);
   const next = candidates[0];
   if (!next) return null;
-  if (next.task.owner_id === null) {
+  if (next.task.owner_id === null && isTaskStatusAuthority(agentId)) {
     return {
       taskNumber: next.claim.taskNumber,
       eventSeq: next.claim.eventSeq,
@@ -1697,13 +1719,13 @@ export async function runTaskOperation(input: {
       baseSeq,
     };
   }
-  // ---- handoff（票 #240 / #270）：只有本频道的生效首席可执行；普通 agent 明确拒绝 --
+  // ---- handoff（#295）：只有当前全局首席可执行；频道首席 / 普通 agent 明确拒绝 --
   if (taskOp?.op === "handoff") {
-    if (!isEffectiveChiefForChannel(channel.id, agent.id)) {
+    if (!isSecretaryMember(agent)) {
       ack(agent.id, input.targetId, baseSeq);
       return {
         status: "yielded",
-        reason: "handoff is reserved for the secretary",
+        reason: "handoff is reserved for the task status authority",
         baseSeq,
       };
     }
@@ -1779,7 +1801,7 @@ export async function runTaskOperation(input: {
     input.targetId === channel.id
       ? input.baseSeq
       : getDb().getConsumedSeq(agent.id, channel.id);
-  const deliverReply = (anchorId: string) =>
+  const deliverReply = (anchorId: string, options?: { wake?: boolean }) =>
     deliverToTaskThread({
       agent,
       channel,
@@ -1789,6 +1811,7 @@ export async function runTaskOperation(input: {
       threadBaseSeq,
       promptFn: input.promptFn,
       send: input.send,
+      wake: options?.wake,
     });
   // 自动路由的线程回复失败（error / silent）时不推进 channel 游标：创建事件保持
   // pending，下一轮重新路由；只有回复真正落线程才收口到本轮已读版本。
@@ -1804,6 +1827,18 @@ export async function runTaskOperation(input: {
   // ---- 自动路由（§3.7）：最新创建事件 → 任务线程；无 owner 先 claim ----------
   if (route) {
     if (route.mode === "thread") {
+      const current = getDb().getTaskById(task.id);
+      if (
+        current?.reopened === 1 &&
+        !isTaskStatusAuthority(agent.id)
+      ) {
+        ack(agent.id, input.targetId, baseSeq);
+        return {
+          status: "yielded",
+          reason: "task was reopened — awaiting the task status authority",
+          baseSeq,
+        };
+      }
       // B/D：任务已有 owner（自己或他人）→ 不发起 claim，直接把回复作为参与者写入线程。
       clearPendingTaskClaim(agent.id, channel.id, taskNumber);
       return finishRoutedReply(task.message_id);
@@ -1871,7 +1906,7 @@ export async function runTaskOperation(input: {
         baseSeq,
       };
     }
-    // blocked：reopened 封锁（仅人类可接管）；明确让路，不把回复投到别处。
+    // reopened：非权威 agent 明确让路，不把回复投到别处；权威由准入/claim 单独放行。
     clearPendingTaskClaim(agent.id, channel.id, taskNumber);
     ack(agent.id, input.targetId, baseSeq);
     return {
@@ -1883,12 +1918,23 @@ export async function runTaskOperation(input: {
 
   // ---- claim：先认领再开工；失败就让路 --------------------------------------
   if (taskOp!.op === "claim") {
-    const claim = claimTask({
-      channelId: channel.id,
-      taskNumber,
-      memberId: agent.id,
-      baseSeq,
-    });
+    let claim;
+    try {
+      claim = claimTask({
+        channelId: channel.id,
+        taskNumber,
+        memberId: agent.id,
+        baseSeq,
+      });
+    } catch (error) {
+      if (!(error instanceof TaskNotAuthorizedError)) throw error;
+      ack(agent.id, input.targetId, baseSeq);
+      return {
+        status: "yielded",
+        reason: error.message,
+        baseSeq,
+      };
+    }
     if (claim.status !== "claimed") {
       clearPendingTaskClaim(agent.id, channel.id, taskNumber);
       ack(agent.id, input.targetId, baseSeq);
@@ -1904,8 +1950,9 @@ export async function runTaskOperation(input: {
     return delivered;
   }
 
-  // ---- complete / unclaim：须为本 agent 拥有的任务 ----------------------------
-  if (task.owner_id !== agent.id) {
+  // ---- complete / unclaim ---------------------------------------------------
+  const canChangeTaskStatus = isTaskStatusAuthority(agent.id);
+  if (task.owner_id !== agent.id && !canChangeTaskStatus) {
     ack(agent.id, input.targetId, baseSeq);
     return {
       status: "yielded",
@@ -1913,12 +1960,81 @@ export async function runTaskOperation(input: {
       baseSeq,
     };
   }
+  if (!canChangeTaskStatus && taskOp!.op === "unclaim") {
+    ack(agent.id, input.targetId, baseSeq);
+    return {
+      status: "yielded",
+      reason: "only the human Owner or current global chief can change task status",
+      baseSeq,
+    };
+  }
 
   clearPendingTaskClaim(agent.id, channel.id, taskNumber);
+  const isCompletionRequest =
+    !canChangeTaskStatus && taskOp!.op === "complete";
   const replyOutcome =
     action.action === "reply" && action.content
-      ? await deliverReply(task.message_id)
+      ? await deliverReply(task.message_id, {
+          // 完成请求的回复不触发普通 message wake；随后的系统事件只定向叫全局首席。
+          wake: isCompletionRequest ? false : undefined,
+        })
       : { threadAckSeq: getDb().maxSeq(task.message_id) };
+
+  // 非权威 owner 的 complete = 完成请求，不改状态：回复照常落线程，随后写一条
+  // actor 署名的系统事件，并只定向唤醒当前全局首席（#295）。
+  if (isCompletionRequest) {
+    if ("status" in replyOutcome) {
+      if (replyOutcome.status === "error" || replyOutcome.status === "silent") {
+        // 回复没有真正落线程 ⇒ 没有可交付的完成报告，不制造请求事件或额外唤醒。
+        return replyOutcome;
+      }
+    }
+    const report =
+      "message" in replyOutcome ? replyOutcome.message : undefined;
+    const current = getDb().getTaskById(task.id);
+    if (
+      !current ||
+      current.status !== "in_progress" ||
+      current.owner_id !== agent.id
+    ) {
+      ack(agent.id, input.targetId, baseSeq);
+      ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
+      return {
+        status: "silent",
+        reason: "completion request ignored — the task changed while the report was written",
+        baseSeq,
+      };
+    }
+    const requestKey =
+      report?.id ?? `${input.targetId}:${baseSeq}`;
+    let eventSeq = replyOutcome.threadAckSeq;
+    try {
+      const request = notifyTaskCompletionRequest({
+        task: current,
+        requester: agent,
+        requestKey,
+        completionContent: report?.content,
+      });
+      if ("message" in request) eventSeq = request.message.seq;
+    } catch (error) {
+      ack(agent.id, input.targetId, baseSeq);
+      ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
+      return {
+        status: "error",
+        reason: `completion request failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        baseSeq,
+      };
+    }
+    ack(agent.id, input.targetId, baseSeq);
+    ack(agent.id, task.message_id, eventSeq);
+    return {
+      status: "silent",
+      reason: "task complete requested — global chief notified",
+      baseSeq,
+    };
+  }
 
   // 状态收口（§6.3）：以 agent 语境里的 channel 版本起步，held 后按 roomSeq 重试；
   // 并发审查者已 close/reject（转移失效/越权）→ 不炸本轮：进展已在线程里，收口游标后让路
@@ -1986,6 +2102,7 @@ async function deliverToTaskThread(input: {
   threadBaseSeq: number;
   promptFn: (promptText: string) => Promise<string>;
   send?: ReplySender;
+  wake?: boolean;
 }): Promise<RoundOutcome & { threadAckSeq: number }> {
   const outcome = await deliverWithFreshness({
     targetId: input.anchorId,
@@ -1995,6 +2112,7 @@ async function deliverToTaskThread(input: {
     baseSeq: input.threadBaseSeq,
     promptFn: input.promptFn,
     send: input.send,
+    wake: input.wake,
   });
   if (outcome.status === "reroute") {
     // 线程目标不传裁决回调：命中 reroute 即接线错误。按 error 收口，
@@ -2260,7 +2378,7 @@ export async function runAgentRound(
   agentId: string,
   targetId: string,
   runtime?: LoopRuntime,
-  reason: "message" | "reminder" = "message",
+  reason: WakeReason = "message",
 ): Promise<RoundOutcome> {
   const rt: LoopRuntime = runtime ?? (await getAgentRuntime());
   const agent = getAgent(agentId);
@@ -2323,10 +2441,11 @@ export async function runAgentRound(
     directory: createRoundWindowDirectory(),
     isPeerCloseText,
   });
-  // 票 #240 / #270：任务 handoff 只自动准入本频道的生效首席——频道首席在场时不再叫
-  // 全局回落首席。多任务命中、无关联、任意闲聊、已分流、已有 owner、reopened 都由触发判定拒绝。
+  // #295：任务 handoff 只自动准入当前全局首席。频道首席保留默认收件人职责，
+  // 但不再获得任务 handoff 身份。多任务命中、无关联、已分流、已有 owner、reopened 都拒绝。
   const isEffectiveChief = isEffectiveChiefForChannel(channel.id, agent.id);
-  const handoffSelection = isEffectiveChief
+  const canChangeTaskStatus = isTaskStatusAuthority(agent.id);
+  const handoffSelection = isSecretaryMember(agent)
     ? selectSecretaryHandoffTask({
         secretary: agent,
         channel,
@@ -2338,7 +2457,7 @@ export async function runAgentRound(
   // 重启后同一触发仍在 drain 里时，重入 handoff 只会得到 already-handled；这里只推进游标，
   // 不起会话、不写第二条通知、不改 owner / 状态。人类指名秘书时不走这条捷径。
   if (
-    isEffectiveChief &&
+    isSecretaryMember(agent) &&
     handoffSelection?.kind === "none" &&
     handoffSelection.reason === "already-handled" &&
     !humanMentioned &&
@@ -2382,6 +2501,7 @@ export async function runAgentRound(
     isEffectiveChief,
     secretaryHandoff: Boolean(handoffTargetTask),
     taskEventAnchorInvited,
+    canChangeTaskStatus,
   });
   // CP0（I5）/ 选人门（本票 spec §6.3）：房间场次活跃时，本场次从未被问过的成员不得在房间语境里
   // 自主插话——返回 skipped 且**不推进消费游标**（它被后来召见时上下文完整）。
@@ -2399,7 +2519,8 @@ export async function runAgentRound(
     ? roomTurns.gate({
         channelId: channel.id,
         memberId: agent.id,
-        reason,
+        // task-status 只会出现在任务线程（房间门 bypass）；归一化只为类型收窄。
+        reason: reason === "task-status" ? "message" : reason,
         continuing,
       })
     : { state: "bypass" as const, epoch: null };
@@ -2548,9 +2669,10 @@ export async function runAgentRound(
           })),
         }
       : undefined,
+    canChangeTaskStatus,
     // 收件人身份（票 chief-recipient-router / #272）：角色取准入的唯一结论；`canHandoff`
-    // 表示本会话属于生效首席（全局或频道），只控制「建完即派」提示。
-    recipient: { role: admittedRole, canHandoff: isEffectiveChief },
+    // 只对当前全局首席为真（#295：频道首席不再获得任务 handoff 提示）。
+    recipient: { role: admittedRole, canHandoff: isSecretaryMember(agent) },
   });
   // op 结果并进本轮 reason（round_logs 可见；拒绝/held 不静默吞掉）。
   // 声明在 try 之前：catch 的 error 轮也要带 op 结果。
@@ -3026,8 +3148,16 @@ function enqueueWake(hint: WakeHint): void {
   const existing = queue.find((entry) => entry.targetId === hint.targetId);
   if (existing) {
     // 同 (agent, target) 合并：reminder 是更宽松的处理模式（不跳过自己的消息），
-    // 已排队的 message 轮升级为 reminder 轮也不损失什么；反之会丢自提醒
+    // 已排队的 message 轮升级为 reminder 轮也不损失什么；反之会丢自提醒。
+    // task-status 是完成请求的专用准入信号，不能被普通 message 合并吞掉；
+    // reminder 仍是最终宽口径（它本身就有独立合法触发理由）。
     if (hint.reason === "reminder") existing.reason = "reminder";
+    else if (
+      existing.reason !== "reminder" &&
+      (hint.reason === "task-status" || existing.reason === "task-status")
+    ) {
+      existing.reason = "task-status";
+    }
     existing.seq = Math.max(existing.seq, hint.seq);
     existing.recovery = existing.recovery && Boolean(hint.recovery);
     return;

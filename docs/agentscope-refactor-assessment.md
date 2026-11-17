@@ -21,7 +21,7 @@
 **判断：条件成立（conditional），但证据不支持现在换底座。推荐先做 C 的有界 spike，不做 A/B 的全面重构。**
 
 一句话理由：**AgentScope 与 worksplice 不是同一层的东西**。worksplice 的承重部分是「房间层」
-（频道 + `UNIQUE(target_id, seq)` 消息序 + 每成员消费游标 + freshness-hold + 任务状态机与互审门
+（频道 + `UNIQUE(target_id, seq)` 消息序 + 每成员消费游标 + freshness-hold + 任务状态机与状态权威
 + 未读角标 + 会话文件所有权），这一层在两份 AgentScope 发行物里**没有对应物**；
 AgentScope 承重的是「agent 框架层」（agent 循环、工具、模型、工作区沙箱、多 agent pipeline）。
 两者可以叠，但不能互换——现在的位置是 **worksplice 房间层 + pi 作 agent 框架层**，
@@ -62,7 +62,7 @@ AgentScope 承重的是「agent 框架层」（agent 循环、工具、模型、
 >
 > AgentScope and worksplice live on different layers. worksplice's load-bearing half is the
 > *room layer* — channels, `UNIQUE(target_id, seq)` message ordering, per-member consumption
-> cursors, freshness-hold, the task state machine with a non-owner review gate, unread badges,
+> cursors, freshness-hold, the task state machine with a single task-status authority, unread badges,
 > and session-file ownership. None of that has a correspondent in either AgentScope
 > distribution. AgentScope's load-bearing half is the *agent framework layer* (agent loop,
 > tools, models, OS-level workspaces, multi-agent pipelines). Today that layer is pi; swapping
@@ -265,7 +265,7 @@ worksplice 房间层（两套 AgentScope 都没有对应物）        ← 承重
   频道 / thread 锚点 / UNIQUE(target_id,seq) 消息序
   每成员消费游标 consumed_seqs（drain 不推进 / ack 收口）
   freshness-hold（baseSeq 事务内比对，held 返回 roomSeq）
-  任务状态机 todo→in_progress→in_review→done/closed + 互审门 + reopen 封锁
+  任务状态机 todo→in_progress→in_review→done/closed + 任务状态权威 + reopen 封锁
   未读角标 channel_reads / 提醒 cron / FTS trigram 搜索
   会话文件所有权（ADR-0003/0004）
 ─────────────────────────────────────────────────────────
@@ -416,7 +416,7 @@ ADR-0012 的沙箱判据落在**进程**（`lib/bash-containment.ts:250` 生成 
 
 对照：**Python 2.x 有** `pipeline/`（`GoalPipeline` / `TeamPipeline` + `TeamMember` + `TeamAssign`），
 但那是「leader 经外部分派工具把活派给成员 agent」的形态，
-**不等同于** worksplice 的「频道成员 + 任务板 + 互审门 + 每成员游标」形态（见 Q6）。
+**不等同于** worksplice 的「频道成员 + 任务板 + 任务状态权威 + 每成员游标」形态（见 Q6）。
 
 ### Q5 AgentScope TS 工具表 vs `lib/tool-presets.ts` 差在哪？
 
@@ -426,7 +426,7 @@ ADR-0012 的沙箱判据落在**进程**（`lib/bash-containment.ts:250` 生成 
   vs worksplice `CODING_TOOL_NAMES = read/bash/edit/write/grep/find/ls`（`lib/tool-presets.ts:24`）。
   TS **没有 `find`、没有 `ls`**（`Glob` 只能部分替代）；TS **多了 `Task*`**，
   但那是**会话内待办**（`state.TaskContext`，`pending|in_progress|completed`），
-  **不是** worksplice 的频道任务板（`#number` 按频道递增、`claim`、`complete→in_review`、互审 `approve/reject`、`reopen` 封锁）。
+  **不是** worksplice 的频道任务板（`#number` 按频道递增、`claim`、`complete→in_review`、状态权威 `approve/reject`、`reopen` 封锁）。
 - **命名**：TS 首字母大写（`Bash`），pi/worksplice 全小写（`bash`）——预设映射要重写。
 - **权限介入点**：TS 只有 `requireUserConfirm: boolean` + 一个**未实现的**引擎；
   worksplice 是**按调用解析绝对路径**的 `operations` 包装（`lib/tool-path-guard-extension.ts:146`）
@@ -438,7 +438,7 @@ ADR-0012 的沙箱判据落在**进程**（`lib/bash-containment.ts:250` 生成 
 ### Q6 Python 2.x 的 workspace/sandbox 后端清单与 service 层能力，vs worksplice 房间语义？
 
 **结论：后端清单很厚（8 个），service 层在「会话/消息/调度/团队」上有形态对应，
-但 worksplice 房间语义真正承重的那几条（频道 seq、消费游标、freshness、任务互审门）**没有对应物**。**
+但 worksplice 房间语义真正承重的那几条（频道 seq、消费游标、freshness、任务状态权威）**没有对应物**。**
 
 **workspace/sandbox 后端清单**（`R37` + `R32` 的 extra）：
 `LocalWorkspace`、`BubblewrapWorkspace`、`DockerWorkspace`、`E2BWorkspace`、`DaytonaWorkspace`、
@@ -459,8 +459,8 @@ ADR-0012 的「按端口 deny」**必须自建**，或接受语义降级。
 | 调度 | apscheduler + `ScheduleCreate/Delete/List/View` 工具 | reminder cron + recurrence DSL + 生命周期 log | **可部分委托** |
 | 持久化 | SQL（credentials/agents/sessions/teams/mcps/skills/channels/messages…）+ Redis + S3；`messages` PK `(session_id, msg_id)` | SQLite + `UNIQUE(target_id, seq)` + 4 套游标 + trigram FTS5 | **形状冲突**：Py 消息是「per-session 事件」，无频道级 seq |
 | channels | **外部平台机器人绑定**（`platform_bot_id` 全局唯一；`ChannelBinding{match_key,match_value,agent_id,session_scope}`） | 应用内协作频道（成员、`#all`、thread 锚点归一化、pin、reaction、未读） | **不同东西** |
-| team | `TeamPipeline`（leader + `TeamMember` + `TeamAssign`）；`teams` 表 | 频道成员 + 任务板 + 互审门 | **不同东西** |
-| 任务 | `TaskUpdate` 状态 `pending/completed/in_progress/deleted`（`tool/_task/_update_task.py:30-37`） | `todo→in_progress→in_review→done/closed` + 互审 + reopen 封锁 | **不同状态机** |
+| team | `TeamPipeline`（leader + `TeamMember` + `TeamAssign`）；`teams` 表 | 频道成员 + 任务板 + 任务状态权威 | **不同东西** |
+| 任务 | `TaskUpdate` 状态 `pending/completed/in_progress/deleted`（`tool/_task/_update_task.py:30-37`） | `todo→in_progress→in_review→done/closed` + 状态权威 + reopen 封锁 | **不同状态机** |
 | 游标 | `MessageBus` 的 `log_read`（读者各自维护游标）+ 频道 stream checkpoint | `consumed_seqs(agent,target,seq)`：**drain 不推进、ack 收口** | **不同语义** |
 
 **游标词汇的硬证据**：`grep -rniE "consumed_seq|read_seq|freshness|base_seq|max_seq" --include=*.py $PY2`

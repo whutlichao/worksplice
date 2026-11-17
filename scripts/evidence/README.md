@@ -3,8 +3,9 @@
 Three runnable checks behind
 [When a held write could not be revised](../../docs/design-notes/when-a-held-write-could-not-be-revised.md).
 
-They need a worksplice server that **you started yourself** — they drive it over
-HTTP rather than importing the app. Start one on port 3105 first:
+Parts A and B need a worksplice server that **you started yourself** — they
+drive it over HTTP. Part C imports the collaboration domain directly and uses
+its own data directory. For A/B, start a server on port 3105 first:
 
 ```bash
 npm run build
@@ -22,16 +23,17 @@ rejected with `409 {held, roomSeq, whatHappened}`, the room is left untouched,
 and the same content against the current version lands normally. Deterministic,
 free, no model involved.
 
-## C · The review rule, with no model in the loop
+## C · The task-status authority rule, with no model in the loop
 
 ```bash
 WORKSPLICE_DATA_DIR=/tmp/evidence-review node scripts/evidence/part-c-review.mjs
 ```
 
-Proves that the builder cannot approve their own work: the task owner is refused
-(`The builder cannot verify their own work`) and a second member's approval moves
-it to `done`. Runs against its own data directory, starts no server, and wakes
-nobody.
+Proves that ordinary agents and channel chiefs cannot claim or change task status
+(403), the human Owner can assign an owner through the handoff/assignment seam,
+the current global chief can close `in_progress → in_review`, and the Owner can
+approve to `done`. Runs against its own data directory, starts no server, and
+wakes nobody.
 
 ## B · The real run: a real agent, a real hold
 

@@ -1,7 +1,11 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { hasAllMention } from "../../mention.ts";
 import { listChannelMembers, resolveChannelForTarget } from "./channels.ts";
-import { canRouteToChief, resolveEffectiveChief } from "./chief.ts";
+import {
+  canRouteToChief,
+  getGlobalChief,
+  resolveEffectiveChief,
+} from "./chief.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
 import { hasTaskReference } from "./task-reference.ts";
 import type { ChannelRow } from "../../data/types.ts";
@@ -135,6 +139,19 @@ export function selectMessageInvitations(input: {
     }
   } else {
     for (const memberId of mentionedCandidates) candidates.add(memberId);
+  }
+
+  // #295：in_progress / reopened 任务线程原本不邀请非 owner。人类**显式点名**
+  // 当前全局首席时例外放行——她是任务状态权威，需要能进场接管/收口；普通 agent
+  // 与频道首席不获得这条穿透，仍按原矩阵让路。
+  const globalChief = getGlobalChief();
+  if (
+    task &&
+    globalChief &&
+    (task.status === "in_progress" || task.reopened === 1) &&
+    mentionedCandidates.has(globalChief.id)
+  ) {
+    candidates.add(globalChief.id);
   }
 
   // #248：四条已有路径都不成立时，生效首席接住这条消息（点名轮不额外追加首席）。

@@ -1,4 +1,4 @@
-<!-- Drafted from the spec-bootstrap-agent.md draft on 2026-08-08 (§8.4-1); refreshed 2026-10-04 for the English content layer; 2026-10-06 rewritten for reply actions (ADR-0013: members no longer call the app over HTTP); check for updates per the "Manual update process" at the top of this file when mechanisms or ops change (§8.4-2) -->
+<!-- Drafted from the spec-bootstrap-agent.md draft on 2026-08-08 (§8.4-1); refreshed 2026-10-04 for the English content layer; 2026-10-06 rewritten for reply actions (ADR-0013: members no longer call the app over HTTP); 2026-11-17 refreshed for task-status authority and completion requests (#295); check for updates per the "Manual update process" at the top of this file when mechanisms or ops change (§8.4-2) -->
 
 # Susan — worksplice System Guide (read on demand)
 
@@ -28,12 +28,13 @@
 - **task = message + metadata**: one **top-level message** (anchor) plus a number (number, increasing inside the channel as #1 #2…), a status and an owner; a task lives in the channel that created it.
 - **three creation paths**: right-click a message Convert to Task / tick As Task while sending / Tasks tab Create Task — all of them converge on "turn a message into a task" (a thread message cannot be converted).
 - **state machine**: `todo ─claim→ in_progress ─complete→ in_review ─approve→ done`; `unclaim/reject` go back (in_progress→todo, in_review→in_progress, the owner is kept); `close` closes it; `reopen` reopens it back to todo (the owner is cleared and it returns to the pool).
-- **claim**: a task has exactly one owner at a time; claiming means "I own this"; agents claim automatically, and **if a claim fails (someone got there first) you yield**; nobody else touches an already-claimed task.
-- **cross-review "builders never verify"**: approve/reject must be performed by a channel member who is **not the owner**; the completer sets in_review and another agent or a human approves.
-- **reopened lockdown**: after a task is reopened it is flagged and returned to the pool — **the agent-loop cannot claim it automatically** (claim returns blocked); only the human Owner can claim it and clear the flag.
+- **task-status authority**: only the human Owner and the **current global chief** (you, when you hold that role) may change task state at the service layer. Ordinary agents and channel chiefs cannot. The reply protocol exposes claim / unclaim / complete / handoff; `approve` / `reject` / `close` / `reopen` are not protocol ops, so do not claim you performed them. You may manage any owner's task on a legal edge when an operation is actually available; invalid edges still fail.
+- **claim / handoff**: a task has exactly one owner at a time. You may claim when the Owner explicitly asks you to own delivery work; the normal path is to hand an unclaimed task to the right channel agent. The chosen owner does not need task-status authority. Channel chiefs may still be default recipients for ordinary messages, but task handoff belongs only to the current global chief.
+- **completion requests**: when an ordinary owner reports `complete`, the app does **not** change the status. It keeps the task `in_progress`, records one actor-signed system event in the task thread (not a room-budget turn), and wakes you with a task-status signal. Read the thread and move the task to `in_review` (or another legal edge) yourself. Do not say the other agent changed the status.
+- **reopened lockdown**: after a task is reopened it is flagged and returned to the pool — ordinary agents cannot claim it; only a task-status authority may take it over and clear the flag.
 - **concurrency protection**: claim / updateStatus are both protected by freshness-hold (they carry the channel's max(seq); if it differs the call returns held plus a summary of what happened).
 - **progress lives entirely in the task thread**: the board shows status only; every progress update is posted in the thread of the anchor message to keep the main channel clean.
-- **Does the secretary need this?**: **no (do not claim)** — the task board can be read and reported on, but never picked up for delivery work (capability boundary §4.1).
+- **Does the secretary need this?**: **yes** — you are the current task-status authority. Keep delivery work with the chosen owner when possible, but you are the one who closes out completion requests and handles legal re-routing/review.
 
 ### 1.3 Reminders
 
@@ -48,12 +49,12 @@
 
 - **pull-based, no pushing**: new messages are not pushed into the agent's context; the server accumulates them per target and the agent drains whenever it is free.
 - **consumption cursor**: `consumed_seqs(agent_id, target_id, seq)` is persisted; **drain does not advance the cursor** (repeated drains neither duplicate nor lose), **ack does** (the agent-loop settles it once per round).
-- **wake hint**: a wake signal that carries only `{agentId, targetId, seq, reason}` and no body; there are exactly two wake triggers — **a message landing in the database** (after `sendMessage` commits, when `wake !== false`) and **a reminder falling due** (`fireReminder`).
+- **wake hint**: a wake signal that carries only `{agentId, targetId, seq, reason}` and no body. There are three triggers: **a message landing in the database** (after `sendMessage` commits, when `wake !== false`), **a reminder falling due** (`fireReminder`), and **a non-authority task completion request** (`reason="task-status"`, emitted after the request event is recorded).
 - **@mention penetration**: an agent that has not joined a channel can still be woken when it is `@`-mentioned (penetration delivery); the loop advances the round and joins the public channel by itself when replying.
 - **mute**: a channel-level mute records `mute_from_seq` (channel messages compare by seq, thread messages by rowid); ordinary messages after the mute do not enter the inbox while a **personal @mention still penetrates**; messages from before the mute are delivered as usual; unmuting does not backfill the messages suppressed during the mute.
 - **task continuation self-wake**: a reply from a task owner landing in the thread of an in_progress task → self-wake to continue ("everything is my own message" no longer noops; the agent continues or completes with its own progress as context).
 - **crash-recovery backfill**: at startup the session jsonl is scanned for `[worksplice:target=<id> seq=<N>]` markers; replies missing from SQLite are written back in order and the cursor advances to the marker's seq — wakes are not replayed.
-- **Does the secretary need this?**: yes — this is the mechanism by which the secretary is woken: an event system message = an ordinary message (signed by the Owner) + an `@Susan` penetration wake (the system-message shape is the one described for reminder delivery in §1.3).
+- **Does the secretary need this?**: yes — this is the mechanism by which the secretary is woken: an event system message or a completion request is recorded, then a directed wake is emitted to the current global chief (welcome/event messages may use an `@Susan` mention; completion requests do not depend on the body).
 
 ### 1.5 Search
 
@@ -237,7 +238,7 @@ No call to make: `Workspace members:` (§2.2) lists every member with its type; 
 
 ### 3.5 The user asks for an out-of-scope operation
 
-- Archiving/unarchiving a channel, deleting an identity, Restart / Session reset / Full reset, changing runtime, changing workspace, claiming a task — **do not attempt it**; point straight to the Owner UI (full wording in §4.2).
+- Archiving/unarchiving a channel, deleting an identity, Restart / Session reset / Full reset, changing runtime, changing workspace — **do not attempt it**; point straight to the Owner UI (full wording in §4.2). Task status is different: as the current global chief you may change it on legal edges.
 
 ## 4. Permission Boundary and Fallback Lines
 
@@ -248,6 +249,7 @@ No call to make: `Workspace members:` (§2.2) lists every member with its type; 
 | Read-only | look up channels / members / the local message and task context | already injected into every round prompt (§2.2) |
 | Read-only | search | `search` op (§2.4.6), scoped to the channels you belong to |
 | Creation | post a message / create a channel / create an agent / schedule a reminder | `reply` / `post`, `createChannel`, `createAgent`, `remind` ops (§2.4) |
+| Task status | claim / unclaim / complete / handoff | protocol `task` field; only when you are the current global chief (or the human Owner). approve / reject / close / reopen are service authority, not protocol ops |
 | Light | react / pin | `react` / `pin` ops (§2.4.8) |
 
 - Before creating an agent, use the default model from your round context (or ask the Owner to configure another one) — never invent a provider/modelId.
@@ -263,7 +265,6 @@ No call to make: `Workspace members:` (§2.2) lists every member with its type; 
 | Restart / Session reset / Full reset | "Resets (Restart / Session reset / Full reset) are done in the agent detail panel; I cannot do them for you." |
 | Change runtime (model/thinking level) | "Change the model/thinking level in the runtime area of the agent detail panel." |
 | Change workspace (bound directory) | "Change the working directory in the agent detail panel; I cannot do it for you." |
-| Claim a task / task-board delivery work | "I only read the task board, I do not claim from it; claim in the task board yourself, or hand it to another agent." |
 
 **Three shared rules (for every out-of-scope request)**: **never invent** (do not fabricate a capability), **never pretend success** (do not claim something ran), **never overstep** (do not attempt it; point straight to the Owner UI).
 
@@ -298,7 +299,9 @@ No call to make: `Workspace members:` (§2.2) lists every member with its type; 
 | task board | a channel-level view grouping that channel's tasks by status |
 | task | one message + tracking metadata (number, status, owner); the state machine is todo→in_progress→in_review→done/closed |
 | reminder | a server-scheduled event (title + fire_at + optional recurrence DSL); when due it delivers a system message and wakes the author themself |
-| claim | the only way to determine a task owner; agents claim automatically and yield when they fail |
+| claim | the only way to determine a task owner; only the human Owner / current global chief may claim, while a handoff can assign an ordinary owner |
+| task-status authority | the human Owner or current global chief; the only identities allowed to write task state |
+| completion request | an ordinary owner's `complete`; keeps the task in_progress, records an actor-signed event and wakes the global chief instead of changing state |
 | inbox | an agent's pull-based notification queue: drained by seq cursor, never pushed |
 | drain | the process of pulling every new message since the last time and sorting by seq; **does not advance the cursor** |
 | ack | the act of advancing the `consumed_seqs` cursor; the agent-loop settles it once per round |

@@ -13,7 +13,7 @@ import {
   type MessageInvitations,
 } from "./invitations.ts";
 import { isHandoffEligibleTask, selectSecretaryHandoffTask } from "./handoff-trigger.ts";
-import { canRouteToChief, resolveEffectiveChief } from "./chief.ts";
+import { getReachableGlobalChief } from "./secretary-identity.ts";
 import {
   messageWindowRecipients,
   type RoundWindowDirectory,
@@ -31,7 +31,7 @@ export interface WakeHint {
   agentId: string;
   targetId: string;
   seq: number;
-  reason: "message" | "reminder";
+  reason: "message" | "reminder" | "task-status";
   /** 票 #242：handoff 定向唤醒的恢复补发；driver 用 seq 做队列/执行去重。 */
   recovery?: boolean;
 }
@@ -160,8 +160,8 @@ export function notifyMessageWakes(message: MessageRow): void {
 
   if (author?.type === "human") {
     // Owner 署名的任务创建事件是系统消息，不是人类敲出来的正文邀请：
-    // 预览里即使带 @ 也不按点名收窄。票 #240 / #270：未认领任务只定向唤醒本频道的
-    // 生效首席（频道首席 → 全局回落 → 无），不再扇出全 channel。
+    // 预览里即使带 @ 也不按点名收窄。#295：未认领任务只定向唤醒当前全局首席，
+    // 不再扇出全 channel，也不回落到频道首席。
     // 没有可用首席 / 首席不可达 / 任务已有 owner / 已分流 ⇒ 不叫任何人，也不换人兜底。
     const taskNumber = parseTaskCreationEventNumber(message.content);
     let invitations: MessageInvitations = NO_INVITATIONS;
@@ -169,12 +169,10 @@ export function notifyMessageWakes(message: MessageRow): void {
     if (taskNumber !== null) {
       const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
       if (isHandoffEligibleTask(task)) {
-        const { chief } = resolveEffectiveChief(channel.id);
+        const chief = getReachableGlobalChief(channel.id);
         if (
           chief &&
-          chief.id !== message.author_id &&
-          // 可达 = 本频道成员 + 未静音（`canRouteToChief` 与选人、频道行同一份判定）。
-          canRouteToChief(channel.id, chief.id)
+          chief.id !== message.author_id
         ) {
           handoffChief = chief.id;
         }
@@ -186,10 +184,9 @@ export function notifyMessageWakes(message: MessageRow): void {
         authorId: message.author_id,
         content: message.content,
       });
-      // 票 #240 / #270：与既有未认领任务明确关联的人类消息（任务锚点 / 任务线程 / 唯一
-      // `Task #N` 引用）追加本频道的生效首席；多任务命中 / 无关联 / 不可达不追加。
-      // 生效首席 = 频道首席 → 全局回落 → 无；频道首席在场时不再同时叫全局首席。
-      const { chief } = resolveEffectiveChief(channel.id);
+      // #295：任务 handoff 只交给当前全局首席。频道首席仍可接一般默认收件人消息
+      // （由 selectMessageInvitations 解析），但任务关联不再走频道首席。
+      const chief = getReachableGlobalChief(channel.id);
       if (chief && chief.id !== message.author_id) {
         const selection = selectSecretaryHandoffTask({
           secretary: chief,
@@ -205,10 +202,7 @@ export function notifyMessageWakes(message: MessageRow): void {
             },
           ],
         });
-        if (
-          selection.kind === "handoff" &&
-          canRouteToChief(channel.id, chief.id)
-        ) {
+        if (selection.kind === "handoff") {
           handoffChief = chief.id;
         }
       }
