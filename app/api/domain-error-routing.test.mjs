@@ -215,6 +215,20 @@ test("no API route hand-maps unknown errors with instanceof Error", async () => 
   }
 });
 
+test("no API route hand-maps a known domain error class", async () => {
+  const names = TABLE.map((row) => row.name);
+  for (const file of discoverRouteFiles()) {
+    const source = await readFile(file, "utf-8");
+    for (const name of names) {
+      assert.doesNotMatch(
+        source,
+        new RegExp(`instanceof\\s+${name}\\b`),
+        `${file.pathname}: ${name} must be decoded by jsonError, not hand-mapped`,
+      );
+    }
+  }
+});
+
 test("jsonError keeps the route fallback for unknown errors (default 500)", async () => {
   const plain = await jsonError(new Error("boom")).json();
   assert.deepEqual(plain, { error: "boom" });
