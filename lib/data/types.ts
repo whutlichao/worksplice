@@ -156,7 +156,8 @@ export interface ReminderLogRow {
  * - chief：本频道生效的首席接住了一条无点名、不涉及任务的人类消息（#248）；
  * - task-owner / task-reviewer：任务线程 owner 续工 / 互审；
  * - task-event：任务创建事件旁的显式邀请；
- * - secretary-handoff：秘书（全局首席）下沉 handoff 的那一轮。
+ * - secretary-handoff：秘书（全局首席）下沉 handoff 的那一轮；
+ * - task-status-authority：任务状态权威被完成请求定向唤醒、进入进行中任务线程（#295）。
  */
 export type AdmissionRole =
   | "dm"
@@ -167,7 +168,8 @@ export type AdmissionRole =
   | "task-owner"
   | "task-reviewer"
   | "task-event"
-  | "secretary-handoff";
+  | "secretary-handoff"
+  | "task-status-authority";
 
 /** §07 轮次结果（Round Outcome）落盘行：一次有结论的 agent-loop 轮次。 */
 export interface RoundLogRow {

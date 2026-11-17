@@ -855,6 +855,7 @@ export const enLocale: LocalePlugin = {
     "observability.roundRole.task-reviewer": "Task reviewer",
     "observability.roundRole.task-event": "Task event",
     "observability.roundRole.secretary-handoff": "Secretary handoff",
+    "observability.roundRole.task-status-authority": "Task status authority",
     "observability.roundRole.none": "Not recorded",
     "detail.back": "Back to channels",
   },

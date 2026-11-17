@@ -1,7 +1,7 @@
 import { getDb } from "../../data/db-singleton.ts";
 import { isChannelMember } from "./channels.ts";
-import { isEffectiveChiefForChannel } from "./chief.ts";
 import { parseTaskCreationEventNumber } from "./invitations.ts";
+import { isSecretaryMember } from "./secretary-identity.ts";
 import { parseTaskReferenceNumbers } from "./task-reference.ts";
 import { isTaskActionableForActor } from "./admission.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../../data/types.ts";
@@ -66,8 +66,8 @@ function isHumanMessage(message: HandoffTriggerMessage): boolean {
 }
 
 /**
- * 从本轮新消息里选出唯一的首席 handoff 目标（这里的 `secretary` 指本频道的
- * **生效首席**：频道首席，或没有频道首席时的全局回落；不是「全局首席」同义词）。
+ * 从本轮新消息里选出唯一的 handoff 目标（`secretary` 只指**当前全局首席**）。
+ * 频道首席保留默认收件人职责，但不再获得任务 handoff 身份。
  * `messages` 必须是本轮 drain 的增量（不含 secretary 自己的消息）；旧消息不得伪装成新触发。
  */
 export function selectSecretaryHandoffTask(input: {
@@ -77,7 +77,7 @@ export function selectSecretaryHandoffTask(input: {
   messages: HandoffTriggerMessage[];
 }): SecretaryHandoffSelection {
   const { secretary, channel, targetId } = input;
-  if (!isEffectiveChiefForChannel(channel.id, secretary.id)) {
+  if (!isSecretaryMember(secretary)) {
     return { kind: "none", reason: "not-secretary" };
   }
   if (!isChannelMember(channel.id, secretary.id)) {

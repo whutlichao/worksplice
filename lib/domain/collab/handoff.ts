@@ -5,12 +5,11 @@ import {
   isChannelMember,
   listChannelMembers,
 } from "./channels.ts";
-import { isEffectiveChiefForChannel } from "./chief.ts";
 import { isHandoffEligibleTask } from "./handoff-trigger.ts";
 import { sendMessage } from "./messages.ts";
 import { getMember } from "./members.ts";
 import { isSecretaryMember } from "./secretary-identity.ts";
-import { claimTask, getTaskView, type TaskView } from "./tasks.ts";
+import { getTaskView, type TaskView } from "./tasks.ts";
 import { emitWake, type WakeHint } from "./wake.ts";
 import type {
   MemberRow,
@@ -20,13 +19,13 @@ import type {
 
 /**
  * 秘书自动 handoff 的写路径（票 #240）：
- * - 成功：同一事务里由 `claimTask` 写 owner + 任务线程通知 + `handoff_state='handed_off'`
+ * - 成功：同一事务里写 owner + 任务线程通知 + `handoff_state='handed_off'`
  *   + `handoff_seq=通知 seq` + `handoff_owner_id=chosen`；提交后只定向唤醒 chosen。
  * - blocked：无唯一合适人时不 claim、不广播；任务线程写短通知（候选 / 边界 / 必须回答的问题）
  *   与 `handoff_state='blocked'` 同事务提交，任务保持 todo、owner 空。
  * - 重复触发看到 handoff_state 即 no-op；并发 claim 由 claimTask 的 owner 唯一性裁决。
  *
- * 自动路径绝不把执行 handoff 的生效首席写成 owner：候选列表排除执行者，显式指定它
+ * 自动路径绝不把执行 handoff 的全局首席写成 owner：候选列表排除执行者，显式指定它
  * 也走 blocked。用户明确点名首席为 owner 时，走普通 `claimTask`（不经过本模块）。
  */
 
@@ -170,7 +169,7 @@ function candidateNames(candidates: MemberRow[]): string {
 }
 
 /**
- * 执行一次首席 handoff（`secretaryId` 指本频道的生效首席：频道首席或全局回落）。
+ * 执行一次任务 handoff（`secretaryId` 只接受**当前全局首席**；频道首席不再有该权限）。
  * 所有写入在单个事务内；wake 在提交后发出。
  * `deliverNotice` 是测试接缝：注入抛错时验证 owner / 标记 / 通知一起回滚。
  */
@@ -187,10 +186,10 @@ export function handoffTask(input: {
   const channel = getChannel(input.channelId);
   if (!channel) return { status: "noop", reason: "not_found" };
   const secretary = getMember(input.secretaryId);
-  if (!secretary || !isEffectiveChiefForChannel(channel.id, secretary.id)) {
+  if (!secretary || !isSecretaryMember(secretary)) {
     return {
       status: "denied",
-      reason: "handoff is reserved for the secretary",
+      reason: "handoff is reserved for the global chief",
     };
   }
   if (!isChannelMember(channel.id, secretary.id)) {
@@ -238,22 +237,18 @@ export function handoffTask(input: {
 
     if (resolution.chosen) {
       const chosen = resolution.chosen;
-      const claim = claimTask({
-        channelId: channel.id,
-        taskNumber: input.taskNumber,
-        memberId: chosen.id,
-        baseSeq: roomSeq,
-      });
-      if (claim.status === "held") {
-        return {
-          status: "held",
-          roomSeq: claim.roomSeq,
-          whatHappened: claim.whatHappened,
-        };
-      }
-      if (claim.status !== "claimed") {
+      // 被指派者不需要任务状态权威：handoff 是全局首席的授权写入，owner 只是归属。
+      // 事务内重新读取任务，保持“未认领 / 可分流”前置与并发安全。
+      const current = getDb().getTaskById(task.id);
+      if (!current || !isHandoffEligibleTask(current)) {
         return { status: "noop", reason: "task_not_open" };
       }
+      const claimed = getDb().updateTask(current.id, {
+        status: "in_progress",
+        ownerId: chosen.id,
+        reopened: 0,
+      });
+      if (!claimed) return { status: "noop", reason: "task_not_open" };
 
       const notice = deliverNotice({
         task,
@@ -270,7 +265,7 @@ export function handoffTask(input: {
       if (!updated) throw new Error("Task disappeared during handoff");
       return {
         status: "handed_off",
-        task: getTaskView(task.id),
+        task: getTaskView(claimed.id),
         chosen,
         notice,
         candidates,

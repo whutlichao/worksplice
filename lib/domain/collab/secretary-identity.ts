@@ -1,5 +1,6 @@
 import { SECRETARY_DEFAULT_NAME } from "../../secretary-name.ts";
 import { getGlobalChief } from "./chief.ts";
+import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import type { MemberRow } from "../../data/types.ts";
 
 /**
@@ -19,4 +20,16 @@ export function isSecretaryMember(
 ): boolean {
   if (!member || member.type !== "agent" || member.deleted === 1) return false;
   return getGlobalChief()?.id === member.id;
+}
+
+/**
+ * 任务状态权威（#295）的唯一判定：人类 Owner 或**当前**全局首席（秘书）。
+ *
+ * 这是任务写权限的唯一入口，不在 handler / prompt / UI 里另写一份。判定只看身份，
+ * 不看任务 owner、频道首席绑定或名字；全局首席换人 / 软删后立刻失效。
+ * 「任务 owner」只是归属，不等于状态写权——普通 owner 的完成动作走完成请求。
+ */
+export function isTaskStatusAuthority(memberId: string): boolean {
+  if (memberId === OWNER_MEMBER_ID) return true;
+  return getGlobalChief()?.id === memberId;
 }

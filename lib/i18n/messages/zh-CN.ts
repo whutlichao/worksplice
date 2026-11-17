@@ -819,6 +819,7 @@ export const zhCNLocale: LocalePlugin = {
     "observability.roundRole.task-reviewer": "任务互审",
     "observability.roundRole.task-event": "任务事件",
     "observability.roundRole.secretary-handoff": "秘书分流",
+    "observability.roundRole.task-status-authority": "任务状态权威",
     "observability.roundRole.none": "未记录",
     "detail.back": "返回频道",
   },

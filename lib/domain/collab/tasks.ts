@@ -6,6 +6,7 @@ import {
   CURRENT_MEMBER_ID,
 } from "./channels.ts";
 import { getMember } from "./members.ts";
+import { isTaskStatusAuthority } from "./secretary-identity.ts";
 import { notifyTaskCreated } from "./event-messages.ts";
 import {
   messageWithAuthor,
@@ -28,7 +29,7 @@ import { DomainError } from "../errors.ts";
  *   unclaim/reject 回退，done/closed 可 reopen 回池；
  * - 重开封锁：reopen 置 reopened 标记——agent-loop 不可自动认领（blocked），
  *   人类（CURRENT_MEMBER_ID）认领即接管并清除标记；
- * - 互审："构建者不验证"——approve/reject 必须由非 owner 的 channel 成员执行；
+ * - 写权：只有人类 Owner 与当前全局首席可变更状态；互审作为讨论约定，不再另开写权限；
  * - 并发保护：claim / updateStatus 均携带房间版本（channel max(seq)），
  *   事务内比对，不等返回 held（§6.3 与消息同语义）。
  */
@@ -108,44 +109,26 @@ export class TaskClaimConflictError extends DomainError {
  */
 function claimBlockReason(current: TaskRow, memberId: string): string | null {
   if (current.owner_id !== null) return "Task is already claimed";
-  if (current.reopened === 1 && memberId !== CURRENT_MEMBER_ID) {
+  if (current.reopened === 1 && !isTaskStatusAuthority(memberId)) {
     return "Task was reopened — awaiting the owner";
   }
   return null;
 }
 
 /**
- * 任务所在 channel 是否为 DM（票据 04 DM 特判：互审仅 Owner 可做）。
- * 锚点消息/channel 缺失时按非 DM 处理（有效任务必经 resolveTaskChannel 校验，此处防御性兜底）。
- */
-function isTaskInDM(task: TaskRow): boolean {
-  const anchor = getDb().getMessage(task.message_id);
-  if (!anchor) return false;
-  return getChannel(anchor.target_id)?.type === "dm";
-}
-
-/**
- * 状态机转移表（§3.7）：key = 当前状态，value = 可达状态 → 授权谓词。
+ * 状态机转移表（§3.7）：key = 当前状态，value = 合法落点。
  * clearOwner：转移后释放回池（unclaim/reopen）。
- * reopen：置 reopened 标记（重开封锁，§3.7）——agent-loop 不可自动认领，人类认领即清标。
- * 互审授权（§3.7）：approve/reject（in_review → done / in_progress）由非任务 owner 的审者执行——
- * "构建者不验证自己"。人类 Owner（CURRENT_MEMBER_ID）豁免：作为工作区唯一权威可批准/驳回
- * 自己的工作（其他角色仍需他人互审）——否则人类单独完成的 in_review 任务无人可审，卡死在该态。
- * DM 特判（票据 04，R5）：DM 内 approve/reject 仅人类 Owner 可做——agent 永不当审核者；
- * agent 建任务 complete→in_review 后由 Owner 审；Owner 建任务走人类豁免自审。
+ * reopen：置 reopened 标记（重开封锁，§3.7）——仅任务状态权威可认领接管并清标。
+ *
+ * 写权不在这张表里：`claimTask` / `updateTaskStatus` 已先复核 `isTaskStatusAuthority`。
+ * 合法边仍是唯一裁决者；权威不能发明 done → in_progress 之类的非法转移。
  */
-function reviewAuthorized(task: TaskRow, actorId: string): boolean {
-  if (isTaskInDM(task)) return actorId === CURRENT_MEMBER_ID;
-  return task.owner_id !== actorId || actorId === CURRENT_MEMBER_ID;
-}
-
 const TRANSITIONS: Record<
   TaskStatus,
   Partial<
     Record<
       TaskStatus,
       {
-        authorized: (task: TaskRow, actorId: string) => boolean;
         clearOwner?: boolean;
         reopen?: boolean;
       }
@@ -154,29 +137,22 @@ const TRANSITIONS: Record<
 > = {
   todo: {},
   in_progress: {
-    in_review: { authorized: (task, actorId) => task.owner_id === actorId },
+    in_review: {},
     todo: {
-      authorized: (task, actorId) => task.owner_id === actorId,
       clearOwner: true,
     },
-    closed: { authorized: () => true },
+    closed: {},
   },
   in_review: {
-    done: {
-      authorized: (task, actorId) =>
-        task.owner_id !== null && reviewAuthorized(task, actorId),
-    },
-    in_progress: {
-      authorized: (task, actorId) =>
-        task.owner_id !== null && reviewAuthorized(task, actorId),
-    },
-    closed: { authorized: () => true },
+    done: {},
+    in_progress: {},
+    closed: {},
   },
   done: {
-    todo: { authorized: () => true, clearOwner: true, reopen: true },
+    todo: { clearOwner: true, reopen: true },
   },
   closed: {
-    todo: { authorized: () => true, clearOwner: true, reopen: true },
+    todo: { clearOwner: true, reopen: true },
   },
 };
 
@@ -199,13 +175,14 @@ export function reachableStatuses(
   task: TaskRow,
   actorId: string,
 ): TaskStatus[] {
+  // 状态写权先于边：非权威 actor 即使碰巧是 owner 也没有任何可达落点。
+  if (!isTaskStatusAuthority(actorId)) return [];
   const transitions = TRANSITIONS[task.status];
-  const viaTable = (Object.keys(transitions) as TaskStatus[]).filter((to) =>
-    transitions[to]!.authorized(task, actorId),
-  );
+  // 权威可管理任意 owner 的任务：合法边由转移表本身决定，owner / 互审谓词不再
+  // 缩窄权威的可达集合（非法边仍由表缺失而无落点）。
+  const viaTable = Object.keys(transitions) as TaskStatus[];
   if (task.status !== "todo") return viaTable;
-  const claimable = task.reopened === 1 ? actorId === CURRENT_MEMBER_ID : true;
-  return claimable ? [...viaTable, "in_progress"] : viaTable;
+  return [...viaTable, "in_progress"];
 }
 
 function toTaskView(
@@ -322,6 +299,11 @@ export function claimTask(input: {
     input.channelId,
   );
   assertChannelMember(channelId, input.memberId);
+  if (!isTaskStatusAuthority(input.memberId)) {
+    throw new TaskNotAuthorizedError(
+      "Only the human Owner or current global chief can claim tasks",
+    );
+  }
 
   return getDb().withTransaction(() => {
     const roomSeq = getDb().maxSeq(channelId);
@@ -372,6 +354,11 @@ export function updateTaskStatus(input: {
     input.channelId,
   );
   assertChannelMember(channelId, input.memberId);
+  if (!isTaskStatusAuthority(input.memberId)) {
+    throw new TaskNotAuthorizedError(
+      "Only the human Owner or current global chief can change task status",
+    );
+  }
 
   return getDb().withTransaction(() => {
     const roomSeq = getDb().maxSeq(channelId);
@@ -412,19 +399,6 @@ export function updateTaskStatus(input: {
     const transition = TRANSITIONS[current.status]?.[input.status];
     if (!transition)
       throw new InvalidTaskTransitionError(current.status, input.status);
-    if (!transition.authorized(current, input.memberId)) {
-      if (current.status === "in_review") {
-        if (isTaskInDM(current)) {
-          throw new TaskNotAuthorizedError(
-            "In a DM, only the owner can approve or reject tasks",
-          );
-        }
-        throw new TaskNotAuthorizedError(
-          "The builder cannot verify their own work",
-        );
-      }
-      throw new TaskNotAuthorizedError("Only the task owner can do this");
-    }
     const updated = getDb().updateTask(current.id, {
       status: input.status,
       ownerId: transition.clearOwner ? null : undefined,

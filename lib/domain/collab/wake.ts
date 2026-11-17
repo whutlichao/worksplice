@@ -13,7 +13,7 @@ import {
   type MessageInvitations,
 } from "./invitations.ts";
 import { isHandoffEligibleTask, selectSecretaryHandoffTask } from "./handoff-trigger.ts";
-import { canRouteToChief, resolveEffectiveChief } from "./chief.ts";
+import { canRouteToChief, getGlobalChief } from "./chief.ts";
 import {
   messageWindowRecipients,
   type RoundWindowDirectory,
@@ -31,7 +31,7 @@ export interface WakeHint {
   agentId: string;
   targetId: string;
   seq: number;
-  reason: "message" | "reminder";
+  reason: "message" | "reminder" | "task-status";
   /** 票 #242：handoff 定向唤醒的恢复补发；driver 用 seq 做队列/执行去重。 */
   recovery?: boolean;
 }
@@ -169,7 +169,7 @@ export function notifyMessageWakes(message: MessageRow): void {
     if (taskNumber !== null) {
       const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
       if (isHandoffEligibleTask(task)) {
-        const { chief } = resolveEffectiveChief(channel.id);
+        const chief = getGlobalChief();
         if (
           chief &&
           chief.id !== message.author_id &&
@@ -186,10 +186,9 @@ export function notifyMessageWakes(message: MessageRow): void {
         authorId: message.author_id,
         content: message.content,
       });
-      // 票 #240 / #270：与既有未认领任务明确关联的人类消息（任务锚点 / 任务线程 / 唯一
-      // `Task #N` 引用）追加本频道的生效首席；多任务命中 / 无关联 / 不可达不追加。
-      // 生效首席 = 频道首席 → 全局回落 → 无；频道首席在场时不再同时叫全局首席。
-      const { chief } = resolveEffectiveChief(channel.id);
+      // #295：任务 handoff 只交给当前全局首席。频道首席仍可接一般默认收件人消息
+      // （由 selectMessageInvitations 解析），但任务关联不再走频道首席。
+      const chief = getGlobalChief();
       if (chief && chief.id !== message.author_id) {
         const selection = selectSecretaryHandoffTask({
           secretary: chief,
