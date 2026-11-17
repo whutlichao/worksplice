@@ -15,6 +15,7 @@ import {
   ack,
   agentHomePath,
   claimTask,
+  createRoundWindowDirectory,
   decideRoundAdmission,
   drain,
   extractMentionedMemberIds,
@@ -29,6 +30,8 @@ import {
   isChannelMember,
   isDM,
   isEffectiveChiefForChannel,
+  isTaskActionableForActor,
+  isTaskActionableForSomeActor,
   joinChannel,
   listAgents,
   listChannels,
@@ -41,7 +44,7 @@ import {
   recoverHandoffWakes,
   resolveTargetChannel,
   runPatrolOnce,
-  selectChiefRecipient,
+  selectRoundWindowSignals,
   selectSecretaryHandoffTask,
   sendMessage,
   subscribeWake,
@@ -51,7 +54,6 @@ import {
   type HandoffWakeEmitter,
   type PatrolRunResult,
 } from "../domain/collab/index.ts";
-import { hasAllMention } from "../mention.ts";
 import {
   publishAgentStatus,
   startAgentStatusSweeper,
@@ -59,6 +61,7 @@ import {
 import { BusyCwdError, getAgentRuntime } from "../agent-runtime.ts";
 import { MEMORY_FILE_NAME } from "../data/dirs.ts";
 import { OWNER_MEMBER_ID } from "../data/schema.ts";
+import { hasAllMention } from "../mention.ts";
 import type {
   ChannelRow,
   MemberRow,
@@ -1440,9 +1443,11 @@ function resolveTaskReplyRoute(input: {
   const taskNumber = taskCreationEventNumber(latest);
   if (taskNumber !== null) {
     const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
-    // 最新一条是创建事件但任务不存在或已 done/closed：按规范不路由，回频道；
-    // 不能落到 pending，否则会把答复投到另一个任务线程（F 的同类错误）。
-    if (!task || task.status === "done" || task.status === "closed") {
+    // 投递目标 ≠ 对某 actor 可行动：reopened 对 agent 不可行动，但回复的路由目标
+    // 仍必须指向任务线程（claim blocked 后不投任何消息，也绝不落回 channel，§3.7）。
+    // 「任务是否仍存在」取 `some actor` 档（人类是 agent 的超集），与旧的
+    // done/closed 判据等价；这里不能直接问「对本 agent 可行动」。
+    if (!task || !isTaskActionableForSomeActor(task)) {
       return null;
     }
     return {
@@ -1526,7 +1531,7 @@ function pendingTaskRoute(
       continue;
     }
     const task = getDb().getTaskByChannelNumber(channel.id, claim.taskNumber);
-    if (!task || task.status === "done" || task.status === "closed") {
+    if (!task || !isTaskActionableForActor(task, "agent")) {
       store.delete(key);
       continue;
     }
@@ -1560,26 +1565,59 @@ function hasPendingTaskClaim(agentId: string, channelId: string): boolean {
     if (claim.agentId !== agentId || claim.channelId !== channelId) continue;
     if (consumed >= claim.eventSeq) continue;
     const task = getDb().getTaskByChannelNumber(channelId, claim.taskNumber);
-    if (task && task.status !== "done" && task.status !== "closed") {
+    if (task && isTaskActionableForActor(task, "agent")) {
       return true;
     }
   }
   return false;
 }
 
-/** 本轮是否有可路由的创建事件（开放任务；done/closed 不算任务信号）。 */
-function hasRoutableTaskEvent(
+/**
+ * 本轮是否有可路由的创建事件（票 #276：对 **agent** 可行动才算任务信号；
+ * done / closed / reopened 都不算）。与准入的 `hasActionableTaskEvent` 共用
+ * `isTaskActionableForActor`，不再在这里手写「非 done/closed」。
+ */
+function hasTaskEventForActor(
   agentId: string,
   channel: ChannelRow,
   messages: MessageWithAuthor[],
+  actor: MemberType | "some",
 ): boolean {
   return messages.some((message) => {
     if (message.author_id === agentId) return false;
     const taskNumber = taskCreationEventNumber(message);
     if (taskNumber === null) return false;
     const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
-    return Boolean(task && task.status !== "done" && task.status !== "closed");
+    return actor === "some"
+      ? isTaskActionableForSomeActor(task)
+      : isTaskActionableForActor(task, actor);
   });
+}
+
+export function hasRoutableTaskEvent(
+  agentId: string,
+  channel: ChannelRow,
+  messages: MessageWithAuthor[],
+): boolean {
+  return hasTaskEventForActor(agentId, channel, messages, "agent");
+}
+
+/**
+ * 窗口停窗判据（窗口语义本身，票 #276 的窗口专属问法）：
+ * 窗口里是否有**任何 actor** 仍可行动的任务创建事件。
+ *
+ * 它与 `hasRoutableTaskEvent` 不是重复：停窗是时序边界，不是「当前 agent 能不能做」。
+ * reopened 事件对 agent 不开放，但仍要按既有窗口长度停下，随后由准入让路
+ *（频道事件不产生 agent 邀请；任务线程以 `taskReopened` 拒绝）。若改用
+ * actor-relative 口径，只含 reopened 事件的窗口会被静默 ack 越过，窗口长度与时序
+ * 就变了（违反本票 Constraints）。
+ */
+function hasWindowTaskEvent(
+  agentId: string,
+  channel: ChannelRow,
+  messages: MessageWithAuthor[],
+): boolean {
+  return hasTaskEventForActor(agentId, channel, messages, "some");
 }
 
 /** claim 失败的原因文案（自动路由与显式 claim 共用，避免两处分派漂移）。 */
@@ -2179,7 +2217,7 @@ function collectDrainWindow(input: {
       (hasMustRespondSignal(input.agentId, input.targetId, drained.messages) ||
         hasHumanAllMentionSignal(drained.messages) ||
         (input.targetId === input.channel.id &&
-          hasRoutableTaskEvent(input.agentId, input.channel, drained.messages)));
+          hasWindowTaskEvent(input.agentId, input.channel, drained.messages)));
     // 提醒轮必须扫到提醒消息所在的最后窗口；否则只会在旧窗口上白跑一次 prompt。
     const shouldPrompt = !drained.hasMore || signalWindow;
     if (shouldPrompt) {
@@ -2243,89 +2281,24 @@ export async function runAgentRound(
   // 人类正文点名 / @all 才产生新邀请；普通 agent 正文 @、引用 / 代码块 @ 不算；
   // 任务线程按任务快照裁决；reminder / owner 续工轮 bypass。
   const task = getDb().getTaskByMessageId(targetId);
-  const humanMessages = incoming.filter((message) => isHumanAuthor(message));
-  // 只认「本次新场次」的最新一条人类消息：旧消息里被跳过的点名留在 drain 里
-  // 是为了上下文完整，不得在后续轮次伪装成新邀请（例如 in_progress 被拒的点名
-  // 不能在 in_review 自动把 reviewer 叫起来）。场次本身也由最新人类消息开启。
-  const latestHuman = humanMessages.at(-1);
-  // 任务创建事件是系统消息：预览里即使带 @ 也不产生人类邀请（开放任务由
-  // hasOpenTaskEvent 单独裁决；done/closed 事件不叫任何人）。
-  const latestHumanIsTaskEvent = Boolean(
-    latestHuman && parseTaskCreationEventNumber(latestHuman.content) !== null,
-  );
-  const humanMentioned = Boolean(
-    latestHuman &&
-      !latestHumanIsTaskEvent &&
-      extractMentionedMemberIds(latestHuman.content).includes(agent.id),
-  );
-  // 最新一条人类消息若是任务创建事件，事件本身不继承此前正文的 @all；
-  // 否则窗口内的 @all 不能被后续无点名正文覆盖（#237）。
-  const humanAllMentioned =
-    !latestHumanIsTaskEvent && hasHumanAllMentionSignal(incoming);
-  // 互审触达（#270）：只认任务 owner 是 agent、当前 agent 是频道成员，且本轮 drain
-  // 里**最新一条 owner 消息**点名了当前 agent。owner 的收束语 / 签退仍不算新邀请。
-  const taskOwnerId = task?.owner_id ?? null;
-  const taskOwnerMember =
-    taskOwnerId === null ? undefined : getDb().getMember(taskOwnerId);
-  const latestTaskOwnerMessage =
-    taskOwnerId === null
-      ? undefined
-      : [...incoming]
-          .reverse()
-          .find((message) => message.author_id === taskOwnerId);
-  const taskOwnerMentioned = Boolean(
-    isMember &&
-      task &&
-      task.status === "in_review" &&
-      task.owner_id !== agent.id &&
-      taskOwnerMember?.type === "agent" &&
-      taskOwnerMember.deleted !== 1 &&
-      isChannelMember(channel.id, taskOwnerMember.id) &&
-      latestTaskOwnerMessage &&
-      extractMentionedMemberIds(latestTaskOwnerMessage.content).includes(agent.id) &&
-      !isPeerCloseText(latestTaskOwnerMessage.content),
-  );
-  const hasOpenTaskEvent =
-    targetId === channel.id &&
-    incoming.some((message) => {
-      if (!isHumanAuthor(message)) return false;
-      const taskNumber = parseTaskCreationEventNumber(message.content);
-      if (taskNumber === null) return false;
-      const eventTask = getDb().getTaskByChannelNumber(channel.id, taskNumber);
-      return Boolean(
-        eventTask &&
-          eventTask.status !== "done" &&
-          eventTask.status !== "closed" &&
-          eventTask.reopened === 0,
-      );
-    });
-  // 人类在任务锚点上已经直接点名本 agent / @all：这是显式邀请，不是事件预览里的 @。
-  // 任务事件本身仍只唤醒秘书；只有「同一轮 drain 里能看到这个锚点」时才沿用直接邀请。
-  const latestTaskEvent =
-    targetId === channel.id
-      ? [...incoming]
-          .reverse()
-          .find(
-            (message) =>
-              isHumanAuthor(message) &&
-              parseTaskCreationEventNumber(message.content) !== null,
-          )
-      : undefined;
-  const taskEventAnchorInvited = (() => {
-    if (!latestTaskEvent) return false;
-    const taskNumber = parseTaskCreationEventNumber(latestTaskEvent.content);
-    if (taskNumber === null) return false;
-    const eventTask = getDb().getTaskByChannelNumber(channel.id, taskNumber);
-    if (!eventTask) return false;
-    const anchor = incoming.find(
-      (candidate) => candidate.id === eventTask.message_id,
-    );
-    if (!anchor || !isHumanAuthor(anchor)) return false;
-    return (
-      extractMentionedMemberIds(anchor.content).includes(agent.id) ||
-      hasAllMention(anchor.content)
-    );
-  })();
+  // 票 #276：窗口级「叫谁、以什么角色进来」全部下沉协作域（admission.ts）；
+  // 这里只装配 drain 现场快照，不再手写点名 / @all / 任务事件 / 首席判定。
+  const {
+    humanMentioned,
+    humanAllMentioned,
+    taskOwnerMentioned,
+    hasActionableTaskEvent,
+    taskEventAnchorInvited,
+    chiefInvited,
+  } = selectRoundWindowSignals({
+    messages: incoming,
+    channel,
+    targetId,
+    task: task ?? null,
+    actor: { id: agent.id, type: "agent", isMember },
+    directory: createRoundWindowDirectory(),
+    isPeerCloseText,
+  });
   // 票 #240 / #270：任务 handoff 只自动准入本频道的生效首席——频道首席在场时不再叫
   // 全局回落首席。多任务命中、无关联、任意闲聊、已分流、已有 owner、reopened 都由触发判定拒绝。
   const isEffectiveChief = isEffectiveChiefForChannel(channel.id, agent.id);
@@ -2363,20 +2336,6 @@ export async function runAgentRound(
         secretaryId: agent.id,
       })
     : [];
-  // #248 / #250：生效首席（频道首席 → 全局首席）接住「无点名、无 @all、不涉及任务」的人类消息。
-  // 判定与 wake / beginTurn 共用同一份（selectChiefRecipient），这里只问「这一轮我是不是那个首席」。
-  // 涉及任务的人类消息（唯一 `Task #N` 引用 / 任务锚点 / 任务线程）**不归任何首席**：
-  // 它们在选人层就被排除（`task-reference.ts` 与 handoff 触发共用一份解析），
-  // 照旧只按 secretary-handoff 准入（useRoomGate: false，不被房间门拦下），
-  // 否则频道首席≠全局首席时，那条消息会被 chief 分支叫错人。
-  const chiefInvited = Boolean(
-    latestHuman &&
-      selectChiefRecipient({
-        channel,
-        targetId,
-        content: latestHuman.content,
-      }) === agent.id,
-  );
   const admission = decideRoundAdmission({
     agentId,
     isDM: isDM(targetId),
@@ -2394,7 +2353,7 @@ export async function runAgentRound(
     humanMentioned,
     humanAllMentioned,
     taskOwnerMentioned,
-    hasOpenTaskEvent,
+    hasActionableTaskEvent,
     chiefInvited,
     isEffectiveChief,
     secretaryHandoff: Boolean(handoffTargetTask),
@@ -2411,7 +2370,7 @@ export async function runAgentRound(
       !isDM(targetId) &&
       reason !== "reminder" &&
       isMember &&
-      !hasOpenTaskEvent);
+      !hasActionableTaskEvent);
   const roomGate = roomGateApplicable
     ? roomTurns.gate({
         channelId: channel.id,

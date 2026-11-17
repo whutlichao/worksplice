@@ -238,6 +238,8 @@ function recordRoomTurn(input: {
       authorId: input.authorId,
       content: input.message.content,
     });
+    // 票 #276：beginTurn 的第一波候选与 wake 同源——候选由
+    // `selectMessageInvitations` 单点给出；handoff 首席只进 wake，不进房间第一波。
     store.beginTurn({
       channelId: input.channelId,
       triggerSeq: input.message.seq,
