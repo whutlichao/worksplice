@@ -467,7 +467,7 @@ export function listChannelTasks(channelId: string): TaskView[] {
 
 export function getTaskView(id: string): TaskView {
   const task = getDb().getTaskById(id);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new DomainError(404, "task_not_found", "Task not found");
   const { anchor } = channelOfTask(task);
   return toTaskView(task, anchor);
 }

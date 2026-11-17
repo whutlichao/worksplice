@@ -13,8 +13,9 @@ import { DomainError, jsonError } from "../../lib/domain/errors.ts";
  * - 表里每一行 = 一个导出的领域错误类；新增 DomainError 子类不登记即红（动态发现 + 双向比对）。
  * - 有 HTTP 面可触达的类必须列出至少一条 route：该 route 的 catch 只能经 `jsonError` 译码，
  *   且不得出现把 unknown 拆成 `instanceof Error` 三分支的手写映射。
- * - 两个 agent-loop 专用类（RoomBudgetError / RoomPrivateChannelForbidden）今天没有任何
- *   HTTP route 会收到它们；表里显式记录（`notHttpReachable`），不伪造一条不存在的映射。
+ * - 三个没有真实 HTTP 面的类（MemberOperationDeniedError / RoomPrivateChannelForbidden /
+ *   RoomBudgetError）今天没有任何 route 会收到它们；表里显式记录（`notHttpReachable`），
+ *   不伪造一条不存在的映射。
  * - 行为面抽验：AgentNotFoundError / ReminderNotFoundError 各在两条真实 route 上返回同一状态码。
  */
 
@@ -131,7 +132,9 @@ const TABLE = [
     make: () => new collab.MemberOperationDeniedError("archiveChannel", "human only"),
     status: 403,
     code: "member_operation_denied",
-    routes: ["channels/[id]/archive/route.ts"],
+    routes: [],
+    notHttpReachable:
+      "archive route 恒传 CURRENT_MEMBER_ID（Owner），成员能力表对 Owner 放行；该错误只在 agent 身份调用服务层时抛。",
   },
   {
     name: "RoomPrivateChannelForbidden",
@@ -262,6 +265,8 @@ const membersGet = (await jiti.import("./members/[id]/route.ts")).GET;
 const inboxGet = (await jiti.import("./members/[id]/inbox/route.ts")).GET;
 const reminderGet = (await jiti.import("./reminders/[id]/route.ts")).GET;
 const reminderSnooze = (await jiti.import("./reminders/[id]/snooze/route.ts")).POST;
+const taskClaim = (await jiti.import("./tasks/[id]/claim/route.ts")).POST;
+const taskUpdateStatus = (await jiti.import("./tasks/[id]/update-status/route.ts")).POST;
 
 const params = (id) => ({ params: Promise.resolve({ id }) });
 
@@ -309,4 +314,27 @@ test("ReminderNotFoundError returns 404 + reminder_not_found from two different 
     error: "Reminder not found: missing",
     code: "reminder_not_found",
   });
+});
+
+test("missing tasks return 404 + task_not_found from claim and update-status (no 400 drift)", async () => {
+  const claim = await taskClaim(
+    new Request("http://localhost/api/tasks/missing/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+    params("missing"),
+  );
+  const update = await taskUpdateStatus(
+    new Request("http://localhost/api/tasks/missing/update-status", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "todo" }),
+    }),
+    params("missing"),
+  );
+  assert.equal(claim.status, 404);
+  assert.equal(update.status, 404);
+  assert.deepEqual(await claim.json(), { error: "Task not found", code: "task_not_found" });
+  assert.deepEqual(await update.json(), { error: "Task not found", code: "task_not_found" });
 });
