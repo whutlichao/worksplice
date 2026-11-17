@@ -91,12 +91,14 @@ export function selectSecretaryHandoffTask(input: {
 
   const associated = new Map<string, TaskRow>();
   const eligible = new Map<string, TaskRow>();
-  const consider = (task: TaskRow | undefined): void => {
-    if (!task) return;
+  const consider = (task: TaskRow | undefined): boolean => {
+    if (!task) return false;
     associated.set(task.id, task);
     if (isHandoffEligibleTask(task)) eligible.set(task.id, task);
+    return true;
   };
   let multipleReferences = false;
+  let latestHumanMessageAssociated = false;
 
   const threadTask =
     targetId !== channel.id ? getDb().getTaskByMessageId(targetId) : undefined;
@@ -105,25 +107,32 @@ export function selectSecretaryHandoffTask(input: {
   for (const message of humanMessages) {
     if (message.target_id !== channel.id) {
       // 任务线程：target 本身就是任务锚点；消息里的其他 Task #N 不改变归属。
-      consider(getDb().getTaskByMessageId(message.target_id));
+      latestHumanMessageAssociated = consider(
+        getDb().getTaskByMessageId(message.target_id),
+      );
       continue;
     }
 
     // 任务锚点本身（人类消息就是任务锚点时）。
-    consider(getDb().getTaskByMessageId(message.id));
+    let associatedMessage = consider(getDb().getTaskByMessageId(message.id));
 
     // 任务创建事件：事件号是唯一裁决依据；预览里出现的其他 Task #N 不算引用。
     const eventNumber = parseTaskCreationEventNumber(message.content);
     if (eventNumber !== null) {
-      consider(getDb().getTaskByChannelNumber(channel.id, eventNumber));
+      latestHumanMessageAssociated = consider(
+        getDb().getTaskByChannelNumber(channel.id, eventNumber),
+      );
       continue;
     }
 
     const references = parseTaskReferenceNumbers(message.content);
     if (references.length > 1) multipleReferences = true;
     for (const number of references) {
-      consider(getDb().getTaskByChannelNumber(channel.id, number));
+      associatedMessage =
+        consider(getDb().getTaskByChannelNumber(channel.id, number)) ||
+        associatedMessage;
     }
+    latestHumanMessageAssociated = associatedMessage;
   }
 
   if (multipleReferences || eligible.size > 1) {
@@ -131,7 +140,7 @@ export function selectSecretaryHandoffTask(input: {
   }
   const task = eligible.values().next().value as TaskRow | undefined;
   if (!task) {
-    if (associated.size === 1) {
+    if (associated.size === 1 && latestHumanMessageAssociated) {
       const only = associated.values().next().value as TaskRow;
       return {
         kind: "none",
