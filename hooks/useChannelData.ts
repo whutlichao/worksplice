@@ -837,6 +837,9 @@ function useChannelTasksData(
   const tasksCacheRef = useRef(new Map<string, ChannelTask[]>());
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
+  // 任务请求代际：动作后的 loadTasks 必须压过切频道时仍在路上的旧首包
+  // （拆分前由消息侧共享的 latestRequestRef 顺带保证，拆开后各数据集自持）。
+  const latestTasksRequestRef = useRef(0);
 
   const [tasks, setTasks] = useState<ChannelTask[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -852,16 +855,25 @@ function useChannelTasksData(
       setTasksLoading(false);
       return;
     }
+    const requestId = ++latestTasksRequestRef.current;
     void loadTasksPage(id)
       .then((rows) => {
-        if (channelIdRef.current !== id) return;
+        if (
+          latestTasksRequestRef.current !== requestId ||
+          channelIdRef.current !== id
+        )
+          return;
         tasksCacheRef.current.set(id, rows);
         setTasks(rows);
         setTasksError(null);
         setTasksLoading(false);
       })
       .catch((e) => {
-        if (channelIdRef.current !== id) return;
+        if (
+          latestTasksRequestRef.current !== requestId ||
+          channelIdRef.current !== id
+        )
+          return;
         setTasksError(e instanceof Error ? e.message : String(e));
         setTasksLoading(false);
       });
@@ -871,6 +883,7 @@ function useChannelTasksData(
   // 然后后台重拉收敛。
   useEffect(() => {
     const cid = channelId ?? "";
+    const requestId = ++latestTasksRequestRef.current;
     const cachedTasks = tasksCacheRef.current.get(cid);
     setTasks([]);
     setTasksError(null);
@@ -882,13 +895,23 @@ function useChannelTasksData(
     let cancelled = false;
     void loadTasksPage(cid)
       .then((rows) => {
-        if (cancelled || channelIdRef.current !== channelId) return;
+        if (
+          cancelled ||
+          latestTasksRequestRef.current !== requestId ||
+          channelIdRef.current !== channelId
+        )
+          return;
         tasksCacheRef.current.set(cid, rows);
         setTasks(rows);
         setTasksLoading(false);
       })
       .catch((e) => {
-        if (cancelled || channelIdRef.current !== channelId) return;
+        if (
+          cancelled ||
+          latestTasksRequestRef.current !== requestId ||
+          channelIdRef.current !== channelId
+        )
+          return;
         setTasksError(e instanceof Error ? e.message : String(e));
         setTasksLoading(false);
       });
