@@ -4,7 +4,7 @@
  * T-A 上游契约镜像：设计系统 token 真的进了产品，且没有被本仓偷偷改值。
  * T-B 旧名灭绝：旧方向的 token 名全仓 0 次，防「新代码新名、旧代码旧名」的双轨漂移。
  * T-C 骨架规则与文档一致性：0 圆角压制 / 2px ink 结构线 / 断点 900+1080 / reduce 收敛 /
- *     docs/spec.md §4 与 AGENTS.md 的契约段不漂移。
+ *     docs/spec.md §4 与 docs/css-variables.md、docs/file-map.md 的契约段不漂移。
  * T-D 渲染面：组件真的在消费新契约（markup 里出现新 token 名），不只是断言 CSS 源文本。
  */
 import assert from "node:assert/strict";
@@ -276,10 +276,11 @@ test("T-C: 有色 2px 结构线在 app/components/hooks 的源码里也为 0（�
   }
 });
 
-// ─── T-C 文档一致性：docs/spec.md §4 与 AGENTS.md 的契约段 ────────────────────
+// ─── T-C 文档一致性：docs/spec.md §4 与 CSS 变量 / File Map 文档 ───────────────
 
 const specUrl = new URL("../docs/spec.md", import.meta.url);
-const agentsUrl = new URL("../AGENTS.md", import.meta.url);
+const cssVariablesUrl = new URL("../docs/css-variables.md", import.meta.url);
+const fileMapUrl = new URL("../docs/file-map.md", import.meta.url);
 
 /** 取 `heading` 起、到下一个 `## ` 标题前的正文（markdown 章节）。 */
 function extractSection(markdown, heading) {
@@ -287,6 +288,17 @@ function extractSection(markdown, heading) {
   assert.notEqual(start, -1, `缺少章节 ${heading}`);
   const rest = markdown.slice(start + heading.length);
   const next = rest.search(/\n##\s/);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+/** 取 `heading` 起、到下一个同级或更高级标题前的正文（独立文档可能是 h1）。 */
+function extractHeadingSection(markdown, heading) {
+  const level = heading.match(/^#+/)?.[0].length;
+  assert.ok(level, `不是 markdown 标题：${heading}`);
+  const start = markdown.indexOf(heading);
+  assert.notEqual(start, -1, `缺少章节 ${heading}`);
+  const rest = markdown.slice(start + heading.length);
+  const next = rest.search(new RegExp(`\\n#{1,${level}}\\s`));
   return next === -1 ? rest : rest.slice(0, next);
 }
 
@@ -324,9 +336,10 @@ test("T-C: docs/spec.md §4 不再出现退役色值与旧契约标记", async (
   assert.match(section, /Tailwind 已删除/);
 });
 
-test("T-C: AGENTS.md 的 CSS 变量段列的是当前契约名", async () => {
-  const agents = await readFile(agentsUrl, "utf8");
-  const section = extractSection(agents, "## CSS Variables");
+test("T-C: docs/css-variables.md 的 CSS 变量段列的是当前契约名", async () => {
+  // 契约段自 PR #280 起住在 docs/css-variables.md；断言集合原样保留，只换来源文件。
+  const cssVariables = await readFile(cssVariablesUrl, "utf8");
+  const section = extractHeadingSection(cssVariables, "# CSS Variables");
   const requiredTokens = [
     "--bg",
     "--surface",
@@ -360,21 +373,26 @@ test("T-C: AGENTS.md 的 CSS 变量段列的是当前契约名", async () => {
     assert.match(
       section,
       tokenPattern(token),
-      `AGENTS.md CSS 变量段缺 ${token}`,
+      `docs/css-variables.md CSS 变量段缺 ${token}`,
     );
   }
   // 已退役的 token 只允许出现在「退役」说明行；把它们重新列为现行契约名即红。
   for (const line of section.split("\n")) {
     for (const name of RETIRED_TOKEN_NAMES) {
       if (!tokenPattern(name).test(line)) continue;
-      assert.match(line, /退役/, `AGENTS.md CSS 变量段把退役 token ${name} 当作现行名：${line}`);
+      assert.match(
+        line,
+        /退役/,
+        `docs/css-variables.md CSS 变量段把退役 token ${name} 当作现行名：${line}`,
+      );
     }
   }
 });
 
-test("T-C: AGENTS.md File Map 不再指向已删除的旧头像组件", async () => {
-  const agents = await readFile(agentsUrl, "utf8");
-  const section = extractSection(agents, "## File Map");
+test("T-C: docs/file-map.md 的 File Map 不再指向已删除的旧头像组件", async () => {
+  // 文件地图自 PR #280 起住在 docs/file-map.md；三条语义断言原样保留，只换来源文件。
+  const fileMap = await readFile(fileMapUrl, "utf8");
+  const section = extractHeadingSection(fileMap, "# File Map");
   assert.doesNotMatch(section, /PixelAvatar/);
   assert.match(section, /^\s*Avatar\.tsx\s/m);
   assert.doesNotMatch(section, /马卡龙 × brutalist/);
