@@ -837,9 +837,10 @@ function useChannelTasksData(
   const tasksCacheRef = useRef(new Map<string, ChannelTask[]>());
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
-  // 任务请求代际：动作后的 loadTasks 必须压过切频道时仍在路上的旧首包
-  // （拆分前由消息侧共享的 latestRequestRef 顺带保证，拆开后各数据集自持）。
-  const latestTasksRequestRef = useRef(0);
+  // 任务动作代际：任务动作成功后的强制刷新递增它，使动作前发出的首包/轮询响应失效。
+  // 消费者的普通 loadTasks 不递增（ChannelView 切频道也会调一次），否则会作废
+  // hook 自己已成功返回的切频道首包。
+  const tasksEpochRef = useRef(0);
 
   const [tasks, setTasks] = useState<ChannelTask[]>([]);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -855,13 +856,11 @@ function useChannelTasksData(
       setTasksLoading(false);
       return;
     }
-    const requestId = ++latestTasksRequestRef.current;
+    if (channelIdRef.current !== id) return;
+    const epoch = tasksEpochRef.current;
     void loadTasksPage(id)
       .then((rows) => {
-        if (
-          latestTasksRequestRef.current !== requestId ||
-          channelIdRef.current !== id
-        )
+        if (tasksEpochRef.current !== epoch || channelIdRef.current !== id)
           return;
         tasksCacheRef.current.set(id, rows);
         setTasks(rows);
@@ -869,21 +868,26 @@ function useChannelTasksData(
         setTasksLoading(false);
       })
       .catch((e) => {
-        if (
-          latestTasksRequestRef.current !== requestId ||
-          channelIdRef.current !== id
-        )
+        if (tasksEpochRef.current !== epoch || channelIdRef.current !== id)
           return;
         setTasksError(e instanceof Error ? e.message : String(e));
         setTasksLoading(false);
       });
   }, [channelId]);
 
+  // 动作后的强制刷新：旧频道迟到的动作不得递增当前频道的代际（否则会作废新频道首包）。
+  const refreshTasks = useCallback(() => {
+    const id = channelId;
+    if (!id || channelIdRef.current !== id) return;
+    tasksEpochRef.current += 1;
+    loadTasks();
+  }, [channelId, loadTasks]);
+
   // 切换频道：旧频道任务先清空（messages tab 右键 Convert 判定依赖），命中缓存再覆盖，
   // 然后后台重拉收敛。
   useEffect(() => {
     const cid = channelId ?? "";
-    const requestId = ++latestTasksRequestRef.current;
+    const epoch = tasksEpochRef.current;
     const cachedTasks = tasksCacheRef.current.get(cid);
     setTasks([]);
     setTasksError(null);
@@ -897,7 +901,7 @@ function useChannelTasksData(
       .then((rows) => {
         if (
           cancelled ||
-          latestTasksRequestRef.current !== requestId ||
+          tasksEpochRef.current !== epoch ||
           channelIdRef.current !== channelId
         )
           return;
@@ -908,7 +912,7 @@ function useChannelTasksData(
       .catch((e) => {
         if (
           cancelled ||
-          latestTasksRequestRef.current !== requestId ||
+          tasksEpochRef.current !== epoch ||
           channelIdRef.current !== channelId
         )
           return;
@@ -925,9 +929,12 @@ function useChannelTasksData(
   usePollingResource({
     scopeKey: channelId,
     intervalMs: CHANNEL_POLL_MS,
-    load: (cid) => loadTasksPage(cid),
-    merge: (rows, cid) => {
-      if (channelIdRef.current !== cid) return;
+    load: (cid) => {
+      const epoch = tasksEpochRef.current;
+      return loadTasksPage(cid).then((rows) => ({ rows, epoch }));
+    },
+    merge: ({ rows, epoch }, cid) => {
+      if (tasksEpochRef.current !== epoch || channelIdRef.current !== cid) return;
       setTasks((current) => {
         const refreshed = mergeTaskPollRows(current, rows);
         if (refreshed !== current) tasksCacheRef.current.set(cid, refreshed);
@@ -964,7 +971,7 @@ function useChannelTasksData(
         } else if (result.kind === "conflict" || result.kind === "blocked") {
           setTasksError(result.reason);
         }
-        loadTasks();
+        refreshTasks();
         reloadMessages();
       } catch (e) {
         setTasksError(e instanceof Error ? e.message : String(e));
@@ -978,7 +985,7 @@ function useChannelTasksData(
       setBusyAction,
       setHeldNotice,
       getChannelSeq,
-      loadTasks,
+      refreshTasks,
       reloadMessages,
       t,
     ],
@@ -1014,7 +1021,7 @@ function useChannelTasksData(
         } else if (result.kind === "conflict" || result.kind === "blocked") {
           setTasksError(result.reason);
         }
-        loadTasks();
+        refreshTasks();
         reloadMessages();
       } catch (e) {
         setTasksError(e instanceof Error ? e.message : String(e));
@@ -1028,7 +1035,7 @@ function useChannelTasksData(
       setBusyAction,
       setHeldNotice,
       getChannelSeq,
-      loadTasks,
+      refreshTasks,
       reloadMessages,
       t,
     ],
@@ -1078,13 +1085,13 @@ function useChannelTasksData(
             ? t("tasks.created", { number: String(created.number) })
             : `task #${created.number}`,
         );
-        loadTasks();
+        refreshTasks();
         reloadMessages();
       } catch (e) {
         setTasksError(e instanceof Error ? e.message : String(e));
       }
     },
-    [channelId, loadTasks, reloadMessages, t],
+    [channelId, refreshTasks, reloadMessages, t],
   );
 
   // 04 票 / #275：任务转移入口按动作名收敛，动作名 → 请求与边表同源
