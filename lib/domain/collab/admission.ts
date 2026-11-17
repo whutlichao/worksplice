@@ -139,6 +139,16 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
             useRoomGate: false,
           };
         }
+        if (
+          input.canChangeTaskStatus &&
+          (input.humanMentioned || input.humanAllMentioned)
+        ) {
+          return {
+            admit: true,
+            role: input.humanMentioned ? "human-mention" : "all-mention",
+            useRoomGate: false,
+          };
+        }
         return owner
           ? { admit: true, role: "task-owner", useRoomGate: false }
           : { admit: false, reason: ROUND_SKIP_REASONS.taskOwnerOnly };
