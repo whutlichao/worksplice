@@ -622,25 +622,49 @@ export function buildReplyPrompt(input: {
   // 尾部（任务/语境/指令/marker）：任务与语境各有硬顶，指令骨架永不裁
   const lines: string[] = [];
   const shownTasks = input.tasks.slice(0, INJECTION_TASK_WINDOW);
-  const droppedTasks = input.tasks.length - shownTasks.length;
-  if (shownTasks.length > 0 && !input.joinBriefing) {
-    const taskLines: string[] = ["", "Related open tasks:"];
-    for (const task of shownTasks) {
-      const reopened = task.reopened
-        ? " — REOPENED, awaiting the owner: do not claim"
-        : "";
-      taskLines.push(
-        `- task #${task.number} [${task.status}] "${task.preview}" (owner: ${task.ownerName})${reopened}`,
-      );
-    }
-    // 票 08：任务被裁也要显式声明（不静默丢弃），回查走既有 search op
-    if (droppedTasks > 0) {
-      taskLines.push(
-        `（另有 ${droppedTasks} 条开放任务不在本轮注入中：需要时用 search op 回查）`,
-      );
-    }
-    lines.push(...clampLines(taskLines, INJECTION_TASK_CHARS));
+  // 票 #290：任务块是本轮为目标生成的开放任务全集（仅显式 omission 例外）。规则行放在条目前面，
+  // clampLines() 从尾部裁剪时先丢条目、后丢规则；任何被裁掉的条目都以显式计数交代，
+  // 保证「除显式 omitted-count 外就是完整开放集」在预算压力下仍然成立。
+  // joinBriefing 轮同样注入：简报负责入群语境，快照负责任务状态的唯一事实边界。
+  // 固定规则骨架约 500 字符；任务块整体仍受 INJECTION_TASK_CHARS 硬顶约束。
+  const taskLines: string[] = [
+    "",
+    "Related open tasks: live snapshot for this target (complete open set; explicit omissions counted below)",
+    "- Current task status comes ONLY from this live snapshot. Task statuses in earlier messages, tool outputs, and MEMORY.md may be stale — never repeat them as the current board.",
+    "- This snapshot is the complete open-task set for this target in this round, apart from any explicitly counted omissions below. A task not listed here and not covered by such an omission is not open (it is done or closed); never describe it as in_review.",
+  ];
+  if (shownTasks.length === 0) {
+    taskLines.push("- none — no task for this target is open.");
   }
+  const entryStartIndex = taskLines.length;
+  for (const task of shownTasks) {
+    const reopened = task.reopened
+      ? " — REOPENED, awaiting the owner: do not claim"
+      : "";
+    taskLines.push(
+      `- task #${task.number} [${task.status}] "${task.preview}" (owner: ${task.ownerName})${reopened}`,
+    );
+  }
+  // 票 08 + #290：窗口/预算裁掉的任务都显式计数（不静默丢弃），回查走既有 search op。
+  // 先为提示行预留字符，再按硬顶裁剪；这样提示行本身不会被 clampLines() 从尾部吞掉。
+  const omissionNotice = (count: number) =>
+    `- (${count} more open task(s) omitted from this snapshot; use the search op)`;
+  const noticeReserveChars =
+    input.tasks.length > 0 ? omissionNotice(input.tasks.length).length : 0;
+  const clampedTaskLines = clampLines(
+    taskLines,
+    INJECTION_TASK_CHARS - noticeReserveChars,
+  );
+  // clampLines() 只从尾部丢行：保留的任务条目必然是从 entryStartIndex 开始的连续前缀。
+  const listedTasks = Math.max(
+    0,
+    Math.min(shownTasks.length, clampedTaskLines.length - entryStartIndex),
+  );
+  const omittedTasks = input.tasks.length - listedTasks;
+  if (omittedTasks > 0) {
+    clampedTaskLines.push(omissionNotice(omittedTasks));
+  }
+  lines.push(...clampedTaskLines);
   if (input.context) {
     lines.push("");
     lines.push(`Workspace channels: ${formatChannelContext(input.context.channels)}`);
@@ -759,7 +783,7 @@ export function buildReplyPrompt(input: {
   );
   if (input.memoryFile) {
     lines.push(
-      `- Long-term memory: your memory file is at ${input.memoryFile}. Read it when you need context about who you are or ongoing work; after meaningful progress, update its "## Current work" section and clear it when the work is done. It survives session resets.`,
+      `- Long-term memory: your memory file is at ${input.memoryFile}. Read it when you need context about who you are or ongoing work, but its task statuses may be stale: the current task board is only what this round's live snapshot shows. After meaningful progress, update its "## Current work" section and clear it when the work is done. It survives session resets.`,
     );
   }
   lines.push(roomMarker(input.targetId, input.baseSeq));
@@ -2484,9 +2508,10 @@ export async function runAgentRound(
 
   publishAgentStatus(agent.id, "working");
   const relatedTasks = listRelatedTasks(targetId);
-  // 入群后还没有他人正文：只给有界简报（频道名/描述/开放任务短预览/水位），
-  // 不把入群前历史拼回来。真实提醒会先以作者本人署名落一条系统消息；它不算
-  // “他人新正文”，因此首次合法提醒仍必须拿到简报。已有他人正文时 tasks 仍走既有块。
+  // 入群后还没有他人正文：只给有界简报（频道名/描述/水位），不把入群前历史拼回来。
+  // 任务状态由 buildReplyPrompt 的 live snapshot 统一承载，简报不再自带任务预览。
+  // 真实提醒会先以作者本人署名落一条系统消息；它不算“他人新正文”，因此首次合法
+  // 提醒仍必须拿到简报。
   const hasOtherMemberBody = scanned.messages.some(
     (message) => message.author_id !== agent.id,
   );
@@ -2497,16 +2522,17 @@ export async function runAgentRound(
           channelDescription: channel.description,
           watermarkSeq: drained.consumedSeq,
           windowSeq: baseSeq,
-          tasks: relatedTasks,
+          // 任务列表由 buildReplyPrompt 的 live snapshot 统一承载；
+          // 同一轮不再让简报重复一份任务状态。
+          tasks: [],
         })
       : undefined;
-  const relatedTasksForPrompt = joinBriefing ? [] : relatedTasks;
   const prompt = buildReplyPrompt({
     agent,
     channel,
     messages:
       effectiveIncoming.length > 0 ? effectiveIncoming : scanned.messages,
-    tasks: relatedTasksForPrompt,
+    tasks: relatedTasks,
     targetId,
     baseSeq,
     memoryFile: agentMemoryFile(agent),
