@@ -1056,6 +1056,50 @@ test("ChannelView 任务板数据循环由 useChannelData 持有（04 票）", a
     assert.match(source, /reachable\.includes\(status\)/);
 });
 
+test("#286 切一次频道任务板只发一次 GET：只由 useChannelData 的切频道 effect 取数", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    const hookSource = await readFile(
+        new URL("../hooks/useChannelData.ts", import.meta.url),
+        "utf-8",
+    );
+
+    // 视图的 activeChannelId reset effect 仍在（局部态照常重置），但不再自己取任务板：
+    // 任务板首包只由 useChannelData 的切频道 effect 负责（同一个 GET 不能发两次）。
+    const resetEffectStart = source.indexOf(
+        "const activeChannelId = channel?.id;",
+    );
+    assert.notEqual(resetEffectStart, -1, "缺少 activeChannelId reset effect");
+    const resetEffectEnd = source.indexOf(
+        "}, [activeChannelId]);",
+        resetEffectStart,
+    );
+    assert.notEqual(resetEffectEnd, -1, "reset effect 未闭合");
+    const resetEffect = source.slice(resetEffectStart, resetEffectEnd);
+    assert.match(resetEffect, /setQuoting\(null\);/);
+    assert.match(resetEffect, /setStopNotice\(null\);/);
+    assert.doesNotMatch(resetEffect, /\bloadTasks\(\s*\)/);
+
+    // 视图侧只保留 Tasks tab 的主动刷新；任何第二处 loadTasks() 都会重新引入重复 GET。
+    assert.equal((source.match(/\bloadTasks\(\)/g) ?? []).length, 1);
+    assert.match(source, /if \(tab === "tasks"\) loadTasks\(\);/);
+
+    // hook 的切频道 effect：清空 → 命中缓存 → 后台重拉只取数一次，代际判据原样保留。
+    const hookEffectStart = hookSource.indexOf(
+        "// 切换频道：旧频道任务先清空",
+    );
+    assert.notEqual(hookEffectStart, -1, "缺少任务板切频道 effect");
+    const hookEffectEnd = hookSource.indexOf("}, [channelId]);", hookEffectStart);
+    assert.notEqual(hookEffectEnd, -1, "任务板切频道 effect 未闭合");
+    const hookEffect = hookSource.slice(hookEffectStart, hookEffectEnd);
+    assert.equal((hookEffect.match(/loadTasksPage\(/g) ?? []).length, 1);
+    assert.match(hookEffect, /setTasks\(\[\]\)/);
+    assert.match(hookEffect, /tasksCacheRef\.current\.get\(cid\)/);
+    assert.match(hookEffect, /tasksEpochRef\.current !== epoch/);
+});
+
 test("ChannelView 三处可见性同一数据源：新成员进 channelMemberIds 后 channelAgents/mentionable/composer 候选全含（#12 回归）", async () => {
     const { composerMentionCandidates } =
         await jiti.import("../lib/mention.ts");
