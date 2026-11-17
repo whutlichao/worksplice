@@ -209,114 +209,70 @@ dropped when it is actually queued for another attempt.
 
 ---
 
-## 4. The builder does not verify their own work
+## 4. Task status has one authority
 
 Tasks are anchored to a message and move through a state machine. The transition
-table in `lib/domain/collab/tasks.ts` maps each status to the reachable statuses,
-each with an authorization predicate:
+table in `lib/domain/collab/tasks.ts` now owns only the **legal edges**; write
+authority is a separate, global check:
 
 ```ts
-const TRANSITIONS: Record<TaskStatus, Partial<Record<TaskStatus, {
-  authorized: (task: TaskRow, actorId: string) => boolean;
-  clearOwner?: boolean;
-  reopen?: boolean;
-}>>> = {
-  todo: {},
-  in_progress: {
-    in_review: { authorized: (task, actorId) => task.owner_id === actorId },
-    todo:      { authorized: (task, actorId) => task.owner_id === actorId, clearOwner: true },
-    closed:    { authorized: () => true },
-  },
-  in_review: {
-    done:        { authorized: (task, actorId) =>
-                     task.owner_id !== null && reviewAuthorized(task, actorId) },
-    in_progress: { authorized: (task, actorId) =>
-                     task.owner_id !== null && reviewAuthorized(task, actorId) },
-    closed:      { authorized: () => true },
-  },
-  done:   { todo: { authorized: () => true, clearOwner: true, reopen: true } },
-  closed: { todo: { authorized: () => true, clearOwner: true, reopen: true } },
-};
+isTaskStatusAuthority(member) =
+  member is the human Owner
+  || member is the current global chief
 ```
 
-Two properties first.
+`claimTask`, `updateTaskStatus`, and `handoffTask` all consult that single helper
+before touching the database. Ordinary agents and channel chiefs get a 403
+`TaskNotAuthorizedError`; the task row and owner do not change. The current
+global chief can move any owner's task along a legal edge, including closing out
+an `in_progress` task owned by another agent.
 
-The graph is **not** fully connected. `in_progress → done` does not exist. An
-agent that finishes work cannot declare it finished; it can only move it to
-`in_review`. The shortest path from "started" to "done" passes through a second
-actor.
+The graph is still **not** fully connected. `in_progress → done` does not exist,
+and `updateTaskStatus` still rejects illegal edges. Authority does not invent
+transitions; it only decides who may execute an existing one. `todo →
+in_progress` is a claim, handled by `claimTask`; handoff uses
+`claimTaskForAssignee`, which shares the same owner-uniqueness and freshness
+rules while letting the authority assign an ordinary agent as owner.
 
-And the authorization is per-edge, not global. It is a predicate evaluated
-against the task row, so "who may do this" travels with "what this is". A client
-cannot skip the table, because `updateTaskStatus` consults `TRANSITIONS` inside
-the transaction, and the one edge the table deliberately omits — `todo →
-in_progress`, which is a claim, not a transition — is handled by `claimTask`
-instead, sharing its owner-uniqueness and reopen rules with the table's own
-edges through `claimBlockReason`.
+Why a global authority rather than per-task owner checks?
 
-Now the rule:
+- A task lifecycle must not change its closer because a channel chief was
+  renamed, replaced, or configured differently. The current global chief is a
+  workspace-level role; channel chiefs keep the ordinary default-recipient duty
+  but lose task status writes and handoff.
+- An ordinary owner cannot declare the task done. Its `complete` becomes a
+  completion request: the report stays in the task thread, one actor-signed
+  system event is recorded with `roomNotice: true` and `wake: false`, and only
+  the current global chief is woken with `reason="task-status"`. The chief then
+  moves `in_progress → in_review` if the report warrants it.
+- The shared reviver can still close the task when the owner is unavailable.
+  That is the point of a single authority: it prevents a non-Susan owner's
+  task from sitting forever in `in_progress`.
 
-```ts
-function reviewAuthorized(task: TaskRow, actorId: string): boolean {
-  if (isTaskInDM(task)) return actorId === CURRENT_MEMBER_ID;
-  return task.owner_id !== actorId || actorId === CURRENT_MEMBER_ID;
-}
-```
+The agent protocol currently exposes only `claim`, `unclaim`, `complete`, and
+`handoff`. The automatic completion path therefore ends at `in_review`;
+`approve`, `reject`, `close`, and `reopen` remain service-layer / human-UI
+operations, not protocol ops the model should claim it performed.
 
-**The builder does not verify their own work.** Approving or rejecting requires
-being a channel member who is *not* the task's owner. The `CURRENT_MEMBER_ID`
-escape hatch exists for a specific reason: the human owner is the single
-operator of most installs, and without an exemption a task the human completed
-alone would sit in `in_review` forever with nobody eligible to move it. The
-exemption is scoped and commented, not a general bypass.
-
-Why is this worth building? Because an agent asked to verify its own output is
-being asked the wrong question when nobody else is watching. The same model that
-produced the claim will produce the confirmation; it has no independent
-information to bring. The second actor is a structural substitute for that
-missing independence, not a quality gate left to the model's judgement. It is
-not free either: which is why the DM special case above says that in a
-one-to-one channel an agent is never the reviewer. A two-party setting makes the
-constraint unsatisfiable, so it degrades to "the human reviews" rather than
-quietly becoming a no-op.
-
-The same reasoning shows up in the UI. `reachableStatuses` in the same file
-returns the statuses the current actor may actually move a task to, and the
-board view highlights exactly those columns — the client never mirrors the
-transition table, so the two cannot drift.
+`reachableStatuses` is actor-relative: non-authorities get an empty set; the
+human Owner and current global chief see the legal edges from the current state.
+The board reads that projection and never mirrors the transition table.
 
 ---
 
-## 5. Reopening a task locks it against automation
+## 5. Reopening locks out everyone except the task authority
 
 `done → todo` and `closed → todo` are the only transitions flagged `reopen`.
 They clear the owner back to the pool *and* set a `reopened` flag on the task
-row. That flag does one thing:
+row. The authority pre-check runs first: ordinary agents and channel chiefs are
+rejected before claim logic; the human Owner or current global chief may take
+the task over and clear the flag. Agents cannot auto-claim a reopened task, and
+the agent loop yields rather than posting a status update.
 
-```ts
-function claimBlockReason(current: TaskRow, memberId: string): string | null {
-  if (current.owner_id !== null) return "Task is already claimed";
-  if (current.reopened === 1 && memberId !== CURRENT_MEMBER_ID) {
-    return "Task was reopened — awaiting the owner";
-  }
-  return null;
-}
-```
-
-A reopened task cannot be auto-claimed by an agent. The agent loop's
-`runTaskOperation` treats this as a `yielded` round outcome and stands down. A
-human claiming it takes over and clears the flag, at which point agents can
-compete for it again.
-
-Read this as a threat model, not a workflow preference. Reopening a task is a
-statement that something about the previous completion was wrong — the automated
-verification that said it was fine was wrong, or the environment moved. The
-system that produced that wrong verdict is the same system now being offered the
-chance to retry. The lock is the system's way of declining to grade its own
-make-up exam.
-
-That is a *flag on state*, not a workflow rule in the prompt — enforced in the
-same transaction as the claim, so it cannot be talked past.
+Reopening is a statement that the previous completion was wrong. Handing the
+same decision back to the same non-authority actor would just replay the mistake.
+The flag is state, enforced inside the claim transaction — not a prompt rule that
+can be talked past.
 
 ---
 
@@ -421,18 +377,18 @@ a bug in a cursor or a backfill path does not reset your world.
   sections 1–5 is coordination overhead with no work to coordinate.
 - Your agents run once and exit. The cursor, the ack discipline, the backfill
   path — none of it earns its keep. A fresh process can read everything.
-- You cannot staff the review. Cross-review in section 4 assumes a second
-  eligible actor exists. If your agents are the only participants, you have
-  built a lock, not a review, and the honest thing is to not build the state
-  machine either.
+- You cannot designate a task-status authority. Section 4 assumes a human Owner
+  or a current global chief who can close completion requests. If nobody owns
+  that role, you have built a queue with no closer — do not pretend the state
+  machine is doing task authority.
 - You want parallelism on one checkout. These semantics are deliberately serial
   per workspace. Real parallelism is worktrees, a different mechanism entirely.
 - You are optimising for a demo. This is a lot of surface to get subtly wrong,
   and `tsc --noEmit` passing tells you nothing about whether an agent will
-  double-approve its own work.
+  believe it changed a status the service never authorized.
 
 If you do build it, build the four things first — cursor, freshness check, state
-machine, review constraint — and leave wake hints, reminders, reactions,
+machine, task-status authority — and leave wake hints, reminders, reactions,
 attachments, and full-text search for later. The first four make collaboration
 safe; everything after that is a product.
 

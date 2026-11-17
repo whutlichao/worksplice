@@ -21,7 +21,7 @@
 
 ### 1.1 愿景
 
-**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照同类 agent 协作工作区（Discord 式）：agent 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 agent 在同一个 channel / thread 里对话、在同一张任务板上分活与互审。
+**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照同类 agent 协作工作区（Discord 式）：agent 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 agent 在同一个 channel / thread 里对话、在同一张任务板上分活与状态收口。
 
 核心工作循环（一切协作的通用模式）：**describe → hand off → let it run → review**（描述 → 交接 → 让它跑 → 审查）。多 agent 协作 = 同一循环并行运行。
 
@@ -65,7 +65,7 @@
 |---|---|---|
 | channels / threads | 频道消息流 + 消息级线程；`#all` 内建 | **[锁定]** 04 |
 | 持久 agent | 每 agent 绑定一个 cwd、一个 pi session；名字/描述/角色跨会话稳定；三种重置粒度 | **[锁定]** 01、04 |
-| 任务板 | channel 级 Tasks tab；状态机 + 任务状态权威 + 完成请求 + 互审讨论 | **[锁定]** 03、05、#295 |
+| 任务板 | channel 级 Tasks tab；状态机 + 任务状态权威 + 完成请求 + 状态裁决讨论 | **[锁定]** 03、05、#295 |
 | inbox + 提醒 | agent 拉取式收件箱（seq 游标 + drain + wake）；reminder 服务端调度 + recurrence DSL | **[锁定]** 03、05 |
 | 历史与可观测性 | 消息即历史（不可变）；agent 详情面板：状态点 + token/成本 + 任务历史 | **[锁定]** 03、04、05 |
 | 消息增强 | emoji reaction、pinned、附件（≤50MB）、引用与 thread 修正 | **[展开]** 见 §3.3–3.5 |
@@ -174,7 +174,7 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 | **自动认领** | 只有**当前全局首席**在「本轮最新一条其他作者 incoming channel 消息是 Owner 发布、格式匹配 `Task #N created`、且任务无 owner」时可自动 claim。普通 agent / 频道首席的普通回复**不再自动 claim**：若按既有路由进入未认领或已认领任务线程，只作为参与者回复，不写状态。已持有任务时直接回线程；claim 因 freshness 返回 held 时同轮按 roomSeq 重试（上限 3 次），重试耗尽才让路且游标停在创建事件之前；同进程 pending 只对权威有意义。reopened 任务对非权威 agent 一律拒绝，权威可依法接管。最新一条不是创建事件、任务不存在或已 done/closed → 不路由，普通答复仍回频道；不得因频道存在开放任务就把普通回复改投线程，也不得批量认领历史开放任务。自动路由路径的频道顶层新增回复数为 0。 | **[锁定]** 03、#295 |
 | **完成请求** | 非权威任务 owner 提交 `{"task":{"number":N,"op":"complete"}}` 时不改状态：任务保持 `in_progress`，完成回复以 `wake:false` 落任务线程（不广播、不自醒），并追加一条 **actor 署名**的系统事件（`roomNotice:true` + `wake:false`，不占房间预算）。同一份完成报告至多一条事件；提交后服务端只定向唤醒**当前全局首席**（`WakeHint.reason="task-status"`）；一次报告至多一轮全局首席 prompt，不依赖正文 @，不惊醒频道首席或普通 agent。全局首席不存在 / 非频道成员 / 已静音 ⇒ 只留事件、不唤醒、不降级给频道首席，任务保持原状态。全局首席准入后可在合法边上把他人 owner 的 `in_progress` 收口到 `in_review`。 | **[锁定]** #295 |
 | **handoff** | 任务 handoff 的**自动触发**只交给当前全局首席；服务层写权按任务状态权威复核（人类 Owner 也是权威）。频道首席保留一般默认收件人职责，但不再获得任务 handoff 授权或 prompt 暗示。执行者必须是该频道成员，chosen 必须是合法候选；被指派 owner 不需要自己拥有状态权威。通知由实际执行者署名。 | **[锁定]** #295 |
-| 互审 | 状态写权只认任务状态权威；人类 Owner / 全局首席可 approve / reject 任意 owner 的任务，非法边仍拒绝。原「构建者不验证自己」保留为讨论与质量文化，但不再由普通 agent 持有的状态写权限承担。 | **[锁定]** 03、#295 |
+| 状态裁决 | 状态写权只认任务状态权威；人类 Owner / 全局首席可 approve / reject 任意 owner 的任务，非法边仍拒绝。原「构建者不验证自己」保留为讨论与质量文化，但不再由普通 agent 持有的状态写权限承担。 | **[锁定]** 03、#295 |
 | 并发保护 | claim / updateStatus 均受 freshness-hold 保护（§6.3） | **[锁定]** 03、05 |
 | 视图 | 每个 channel 一个 Tasks tab，按 status 分组展示；任务 thread 承载全部进展，board 只显示状态。`TaskView.reachable` 对非任务状态权威为空；对人类 Owner / 当前全局首席返回合法落点。 | **[锁定]** 03、#295 |
 

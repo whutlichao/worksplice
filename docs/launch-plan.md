@@ -80,7 +80,7 @@
 | W2（10-23） | 我们以为做对了，真实链路里它 100% 失败 | 失效报告 | 英 + **中（掘金）** | ✅ 长文已入库 |
 | W3（10-30） | 被唤醒的 agent 怎么知道自己错过了什么 | wake + 游标 | 英文 | 🟡 待拆章 |
 | W4（11-06） | 两个 agent 抢同一个文件 | freshness-hold 深挖 | 英 + **中（掘金）** | 🟡 待拆章 |
-| W5（11-13） | 谁有权宣布做完了；这套东西值不值 | 互审 + 重开封锁 + 成本与劝退 | 英文 | 🟡 待拆章，需真实成本数字 |
+| W5（11-13） | 谁有权宣布做完了；这套东西值不值 | 任务状态权威 + 完成请求 + 重开封锁 + 成本与劝退 | 英文 | 🟡 待拆章，需真实成本数字 |
 
 ## 6. 里程碑与失败判据
 
@@ -108,6 +108,6 @@
 
 ## 9. 附录：证据与复现
 
-- 三条语义各有可运行证明：`scripts/evidence/part-a-mechanism.sh`（hold，无模型）、`part-c-review.mjs`（互审，无模型）、`part-b-real-run.sh`（真实运行，需模型）。
+- 三条语义各有可运行证明：`scripts/evidence/part-a-mechanism.sh`（hold，无模型）、`part-c-review.mjs`（任务状态权威：普通 agent / 频道首席被拒，Owner / 全局首席收口，无模型）、`part-b-real-run.sh`（真实运行，需模型）。
 - 失效与修复的完整记录：`docs/design-notes/when-a-held-write-could-not-be-revised.md`。
 - 设计推理：`docs/design-notes/orchestrating-coding-agents.md`。
