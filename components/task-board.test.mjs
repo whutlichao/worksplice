@@ -626,6 +626,41 @@ test("TaskViews 工具条：.board-toolbar + .seg 分段控件（选中走 is-ac
     assert.doesNotMatch(boardSectionSource(), /rgba\(/);
 });
 
+test("仅看未读回复开关：开启态走选中族 token，hover/focus 不被普通 .btn 覆盖", () => {
+  const active = lastBlockBody(
+    globalsCss,
+    '.board-toolbar .btn[aria-pressed="true"]',
+  );
+  assert.match(active, /background:\s*var\(--selected-soft\)/);
+  assert.match(active, /border-color:\s*var\(--selected-graphic\)/);
+  assert.match(active, /color:\s*var\(--selected-deep\)/);
+
+  // `.btn:hover` 的灰底会盖掉未限定作用域的激活态；开启态必须自带
+  // 更高特异性的 hover 声明，继续留在选中族里。
+  const hover = lastBlockBody(
+    globalsCss,
+    '.board-toolbar .btn[aria-pressed="true"]:hover',
+  );
+  // hover 只在边界外加 1px 选中族 ring（graphic 是环/边界档；deep 只作文字）。
+  // 基础激活规则的 specificity（0,3,0）高于 `.btn:hover`（0,2,0），
+  // 因此这里不重复 background / color 声明。
+  assert.match(hover, /box-shadow:\s*0 0 0 1px var\(--selected-graphic\)/);
+  assert.doesNotMatch(hover, /--fg-soft/);
+  assert.doesNotMatch(hover, /--selected-deep/);
+  assert.doesNotMatch(hover, /background:/);
+
+  const focus = lastBlockBody(
+    globalsCss,
+    '.board-toolbar .btn[aria-pressed="true"]:focus-visible',
+  );
+  assert.match(focus, /outline-color:\s*var\(--selected-graphic\)/);
+
+  // 关闭态仍是普通 .btn：全局 hover 基线保持不动，激活规则只挂在
+  // `.board-toolbar` 作用域内的 aria-pressed=true 上。
+  assert.match(blockBody(globalsCss, ".btn:hover"), /background:\s*var\(--fg-soft\)/);
+  assert.doesNotMatch(globalsCss, /(?:^|\n)\s*\[aria-pressed/);
+});
+
 test("落点裁决仍在视图侧：drag-over / invalid-over 由 reachable 推导（行为零改动）", () => {
     // reachable 是行为（ADR-0002 的服务端裁决投影），视觉票只换它的表达方式：
     // 可达 → .drag-over、不可达 → .invalid-over，裁决表达式本身不动。

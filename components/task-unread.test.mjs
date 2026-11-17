@@ -128,7 +128,6 @@ test("unread-only List preserves all status groups and shows exact task details"
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
   assert.doesNotMatch(html, /task-unread-read/, "read Tasks are filtered out");
   assert.equal((html.match(/class="task-group"/g) ?? []).length, 5);
-  assert.match(html, /aria-pressed="true"/);
   assert.match(html, /Unread replies: 126/);
   assert.match(
     html,
@@ -137,6 +136,28 @@ test("unread-only List preserves all status groups and shows exact task details"
   for (const status of ["Pool", "In progress", "In review", "Done", "Closed"]) {
     assert.ok(html.includes(status), `filtered result should retain ${status} context`);
   }
+});
+
+test("unread-only 开关在关闭与开启时都渲染 aria-pressed 语义", () => {
+  const off = renderI18n(
+    React.createElement(TaskViews, viewProps(allTasks, { unreadOnly: false })),
+  );
+  const on = renderI18n(
+    React.createElement(TaskViews, viewProps(allTasks, { unreadOnly: true })),
+  );
+
+  const offButton = off.match(
+    /<button[^>]*aria-pressed="false"[^>]*>[^<]*<\/button>/,
+  );
+  const onButton = on.match(
+    /<button[^>]*aria-pressed="true"[^>]*>[^<]*<\/button>/,
+  );
+  assert.ok(offButton, "关闭态应渲染 aria-pressed=false");
+  assert.ok(onButton, "开启态应渲染 aria-pressed=true");
+  assert.match(offButton[0], /Unread replies only/);
+  assert.match(onButton[0], /Unread replies only/);
+  assert.doesNotMatch(off, /aria-pressed="true"/);
+  assert.doesNotMatch(on, /aria-pressed="false"/);
 });
 
 test("unread-only Board keeps five status columns and sorted cards within each column", () => {
