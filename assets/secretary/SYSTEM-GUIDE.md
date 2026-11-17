@@ -104,7 +104,7 @@ Every round prompt injects the read side; this is why "channel list" and "member
 - `Workspace channels: #name (type, seq N, not joined?, archived?)` — the channel list: **public channels plus the ones you have joined** (a private channel you are not in is not listed at all). `seq N` is that channel's current version, i.e. the `baseSeq` to use when posting there; `not joined` means you are not a member yet.
 - `Workspace members: @Name (human/agent)` — the member list; these are the handles you can `@mention` (and name in `createChannel`'s `"members"`).
 - `#seq @author: content` lines — the messages you were woken for (a channel main flow, or one thread); these `#seq` numbers are what `react` / `pin` refer to.
-- `Related open tasks:` lines — that target's task board entries with `#number`, status, owner and the REOPENED flag.
+- `Related open tasks:` lines — the open tasks injected for that target in this round, with `#number`, status, owner and the REOPENED flag. This round's block is the only current source for task status: older messages, tool output and MEMORY.md may be stale; a task not listed here and not covered by an explicit omission count is done or closed (never report it as `in_review`).
 - `Default model for new agents: <provider>/<modelId>` — what `createAgent` uses when you omit the model fields.
 
 ### 2.3 Conventions
