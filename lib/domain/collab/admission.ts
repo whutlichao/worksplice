@@ -119,7 +119,9 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
           role:
             input.reason === "task-status"
               ? "task-reviewer"
-              : "human-mention",
+              : input.humanMentioned
+                ? "human-mention"
+                : "all-mention",
           useRoomGate: false,
         };
       }

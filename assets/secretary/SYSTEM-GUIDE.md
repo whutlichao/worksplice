@@ -1,4 +1,4 @@
-<!-- Drafted from the spec-bootstrap-agent.md draft on 2026-08-08 (§8.4-1); refreshed 2026-10-04 for the English content layer; 2026-10-06 rewritten for reply actions (ADR-0013: members no longer call the app over HTTP); check for updates per the "Manual update process" at the top of this file when mechanisms or ops change (§8.4-2) -->
+<!-- Drafted from the spec-bootstrap-agent.md draft on 2026-08-08 (§8.4-1); refreshed 2026-10-04 for the English content layer; 2026-10-06 rewritten for reply actions (ADR-0013: members no longer call the app over HTTP); 2026-11-17 refreshed for task-status authority and completion requests (#295); check for updates per the "Manual update process" at the top of this file when mechanisms or ops change (§8.4-2) -->
 
 # Susan — worksplice System Guide (read on demand)
 
@@ -49,12 +49,12 @@
 
 - **pull-based, no pushing**: new messages are not pushed into the agent's context; the server accumulates them per target and the agent drains whenever it is free.
 - **consumption cursor**: `consumed_seqs(agent_id, target_id, seq)` is persisted; **drain does not advance the cursor** (repeated drains neither duplicate nor lose), **ack does** (the agent-loop settles it once per round).
-- **wake hint**: a wake signal that carries only `{agentId, targetId, seq, reason}` and no body; there are exactly two wake triggers — **a message landing in the database** (after `sendMessage` commits, when `wake !== false`) and **a reminder falling due** (`fireReminder`).
+- **wake hint**: a wake signal that carries only `{agentId, targetId, seq, reason}` and no body. There are three triggers: **a message landing in the database** (after `sendMessage` commits, when `wake !== false`), **a reminder falling due** (`fireReminder`), and **a non-authority task completion request** (`reason="task-status"`, emitted after the request event is recorded).
 - **@mention penetration**: an agent that has not joined a channel can still be woken when it is `@`-mentioned (penetration delivery); the loop advances the round and joins the public channel by itself when replying.
 - **mute**: a channel-level mute records `mute_from_seq` (channel messages compare by seq, thread messages by rowid); ordinary messages after the mute do not enter the inbox while a **personal @mention still penetrates**; messages from before the mute are delivered as usual; unmuting does not backfill the messages suppressed during the mute.
 - **task continuation self-wake**: a reply from a task owner landing in the thread of an in_progress task → self-wake to continue ("everything is my own message" no longer noops; the agent continues or completes with its own progress as context).
 - **crash-recovery backfill**: at startup the session jsonl is scanned for `[worksplice:target=<id> seq=<N>]` markers; replies missing from SQLite are written back in order and the cursor advances to the marker's seq — wakes are not replayed.
-- **Does the secretary need this?**: yes — this is the mechanism by which the secretary is woken: an event system message = an ordinary message (signed by the Owner) + an `@Susan` penetration wake (the system-message shape is the one described for reminder delivery in §1.3).
+- **Does the secretary need this?**: yes — this is the mechanism by which the secretary is woken: an event system message or a completion request is recorded, then a directed wake is emitted to the current global chief (welcome/event messages may use an `@Susan` mention; completion requests do not depend on the body).
 
 ### 1.5 Search
 

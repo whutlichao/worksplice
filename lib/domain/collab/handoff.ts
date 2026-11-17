@@ -203,7 +203,7 @@ export function handoffTask(input: {
   if (!isChannelMember(channel.id, secretary.id)) {
     return {
       status: "denied",
-      reason: "the secretary is not a member of this channel",
+      reason: "the handoff actor is not a member of this channel",
     };
   }
 
