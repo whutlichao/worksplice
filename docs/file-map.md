@@ -114,7 +114,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   多任务 / 无关联 / 已分流 / 有 owner / reopened / 非 todo 不选）+
                                   isHandoffEligibleTask；频道首席保留默认收件人，不再参与任务 handoff
   handoff.ts                      handoff 写路径：handoffTask（授权 = 任务状态权威（全局首席 / 人类 Owner）；
-                                  候选排除 / 事务内直接改 owner / freshness / blocked / 提交后定向唤醒 chosen）+
+                                  候选排除 / 复用 claimTaskForAssignee 代认领 / freshness / blocked / 提交后定向唤醒 chosen）+
                                   listHandoffCandidates / recoverHandoffWakes；成功通知写明实际执行者
   rounds.ts                       §07 轮次结果服务层：logRoundOutcome / listRoundLogs（camelCase 出线
                                   RoundLogView）+ v19 `role`（这一轮怎么进来的：chief / 点名 / 任务 / 提醒 / DM）
@@ -135,6 +135,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   （#295：仅人类 Owner / 当前全局首席；重开封锁由同一权威接管）/
                                   updateTaskStatus（状态机 + isTaskStatusAuthority + freshness-hold +
                                   reopen 置 reopened 标记）/ reachableStatuses（非权威为空）/
+                                  claimTaskForAssignee（handoff 专用代认领，actor 仍是权威）/
                                   listChannelTasks(actorId) / getTaskView(actorId)（视图按调用者权威给出 reachable）
   inbox.ts                        inbox 服务层：getSince / drain（不推进游标）/ ack / drainAndAck / getPendingTargets
                                   （§3.2 mute 过滤：静音后普通消息不进 inbox、@mention 穿透）/ listRelatedTasks

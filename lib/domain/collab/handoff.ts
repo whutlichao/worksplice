@@ -12,7 +12,11 @@ import {
   isSecretaryMember,
   isTaskStatusAuthority,
 } from "./secretary-identity.ts";
-import { getTaskView, type TaskView } from "./tasks.ts";
+import {
+  claimTaskForAssignee,
+  getTaskView,
+  type TaskView,
+} from "./tasks.ts";
 import { emitWake, type WakeHint } from "./wake.ts";
 import type {
   MemberRow,
@@ -241,18 +245,25 @@ export function handoffTask(input: {
 
     if (resolution.chosen) {
       const chosen = resolution.chosen;
-      // 被指派者不需要任务状态权威：handoff 是全局首席的授权写入，owner 只是归属。
-      // 事务内重新读取任务，保持“未认领 / 可分流”前置与并发安全。
-      const current = getDb().getTaskById(task.id);
-      if (!current || !isHandoffEligibleTask(current)) {
+      // 被指派者不需要任务状态权威：handoff 以执行者为 actor，代写 owner。
+      // 与普通 claim 共用同一事务 / owner 唯一性 / freshness 规则。
+      const claim = claimTaskForAssignee({
+        channelId: channel.id,
+        taskNumber: input.taskNumber,
+        actorId: secretary.id,
+        assigneeId: chosen.id,
+        baseSeq: roomSeq,
+      });
+      if (claim.status === "held") {
+        return {
+          status: "held",
+          roomSeq: claim.roomSeq,
+          whatHappened: claim.whatHappened,
+        };
+      }
+      if (claim.status !== "claimed") {
         return { status: "noop", reason: "task_not_open" };
       }
-      const claimed = getDb().updateTask(current.id, {
-        status: "in_progress",
-        ownerId: chosen.id,
-        reopened: 0,
-      });
-      if (!claimed) return { status: "noop", reason: "task_not_open" };
 
       const notice = deliverNotice({
         task,
@@ -269,7 +280,7 @@ export function handoffTask(input: {
       if (!updated) throw new Error("Task disappeared during handoff");
       return {
         status: "handed_off",
-        task: getTaskView(claimed.id),
+        task: getTaskView(claim.task.id),
         chosen,
         notice,
         candidates,

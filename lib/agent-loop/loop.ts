@@ -522,7 +522,7 @@ export const CONTENT_PLACEMENT_RUBRIC: readonly string[] = [
  * 本段只加固定骨架行，与 `CONTENT_PLACEMENT_RUBRIC` 同一条纪律（不动消息块 / 预算 / 其余规则）。
  */
 export const DEFAULT_RECIPIENT_RULE: readonly string[] = [
-  "- This round you are the channel's default recipient: nobody was named, so the message landed on you. Your job is routing, not answering it in depth — if it can become a task, make it one with worksplice_task_create (handing it off when exactly one member is clearly the right owner); if it clearly belongs to one person or one task, say where it goes and hand it off when you can; if it is small talk or needs no action, reply with one or two sentences and say you are doing nothing.",
+  "- This round you are the channel's default recipient: nobody was named, so the message landed on you. Your job is routing, not answering it in depth — if it can become a task, make it one with worksplice_task_create; if it clearly belongs to one person or one task, say where it goes; if it is small talk or needs no action, reply with one or two sentences and say you are doing nothing.",
   '- No long analysis when you have no new facts — implementation detail belongs to whoever does the work. Still deliver that short answer with the normal "reply" action, never "ignore": silence would read as if you never saw the message.',
 ];
 
@@ -1991,16 +1991,6 @@ export async function runTaskOperation(input: {
     }
     const report =
       "message" in replyOutcome ? replyOutcome.message : undefined;
-    if (!report) {
-      // 回复没有真正落线程 ⇒ 没有可交付的完成报告，不制造请求事件或额外唤醒。
-      ack(agent.id, input.targetId, baseSeq);
-      ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
-      return {
-        status: "silent",
-        reason: "completion request ignored — no report landed in the task thread",
-        baseSeq,
-      };
-    }
     const current = getDb().getTaskById(task.id);
     if (
       !current ||
@@ -2008,21 +1998,22 @@ export async function runTaskOperation(input: {
       current.owner_id !== agent.id
     ) {
       ack(agent.id, input.targetId, baseSeq);
-      ack(agent.id, task.message_id, report.seq);
+      ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
       return {
         status: "silent",
         reason: "completion request ignored — the task changed while the report was written",
         baseSeq,
       };
     }
-    const requestKey = report.id;
+    const requestKey =
+      report?.id ?? `${input.targetId}:${baseSeq}`;
     let eventSeq = replyOutcome.threadAckSeq;
     try {
       const request = notifyTaskCompletionRequest({
         task: current,
         requester: agent,
         requestKey,
-        completionContent: report.content,
+        completionContent: report?.content,
       });
       if ("message" in request) eventSeq = request.message.seq;
     } catch (error) {

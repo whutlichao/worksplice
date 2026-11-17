@@ -27,8 +27,8 @@ import { DomainError } from "../errors.ts";
  * - 创建：顶层消息可转（thread 内不可）；number 按 channel 内递增；
  * - 状态机：todo → in_progress(claim) → in_review(complete) → done(approve) / closed，
  *   unclaim/reject 回退，done/closed 可 reopen 回池；
- * - 重开封锁：reopen 置 reopened 标记——agent-loop 不可自动认领（blocked），
- *   人类（CURRENT_MEMBER_ID）认领即接管并清除标记；
+ * - 重开封锁：reopen 置 reopened 标记——非权威 agent 在权限复核处被拒（403），
+ *   人类 Owner / 当前全局首席认领即接管并清除标记；
  * - 写权：只有人类 Owner 与当前全局首席可变更状态；互审作为讨论约定，不再另开写权限；
  * - 并发保护：claim / updateStatus 均携带房间版本（channel max(seq)），
  *   事务内比对，不等返回 held（§6.3 与消息同语义）。
@@ -107,11 +107,8 @@ export class TaskClaimConflictError extends DomainError {
  * claimTask 与 updateTaskStatus 的 claim 边共用同一判定——单点维护，封锁条件增改不漂移
  * （终检整改：此前两处手工复刻，claimTask 加条件时 claim 边不会跟随）。
  */
-function claimBlockReason(current: TaskRow, memberId: string): string | null {
+function claimBlockReason(current: TaskRow): string | null {
   if (current.owner_id !== null) return "Task is already claimed";
-  if (current.reopened === 1 && !isTaskStatusAuthority(memberId)) {
-    return "Task was reopened — awaiting the owner";
-  }
   return null;
 }
 
@@ -288,18 +285,20 @@ export function createTask(input: { messageId: string }): TaskView {
  * 重开封锁：reopened 标记下仅任务状态权威可认领（= 接管并清标），
  * 普通 agent 一律在权限复核处被拒绝（§3.7）。
  */
-export function claimTask(input: {
+function claimTaskCore(input: {
   channelId: string;
   taskNumber: number;
-  memberId: string;
+  actorId: string;
+  ownerId: string;
   baseSeq?: number;
 }): TaskClaimResult {
   const { channelId, task } = resolveTaskChannel(
     input.taskNumber,
     input.channelId,
   );
-  assertChannelMember(channelId, input.memberId);
-  if (!isTaskStatusAuthority(input.memberId)) {
+  assertChannelMember(channelId, input.actorId);
+  assertChannelMember(channelId, input.ownerId);
+  if (!isTaskStatusAuthority(input.actorId)) {
     throw new TaskNotAuthorizedError(
       "Only the human Owner or current global chief can claim tasks",
     );
@@ -317,7 +316,7 @@ export function claimTask(input: {
     const current = getDb().getTaskById(task.id);
     if (!current)
       return { status: "conflict" as const, reason: "Task is already claimed" };
-    const blockReason = claimBlockReason(current, input.memberId);
+    const blockReason = claimBlockReason(current);
     if (blockReason) {
       return current.owner_id !== null
         ? { status: "conflict" as const, reason: blockReason }
@@ -325,7 +324,7 @@ export function claimTask(input: {
     }
     const updated = getDb().updateTask(current.id, {
       status: "in_progress",
-      ownerId: input.memberId,
+      ownerId: input.ownerId,
       reopened: 0,
     });
     if (!updated)
@@ -334,6 +333,44 @@ export function claimTask(input: {
       status: "claimed" as const,
       task: toTaskView(updated, getDb().getMessage(updated.message_id)!),
     };
+  });
+}
+
+/**
+ * 认领（§3.7）：同一任务同时只有一个 owner；只有任务状态权威能写。
+ */
+export function claimTask(input: {
+  channelId: string;
+  taskNumber: number;
+  memberId: string;
+  baseSeq?: number;
+}): TaskClaimResult {
+  return claimTaskCore({
+    channelId: input.channelId,
+    taskNumber: input.taskNumber,
+    actorId: input.memberId,
+    ownerId: input.memberId,
+    baseSeq: input.baseSeq,
+  });
+}
+
+/**
+ * handoff 专用的代认领：actor 必须是任务状态权威，owner 可以是被指派的普通 agent。
+ * 与 claimTask 共用唯一的事务 / owner 唯一性 / freshness 规则；不要让 handoff 另写 UPDATE。
+ */
+export function claimTaskForAssignee(input: {
+  channelId: string;
+  taskNumber: number;
+  actorId: string;
+  assigneeId: string;
+  baseSeq?: number;
+}): TaskClaimResult {
+  return claimTaskCore({
+    channelId: input.channelId,
+    taskNumber: input.taskNumber,
+    actorId: input.actorId,
+    ownerId: input.assigneeId,
+    baseSeq: input.baseSeq,
   });
 }
 
@@ -377,7 +414,7 @@ export function updateTaskStatus(input: {
     // 封锁判定与 claimTask 共用 claimBlockReason，冲突以 TaskClaimConflictError 抛出
     // （路由映射 409 conflict/blocked，与 /claim 同语义同状态码）。
     if (current.status === "todo" && input.status === "in_progress") {
-      const blockReason = claimBlockReason(current, input.memberId);
+      const blockReason = claimBlockReason(current);
       if (blockReason) {
         throw new TaskClaimConflictError(
           current.owner_id !== null ? "conflict" : "blocked",

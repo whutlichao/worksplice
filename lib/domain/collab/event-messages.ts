@@ -252,7 +252,8 @@ export function notifyTaskCompletionRequest(input: {
     .find(
       (message) =>
         message.author_id === input.requester.id &&
-        message.content.includes(marker),
+        parseTaskCompletionRequestEvent(message.content)?.requestKey ===
+          input.requestKey,
     );
   if (existing) {
     return { status: "existing", message: existing };

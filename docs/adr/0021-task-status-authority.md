@@ -5,7 +5,7 @@
 **决策一（单一任务状态权威）**：
 
 - `secretary-identity.ts` 新增 `isTaskStatusAuthority(memberId)`：人类 Owner 或**当前**全局首席（现存模型里的 Susan / 秘书）。这是唯一判定口；不看名字、不看任务 owner、不看频道首席绑定。
-- `claimTask` / `updateTaskStatus` 在服务层事务前复核该判定；非权威 agent 一律 `TaskNotAuthorizedError`，数据库状态与 owner 不变。`handoffTask` 只接受当前全局首席。
+- `claimTask` / `updateTaskStatus` / `handoffTask` 在服务层事务前复核该判定；非权威 agent 一律 `TaskNotAuthorizedError`，数据库状态与 owner 不变。`handoffTask` 接受任务状态权威（当前全局首席或人类 Owner），自动触发仍只由当前全局首席发起。
 - 状态机合法边、freshness-hold、消息不可变、thread 不可嵌套、room budget / `roomNotice` 语义全部不变。权威只解决“谁能写”，不新增边；非法边仍由 `TRANSITIONS` 拒绝。
 - `TaskView.reachable` 从“按 owner / 互审谓词投影”改为“非权威为空；权威按合法边投影”。频道首席恢复为只有默认收件人职责；任务 handoff 的触发、写权、prompt 暗示与 wake 目标都只看当前全局首席。
 
