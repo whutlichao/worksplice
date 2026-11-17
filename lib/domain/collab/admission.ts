@@ -1,4 +1,14 @@
-import type { AdmissionRole, TaskStatus } from "../../data/types.ts";
+import type {
+  AdmissionRole,
+  ChannelType,
+  MemberType,
+  TaskStatus,
+} from "../../data/types.ts";
+import { hasAllMention } from "../../mention.ts";
+import {
+  parseTaskCreationEventNumber,
+  type MessageInvitations,
+} from "./invitations.ts";
 
 /**
  * `AdmissionRole`（本轮**怎么进来的**）的取值定义在数据层词表（`lib/data/types.ts`）：
@@ -154,4 +164,302 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
     };
   }
   return { admit: false, reason: ROUND_SKIP_REASONS.noInvitation };
+}
+
+// ---------------------------------------------------------------------------
+// 任务事件可行动性（票 #276）
+// ---------------------------------------------------------------------------
+
+/** 可行动性的最小任务快照：状态与重开标记是仅有的两个判据。 */
+export interface TaskActionabilitySnapshot {
+  status: TaskStatus;
+  reopened: number;
+}
+
+/**
+ * 一条任务此刻对**这个 actor** 是否可行动（票 #276 的单一定义处）。
+ *
+ * 它回答的不是「任务还 open 吗」：
+ * - `done` / `closed` 对任何人都不可行动；
+ * - `reopened` 的 `todo` 只对**人类**可行动——人类可以认领接管，agent 必须让路、
+ *   不在 channel 回复（`docs/spec.md` §3.7）；
+ * - 其余未结束状态对 agent 也可行动。
+ *
+ * handoff 的额外门槛（未认领、从未分流）不在这里：那是「谁来接」的收窄，
+ * 不是「对谁能行动」的判据，由 `isHandoffEligibleTask` 在本判据之上组合。
+ */
+export function isTaskActionableForActor(
+  task: TaskActionabilitySnapshot | null | undefined,
+  actor: MemberType,
+): boolean {
+  if (!task) return false;
+  if (task.status === "done" || task.status === "closed") return false;
+  if (task.reopened === 1) return actor === "human";
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// 窗口级「叫谁、以什么角色进来」（票 #276）
+// ---------------------------------------------------------------------------
+
+/** 窗口判定需要的最小消息形状（`MessageWithAuthor` 的结构子集）。 */
+export interface RoundWindowMessage {
+  id: string;
+  target_id: string;
+  author_id: string;
+  content: string;
+  author?: { type?: MemberType } | null;
+}
+
+/** 窗口判定需要的最小任务形状。 */
+export interface RoundWindowTask {
+  id: string;
+  message_id: string;
+  status: TaskStatus;
+  owner_id: string | null;
+  reopened: number;
+}
+
+/** 窗口判定需要的最小频道形状。 */
+export interface RoundWindowChannel {
+  id: string;
+  type: ChannelType;
+}
+
+/** 窗口判定需要的最小成员形状。 */
+export interface RoundWindowMember {
+  id: string;
+  type: MemberType;
+  deleted?: number;
+}
+
+/**
+ * 窗口判定的读取面：判定层不直接读写数据库，全部事实经此注入。
+ * 生产实现由 `wake.ts` 的 `createRoundWindowDirectory()` 提供；测试给纯假实现。
+ */
+export interface RoundWindowDirectory {
+  /** 正文 → 被个人点名的成员 id（与 @mention 解析同一份）。 */
+  mentionsOf(content: string): string[];
+  memberOf(memberId: string): RoundWindowMember | undefined;
+  isChannelMember(channelId: string, memberId: string): boolean;
+  taskByChannelNumber(
+    channelId: string,
+    taskNumber: number,
+  ): RoundWindowTask | undefined;
+  /** 生效首席对一条人类消息的默认收件人（`selectChiefRecipient` 的唯一实现）。 */
+  chiefRecipientOf(input: {
+    channel: RoundWindowChannel;
+    targetId: string;
+    content: string;
+  }): string | null;
+}
+
+export interface RoundWindowActor {
+  id: string;
+  type: MemberType;
+  isMember: boolean;
+}
+
+/**
+ * 一轮 drain 窗口交给 `decideRoundAdmission` 的六个现场判据（票 #276）。
+ * 这里只回答「对**这个 actor**」，不回答「这个任务该派给谁」。
+ */
+export interface RoundWindowSignals {
+  /** 最新一条人类消息（非任务创建事件）个人点名了本 actor。 */
+  humanMentioned: boolean;
+  /** 窗口内有人类非事件消息出现 `@all` / `@everyone`。 */
+  humanAllMentioned: boolean;
+  /** 任务 owner 是本频道 agent，且最新一条 owner 消息点名了本 actor（in_review 互审）。 */
+  taskOwnerMentioned: boolean;
+  /** 窗口内存在对本 actor 可行动的 Owner 任务创建事件。 */
+  hasOpenTaskEvent: boolean;
+  /** 最新任务事件的锚点在同一窗口里，且直接点名了本 actor / `@all`。 */
+  taskEventAnchorInvited: boolean;
+  /** 最新一条人类消息的默认收件人就是本 actor。 */
+  chiefInvited: boolean;
+}
+
+/**
+ * 窗口里是否有「人类非任务事件消息」发出的 `@all` / `@everyone`。
+ * 任务创建事件的预览即使带 @ 也不算人类邀请；与准入信号同一份判据。
+ */
+export function hasHumanAllMentionInWindow(
+  messages: ReadonlyArray<{
+    content: string;
+    author?: { type?: MemberType } | null;
+  }>,
+): boolean {
+  return messages.some(
+    (message) =>
+      message.author?.type === "human" &&
+      parseTaskCreationEventNumber(message.content) === null &&
+      hasAllMention(message.content),
+  );
+}
+
+/**
+ * 窗口级准入信号的单一定义处（票 #276）：把原先散在 `loop.ts` 的六个现场
+ * `const` 收成一次纯判定。窗口长度、时序、mute 口径与房间门都不在这里改。
+ *
+ * 「窗口」与「单条」只在最新人类消息、跨作者 owner 消息与任务事件扫描范围上
+ * 不同——这些是窗口语义本身，不是重复；`analyzeMessageWindow` 是窗口长度 1
+ * 的入口，两者共用下面的判据。
+ */
+export function selectRoundWindowSignals(input: {
+  messages: RoundWindowMessage[];
+  channel: RoundWindowChannel;
+  targetId: string;
+  task: RoundWindowTask | null;
+  actor: RoundWindowActor;
+  directory: RoundWindowDirectory;
+  /**
+   * 收束语判据（loop 的 `isPeerCloseText`）。只有跨作者窗口需要它；
+   * 单条人类消息窗口不会出现 owner 的 agent 消息，缺省即安全。
+   */
+  isPeerCloseText?: (content: string) => boolean;
+}): RoundWindowSignals {
+  const { messages, channel, targetId, task, actor, directory } = input;
+  const humanMessages = messages.filter(
+    (message) => message.author?.type === "human",
+  );
+  const latestHuman = humanMessages.at(-1);
+  const latestHumanIsTaskEvent = Boolean(
+    latestHuman && parseTaskCreationEventNumber(latestHuman.content) !== null,
+  );
+  const humanMentioned = Boolean(
+    latestHuman &&
+      !latestHumanIsTaskEvent &&
+      directory.mentionsOf(latestHuman.content).includes(actor.id),
+  );
+  // 最新一条人类消息若是任务创建事件，事件本身不继承此前正文的 @all；
+  // 否则窗口内的 @all 不能被后续无点名正文覆盖。
+  const humanAllMentioned =
+    !latestHumanIsTaskEvent &&
+    hasHumanAllMentionInWindow(messages);
+  // 互审触达：只认任务 owner 是 agent、本 actor 是频道成员，且最新一条
+  // owner 消息点名了本 actor。owner 的收束语 / 签退不算新邀请。
+  const taskOwnerId = task?.owner_id ?? null;
+  const taskOwnerMember =
+    taskOwnerId === null ? undefined : directory.memberOf(taskOwnerId);
+  const latestTaskOwnerMessage =
+    taskOwnerId === null
+      ? undefined
+      : [...messages]
+          .reverse()
+          .find((message) => message.author_id === taskOwnerId);
+  const isPeerCloseText = input.isPeerCloseText ?? (() => false);
+  const taskOwnerMentioned = Boolean(
+    actor.isMember &&
+      task &&
+      task.status === "in_review" &&
+      task.owner_id !== actor.id &&
+      taskOwnerMember?.type === "agent" &&
+      taskOwnerMember.deleted !== 1 &&
+      directory.isChannelMember(channel.id, taskOwnerMember.id) &&
+      latestTaskOwnerMessage &&
+      directory.mentionsOf(latestTaskOwnerMessage.content).includes(actor.id) &&
+      !isPeerCloseText(latestTaskOwnerMessage.content),
+  );
+  // 任务创建事件是系统消息：预览里即使带 @ 也不产生人类邀请；
+  // 是否「开放」由 actor-relative 的可行动性回答（reopened 对 agent 不开放）。
+  const hasOpenTaskEvent =
+    targetId === channel.id &&
+    messages.some((message) => {
+      if (message.author?.type !== "human") return false;
+      const taskNumber = parseTaskCreationEventNumber(message.content);
+      if (taskNumber === null) return false;
+      const eventTask = directory.taskByChannelNumber(channel.id, taskNumber);
+      return isTaskActionableForActor(eventTask, actor.type);
+    });
+  // 人类在任务锚点上已经直接点名本 actor / @all：这是显式邀请，不是事件预览里的 @。
+  // 任务事件本身仍只叫生效首席；只有「同一窗口里能看到这个锚点」时才沿用直接邀请。
+  const latestTaskEvent =
+    targetId === channel.id
+      ? [...messages]
+          .reverse()
+          .find(
+            (message) =>
+              message.author?.type === "human" &&
+              parseTaskCreationEventNumber(message.content) !== null,
+          )
+      : undefined;
+  const taskEventAnchorInvited = (() => {
+    if (!latestTaskEvent) return false;
+    const taskNumber = parseTaskCreationEventNumber(latestTaskEvent.content);
+    if (taskNumber === null) return false;
+    const eventTask = directory.taskByChannelNumber(channel.id, taskNumber);
+    if (!eventTask) return false;
+    const anchor = messages.find(
+      (message) => message.id === eventTask.message_id,
+    );
+    if (!anchor || anchor.author?.type !== "human") return false;
+    return (
+      directory.mentionsOf(anchor.content).includes(actor.id) ||
+      hasAllMention(anchor.content)
+    );
+  })();
+  // 默认收件人只认最新一条人类消息；涉及任务的消息在 selectChiefRecipient
+  // 里已被排除（任务引用 / 任务线程 / 任务锚点），不会被这里叫错人。
+  const chiefInvited = Boolean(
+    latestHuman &&
+      directory.chiefRecipientOf({
+        channel,
+        targetId,
+        content: latestHuman.content,
+      }) === actor.id,
+  );
+
+  return {
+    humanMentioned,
+    humanAllMentioned,
+    taskOwnerMentioned,
+    hasOpenTaskEvent,
+    taskEventAnchorInvited,
+    chiefInvited,
+  };
+}
+
+/**
+ * 单条消息的「叫谁」结论：窗口长度 1 的入口（wake / beginTurn 共用）。
+ * `invitations` 由 `selectMessageInvitations` 给出——单条邀请的唯一实现；
+ * 这里只把「唤醒候选 = 房间候选 ∪ handoff 首席」这一条窗口结论补上。
+ */
+export interface MessageWindowVerdict {
+  /** 房间第一波候选（`beginTurn` 用；不含 wake 专属的 handoff 首席）。 */
+  candidates: string[];
+  /** 唤醒候选（`wake` 用）：房间候选 ∪ 本轮 handoff 首席。 */
+  wakeRecipients: string[];
+  /** 同一窗口长度 1 的准入信号（等价性测试与诊断用）。 */
+  signalsFor(actor: RoundWindowActor): RoundWindowSignals;
+}
+
+export function analyzeMessageWindow(input: {
+  message: RoundWindowMessage;
+  channel: RoundWindowChannel;
+  targetId: string;
+  task: RoundWindowTask | null;
+  invitations: MessageInvitations;
+  handoffChief: string | null;
+  directory: RoundWindowDirectory;
+  isPeerCloseText?: (content: string) => boolean;
+}): MessageWindowVerdict {
+  const candidates = [...input.invitations.candidates];
+  const wakeRecipients = [...candidates];
+  if (input.handoffChief && !wakeRecipients.includes(input.handoffChief)) {
+    wakeRecipients.push(input.handoffChief);
+  }
+  return {
+    candidates,
+    wakeRecipients,
+    signalsFor: (actor) =>
+      selectRoundWindowSignals({
+        messages: [input.message],
+        channel: input.channel,
+        targetId: input.targetId,
+        task: input.task,
+        actor,
+        directory: input.directory,
+        isPeerCloseText: input.isPeerCloseText,
+      }),
+  };
 }

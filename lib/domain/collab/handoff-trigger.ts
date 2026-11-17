@@ -3,6 +3,7 @@ import { isChannelMember } from "./channels.ts";
 import { isEffectiveChiefForChannel } from "./chief.ts";
 import { parseTaskCreationEventNumber } from "./invitations.ts";
 import { parseTaskReferenceNumbers } from "./task-reference.ts";
+import { isTaskActionableForActor } from "./admission.ts";
 import type { ChannelRow, MemberRow, MessageRow, TaskRow } from "../../data/types.ts";
 
 /**
@@ -36,14 +37,18 @@ export interface HandoffTriggerMessage {
   author?: MemberRow | null;
 }
 
-/** 自动 handoff 只处理「从未自动分流、未认领、未重开、仍在 todo」的任务。 */
+/**
+ * 自动 handoff 只处理「对本频道 agent 可行动、从未自动分流、未认领、仍在 todo」的任务。
+ * 「未重开」不在调用点手写：它由 actor-relative 的 `isTaskActionableForActor` 统一回答
+ * （reopened 的 todo 对人类可接管，对 agent 不开放）。
+ */
 export function isHandoffEligibleTask(task: TaskRow | undefined): boolean {
   return Boolean(
     task &&
       task.status === "todo" &&
       task.owner_id === null &&
-      task.reopened === 0 &&
-      task.handoff_state === null,
+      task.handoff_state === null &&
+      isTaskActionableForActor(task, "agent"),
   );
 }
 

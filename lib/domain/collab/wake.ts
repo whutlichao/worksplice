@@ -1,13 +1,24 @@
 import { getDb } from "../../data/db-singleton.ts";
-import { getChannelMute, listChannelMembers, resolveChannelForTarget } from "./channels.ts";
+import {
+  getChannelMute,
+  isChannelMember,
+  listChannelMembers,
+  resolveChannelForTarget,
+} from "./channels.ts";
 import { extractMentionedMemberIds, getMember } from "./members.ts";
 import {
   parseTaskCreationEventNumber,
+  selectChiefRecipient,
   selectMessageInvitations,
+  type MessageInvitations,
 } from "./invitations.ts";
 import { isHandoffEligibleTask, selectSecretaryHandoffTask } from "./handoff-trigger.ts";
 import { canRouteToChief, resolveEffectiveChief } from "./chief.ts";
-import type { MessageRow } from "../../data/types.ts";
+import {
+  analyzeMessageWindow,
+  type RoundWindowDirectory,
+} from "./admission.ts";
+import type { ChannelRow, MessageRow } from "../../data/types.ts";
 
 /**
  * wake 事件总线（§5.4/§5.5，Ticket 02 从 agent-loop 下沉到 协作域）：
@@ -28,6 +39,36 @@ export interface WakeHint {
 export type WakeReason = WakeHint["reason"];
 
 export type WakeListener = (hint: WakeHint) => void;
+
+/**
+ * 窗口级准入判定的生产读取面（票 #276）：把 DB / 成员解析绑给纯判定层。
+ * `admission.ts` 只认这个接口，不 import 数据层或任何协作子模块。
+ */
+export function createRoundWindowDirectory(): RoundWindowDirectory {
+  return {
+    mentionsOf: (content) => extractMentionedMemberIds(content),
+    memberOf: (memberId) => getMember(memberId),
+    isChannelMember: (channelId, memberId) =>
+      isChannelMember(channelId, memberId),
+    taskByChannelNumber: (channelId, taskNumber) =>
+      getDb().getTaskByChannelNumber(channelId, taskNumber),
+    // selectChiefRecipient 只读 channel.id / channel.type；窗口快照足够。
+    chiefRecipientOf: ({ channel, targetId, content }) =>
+      selectChiefRecipient({
+        channel: channel as ChannelRow,
+        targetId,
+        content,
+      }),
+  };
+}
+
+/** 任务创建事件不是人类正文邀请：预览里的 @ 不产生候选。 */
+const NO_INVITATIONS: MessageInvitations = {
+  all: false,
+  mentioned: [],
+  candidates: [],
+  chief: null,
+};
 
 declare global {
   var __workspliceWakeListeners: Set<WakeListener> | undefined;
@@ -123,50 +164,68 @@ export function notifyMessageWakes(message: MessageRow): void {
     // 生效首席（频道首席 → 全局回落 → 无），不再扇出全 channel。
     // 没有可用首席 / 首席不可达 / 任务已有 owner / 已分流 ⇒ 不叫任何人，也不换人兜底。
     const taskNumber = parseTaskCreationEventNumber(message.content);
+    let invitations: MessageInvitations = NO_INVITATIONS;
+    let handoffChief: string | null = null;
     if (taskNumber !== null) {
       const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
-      if (!isHandoffEligibleTask(task)) return;
-      const { chief } = resolveEffectiveChief(channel.id);
-      if (!chief || chief.id === message.author_id) return;
-      // 可达 = 本频道成员 + 未静音（`canRouteToChief` 与选人、频道行同一份判定）。
-      if (!canRouteToChief(channel.id, chief.id)) return;
-      notify(chief.id);
-      return;
-    }
-    // Ticket #237：人类正文点名 / @all 才产生新邀请；候选与 beginTurn 同源。
-    const invitations = selectMessageInvitations({
-      targetId: message.target_id,
-      authorId: message.author_id,
-      content: message.content,
-    });
-    const recipients = new Set(invitations.candidates);
-    // 票 #240 / #270：与既有未认领任务明确关联的人类消息（任务锚点 / 任务线程 / 唯一
-    // `Task #N` 引用）追加本频道的生效首席；多任务命中 / 无关联 / 不可达不追加。
-    // 生效首席 = 频道首席 → 全局回落 → 无；频道首席在场时不再同时叫全局首席。
-    const { chief } = resolveEffectiveChief(channel.id);
-    if (chief && chief.id !== message.author_id) {
-      const selection = selectSecretaryHandoffTask({
-        secretary: chief,
-        channel,
+      if (isHandoffEligibleTask(task)) {
+        const { chief } = resolveEffectiveChief(channel.id);
+        if (
+          chief &&
+          chief.id !== message.author_id &&
+          // 可达 = 本频道成员 + 未静音（`canRouteToChief` 与选人、频道行同一份判定）。
+          canRouteToChief(channel.id, chief.id)
+        ) {
+          handoffChief = chief.id;
+        }
+      }
+    } else {
+      // Ticket #237：人类正文点名 / @all 才产生新邀请；候选与 beginTurn 同源。
+      invitations = selectMessageInvitations({
         targetId: message.target_id,
-        messages: [
-          {
-            id: message.id,
-            target_id: message.target_id,
-            author_id: message.author_id,
-            content: message.content,
-            author: author ?? null,
-          },
-        ],
+        authorId: message.author_id,
+        content: message.content,
       });
-      if (
-        selection.kind === "handoff" &&
-        canRouteToChief(channel.id, chief.id)
-      ) {
-        recipients.add(chief.id);
+      // 票 #240 / #270：与既有未认领任务明确关联的人类消息（任务锚点 / 任务线程 / 唯一
+      // `Task #N` 引用）追加本频道的生效首席；多任务命中 / 无关联 / 不可达不追加。
+      // 生效首席 = 频道首席 → 全局回落 → 无；频道首席在场时不再同时叫全局首席。
+      const { chief } = resolveEffectiveChief(channel.id);
+      if (chief && chief.id !== message.author_id) {
+        const selection = selectSecretaryHandoffTask({
+          secretary: chief,
+          channel,
+          targetId: message.target_id,
+          messages: [
+            {
+              id: message.id,
+              target_id: message.target_id,
+              author_id: message.author_id,
+              content: message.content,
+              author: author ?? null,
+            },
+          ],
+        });
+        if (
+          selection.kind === "handoff" &&
+          canRouteToChief(channel.id, chief.id)
+        ) {
+          handoffChief = chief.id;
+        }
       }
     }
-    for (const agentId of recipients) notify(agentId);
+    // 票 #276：单条消息 = 窗口长度 1 的判定；唤醒候选由同一份结论给出。
+    const verdict = analyzeMessageWindow({
+      message: { ...message, author: author ?? null },
+      channel,
+      targetId: message.target_id,
+      task: getDb().getTaskByMessageId(message.target_id) ?? null,
+      invitations,
+      handoffChief,
+      directory: createRoundWindowDirectory(),
+    });
+    for (const agentId of verdict.wakeRecipients) {
+      notify(agentId);
+    }
     return;
   }
 

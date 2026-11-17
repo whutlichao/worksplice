@@ -154,6 +154,10 @@ _Avoid_: 转让（不等于通用 assign 权限系统）、通知（handoff 会�
 Task 创建时在所属 Channel 主序列中记录的持久信息事件，用于说明 Task 已创建并可被 agent 看见、认领。它与承载 Task 元数据的原始锚点消息不同，也不是 Task 本身或任务讨论 thread。
 _Avoid_: 把事件消息当作 Task 锚点、Task 本身或 thread 回复
 
+**可行动任务事件 (Actionable Task Event)**:
+一条任务创建事件「此刻对某个 actor 还能不能引发动作」，而不是这条任务「还 open」。判定同时看任务状态与 actor：`done` / `closed` 对任何人都不可行动；`reopened` 的 `todo` 只对**人类**可行动——人类可以认领接管，agent 必须让路、不在 channel 回复（`docs/spec.md` §3.7）；其余未结束状态对 agent 也可行动。任务分流的额外门槛（未认领、从未分流——即 `handoff_state`）不改变这条判据，只在其上再收窄；`handoff_state` 回答「分流是否已经发生过」，不回答对谁可行动。同一个查询供 handoff 触发、轮次准入与补拉/pending 信号共用，调用点不得各自补 `reopened === 0` 或只看 `done` / `closed`。
+_Avoid_: 「任务还 open」（丢掉了 actor；reopened 的 todo 对 agent 并不 open）、任务状态（那是数据行的一个字段，不是对谁能做什么的结论）
+
 **线程回复总数 (Thread Reply Count)**:
 thread 中的回复总条数，不含锚点本身；任何作者的回复都计入，已读状态不改变总数。Task 锚点的讨论入口显示总回复数，并可另行表达未读状态。
 _Avoid_: 把总回复数当成未读回复数；把锚点本身算作回复
