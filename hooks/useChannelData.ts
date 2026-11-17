@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MemberRow, TaskStatus } from "@/lib/data/types";
 import type { ChannelMessage } from "@/components/ChannelView";
+import {
+  TASK_ACTIONS,
+  taskActionRequest,
+  type TaskAction,
+} from "@/lib/task-edges";
 
 /** §3.5 pinned 项（与 GET /api/channels/[id]/pinned 返回形态同形；
  *  ChannelView 旧内联定义的上游，避免 ChannelView ↔ hook 循环 import）。 */
@@ -649,12 +654,12 @@ export async function postChannelMessage(
  * 04 票语义（与 ChannelView 旧内联实现一致）：
  * - `tasks / tasksError / taskNotice` 持有任务板数据循环：切换频道时重拉
  *   （loadTasksPage 经服务端按 number 升序），旧频道任务先清空避免闪现。
- * - `taskOps{claim,complete,unclaim,close,approve,reject,reopen}` 持有转移序列：
+ * - `taskOps{claim,complete,unclaim,close,approve,reject,reopen}` 持有转移序列，
+ *   动作名 → 请求与 `lib/task-edges.ts` 边表同源（#275，不再各自维护映射）：
  *   claim 经 claimChannelTask（held/conflict/blocked 让路：提示 + 重拉，不抛错）；
- *   complete 经 completeTaskWithReply（先落线程回复再置 in_review，依赖 hook 内
- *   已有 postChannelMessage 发送通道：线程回复用线程版本 baseSeq，状态更新用频道版本）；
- *   其余转移（unclaim/close/approve/reject/reopen）经 updateChannelTaskStatus
- *   映射到目标状态（todo/closed/done/in_progress）；成功后重拉收敛。
+ *   其余转移经 updateChannelTaskStatus 发到边表声明的目标状态；成功后重拉收敛。
+ *   需要「先落线程回复再置 in_review」的调用方仍走独立的 `completeTask`
+ *   （completeTaskWithReply，线程版本 baseSeq + 频道版本 baseSeq）。
  * - 创建两途径（convert/createBoard）与 reopen 封锁标记透出在纯函数层：
  *   convert 走 convertMessageToTaskRow（409 抛错由调用方提示），board 创建走
  *   createBoardTaskRow（服务端先发消息再建任务）；reopened=1 的行经 loadTasksPage
@@ -1285,29 +1290,28 @@ export function useChannelData(
     [channelId, loadTasks, loadLatest, t],
   );
 
-  // 04 票：任务转移入口按动作名收敛（票据 taskOps{claim,complete,unclaim,...} 的 interface 面）：
-  // claim → runTaskTransition(claim)；complete → completeTask（两步）；其余转移
-  // （unclaim/close/approve/reject/reopen）→ update-status 目标状态映射。
+  // 04 票 / #275：任务转移入口按动作名收敛，动作名 → 请求与边表同源
+  // （`lib/task-edges.ts`）——这里不再各自维护一份 switch/映射。
   const taskOps = useMemo(
-    () => ({
-      claim: (task: ChannelTask) => runTaskTransition(task, "claim"),
-      complete: (
-        task: ChannelTask,
-        replyContent: string,
-        threadBaseSeq: number,
-      ) => completeTask(task, replyContent, threadBaseSeq),
-      unclaim: (task: ChannelTask) =>
-        runTaskTransition(task, "updateStatus", "todo"),
-      close: (task: ChannelTask) =>
-        runTaskTransition(task, "updateStatus", "closed"),
-      approve: (task: ChannelTask) =>
-        runTaskTransition(task, "updateStatus", "done"),
-      reject: (task: ChannelTask) =>
-        runTaskTransition(task, "updateStatus", "in_progress"),
-      reopen: (task: ChannelTask) =>
-        runTaskTransition(task, "updateStatus", "todo"),
-    }),
-    [runTaskTransition, completeTask],
+    () => {
+      const ops: Partial<
+        Record<TaskAction, (task: ChannelTask) => Promise<void>>
+      > = {};
+      for (const action of TASK_ACTIONS) {
+        const request = taskActionRequest(action);
+        if (!request) continue;
+        ops[action] =
+          request.kind === "claim"
+            ? (task) => runTaskTransition(task, "claim")
+            : (task) =>
+                runTaskTransition(task, "updateStatus", request.status);
+      }
+      return ops as Record<
+        TaskAction,
+        (task: ChannelTask) => Promise<void>
+      >;
+    },
+    [runTaskTransition],
   );
 
   return {
