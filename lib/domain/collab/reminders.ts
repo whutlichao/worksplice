@@ -6,6 +6,7 @@ import { emitWake } from "./wake.ts";
 import { nextFireAt, isValidRecurrence } from "./recurrence.ts";
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import type { MemberRow, MessageRow, ReminderLogEvent, ReminderRow } from "../../data/types.ts";
+import { DomainError } from "../errors.ts";
 
 /**
  * reminder 服务层（§3.9/§5.6）：schedule / list / snooze / update / cancel / log / fire。
@@ -18,16 +19,20 @@ import type { MemberRow, MessageRow, ReminderLogEvent, ReminderRow } from "../..
  *   snooze/update/cancel/reschedule/error）。
  */
 
-export class ReminderNotFoundError extends Error {
+export class ReminderNotFoundError extends DomainError {
   constructor(id: string) {
-    super(`Reminder not found: ${id}`);
+    super(404, "reminder_not_found", `Reminder not found: ${id}`);
     this.name = "ReminderNotFoundError";
   }
 }
 
-export class ReminderNotAuthorizedError extends Error {
+export class ReminderNotAuthorizedError extends DomainError {
   constructor() {
-    super("Only the reminder author (or the owner) can manage this reminder");
+    super(
+      403,
+      "reminder_not_authorized",
+      "Only the reminder author (or the owner) can manage this reminder",
+    );
     this.name = "ReminderNotAuthorizedError";
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAgent, AgentNotFoundError, listAgentTasks, buildAgentTimeline, listRoundLogs, getRoundUsageSummary } from "@/lib/domain/collab";
+import { getAgent, listAgentTasks, buildAgentTimeline, listRoundLogs, getRoundUsageSummary } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 import { aggregateAgentUsage } from "@/lib/session-stats";
 import { resolveSessionIdByPath } from "@/lib/session-reader";
 import { getAgentRuntime } from "@/lib/agent-runtime";
@@ -69,8 +70,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = error instanceof AgentNotFoundError ? 404 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return jsonError(error);
   }
 }

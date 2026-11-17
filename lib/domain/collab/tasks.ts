@@ -19,6 +19,7 @@ import type {
   TaskRow,
   TaskStatus,
 } from "../../data/types.ts";
+import { DomainError } from "../errors.ts";
 
 /**
  * 任务服务层（§3.7）：task = 消息 + 元数据。
@@ -61,33 +62,40 @@ export type TaskUpdateResult =
   | { status: "updated"; task: TaskView }
   | { status: "held"; roomSeq: number; whatHappened: string };
 
-export class TaskAlreadyExistsError extends Error {
+export class TaskAlreadyExistsError extends DomainError {
   constructor() {
-    super("This message is already a task");
+    super(409, "task_already_exists", "This message is already a task");
     this.name = "TaskAlreadyExistsError";
   }
 }
 
-export class InvalidTaskTransitionError extends Error {
+export class InvalidTaskTransitionError extends DomainError {
   constructor(from: TaskStatus, to: TaskStatus) {
-    super(`Invalid task transition: ${from} → ${to}`);
+    super(400, "invalid_task_transition", `Invalid task transition: ${from} → ${to}`);
     this.name = "InvalidTaskTransitionError";
   }
 }
 
-export class TaskNotAuthorizedError extends Error {
+export class TaskNotAuthorizedError extends DomainError {
   constructor(message: string) {
-    super(message);
+    super(403, "task_not_authorized", message);
     this.name = "TaskNotAuthorizedError";
   }
 }
 
-/** claim 边冲突（§3.7/ADR-0002）：update-status 路由按 kind 映射 409
- * （conflict/blocked，与 /claim 路由同语义同状态码——终检整改）。 */
-export class TaskClaimConflictError extends Error {
+/** claim 边冲突（§3.7/ADR-0002）：错误自带 409（conflict/blocked，与 /claim 路由同语义同状态码），
+ * 并把 `{ conflict } / { blocked } + reason` 作为兼容字段随响应出线（票 #277）。 */
+export class TaskClaimConflictError extends DomainError {
   readonly kind: "conflict" | "blocked";
   constructor(kind: "conflict" | "blocked", message: string) {
-    super(message);
+    super(
+      409,
+      kind === "blocked" ? "task_claim_blocked" : "task_claim_conflict",
+      message,
+      kind === "blocked"
+        ? { blocked: true, reason: message }
+        : { conflict: true, reason: message },
+    );
     this.name = "TaskClaimConflictError";
     this.kind = kind;
   }
@@ -459,7 +467,7 @@ export function listChannelTasks(channelId: string): TaskView[] {
 
 export function getTaskView(id: string): TaskView {
   const task = getDb().getTaskById(id);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new DomainError(404, "task_not_found", "Task not found");
   const { anchor } = channelOfTask(task);
   return toTaskView(task, anchor);
 }
@@ -479,7 +487,7 @@ export function markTaskThreadRead(input: {
     throw new Error("throughSeq must be a non-negative integer");
   }
   const task = getDb().getTaskById(input.taskId);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new DomainError(404, "task_not_found", "Task not found");
   const position = getDb().advanceTaskThreadRead(
     task.id,
     input.throughSeq,

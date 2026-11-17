@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendMessage, getMessageWithAuthor, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
 import type { MessageAttachmentDraft } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 interface SendInput {
   targetId?: unknown;
@@ -71,8 +72,7 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as SendInput;
     return respond(handleSend(body, []));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }
 

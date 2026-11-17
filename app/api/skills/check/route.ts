@@ -3,6 +3,7 @@ import type { SkillInstallScope } from "@/lib/api-types";
 import { checkSkillUpdates } from "@/lib/skill-updates";
 import { loadSkillsWithInstallInfo } from "@/lib/skills-service";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { jsonError } from "@/lib/domain/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +46,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ updates });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    );
+    return jsonError(error);
   }
 }

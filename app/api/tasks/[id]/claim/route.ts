@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { claimTask, getTaskView, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * POST /api/tasks/[id]/claim（§5.7 tasks 路由组）：claim 即"我负责"。
@@ -32,7 +33,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     return NextResponse.json({ task: result.task });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { NextResponse } from "next/server";
 import { getAttachmentRow } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * §3.5 附件下载/预览：文件实体存 `~/.worksplice/attachments/`（随机文件名），
@@ -29,7 +30,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(error);
   }
 }

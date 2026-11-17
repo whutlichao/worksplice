@@ -21,6 +21,7 @@
 
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import type { ChannelType, MemberRow } from "../../data/types.ts";
+import { DomainError } from "../errors.ts";
 
 /**
  * `ops` 数组词表（协议层，见 lib/agent-loop/member-ops.ts）：开口表从它派生，两边不会漂移。
@@ -86,11 +87,15 @@ export type HumanOnlyOperation = (typeof HUMAN_ONLY_OPERATIONS)[number];
 const MEMBER_OPEN_SET: ReadonlySet<string> = new Set(MEMBER_OPEN_OPS);
 const HUMAN_ONLY_SET: ReadonlySet<string> = new Set(HUMAN_ONLY_OPERATIONS);
 
-export class MemberOperationDeniedError extends Error {
+export class MemberOperationDeniedError extends DomainError {
   readonly operation: string;
 
   constructor(operation: string, reason: string) {
-    super(`Member operation "${operation}" is not allowed: ${reason}`);
+    super(
+      403,
+      "member_operation_denied",
+      `Member operation "${operation}" is not allowed: ${reason}`,
+    );
     this.name = "MemberOperationDeniedError";
     this.operation = operation;
   }

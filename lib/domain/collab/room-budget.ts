@@ -4,6 +4,7 @@ import { extractMentionedMemberIds, getMember } from "./members.ts";
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import { hasAllMention } from "../../mention.ts";
 import type { WakeHint } from "./wake.ts";
+import { DomainError } from "../errors.ts";
 
 /**
  * 房间轮次预算（Ticket room-turn-budget；设计记录 `.scratch/room-turn-budget/spec.md`）。
@@ -865,10 +866,10 @@ export function createRoomTurnStore(options: RoomTurnStoreOptions = {}): RoomTur
 export const ROOM_PRIVATE_CHANNEL_MESSAGE =
   "在群聊中不可用：请 @ 房间成员，让协作留在房间可见记录里。";
 
-export class RoomPrivateChannelForbidden extends Error {
+export class RoomPrivateChannelForbidden extends DomainError {
   readonly code = "room_private_channel_forbidden";
   constructor() {
-    super(ROOM_PRIVATE_CHANNEL_MESSAGE);
+    super(403, "room_private_channel_forbidden", ROOM_PRIVATE_CHANNEL_MESSAGE);
     this.name = "RoomPrivateChannelForbidden";
   }
 }
@@ -887,10 +888,10 @@ export type DirectRequestLimitCode =
   | "pending_limit_per_sender"
   | "pending_limit_global";
 
-export class RoomBudgetError extends Error {
+export class RoomBudgetError extends DomainError {
   readonly code: DirectRequestLimitCode;
   constructor(code: DirectRequestLimitCode, message: string) {
-    super(message);
+    super(429, code, message);
     this.name = "RoomBudgetError";
     this.code = code;
   }

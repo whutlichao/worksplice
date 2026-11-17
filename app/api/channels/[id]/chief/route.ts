@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import {
-  ChannelChiefError,
   CURRENT_MEMBER_ID,
   chiefRefOf,
   resolveEffectiveChief,
   setChannelChief,
 } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * POST /api/channels/[id]/chief（票 #250）：Owner 设置 / 清除频道首席。
@@ -42,13 +42,6 @@ export async function POST(
       chiefSource: source,
     });
   } catch (error) {
-    if (error instanceof ChannelChiefError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: error.status },
-      );
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(error);
   }
 }

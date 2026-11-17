@@ -13,12 +13,13 @@ import { assertActorMayPerform } from "./member-capabilities.ts";
 import { getRoomTurnStore, type RoomStopResult } from "./room-budget.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
 import { BUILTIN_CHANNEL_ID, OWNER_MEMBER_ID, DM_ID_PREFIX } from "../../data/schema.ts";
+import { DomainError } from "../errors.ts";
 
 /** 当前人类用户恒为 Owner（§3.6：本地单机形态下 Owner 级操作由 human 在 UI 直接执行）。 */
 export const CURRENT_MEMBER_ID = OWNER_MEMBER_ID;
 
 /** Stop 的准入错误：路由按 `status` 映射稳定 4xx，`code` 给调用方与测试做稳定判据。 */
-export class ChannelStopError extends Error {
+export class ChannelStopError extends DomainError {
   readonly status: 403 | 404;
   readonly code: "channel_not_found" | "owner_only" | "dm_not_stoppable";
 
@@ -27,7 +28,7 @@ export class ChannelStopError extends Error {
     code: "channel_not_found" | "owner_only" | "dm_not_stoppable",
     message: string,
   ) {
-    super(message);
+    super(status, code, message);
     this.name = "ChannelStopError";
     this.status = status;
     this.code = code;
@@ -44,13 +45,13 @@ export function getChannel(id: string): ChannelRow | undefined {
 
 function assertChannel(channelId: string): ChannelRow {
   const channel = getDb().getChannel(channelId);
-  if (!channel) throw new Error("Channel not found");
+  if (!channel) throw new DomainError(404, "channel_not_found", "Channel not found");
   return channel;
 }
 
 function assertMember(memberId: string): MemberRow {
   const member = getDb().getMember(memberId);
-  if (!member) throw new Error("Member not found");
+  if (!member) throw new DomainError(404, "member_not_found", "Member not found");
   return member;
 }
 

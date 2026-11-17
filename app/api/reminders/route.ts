@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { scheduleReminder, listReminders, CURRENT_MEMBER_ID, getMember } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * reminders 路由组（§5.7）：GET/POST /api/reminders。
@@ -16,8 +17,7 @@ export async function GET(req: Request) {
     const targetId = url.searchParams.get("targetId") ?? undefined;
     return NextResponse.json({ reminders: listReminders({ authorId, targetId }) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }
 
@@ -54,7 +54,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ reminder }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

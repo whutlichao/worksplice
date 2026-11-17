@@ -3,9 +3,9 @@ import {
   getAgent,
   setAgentAvatarTint,
   updateAgentDescription,
-  AgentNotFoundError,
 } from "@/lib/domain/collab";
 import { deleteAgentIdentity } from "@/lib/agent-lifecycle";
+import { jsonError } from "@/lib/domain/errors";
 
 // GET /api/members/[id] — 单个 agent 成员详情
 export async function GET(
@@ -16,8 +16,7 @@ export async function GET(
     const { id } = await params;
     return NextResponse.json({ agent: getAgent(id) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 404 });
+    return jsonError(error, 404);
   }
 }
 
@@ -70,9 +69,7 @@ export async function PATCH(
     const agent = updateAgentDescription(id, description.trim());
     return NextResponse.json({ agent });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = error instanceof AgentNotFoundError ? 404 : 400;
-    return NextResponse.json({ error: message }, { status });
+    return jsonError(error, 400);
   }
 }
 
@@ -86,8 +83,6 @@ export async function DELETE(
     await deleteAgentIdentity(id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = error instanceof AgentNotFoundError ? 404 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return jsonError(error);
   }
 }

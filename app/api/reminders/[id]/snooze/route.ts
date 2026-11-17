@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { snoozeReminder, ReminderNotFoundError, ReminderNotAuthorizedError, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
+import { snoozeReminder, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * reminders 路由组（§5.7）：POST /api/reminders/[id]/snooze。
@@ -13,13 +14,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const reminder = snoozeReminder(id, minutes, CURRENT_MEMBER_ID);
     return NextResponse.json({ reminder });
   } catch (error) {
-    if (error instanceof ReminderNotFoundError) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
-    }
-    if (error instanceof ReminderNotAuthorizedError) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

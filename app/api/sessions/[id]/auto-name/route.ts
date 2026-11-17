@@ -3,6 +3,7 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { generateSessionTitle } from "@/lib/session-title";
 import { getRpcSession, startRpcSession } from "@/lib/rpc";
 import { invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
+import { jsonError } from "@/lib/domain/errors";
 
 export async function POST(
   _req: Request,
@@ -37,9 +38,6 @@ export async function POST(
     invalidateSessionListCache();
     return NextResponse.json({ title: result.title, usage: result.usage ?? null });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    );
+    return jsonError(error);
   }
 }

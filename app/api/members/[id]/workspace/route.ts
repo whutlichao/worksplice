@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { changeAgentWorkspace, toLifecycleErrorStatus } from "@/lib/agent-lifecycle";
+import { jsonError } from "@/lib/domain/errors";
 
 // POST /api/members/[id]/workspace  body: { workspacePath: string }
 // 更换绑定目录（§3.6 workspace 区，DirectoryPicker 入口）；
@@ -17,7 +18,6 @@ export async function POST(
     const agent = await changeAgentWorkspace(id, body.workspacePath);
     return NextResponse.json({ agent });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: toLifecycleErrorStatus(error) });
+    return jsonError(error, toLifecycleErrorStatus(error));
   }
 }

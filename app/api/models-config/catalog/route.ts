@@ -5,6 +5,7 @@ import {
   searchModelCatalog,
   type ModelCatalogEntry,
 } from "@/lib/model-catalog";
+import { jsonError } from "@/lib/domain/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,6 @@ export async function GET(req: Request) {
     const recommendation = recommendModelCatalogPreset(entries, query, provider, baseUrl);
     return NextResponse.json({ models, recommendation, source: MODELS_DEV_URL });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 502 });
+    return jsonError(error, 502);
   }
 }

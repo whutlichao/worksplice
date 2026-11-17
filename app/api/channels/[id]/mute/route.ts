@@ -7,6 +7,7 @@ import {
   muteChannel,
   unmuteChannel,
 } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * §3.2 mute 路由组：
@@ -36,7 +37,7 @@ export async function GET(
       });
     return NextResponse.json({ mutes: mutesFor });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return jsonError(error);
   }
 }
 
@@ -59,10 +60,6 @@ export async function POST(
     unmuteChannel(id, body.memberId, actorId);
     return NextResponse.json({ memberId: body.memberId, muted: false });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message === "Channel not found" || message === "Member not found") {
-      return NextResponse.json({ error: message }, { status: 404 });
-    }
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

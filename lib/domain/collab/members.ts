@@ -13,6 +13,7 @@ import {
   MEMORY_FILE_NAME,
 } from "../../data/dirs.ts";
 import { bodyMentionText, parseMentionTokens } from "../../mention.ts";
+import { DomainError } from "../errors.ts";
 
 /**
  * workspace 路径归一化（§5.2 隔离单位是 cwd）：绝对路径化，
@@ -78,17 +79,17 @@ export function getMember(id: string): MemberRow | undefined {
   return getDb().getMember(id);
 }
 
-export class AgentNotFoundError extends Error {
+export class AgentNotFoundError extends DomainError {
   constructor(id: string) {
-    super(`Agent not found: ${id}`);
+    super(404, "agent_not_found", `Agent not found: ${id}`);
     this.name = "AgentNotFoundError";
   }
 }
 
 /** 创建 agent 重名（名字是 mention 句柄，重名即歧义）：大小写不敏感、trim 后全等未删除成员。 */
-export class DuplicateAgentNameError extends Error {
+export class DuplicateAgentNameError extends DomainError {
   constructor(name: string) {
-    super(`Agent name "${name}" already exists`);
+    super(409, "agent_name_conflict", `Agent name "${name}" already exists`);
     this.name = "DuplicateAgentNameError";
   }
 }

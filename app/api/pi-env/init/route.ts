@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { initializePiAgentDir } from "@/lib/pi-env-skeleton";
+import { errorMessage } from "@/lib/domain/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: errorMessage(error) },
       { status: failureStatus(code) },
     );
   }

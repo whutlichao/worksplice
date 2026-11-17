@@ -1,6 +1,7 @@
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import { getDb } from "../../data/db-singleton.ts";
 import type { ChannelRow, MemberRow } from "../../data/types.ts";
+import { DomainError } from "../errors.ts";
 
 /**
  * 首席（Chief）身份的**唯一解析口**（票 #248 / #250）：不缓存、每次现算——换人 / 改名 /
@@ -69,12 +70,12 @@ function chiefMemberRejection(memberId: string): {
 }
 
 /** 全局首席的拒绝语义：`status` + `code` 给路由映射稳定 4xx，路由不自己判原因。 */
-export class GlobalChiefError extends Error {
+export class GlobalChiefError extends DomainError {
   readonly status: 400 | 404 | 409;
   readonly code: ChiefMemberRejectionCode;
 
   constructor(status: 400 | 404 | 409, code: ChiefMemberRejectionCode, message: string) {
-    super(message);
+    super(status, code, message);
     this.name = "GlobalChiefError";
     this.status = status;
     this.code = code;
@@ -188,12 +189,12 @@ export type ChannelChiefErrorCode =
   | "not_channel_member"
   | ChiefMemberRejectionCode;
 
-export class ChannelChiefError extends Error {
+export class ChannelChiefError extends DomainError {
   readonly status: 400 | 403 | 404 | 409;
   readonly code: ChannelChiefErrorCode;
 
   constructor(status: 400 | 403 | 404 | 409, code: ChannelChiefErrorCode, message: string) {
-    super(message);
+    super(status, code, message);
     this.name = "ChannelChiefError";
     this.status = status;
     this.code = code;

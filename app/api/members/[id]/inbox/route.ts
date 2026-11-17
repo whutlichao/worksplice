@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAgent, AgentNotFoundError, drainAndAck, getPendingTargets } from "@/lib/domain/collab";
+import { getAgent, drainAndAck, getPendingTargets } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * GET /api/members/[id]/inbox（§5.7 inbox 路由组）：drain + ack。
@@ -19,10 +20,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const drains = getPendingTargets(id).map((target) => drainAndAck(id, target));
     return NextResponse.json({ agentId: id, drains });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (error instanceof AgentNotFoundError) {
-      return NextResponse.json({ error: message }, { status: 404 });
-    }
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

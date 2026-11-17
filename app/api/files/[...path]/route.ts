@@ -8,6 +8,7 @@ import {
   isWindowsAbsolutePath,
   normalizeSlashes,
 } from "@/lib/file-access";
+import { errorMessage, jsonError } from "@/lib/domain/errors";
 import {
   DOCX_PREVIEW_MAX_BYTES,
   IMAGE_PREVIEW_MAX_BYTES,
@@ -212,7 +213,7 @@ export async function POST(
       try {
         bytes = Buffer.from(await file.arrayBuffer());
       } catch (error) {
-        errors.push({ name: file.name, error: error instanceof Error ? error.message : String(error) });
+        errors.push({ name: file.name, error: errorMessage(error) });
         continue;
       }
 
@@ -220,7 +221,7 @@ export async function POST(
         try {
           fs.unlinkSync(destination);
         } catch (error) {
-          errors.push({ name: file.name, error: error instanceof Error ? error.message : String(error) });
+          errors.push({ name: file.name, error: errorMessage(error) });
           continue;
         }
       }
@@ -229,7 +230,7 @@ export async function POST(
         fs.writeFileSync(destination, bytes, { flag: "wx" });
         uploaded.push(file.name);
       } catch (error) {
-        errors.push({ name: file.name, error: error instanceof Error ? error.message : String(error) });
+        errors.push({ name: file.name, error: errorMessage(error) });
       }
     }
 
@@ -238,7 +239,7 @@ export async function POST(
       { status: errors.length > 0 ? 207 : 200 },
     );
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    return jsonError(error);
   }
 }
 
