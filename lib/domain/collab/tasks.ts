@@ -172,6 +172,16 @@ const TRANSITIONS: Record<
   },
 };
 
+/** 状态机转移表的边集（#275 一致性测试 seam）：只暴露 from→to，不暴露授权谓词。 */
+export function transitionEdges(): Array<{ from: TaskStatus; to: TaskStatus }> {
+  return (Object.keys(TRANSITIONS) as TaskStatus[]).flatMap((from) =>
+    (Object.keys(TRANSITIONS[from]) as TaskStatus[]).map((to) => ({
+      from,
+      to,
+    })),
+  );
+}
+
 /**
  * 看板拖拽的可达落点（§3.7/ADR-0002）：从当前状态、以 actorId 的身份可发起的合法转移。
  * 状态机转移表是唯一裁决者；todo 的 claim 是独立操作（claimTask），此处合成该边——

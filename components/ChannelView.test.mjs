@@ -878,6 +878,88 @@ test("TaskViews renders the task board layout without mounting the channel data 
     assert.match(html, /todo|Claim|认领/);
 });
 
+function taskFixture(overrides = {}) {
+    return {
+        id: "task-1",
+        message_id: "msg-1",
+        number: 1,
+        status: "in_progress",
+        owner_id: "agent-1",
+        reopened: 0,
+        updated_at: "2026-08-03T08:00:00.000Z",
+        channelId: "c1",
+        anchor: { ...MESSAGE, id: "msg-1", target_id: "c1" },
+        owner: null,
+        reachable: [],
+        ...overrides,
+    };
+}
+
+test("TaskCard 动作面从服务端 reachable 派生：非 owner 的 in_progress 卡出现 Close（#275）", async () => {
+    const { TaskCard } = await jiti.import("./ChannelView.tsx");
+    const html = renderI18n(
+        React.createElement(TaskCard, {
+            task: taskFixture({ reachable: ["closed"] }),
+            busy: false,
+            onAction: () => undefined,
+            onOpenThread: () => undefined,
+            onRequestClose: () => undefined,
+        }),
+    );
+    assert.match(html, /Close task/);
+    assert.match(html, /btn btn-sm btn-danger/);
+    assert.doesNotMatch(html, /Submit for review/);
+    assert.doesNotMatch(html, /Unclaim/);
+});
+
+test("TaskCard 动作面：in_review 审者拿到 Approve / Reject / Close 三键（#275）", async () => {
+    const { TaskCard } = await jiti.import("./ChannelView.tsx");
+    const html = renderI18n(
+        React.createElement(TaskCard, {
+            task: taskFixture({
+                status: "in_review",
+                reachable: ["done", "in_progress", "closed"],
+            }),
+            busy: false,
+            onAction: () => undefined,
+            onOpenThread: () => undefined,
+            onRequestClose: () => undefined,
+        }),
+    );
+    assert.match(html, /Approve/);
+    assert.match(html, /Reject/);
+    assert.match(html, /Close task/);
+});
+
+test("TaskCard 动作面：reopened todo 对 agent 无 reachable 时不渲染任何动作", async () => {
+    const { TaskCard } = await jiti.import("./ChannelView.tsx");
+    const html = renderI18n(
+        React.createElement(TaskCard, {
+            task: taskFixture({
+                status: "todo",
+                owner_id: null,
+                reopened: 1,
+                reachable: [],
+            }),
+            busy: false,
+            onAction: () => undefined,
+            onOpenThread: () => undefined,
+            onRequestClose: () => undefined,
+        }),
+    );
+    assert.doesNotMatch(html, /class="btn btn-sm/);
+});
+
+test("旧的 status × mine 客户端判定表已删除，动作面走边表（#275）", async () => {
+    const source = await readFile(
+        new URL("../components/ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.doesNotMatch(source, /taskActionsFor/);
+    assert.doesNotMatch(source, /const mine = task\.owner_id === currentMemberId/);
+    assert.match(source, /taskEdgesForReachable\(task\.status, task\.reachable\)/);
+});
+
 test("05 票瘦身：视图直接解构 hook 原名（无过渡别名解构）", async () => {
     const source = await readFile(
         new URL("../components/ChannelView.tsx", import.meta.url),
@@ -947,6 +1029,13 @@ test("ChannelView 任务板数据循环由 useChannelData 持有（04 票）", a
     assert.match(hookSource, /convertMessageToTaskRow/);
     assert.match(hookSource, /createBoardTaskRow/);
     assert.match(hookSource, /taskOps/);
+    // #275：taskOps 的动作名 → 请求与边表同源，不再各自维护映射。
+    assert.match(hookSource, /from "@\/lib\/task-edges"/);
+    assert.match(hookSource, /taskActionRequest/);
+    assert.doesNotMatch(
+        hookSource,
+        /unclaim: \(task: ChannelTask\)/,
+    );
     // TaskViews 视图与拖拽手势不动：TaskList/TaskBoard/拖拽落点校验仍在视图侧。
     assert.match(source, /function TaskList/);
     assert.match(source, /function TaskBoard/);

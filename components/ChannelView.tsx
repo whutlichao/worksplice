@@ -69,6 +69,7 @@ import { indexCurrentMembersById } from "@/lib/member-index";
 import { countOpenTasks } from "@/lib/journey-state";
 import { useChannelData } from "@/hooks/useChannelData";
 import { chiefFailureText } from "@/lib/chief-failure";
+import { taskActionRequest, taskEdgesForReachable } from "@/lib/task-edges";
 import type { ChiefRef, ChiefSource } from "@/lib/domain/collab";
 
 export type CenterTab = "messages" | "tasks";
@@ -1712,80 +1713,11 @@ function readTaskViewPref(): "list" | "board" {
   }
 }
 
-/** §3.7 任务卡片动作（List/Board 共用；与服务端状态机一致：互审 + owner 限定）。
- *  `danger: true` 的动作（关闭任务）在卡片上走 `btn-danger`，且点击后先经一层确认
- *  （界面评审 D3：原先「取消」既像放弃表单、又会真的把任务终止，且无二次确认）。 */
-function taskActionsFor(
-  task: ChannelTask,
-  currentMemberId: string,
-  onAction: (
-    task: ChannelTask,
-    action: "claim" | "updateStatus",
-    status?: TaskStatus,
-  ) => void,
-  t: (key: string, params?: TranslationParams) => string,
-  onRequestClose: (task: ChannelTask) => void,
-): Array<{ label: string; onClick: () => void; danger?: boolean }> {
-  const mine = task.owner_id === currentMemberId;
-  switch (task.status) {
-    case "todo":
-      return [
-        { label: t("tasks.claim"), onClick: () => onAction(task, "claim") },
-      ];
-    case "in_progress":
-      return mine
-        ? [
-            {
-              label: t("tasks.complete"),
-              onClick: () => onAction(task, "updateStatus", "in_review"),
-            },
-            {
-              label: t("tasks.unclaim"),
-              onClick: () => onAction(task, "updateStatus", "todo"),
-            },
-            {
-              label: t("tasks.close"),
-              onClick: () => onRequestClose(task),
-              danger: true,
-            },
-          ]
-        : [];
-    case "in_review":
-      return mine
-        ? [
-            {
-              label: t("tasks.close"),
-              onClick: () => onRequestClose(task),
-              danger: true,
-            },
-          ]
-        : [
-            {
-              label: t("tasks.approve"),
-              onClick: () => onAction(task, "updateStatus", "done"),
-            },
-            {
-              label: t("tasks.reject"),
-              onClick: () => onAction(task, "updateStatus", "in_progress"),
-            },
-          ];
-    case "done":
-    case "closed":
-      return [
-        {
-          label: t("tasks.reopen"),
-          onClick: () => onAction(task, "updateStatus", "todo"),
-        },
-      ];
-  }
-}
-
 /** §3.7 任务卡片（List/Board 共用）：.card-title + .card-meta（#number / 重开标记 / owner）；
  *  点击打开任务 thread；Board 视图可拖拽（落点由 TaskBoard 按 reachable 裁决）。 */
 export function TaskCard({
   task,
   currentMembersById,
-  currentMemberId,
   busy,
   onAction,
   onOpenThread,
@@ -1798,7 +1730,6 @@ export function TaskCard({
 }: {
   task: ChannelTask;
   currentMembersById?: ReadonlyMap<string, MemberRow>;
-  currentMemberId: string;
   busy: boolean;
   onAction: (
     task: ChannelTask,
@@ -1817,7 +1748,24 @@ export function TaskCard({
   onRequestClose: (task: ChannelTask) => void;
 }) {
   const { t } = useI18n();
-  const actions = taskActionsFor(task, currentMemberId, onAction, t, onRequestClose);
+  // 动作面 = 服务端 reachable 逐项映射到边表（#275）：可做性只由服务端裁决，
+  // 边表只补「叫什么 / 发什么请求 / 是否危险」。danger 边（close）先经共享确认框。
+  const actions = taskEdgesForReachable(task.status, task.reachable).map(
+    (edge) => ({
+      key: `${edge.from}->${edge.to}`,
+      label: t(`tasks.${edge.action}`),
+      danger: edge.danger === true,
+      onClick: () => {
+        if (edge.danger) {
+          onRequestClose(task);
+        } else if (edge.request.kind === "claim") {
+          onAction(task, "claim");
+        } else {
+          onAction(task, "updateStatus", edge.request.status);
+        }
+      },
+    }),
+  );
   const currentOwner = currentMembersById?.get(task.owner_id ?? "") ?? task.owner;
   return (
     <div
@@ -1911,7 +1859,7 @@ export function TaskCard({
         >
           {actions.map((action) => (
             <button
-              key={action.label}
+              key={action.key}
               type="button"
               className={action.danger ? "btn btn-sm btn-danger" : "btn btn-sm"}
               disabled={busy}
@@ -1930,7 +1878,6 @@ export function TaskCard({
 export function TaskList({
   tasks,
   currentMembersById,
-  currentMemberId,
   busy,
   folded,
   onToggleGroup,
@@ -1941,7 +1888,6 @@ export function TaskList({
 }: {
   tasks: ChannelTask[];
   currentMembersById?: ReadonlyMap<string, MemberRow>;
-  currentMemberId: string;
   busy: boolean;
   showUnreadDetails?: boolean;
   /** 折叠中的状态集合（由 TaskViews 持有：切 List|Board 不丢折叠态）。默认全展开。 */
@@ -1999,7 +1945,6 @@ export function TaskList({
                   key={task.id}
                   task={task}
                   currentMembersById={currentMembersById}
-                  currentMemberId={currentMemberId}
                   busy={busy}
                   onAction={onAction}
                   onOpenThread={onOpenThread}
@@ -2021,7 +1966,6 @@ export function TaskList({
 export function TaskBoard({
   tasks,
   currentMembersById,
-  currentMemberId,
   busy,
   onAction,
   onOpenThread,
@@ -2031,7 +1975,6 @@ export function TaskBoard({
 }: {
   tasks: ChannelTask[];
   currentMembersById?: ReadonlyMap<string, MemberRow>;
-  currentMemberId: string;
   busy: boolean;
   showUnreadDetails?: boolean;
   onAction: (
@@ -2124,7 +2067,6 @@ export function TaskBoard({
                   key={task.id}
                   task={task}
                   currentMembersById={currentMembersById}
-                  currentMemberId={currentMemberId}
                   busy={busy}
                   onAction={onAction}
                   onOpenThread={onOpenThread}
@@ -2170,7 +2112,6 @@ export function sortUnreadTasks(tasks: ChannelTask[]): ChannelTask[] {
 export function TaskViews({
   tasks,
   currentMembersById,
-  currentMemberId,
   busy,
   disabled,
   error,
@@ -2184,7 +2125,6 @@ export function TaskViews({
 }: {
   tasks: ChannelTask[];
   currentMembersById?: ReadonlyMap<string, MemberRow>;
-  currentMemberId: string;
   busy: boolean;
   disabled: boolean;
   unreadOnly?: boolean;
@@ -2367,7 +2307,6 @@ export function TaskViews({
             tasks={visibleTasks}
             currentMembersById={currentMembersById}
             showUnreadDetails={unreadOnly}
-            currentMemberId={currentMemberId}
             busy={busy}
             folded={folded}
             onToggleGroup={toggleGroup}
@@ -2380,7 +2319,6 @@ export function TaskViews({
             tasks={visibleTasks}
             currentMembersById={currentMembersById}
             showUnreadDetails={unreadOnly}
-            currentMemberId={currentMemberId}
             busy={busy}
             onAction={onAction}
             onOpenThread={onOpenThread}
@@ -2424,7 +2362,11 @@ export function TaskViews({
               onClick={() => {
                 const target = pendingClose;
                 setPendingClose(null);
-                onAction(target, "updateStatus", "closed");
+                // 确认后的请求也取边表（#275）：关闭动作的 request 只定义一份。
+                const request = taskActionRequest("close");
+                if (!request) return;
+                if (request.kind === "claim") onAction(target, "claim");
+                else onAction(target, "updateStatus", request.status);
               }}
             >
               {t("tasks.close")}
@@ -4882,7 +4824,6 @@ export function ChannelView({
             currentMembersById={currentMembersById}
             unreadOnly={unreadOnlyTasks}
             onUnreadOnlyChange={setUnreadOnlyTasks}
-            currentMemberId={currentMemberId}
             busy={busyAction}
             disabled={composerDisabled}
             error={tasksError}

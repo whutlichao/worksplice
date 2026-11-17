@@ -770,11 +770,18 @@ test("D3：「关闭任务」走 btn-danger，点击先弹共享确认（TaskVie
     const mod = await jiti.import("./ChannelView.tsx");
     const closed = [];
     const tasks = [
-        task({ id: "t-1", number: 1, status: "in_progress", owner_id: "owner", owner: AGENT }),
+        task({
+            id: "t-1",
+            number: 1,
+            status: "in_progress",
+            owner_id: "owner",
+            owner: AGENT,
+            // 服务端同格真实值（in_progress + owner）：complete / unclaim / close（#275）。
+            reachable: ["in_review", "todo", "closed"],
+        }),
     ];
     const props = {
         tasks,
-        currentMemberId: "owner",
         busy: false,
         disabled: false,
         error: null,
@@ -793,13 +800,13 @@ test("D3：「关闭任务」走 btn-danger，点击先弹共享确认（TaskVie
     assert.match(list, /class="btn btn-sm btn-danger">Close task</);
     assert.doesNotMatch(list, /class="btn btn-sm">Close task</);
 
-    // TaskCard 缺省（未传 onRequestClose）时仍直接关闭——行为兜底不变
+    // TaskCard 直接渲染同样走 btn-danger（onRequestClose 是必填的确认入口）
     const card = renderI18n(React.createElement(mod.TaskCard, {
         task: tasks[0],
-        currentMemberId: "owner",
         busy: false,
         onAction: (_task, action, status) => closed.push([action, status]),
         onOpenThread: () => undefined,
+        onRequestClose: () => undefined,
     }));
     assert.match(card, /btn btn-sm btn-danger/);
 
