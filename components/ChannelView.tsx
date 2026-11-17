@@ -3679,8 +3679,6 @@ export function ChannelView({
     setMemberNotice(null);
     setStopBusy(false);
     setStopNotice(null);
-    // 任务板常驻加载：messages tab 的右键 Convert 依赖 canConvertToTask 判定
-    loadTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannelId]);
 
