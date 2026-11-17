@@ -1876,6 +1876,71 @@ test("A5：右键菜单容器有可访问名（role=group + aria-label），动�
     });
 });
 
+test("#288：四处弹层共用一份关场/归位接线，不再手写 document 监听", async () => {
+    const source = await readFile(
+        new URL("./ChannelView.tsx", import.meta.url),
+        "utf-8",
+    );
+    assert.doesNotMatch(
+        source,
+        /document\.addEventListener/,
+        "关场监听只能有一处（hooks/useDismissableOverlay.ts），组件里不得再手写",
+    );
+    assert.match(
+        source,
+        /import \{ useDismissableOverlay \} from "@\/hooks\/useDismissableOverlay"/,
+    );
+    assert.doesNotMatch(
+        source,
+        /pickerTriggerRef\.current\?\.focus\(\)/,
+        "EmojiPicker 的调用点补焦已交给共享接线层",
+    );
+
+    // 四处各消费一次；按组件切片检查，未来新增第五处合法消费者不会误红。
+    const slices = [
+        {
+            name: "EmojiPicker",
+            start: "function EmojiPicker(",
+            end: "/** §3.4 reaction 聚合条",
+        },
+        {
+            name: "MessageActions（··· 菜单）",
+            start: "function MessageActions(",
+            end: "function ContextMenu(",
+        },
+        {
+            name: "ContextMenu",
+            start: "function ContextMenu(",
+            end: "/** 顶层消息渲染行",
+        },
+        {
+            name: "MessageRow（反应条）",
+            start: "export const MessageRow = memo(function MessageRow({",
+            end: "/** §3.7 / ED-10 任务状态色",
+        },
+    ];
+    for (const slice of slices) {
+        const start = source.indexOf(slice.start);
+        const end = source.indexOf(slice.end, start);
+        assert.ok(start !== -1 && end > start, `${slice.name} 切片应存在`);
+        assert.match(
+            source.slice(start, end),
+            /useDismissableOverlay[<(]/,
+            `${slice.name} 应消费共享接线`,
+        );
+    }
+
+    const menuStart = source.indexOf("function ContextMenu(");
+    const menuEnd = source.indexOf("/** 顶层消息渲染行", menuStart);
+    const menu = source.slice(menuStart, menuEnd);
+    assert.match(menu, /contextmenu/, "ContextMenu 仍要在别处右键时关场");
+    assert.match(
+        source,
+        /<ContextMenu[\s\S]{0,160}triggerRef=\{rowRef\}/,
+        "ContextMenu 的归位目标是触发消息行（键盘停在行根）",
+    );
+});
+
 test("A5：@ 补全没有候选时 aria-activedescendant 不指向不存在的 option", () => {
     const source = readFile(
         new URL("./ChannelView.tsx", import.meta.url),

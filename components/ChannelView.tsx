@@ -68,6 +68,7 @@ import { memberPanel, threadPanel, type PanelContent } from "@/lib/panel-state";
 import { indexCurrentMembersById } from "@/lib/member-index";
 import { countOpenTasks } from "@/lib/journey-state";
 import { useChannelData } from "@/hooks/useChannelData";
+import { useDismissableOverlay } from "@/hooks/useDismissableOverlay";
 import { chiefFailureText } from "@/lib/chief-failure";
 import { taskActionRequest, taskEdgesForReachable } from "@/lib/task-edges";
 import type { ChiefRef, ChiefSource } from "@/lib/domain/collab";
@@ -599,28 +600,23 @@ export function CenterTabs({
 function EmojiPicker({
   onPick,
   onClose,
+  triggerRef,
 }: {
   onPick: (emoji: string) => void;
   onClose: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
+  const { panelRef } = useDismissableOverlay<HTMLDivElement>({
+    open: true,
+    onClose,
+    triggerRef,
+    // 触发器也算内部：点「添加回应」由按钮自己的 onClick 负责 toggle，
+    // 不能先被 pointerdown 关掉再被 click 打开。
+    boundaryRefs: [triggerRef],
+  });
   return (
     <div
-      ref={ref}
+      ref={panelRef}
       style={{
         position: "absolute",
         zIndex: 60,
@@ -898,6 +894,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentRow[] }) {
  * 与行为不符比没有角色更糟。改为普通容器 + 原生按钮后，Tab 序就是真实的键盘模型。
  */
 export function MessageMoreMenu({
+  containerRef,
   message,
   open,
   pinned,
@@ -908,6 +905,7 @@ export function MessageMoreMenu({
   onReminder,
   onConvertToTask,
 }: {
+  containerRef?: React.Ref<HTMLDivElement>;
   message: ChannelMessage;
   open: boolean;
   pinned?: boolean;
@@ -974,6 +972,7 @@ export function MessageMoreMenu({
 
   return (
     <div
+      ref={containerRef}
       // `role="group"` 让 `aria-label` 真的被读屏用上（裸 div 上的 aria-label 不进 AX 树）；
       // group 不承诺任何键盘模型，与「普通按钮列表 + Tab 序」的实现一致。
       role="group"
@@ -1028,8 +1027,12 @@ function MessageActions({
   onConvertToTask,
   pinned,
   reactOpen,
+  moreOpen,
+  setMoreOpen,
   onToggleReactOpen,
   onDismiss,
+  moreTriggerRef,
+  reactionBarRef,
 }: {
   message: ChannelMessage;
   onReply?: (message: ChannelMessage) => void;
@@ -1044,15 +1047,31 @@ function MessageActions({
   ) => void;
   pinned?: boolean;
   reactOpen?: boolean;
+  moreOpen: boolean;
+  setMoreOpen: React.Dispatch<React.SetStateAction<boolean>>;
   onToggleReactOpen?: () => void;
   onDismiss: () => void;
+  moreTriggerRef: React.RefObject<HTMLButtonElement | null>;
+  reactionBarRef: React.Ref<HTMLDivElement>;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLSpanElement>(null);
   const pickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const { panelRef: moreMenuRef, dismiss: dismissMore } =
+    useDismissableOverlay<HTMLDivElement>({
+      open: moreOpen,
+      onClose: () => setMoreOpen(false),
+      triggerRef: moreTriggerRef,
+      // `moreRef` 包住触发器与菜单：点触发器仍由它自己的 onClick toggle。
+      boundaryRefs: [moreRef],
+    });
+  /**
+   * 动作完成会收起整条动作栏（含触发器）：焦点交给 `dismissActions` 的行停靠点
+   * （界面评审 R2），不再交给弹层 hook——那一刻两个触发器都会随动作栏卸载。
+   * 弹层 hook 只负责「点外 / Escape / 菜单项选中」这些关场路径。
+   */
   const completeAction = (action: () => void) => {
     onDismiss();
     setPickerOpen(false);
@@ -1060,30 +1079,8 @@ function MessageActions({
   };
   useEffect(() => {
     if (!moreOpen) return;
-    const close = (event: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
-        setMoreOpen(false);
-      }
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMoreOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [moreOpen]);
-  const moreTriggerRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!moreOpen) return;
     // 打开后聚焦第一项（键盘用户不必先 Tab 过触发器）；
     moreRef.current?.querySelector<HTMLElement>(".msg-more-menu-item")?.focus();
-    // 关闭后焦点还给 `···` 触发器（界面评审 A5）：否则焦点落在已被卸载的菜单里，
-    // 失焦到 body，键盘用户失去位置。
-    const trigger = moreTriggerRef.current;
-    return () => trigger?.focus();
   }, [moreOpen]);
 
   const hasMoreActions = Boolean(
@@ -1143,10 +1140,11 @@ function MessageActions({
               ···
             </button>
             <MessageMoreMenu
+              containerRef={moreMenuRef}
               message={message}
               open={moreOpen}
               pinned={pinned}
-              onClose={() => setMoreOpen(false)}
+              onClose={dismissMore}
               onToggleReaction={onToggleReaction}
               onToggleReactOpen={
                 onToggleReactOpen
@@ -1166,7 +1164,11 @@ function MessageActions({
       {/* 二级 reaction 条（本仓独有，无上游对应）：形态取 `.reactions` / `.reaction`，
           与动作栏同属一个揭示外壳（`ws-message-actions`），展开时在行内右对齐出。 */}
       {reactOpen && (
-        <div className="reactions" style={{ position: "relative", alignItems: "center" }}>
+        <div
+          ref={reactionBarRef}
+          className="reactions"
+          style={{ position: "relative", alignItems: "center" }}
+        >
           {QUICK_REACTIONS.map((emoji) => (
             <button
               key={emoji}
@@ -1193,15 +1195,11 @@ function MessageActions({
             </button>
             {pickerOpen && (
               <EmojiPicker
+                triggerRef={pickerTriggerRef}
                 onPick={(emoji) =>
                   completeAction(() => onToggleReaction?.(message, emoji))
                 }
-                onClose={() => {
-                  setPickerOpen(false);
-                  // 关闭后焦点还给「添加回应」按钮（界面评审 A5）：否则焦点落在已卸载的
-                  // 弹层里，键盘用户失去位置。
-                  pickerTriggerRef.current?.focus();
-                }}
+                onClose={() => setPickerOpen(false)}
               />
             )}
           </span>
@@ -1220,6 +1218,7 @@ function ContextMenu({
   y,
   items,
   onClose,
+  triggerRef,
 }: {
   x: number;
   y: number;
@@ -1228,24 +1227,20 @@ function ContextMenu({
     onClick: (trigger: HTMLButtonElement) => void;
   }>;
   onClose: () => void;
+  triggerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const { t } = useI18n();
-  useEffect(() => {
-    const close = () => onClose();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("click", close);
-    document.addEventListener("contextmenu", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("click", close);
-      document.removeEventListener("contextmenu", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
+  const { panelRef, dismiss } = useDismissableOverlay<HTMLDivElement>({
+    open: true,
+    onClose,
+    triggerRef,
+    // 右键菜单既要在左键点外 / 键盘 click 时关，也要在别处右键时关；
+    // 指针事件统一走默认的 pointerdown。
+    events: ["pointerdown", "contextmenu", "click"],
+  });
   return (
     <div
+      ref={panelRef}
       // 界面评审 A5 删掉了 `role="menu"`（实现没有菜单键盘模型）；容器仍需一个可访问名，
       // `role="group"` 只做命名、不承诺键盘契约。
       role="group"
@@ -1269,7 +1264,7 @@ function ContextMenu({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onClose();
+            dismiss();
             item.onClick(e.currentTarget);
           }}
           style={{
@@ -1362,6 +1357,7 @@ export const MessageRow = memo(function MessageRow({
   const { t } = useI18n();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [reactOpen, setReactOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [actionsDismissed, setActionsDismissed] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
   /** 动作完成触发的收起标记：下一次「焦点重新进入本行」时复位（见 onFocus）。 */
@@ -1392,22 +1388,15 @@ export const MessageRow = memo(function MessageRow({
     }
   };
   const actionsRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!reactOpen) return;
-    const close = (e: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(e.target as Node))
-        setReactOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setReactOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [reactOpen]);
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
+  const { panelRef: reactionBarRef } = useDismissableOverlay<HTMLDivElement>({
+    open: reactOpen,
+    onClose: () => setReactOpen(false),
+    // 反应条从动作栏的 `···` 展开；关掉它时焦点回到那个稳定触发器。
+    triggerRef: moreTriggerRef,
+    // `actionsRef` 包住动作栏与反应条：点 `···` 仍由它自己的 onClick toggle。
+    boundaryRefs: [actionsRef],
+  });
   const items = [
     ...(onReply
       ? [{
@@ -1621,7 +1610,7 @@ export const MessageRow = memo(function MessageRow({
         <div
           ref={actionsRef}
           className={
-            reactOpen
+            reactOpen || moreOpen
               ? "ws-message-actions ws-message-actions-open"
               : "ws-message-actions"
           }
@@ -1633,6 +1622,8 @@ export const MessageRow = memo(function MessageRow({
           }}
         >
           <MessageActions
+            moreTriggerRef={moreTriggerRef}
+            reactionBarRef={reactionBarRef}
             message={message}
             onReply={onReply ? () => onReply(message, task?.id) : undefined}
             onQuote={onQuote}
@@ -1647,6 +1638,8 @@ export const MessageRow = memo(function MessageRow({
             }
             pinned={pinned}
             reactOpen={reactOpen}
+            moreOpen={moreOpen}
+            setMoreOpen={setMoreOpen}
             onToggleReactOpen={() => setReactOpen((open) => !open)}
             onDismiss={dismissActions}
           />
@@ -1657,6 +1650,7 @@ export const MessageRow = memo(function MessageRow({
           x={menu.x}
           y={menu.y}
           items={items}
+          triggerRef={rowRef}
           onClose={() => setMenu(null)}
         />
       )}
