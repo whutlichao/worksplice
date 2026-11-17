@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { sendMessage, createTask, TaskAlreadyExistsError, getTaskView, CURRENT_MEMBER_ID, getChannel } from "@/lib/domain/collab";
+import { sendMessage, createTask, getTaskView, CURRENT_MEMBER_ID, getChannel } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * POST /api/tasks（§5.7 tasks 路由组）：创建任务 = 消息 + 元数据（§3.7）。
@@ -40,10 +41,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ task: getTaskView(task.id) }, { status: 201 });
   } catch (error) {
-    if (error instanceof TaskAlreadyExistsError) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

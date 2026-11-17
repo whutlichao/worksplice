@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { AgentNotFoundError } from '@/lib/domain/collab';
 import { getAgentTranscriptPage, TranscriptCursorError } from '@/lib/session-transcript';
+import { isDomainError, jsonError } from '@/lib/domain/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,12 +16,13 @@ export async function GET(
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
-    if (error instanceof AgentNotFoundError) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-    }
     if (error instanceof TranscriptCursorError) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
+      return NextResponse.json(
+        { error: error.message, code: 'transcript_cursor_expired' },
+        { status: 409 },
+      );
     }
+    if (isDomainError(error)) return jsonError(error);
     return NextResponse.json(
       { error: 'Unable to read agent transcript' },
       { status: 500 },

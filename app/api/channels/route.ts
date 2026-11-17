@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import {
-  ChannelChiefError,
   listChannelsWithMeta,
   createChannel,
   CURRENT_MEMBER_ID,
 } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 export async function GET() {
   try {
@@ -36,14 +36,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ channel }, { status: 201 });
   } catch (error) {
-    // 非法首席（人类成员 / 软删 / 非本频道成员）走协作域的稳定拒绝语义：4xx + code。
-    if (error instanceof ChannelChiefError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: error.status },
-      );
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

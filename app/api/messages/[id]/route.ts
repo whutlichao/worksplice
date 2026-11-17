@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMessageWithAuthor } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /** 单条消息（引用 / 复制链接深链的数据面）。 */
 export async function GET(
@@ -11,7 +12,6 @@ export async function GET(
     const message = getMessageWithAuthor(id);
     return NextResponse.json({ message });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 404 });
+    return jsonError(error, 404);
   }
 }

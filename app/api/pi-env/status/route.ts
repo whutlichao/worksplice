@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readPiEnvStatus } from "@/lib/pi-env-status";
 import { createPiEnvProbes } from "@/lib/pi-env-probe";
+import { jsonError } from "@/lib/domain/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,6 @@ export async function GET() {
     const status = await readPiEnvStatus(agentDir, createPiEnvProbes());
     return NextResponse.json(status);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    );
+    return jsonError(error);
   }
 }

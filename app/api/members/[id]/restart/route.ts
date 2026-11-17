@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { restartAgent, toLifecycleErrorStatus } from "@/lib/agent-lifecycle";
+import { jsonError } from "@/lib/domain/errors";
 
 // POST /api/members/[id]/restart — Restart（§3.6）：沿用现有 session 接着干
 export async function POST(
@@ -11,7 +12,6 @@ export async function POST(
     const result = await restartAgent(id);
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: toLifecycleErrorStatus(error) });
+    return jsonError(error, toLifecycleErrorStatus(error));
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fullResetAgent, toLifecycleErrorStatus } from "@/lib/agent-lifecycle";
+import { jsonError } from "@/lib/domain/errors";
 
 // POST /api/members/[id]/full-reset — Full reset（§3.6）：会话 + workspace 全清（目录保留）
 export async function POST(
@@ -11,7 +12,6 @@ export async function POST(
     await fullResetAgent(id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: toLifecycleErrorStatus(error) });
+    return jsonError(error, toLifecycleErrorStatus(error));
   }
 }

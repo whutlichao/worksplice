@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchMessages } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * search 路由组（§5.7 / §6.4）：GET /api/search?q=&limit= — FTS5 全文搜索。
@@ -23,7 +24,6 @@ export async function GET(req: Request) {
       results: searchMessages(q, { limit }),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

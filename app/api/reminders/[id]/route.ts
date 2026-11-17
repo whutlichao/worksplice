@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { updateReminder, getReminderView, ReminderNotFoundError, ReminderNotAuthorizedError, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
+import { updateReminder, getReminderView, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * reminders 路由组（§5.7）：PATCH /api/reminders/[id]（update）。
@@ -32,14 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     );
     return NextResponse.json({ reminder });
   } catch (error) {
-    if (error instanceof ReminderNotFoundError) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
-    }
-    if (error instanceof ReminderNotAuthorizedError) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }
 
@@ -49,10 +43,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     return NextResponse.json({ reminder: getReminderView(id) });
   } catch (error) {
-    if (error instanceof ReminderNotFoundError) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

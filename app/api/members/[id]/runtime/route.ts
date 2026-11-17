@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAgent, AgentNotFoundError } from "@/lib/domain/collab";
+import { getAgent } from "@/lib/domain/collab";
 import { getAgentRuntime } from "@/lib/agent-runtime";
 import { saveAgentRuntime } from "@/lib/agent-recovery";
+import { jsonError } from "@/lib/domain/errors";
 
 // GET /api/members/[id]/runtime — per-agent runtime 配置（§3.10）：
 // configured = 持久化的覆盖（null = 继承全局默认）；live = 存活会话的实际状态。
@@ -47,9 +48,7 @@ export async function GET(
       live,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = error instanceof AgentNotFoundError ? 404 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return jsonError(error);
   }
 }
 
@@ -80,8 +79,6 @@ export async function PATCH(
     });
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = error instanceof AgentNotFoundError ? 404 : 400;
-    return NextResponse.json({ error: message }, { status });
+    return jsonError(error, 400);
   }
 }

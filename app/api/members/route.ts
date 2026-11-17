@@ -4,8 +4,8 @@ import {
   createAgent,
   agentHomePath,
   getOwner,
-  DuplicateAgentNameError,
 } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 export async function GET() {
   try {
@@ -56,11 +56,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ agent }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    // 重名 → 409（对齐 BusyCwdError/TaskAlreadyExistsError → 409 惯例）；其余校验错误维持 400
-    if (error instanceof DuplicateAgentNameError) {
-      return NextResponse.json({ error: message }, { status: 409 });
-    }
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

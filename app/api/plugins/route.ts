@@ -12,6 +12,7 @@ import {
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 import { getProjectTrustStatus } from "@/lib/project-trust";
+import { errorMessage, jsonError } from "@/lib/domain/errors";
 import type {
   PluginDiagnostic,
   PluginPackageInfo,
@@ -232,7 +233,7 @@ async function readPlugins(cwd: string): Promise<PluginsResponse> {
   } catch (error) {
     diagnostics.push({
       type: "error",
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMessage(error),
     });
   }
 
@@ -359,6 +360,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json(await readPlugins(body.cwd));
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    return jsonError(error);
   }
 }

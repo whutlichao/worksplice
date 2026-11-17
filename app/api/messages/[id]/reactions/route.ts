@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { toggleReaction, listReactionSummaries, getMessageWithAuthor, CURRENT_MEMBER_ID } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * §3.4 reaction 读写：
@@ -17,7 +18,7 @@ export async function GET(
     const reactions = listReactionSummaries(id);
     return NextResponse.json({ reactions });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 404 });
+    return jsonError(error, 404);
   }
 }
 
@@ -35,7 +36,6 @@ export async function POST(
     });
     return NextResponse.json({ ...result, reactions: listReactionSummaries(id) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

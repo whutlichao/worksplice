@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import {
-  ChannelStopError,
   stopChannelTurn,
   CURRENT_MEMBER_ID,
 } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * POST /api/channels/[id]/stop（票 #238）：Owner 停当前房间波次。
@@ -17,13 +17,6 @@ export async function POST(
     const { id } = await context.params;
     return NextResponse.json(stopChannelTurn(id, CURRENT_MEMBER_ID));
   } catch (error) {
-    if (error instanceof ChannelStopError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: error.status },
-      );
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(error);
   }
 }

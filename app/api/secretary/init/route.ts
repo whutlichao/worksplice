@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { initSecretaryFlow } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * 启动助手入口（spec-bootstrap-agent.md §6.3，构建 effort ticket 06）：
@@ -23,7 +24,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ agent }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

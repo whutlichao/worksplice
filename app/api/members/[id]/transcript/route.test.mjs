@@ -272,5 +272,8 @@ test('transcript cursors are bound to the member and its currently registered se
 test('unknown members return not found', async () => {
   const response = await getTranscript('missing-member');
   assert.equal(response.status, 404);
-  assert.deepEqual(await response.json(), { error: 'Agent not found' });
+  assert.deepEqual(await response.json(), {
+    error: 'Agent not found: missing-member',
+    code: 'agent_not_found',
+  });
 });

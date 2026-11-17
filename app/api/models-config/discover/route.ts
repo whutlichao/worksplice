@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveModelDiscoveryAuth } from "@/lib/model-discovery-auth";
 import { buildModelsListUrl, parseDiscoveredModels } from "@/lib/model-discovery";
+import { jsonError } from "@/lib/domain/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -81,8 +82,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ models, endpoint: endpoint.toString() });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     const status = error instanceof DOMException && error.name === "TimeoutError" ? 504 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return jsonError(error, status);
   }
 }

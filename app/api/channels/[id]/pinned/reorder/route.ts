@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { CURRENT_MEMBER_ID, setPinnedOrder } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /** §3.5 Manual 排序：POST { order: [messageId, ...] } 按顺序重排当前成员的 pinned。 */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -10,7 +11,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     setPinnedOrder({ channelId: id, memberId: CURRENT_MEMBER_ID, order });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }

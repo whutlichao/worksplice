@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { markTaskThreadRead } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /** POST /api/tasks/[id]/read: advance only the addressed Task's visible thread position. */
 export async function POST(
@@ -36,8 +37,6 @@ export async function POST(
       markTaskThreadRead({ taskId: id, throughSeq }),
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = message === "Task not found" ? 404 : 400;
-    return NextResponse.json({ error: message }, { status });
+    return jsonError(error, 400);
   }
 }

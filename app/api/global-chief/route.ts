@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import {
-  GlobalChiefError,
   chiefRefOf,
   getGlobalChief,
   setGlobalChief,
 } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * POST /api/global-chief（票 #251）：全局首席的唯一 HTTP 写面。
@@ -38,13 +38,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ chief: chiefRefOf(getGlobalChief()) });
   } catch (error) {
-    if (error instanceof GlobalChiefError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: error.status },
-      );
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(error);
   }
 }

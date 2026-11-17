@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { CURRENT_MEMBER_ID, pinMessage, unpinMessage, listPinned, type PinSortMode } from "@/lib/domain/collab";
+import { jsonError } from "@/lib/domain/errors";
 
 /**
  * §3.5 个性化 pinned 区（channel 头部可展开）：
@@ -17,8 +18,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const pinned = listPinned({ channelId: id, memberId: CURRENT_MEMBER_ID, sort });
     return NextResponse.json({ pinned });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }
 
@@ -32,8 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const row = pinMessage({ channelId: id, messageId: body.messageId, memberId: CURRENT_MEMBER_ID });
     return NextResponse.json({ pinned: row }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }
 
@@ -46,7 +45,6 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const removed = unpinMessage({ channelId: id, messageId, memberId: CURRENT_MEMBER_ID });
     return NextResponse.json({ unpinned: removed });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonError(error, 400);
   }
 }
