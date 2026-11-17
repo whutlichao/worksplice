@@ -1278,6 +1278,22 @@ span.linenumber {
    同选择器后声明 ⇒ 靠级联生效，上面那条逐字搬运行不动。 */
 .board-toolbar { flex-wrap: wrap; row-gap: var(--sp-4); }
 .board-toolbar .sep { flex: 1; }
+/* 「仅看未读回复」开关（issue #293）的开启态：语义由按钮自身的
+   `aria-pressed` 承载，关闭态保持 `.btn` 原样；开启态只用选中族 token 换色，
+   不改 padding / 边框宽度，开关前后无布局位移。作用域限定在 `.board-toolbar`，
+   避免把 `[aria-pressed="true"]` 写成全局按钮规则。下方显式声明 hover /
+   focus-visible 变体：`.btn:hover` 的灰底与全局 accent 焦点环都不能盖掉激活态。 */
+.board-toolbar .btn[aria-pressed="true"] {
+  background: var(--selected-soft);
+  border-color: var(--selected-graphic);
+  color: var(--selected-deep);
+}
+.board-toolbar .btn[aria-pressed="true"]:hover {
+  box-shadow: 0 0 0 1px var(--selected-graphic);
+}
+.board-toolbar .btn[aria-pressed="true"]:focus-visible {
+  outline-color: var(--selected-graphic);
+}
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
 .seg button { padding: 0 11px; height: var(--icon-btn); font-size: 12px; font-weight: var(--fw-medium); color: var(--muted); border-right: 1px solid var(--border); }
 .seg button:last-child { border-right: 0; }
