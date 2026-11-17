@@ -526,7 +526,7 @@ test("ChannelView 发送通道：发送与 held 由 useChannelData 持有（02 �
     assert.match(hookSource, /maxSeqRef/);
 });
 
-test("ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（01 票）", async () => {
+test("ChannelView 轮询收敛：轮询纪律住在数据层，视图不持定时器（01 票/#278）", async () => {
     const source = await readFile(
         new URL("../components/ChannelView.tsx", import.meta.url),
         "utf-8",
@@ -535,14 +535,28 @@ test("ChannelView 轮询收敛：消息数据循环由 useChannelData 持有（0
         new URL("../hooks/useChannelData.ts", import.meta.url),
         "utf-8",
     );
+    const pollingSource = await readFile(
+        new URL("../hooks/usePollingResource.ts", import.meta.url),
+        "utf-8",
+    );
     assert.match(source, /useChannelData\(channel\?\.id/);
     assert.match(source, /loadEarlierPage\(\)/);
-    // hook 侧：持有轮询纪律（setInterval + 3s + 后台 tab 暂停 + 卸载清理）与合并。
-    assert.match(hookSource, /setInterval/);
+    // 数据 hook 侧：持有 3s 周期与消息轮询合并，定时器本身委托原语。
     assert.match(hookSource, /CHANNEL_POLL_MS/);
     assert.match(hookSource, /applyPollPage/);
-    assert.match(hookSource, /document\.hidden/);
-    assert.match(hookSource, /clearInterval/);
+    assert.match(hookSource, /usePollingResource/);
+    assert.doesNotMatch(hookSource, /setInterval/);
+    assert.doesNotMatch(hookSource, /document\.hidden/);
+    assert.doesNotMatch(hookSource, /clearInterval/);
+    // 轮询原语侧：定时器、后台 tab 暂停、卸载清理与合并注入只在这里。
+    assert.match(pollingSource, /setInterval/);
+    assert.match(pollingSource, /document\.hidden/);
+    assert.match(pollingSource, /clearInterval/);
+    assert.match(pollingSource, /merge/);
+    // #278：重复的任务轮询已删；视图不该再持有任何定时器。
+    assert.doesNotMatch(source, /setInterval/);
+    assert.doesNotMatch(source, /document\.hidden/);
+    assert.doesNotMatch(source, /loadTasksPage/);
 });
 
 test("ChannelView pinned 与附属区：pinned/mute/members 数据循环由 useChannelData 持有（03 票）", async () => {
