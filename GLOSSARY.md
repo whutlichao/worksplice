@@ -155,7 +155,7 @@ Task 创建时在所属 Channel 主序列中记录的持久信息事件，用于
 _Avoid_: 把事件消息当作 Task 锚点、Task 本身或 thread 回复
 
 **可行动任务事件 (Actionable Task Event)**:
-一条任务创建事件「此刻对某个 actor 还能不能引发动作」，而不是这条任务「还 open」。判定同时看任务状态与 actor：`done` / `closed` 对任何人都不可行动；`reopened` 的 `todo` 只对**人类**可行动——人类可以认领接管，agent 必须让路、不在 channel 回复（`docs/spec.md` §3.7）；其余未结束状态对 agent 也可行动。任务分流的额外门槛（未认领、从未分流——即 `handoff_state`）不改变这条判据，只在其上再收窄；`handoff_state` 回答「分流是否已经发生过」，不回答对谁可行动。同一个查询供任务分流筛选、轮次准入与补拉/pending 信号共用；这几个调用点不得各自补 `reopened === 0` 或只看 `done` / `closed`。另有两处问法**不是**这条判据的重复：窗口停窗问「对至少一个 actor 可行动吗」（reopened 事件仍停窗，保持窗口长度与时序，随后由准入让路——频道事件不产生 agent 邀请，任务线程以 `taskReopened` 拒绝），任务线程投递目标问「这条任务是否仍该把回复放进它的线程」（reopened 仍投线程，由 claim `blocked` 让路，绝不落回 channel）。邀请候选（`selectMessageInvitations`）回答的是「这条消息邀谁」，不是「对谁可行动」。
+一条任务创建事件「此刻对某个 actor 还能不能引发动作」，而不是这条任务「还 open」。判定同时看任务状态与 actor：`done` / `closed` 对任何人都不可行动；`reopened` 的 `todo` 只对**人类**可行动——人类可以认领接管，agent 必须让路、不在 channel 回复（`docs/spec.md` §3.7）；其余未结束状态对 agent 也可行动。任务分流的额外门槛（未认领、从未分流——即 `handoff_state`）不改变这条判据，只在其上再收窄；`handoff_state` 回答「分流是否已经发生过」，不回答对谁可行动。同一个查询供任务分流筛选、轮次准入与补拉/pending 信号共用；这几个调用点不得各自补 `reopened === 0` 或只看 `done` / `closed`。另有两处问法**不是**这条判据的重复：窗口停窗问「对至少一个 actor 可行动吗」（reopened 事件仍停窗，保持窗口长度与时序，随后由准入让路——频道事件不产生 agent 邀请，任务线程以 `taskReopened` 拒绝），任务线程投递目标问「这条任务是否仍该把回复路由进它的线程」（reopened 的路由目标仍指向线程；claim `blocked` 后不投任何消息，绝不落回 channel）。邀请候选（`selectMessageInvitations`）回答的是「这条消息邀谁」，不是「对谁可行动」。
 _Avoid_: 「任务还 open」（丢掉了 actor；reopened 的 todo 对 agent 并不 open）、任务状态（那是数据行的一个字段，不是对谁能做什么的结论）
 
 **线程回复总数 (Thread Reply Count)**:

@@ -62,16 +62,6 @@ export function createRoundWindowDirectory(): RoundWindowDirectory {
   };
 }
 
-/**
- * 生产侧读取面的单一实例：目录无状态，方法每次现读 DB / 成员解析；
- * 单例只是省掉各调用点各自装配（wake / loop 共用，票 #276）。
- */
-let roundWindowDirectory: RoundWindowDirectory | null = null;
-
-export function getRoundWindowDirectory(): RoundWindowDirectory {
-  return (roundWindowDirectory ??= createRoundWindowDirectory());
-}
-
 /** 任务创建事件不是人类正文邀请：预览里的 @ 不产生候选。 */
 const NO_INVITATIONS: MessageInvitations = {
   all: false,
@@ -224,7 +214,6 @@ export function notifyMessageWakes(message: MessageRow): void {
       }
     }
     // 票 #276：单条消息 = 窗口长度 1 的判定；唤醒候选由同一份结论给出。
-    // `task` 已在函数开头读取（任务延续自醒），这里直接复用，不再多读一次 DB。
     const recipients = messageWindowRecipients({
       invitations,
       handoffChief,

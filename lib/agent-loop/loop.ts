@@ -15,6 +15,7 @@ import {
   ack,
   agentHomePath,
   claimTask,
+  createRoundWindowDirectory,
   decideRoundAdmission,
   drain,
   extractMentionedMemberIds,
@@ -23,7 +24,6 @@ import {
   getAgent,
   getPendingTargets,
   getRoomTurnStore,
-  getRoundWindowDirectory,
   getSince,
   handoffTask,
   INBOX_DRAIN_WINDOW,
@@ -1443,8 +1443,8 @@ function resolveTaskReplyRoute(input: {
   const taskNumber = taskCreationEventNumber(latest);
   if (taskNumber !== null) {
     const task = getDb().getTaskByChannelNumber(channel.id, taskNumber);
-    // 投递目标 ≠ 对某 actor 可行动：reopened 对 agent 不可行动，但回复仍必须投进
-    // 任务线程（claim 会 blocked 让路），绝不落回 channel（§3.7）。
+    // 投递目标 ≠ 对某 actor 可行动：reopened 对 agent 不可行动，但回复的路由目标
+    // 仍必须指向任务线程（claim blocked 后不投任何消息，也绝不落回 channel，§3.7）。
     // 「任务是否仍存在」取 `some actor` 档（人类是 agent 的超集），与旧的
     // done/closed 判据等价；这里不能直接问「对本 agent 可行动」。
     if (!task || !isTaskActionableForSomeActor(task)) {
@@ -2296,7 +2296,7 @@ export async function runAgentRound(
     targetId,
     task: task ?? null,
     actor: { id: agent.id, type: "agent", isMember },
-    directory: getRoundWindowDirectory(),
+    directory: createRoundWindowDirectory(),
     isPeerCloseText,
   });
   // 票 #240 / #270：任务 handoff 只自动准入本频道的生效首席——频道首席在场时不再叫

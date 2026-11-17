@@ -6,7 +6,6 @@ import { listReactionSummaries, type ReactionSummary } from "./reactions.ts";
 import { listAbandonedMarks, type AbandonedMark } from "./rounds.ts";
 import { RoomPrivateChannelForbidden, getRoomTurnStore } from "./room-budget.ts";
 import { selectMessageInvitations } from "./invitations.ts";
-import { messageWindowRecipients } from "./admission.ts";
 import { OWNER_MEMBER_ID } from "../../data/schema.ts";
 import {
   discardAttachmentFiles,
@@ -177,7 +176,7 @@ export function sendMessage(input: {
     if (!result.held) {
       recordRoomTurn({
         message: result.message,
-        channel: target.channel,
+        channelId: target.channel.id,
         authorId: input.authorId,
         roomContext: input.roomContext,
         roomNotice: input.roomNotice,
@@ -207,7 +206,7 @@ export function sendMessage(input: {
  */
 function recordRoomTurn(input: {
   message: MessageRow;
-  channel: ChannelRow;
+  channelId: string;
   authorId: string;
   roomContext?: { channelId: string; epoch?: number };
   roomNotice?: boolean;
@@ -219,7 +218,7 @@ function recordRoomTurn(input: {
   const author = getMember(input.authorId);
   if (author?.type === "agent") {
     store.noteReply({
-      channelId: input.channel.id,
+      channelId: input.channelId,
       memberId: input.authorId,
       seq: input.message.seq,
       // 跨 target（任务线程）用全局插入序做房间水位线，thread 自己的 seq 空间不可比
@@ -239,20 +238,16 @@ function recordRoomTurn(input: {
       authorId: input.authorId,
       content: input.message.content,
     });
-    // 票 #276：beginTurn 的第一波候选与 wake 同源（窗口长度 1 的同一份结论）；
-    // handoff 首席只进 wake，不进房间第一波——房间预算的选人语义保持逐字不变。
-    const { candidates } = messageWindowRecipients({
-      invitations,
-      handoffChief: null,
-    });
+    // 票 #276：beginTurn 的第一波候选与 wake 同源——候选由
+    // `selectMessageInvitations` 单点给出；handoff 首席只进 wake，不进房间第一波。
     store.beginTurn({
-      channelId: input.channel.id,
+      channelId: input.channelId,
       triggerSeq: input.message.seq,
       text: input.message.content,
       targetId: input.message.target_id,
       authorId: input.authorId,
       replyToAuthorId: input.replyToAuthorId,
-      candidates,
+      candidates: invitations.candidates,
     });
   }
 }

@@ -265,7 +265,7 @@ export interface RoundWindowMember {
 
 /**
  * 窗口判定的读取面：判定层不直接读写数据库，全部事实经此注入。
- * 生产实现由 `wake.ts` 的 `getRoundWindowDirectory()` 提供；测试给纯假实现。
+ * 生产实现由 `wake.ts` 的 `createRoundWindowDirectory()` 提供；测试给纯假实现。
  */
 export interface RoundWindowDirectory {
   /** 正文 → 被个人点名的成员 id（与 @mention 解析同一份）。 */
@@ -333,7 +333,8 @@ export function hasHumanAllMentionInWindow(
  *
  * 「窗口」与「单条」只在最新人类消息、跨作者 owner 消息与任务事件扫描范围上
  * 不同——这些是窗口语义本身，不是重复；窗口长度 1 时 `messages: [message]`
- * 即可得到单条结论，wake / beginTurn 的候选另由 `messageWindowRecipients` 给出。
+ * 即可得到单条结论。候选由 `selectMessageInvitations` 单点给出；wake 在其上
+ * 用 `messageWindowRecipients` 补 handoff 首席，beginTurn 只取房间第一波候选。
  */
 export function selectRoundWindowSignals(input: {
   messages: RoundWindowMessage[];
@@ -450,10 +451,10 @@ export function selectRoundWindowSignals(input: {
 }
 
 /**
- * 单条消息（窗口长度 1）的候选结论：wake / beginTurn 共用。
+ * 单条消息（窗口长度 1）的唤醒候选结论：wake 使用。
  *
- * 候选的唯一来源是 `selectMessageInvitations`（单条邀请的唯一实现）；这里只补上
- * 窗口结论的第二半——handoff 首席只进唤醒，不进房间第一波。准入信号由
+ * 候选的唯一来源是 `selectMessageInvitations`（单条邀请的唯一实现，beginTurn
+ * 直接消费）；这里只补上唤醒结论的第二半——handoff 首席只进唤醒，不进房间第一波。准入信号由
  * `selectRoundWindowSignals({ messages: [message] })` 回答；等价性用例把两者对同一
  * 消息、同一 actor 集合的结论对齐，避免两套判据静默漂移。
  */
