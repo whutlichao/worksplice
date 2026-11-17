@@ -8,7 +8,10 @@ import {
 import { isHandoffEligibleTask } from "./handoff-trigger.ts";
 import { sendMessage } from "./messages.ts";
 import { getMember } from "./members.ts";
-import { isSecretaryMember } from "./secretary-identity.ts";
+import {
+  isSecretaryMember,
+  isTaskStatusAuthority,
+} from "./secretary-identity.ts";
 import { getTaskView, type TaskView } from "./tasks.ts";
 import { emitWake, type WakeHint } from "./wake.ts";
 import type {
@@ -169,7 +172,8 @@ function candidateNames(candidates: MemberRow[]): string {
 }
 
 /**
- * 执行一次任务 handoff（`secretaryId` 只接受**当前全局首席**；频道首席不再有该权限）。
+ * 执行一次任务 handoff（`secretaryId` 接受任务状态权威：当前全局首席或人类 Owner；
+ * 频道首席 / 普通 agent 不再有该权限）。自动路径只由全局首席触发。
  * 所有写入在单个事务内；wake 在提交后发出。
  * `deliverNotice` 是测试接缝：注入抛错时验证 owner / 标记 / 通知一起回滚。
  */
@@ -186,10 +190,10 @@ export function handoffTask(input: {
   const channel = getChannel(input.channelId);
   if (!channel) return { status: "noop", reason: "not_found" };
   const secretary = getMember(input.secretaryId);
-  if (!secretary || !isSecretaryMember(secretary)) {
+  if (!secretary || !isTaskStatusAuthority(secretary.id)) {
     return {
       status: "denied",
-      reason: "handoff is reserved for the global chief",
+      reason: "handoff is reserved for the task status authority",
     };
   }
   if (!isChannelMember(channel.id, secretary.id)) {

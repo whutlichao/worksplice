@@ -118,7 +118,7 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
           admit: true,
           role:
             input.reason === "task-status"
-              ? "task-status-authority"
+              ? "task-reviewer"
               : "human-mention",
           useRoomGate: false,
         };
@@ -131,7 +131,9 @@ export function decideRoundAdmission(input: RoundAdmissionInput): RoundAdmission
         if (input.reason === "task-status" && input.canChangeTaskStatus) {
           return {
             admit: true,
-            role: "task-status-authority",
+            // 复用既有任务互审角色：全局首席在 in_progress 线程收口完成请求，
+            // 不动 round_logs.role 的 schema CHECK（不新增数据库 schema）。
+            role: "task-reviewer",
             useRoomGate: false,
           };
         }

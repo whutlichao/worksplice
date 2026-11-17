@@ -113,7 +113,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   （#295 授权 = 当前全局首席；创建事件 / 任务锚点 / 任务线程 / 唯一引用；
                                   多任务 / 无关联 / 已分流 / 有 owner / reopened / 非 todo 不选）+
                                   isHandoffEligibleTask；频道首席保留默认收件人，不再参与任务 handoff
-  handoff.ts                      handoff 写路径：handoffTask（授权 = 当前全局首席；
+  handoff.ts                      handoff 写路径：handoffTask（授权 = 任务状态权威（全局首席 / 人类 Owner）；
                                   候选排除 / 事务内直接改 owner / freshness / blocked / 提交后定向唤醒 chosen）+
                                   listHandoffCandidates / recoverHandoffWakes；成功通知写明实际执行者
   rounds.ts                       §07 轮次结果服务层：logRoundOutcome / listRoundLogs（camelCase 出线
@@ -161,7 +161,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   admission.ts                    轮次准入纯判定（#237/#295）：decideRoundAdmission + ROUND_SKIP_REASONS
                                   （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵；
                                   in_review 非 owner 在人类或任务 owner @ 时以 task-reviewer 准入，仍非 must-respond；
-                                  reason=task-status 只对当前任务状态权威开放 in_progress 线程，角色 task-status-authority）
+                                  reason=task-status 只对当前任务状态权威开放 in_progress 线程，复用 role=task-reviewer）
   patrol.ts                       任务巡检的**判定层**（票 #267）：纯函数、零 IO。三个阈值 + 7 天窗口的
                                   单一定义处（PATROL_UNCLAIMED_TODO_MS / PATROL_HANDOFF_BLOCKED_MS /
                                   PATROL_IN_REVIEW_MS / PATROL_WINDOW_MS）+ findPatrolFindings（时间与任务快照注入；

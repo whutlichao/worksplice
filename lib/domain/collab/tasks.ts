@@ -340,7 +340,7 @@ export function claimTask(input: {
 /**
  * 状态更新（§3.7）：按状态机表校验转移与授权；受 freshness-hold 保护。
  * unclaim（→todo）与 reopen（done/closed →todo）释放 owner 回池；
- * reopen 额外置 reopened 标记（重开封锁，人类认领时清标）。
+ * reopen 额外置 reopened 标记（重开封锁，任务状态权威认领时清标）。
  */
 export function updateTaskStatus(input: {
   channelId: string;

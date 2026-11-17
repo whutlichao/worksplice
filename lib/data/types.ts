@@ -101,7 +101,7 @@ export interface TaskRow {
   number: number;
   status: TaskStatus;
   owner_id: string | null;
-  /** §3.7 重开封锁标记：reopen 置 1、人类认领清 0；置 1 期间 agent-loop 不可自动认领。 */
+  /** §3.7 重开封锁标记：reopen 置 1、任务状态权威认领清 0；非权威 agent 不可认领。 */
   reopened: number;
   handoff_state: TaskHandoffState | null;
   /** 任务线程内通知消息的 seq；null = 尚未发生自动分流。 */
@@ -156,8 +156,9 @@ export interface ReminderLogRow {
  * - chief：本频道生效的首席接住了一条无点名、不涉及任务的人类消息（#248）；
  * - task-owner / task-reviewer：任务线程 owner 续工 / 互审；
  * - task-event：任务创建事件旁的显式邀请；
- * - secretary-handoff：秘书（全局首席）下沉 handoff 的那一轮；
- * - task-status-authority：任务状态权威被完成请求定向唤醒、进入进行中任务线程（#295）。
+ * - secretary-handoff：秘书（全局首席）下沉 handoff 的那一轮。
+ * #295 的完成请求复用 `task-reviewer`：语义是任务状态权威在 in_progress 线程裁决收口，
+ * 不新增数据库 schema / CHECK 取值。
  */
 export type AdmissionRole =
   | "dm"
@@ -168,8 +169,7 @@ export type AdmissionRole =
   | "task-owner"
   | "task-reviewer"
   | "task-event"
-  | "secretary-handoff"
-  | "task-status-authority";
+  | "secretary-handoff";
 
 /** §07 轮次结果（Round Outcome）落盘行：一次有结论的 agent-loop 轮次。 */
 export interface RoundLogRow {

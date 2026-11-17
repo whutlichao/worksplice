@@ -13,7 +13,7 @@
 
 - 非权威 owner 的 `{"task":{"op":"complete"}}` 是**完成请求**，不是状态写：任务保持 `in_progress`；完成内容落任务线程，并追加一条 actor 署名的系统事件（`roomNotice:true` + `wake:false`，不占房间预算）。
 - 同一份完成报告以线程回复 id / 轮次 key 幂等去重；提交后由服务端只定向唤醒当前全局首席，`WakeHint.reason="task-status"`。不依赖正文 `@`，不惊醒频道首席或普通 agent。
-- 准入层只在该全局首席进入 `in_progress` 任务线程时因 `task-status` 开放，角色记为稳定值 `task-status-authority`。全局首席不存在 / 非频道成员 / 静音时，事件仍留线程，不唤醒、不降级、任务保持原状态。
+- 准入层只在该全局首席进入 `in_progress` 任务线程时因 `task-status` 开放；`round_logs.role` 复用语义最接近的既有值 `task-reviewer`，不新增 schema CHECK 取值。全局首席不存在 / 非频道成员 / 静音时，事件仍留线程，不唤醒、不降级、任务保持原状态。
 - handoff 的 owner 只是归属：被指派的普通 agent 不需要任务状态权威；它完成时走完成请求，由全局首席在合法边上把 `in_progress` 收口到 `in_review`。
 
 **为什么是全局首席而不是频道首席**：
@@ -26,7 +26,7 @@
 - 普通 agent 在任务线程仍可正常讨论、汇报进展；显式 claim / unclaim / handoff 被服务层拒绝后 agent-loop 必须让路，不崩溃、不误投频道顶层。
 - 频道首席仍能接一般无点名消息、仍可按 `worksplice_task_create` 建任务；它不再收到任务 handoff 指令，也不能借 chief 身份改任务状态。
 - 完成请求事件是一条持久审计记录；它的 actor 是提交者，唤醒与状态收口是服务端动作。全局首席必须在 prompt 与秘书手册中被告知“普通 agent 只是请求你收口，不要声称它们直接改了状态”。
-- 不新增数据库 schema / 迁移 / HTTP 公共接口；`round_logs.role` 仅新增一个文本取值 `task-status-authority`，历史行不变。
+- 不新增数据库 schema / 迁移 / HTTP 公共接口；`round_logs.role` 复用 `task-reviewer`，历史行与 CHECK 约束不变。
 
 **被否决的备选**：
 

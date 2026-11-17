@@ -1725,7 +1725,7 @@ export async function runTaskOperation(input: {
       ack(agent.id, input.targetId, baseSeq);
       return {
         status: "yielded",
-        reason: "handoff is reserved for the global chief",
+        reason: "handoff is reserved for the task status authority",
         baseSeq,
       };
     }
@@ -1983,30 +1983,48 @@ export async function runTaskOperation(input: {
   // 非权威 owner 的 complete = 完成请求，不改状态：回复照常落线程，随后写一条
   // actor 署名的系统事件，并只定向唤醒当前全局首席（#295）。
   if (isCompletionRequest) {
-    if (
-      action.action === "reply" &&
-      "status" in replyOutcome &&
-      (replyOutcome.status === "error" || replyOutcome.status === "silent")
-    ) {
-      // 回复没有真正落线程 ⇒ 没有可交付的完成报告，不制造请求事件或额外唤醒。
-      return replyOutcome;
+    if ("status" in replyOutcome) {
+      if (replyOutcome.status === "error" || replyOutcome.status === "silent") {
+        // 回复没有真正落线程 ⇒ 没有可交付的完成报告，不制造请求事件或额外唤醒。
+        return replyOutcome;
+      }
     }
-    const requestKey =
-      "message" in replyOutcome && replyOutcome.message
-        ? replyOutcome.message.id
-        : `${input.targetId}:${baseSeq}`;
+    const report =
+      "message" in replyOutcome ? replyOutcome.message : undefined;
+    if (!report) {
+      // 回复没有真正落线程 ⇒ 没有可交付的完成报告，不制造请求事件或额外唤醒。
+      ack(agent.id, input.targetId, baseSeq);
+      ack(agent.id, task.message_id, replyOutcome.threadAckSeq);
+      return {
+        status: "silent",
+        reason: "completion request ignored — no report landed in the task thread",
+        baseSeq,
+      };
+    }
+    const current = getDb().getTaskById(task.id);
+    if (
+      !current ||
+      current.status !== "in_progress" ||
+      current.owner_id !== agent.id
+    ) {
+      ack(agent.id, input.targetId, baseSeq);
+      ack(agent.id, task.message_id, report.seq);
+      return {
+        status: "silent",
+        reason: "completion request ignored — the task changed while the report was written",
+        baseSeq,
+      };
+    }
+    const requestKey = report.id;
     let eventSeq = replyOutcome.threadAckSeq;
     try {
       const request = notifyTaskCompletionRequest({
-        task,
+        task: current,
         requester: agent,
         requestKey,
-        completionContent:
-          "message" in replyOutcome && replyOutcome.message
-            ? replyOutcome.message.content
-            : undefined,
+        completionContent: report.content,
       });
-      if (request.message) eventSeq = request.message.seq;
+      if ("message" in request) eventSeq = request.message.seq;
     } catch (error) {
       ack(agent.id, input.targetId, baseSeq);
       ack(agent.id, task.message_id, replyOutcome.threadAckSeq);

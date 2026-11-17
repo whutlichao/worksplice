@@ -102,8 +102,8 @@ export function notifyChannelCreated(channel: ChannelRow): void {
 
 /**
  * 任务创建事件消息（§3.7 可认领信号，构建本 effort 的 Convert-to-Task 票）：
- * 以 Owner 署名投到任务所属 channel，`wake: true` 走既有 `notifyMessageWakes` 扇出
- * 该 channel 的全部 agent 成员。
+ * 以 Owner 署名投到任务所属 channel，`wake: true` 进入既有 `notifyMessageWakes`；
+ * #295 起任务事件只定向唤醒当前全局首席，不再扇出该 channel 的全部 agent 成员。
  *
  * 为什么必须有：agent 认领任务的链路是 wake → drain 到新消息 → `buildReplyPrompt`
  * 的 Related open tasks → agent 回 `{"task":{"number":N,"op":"claim"}}`。而
@@ -112,12 +112,12 @@ export function notifyChannelCreated(channel: ChannelRow): void {
  * 板上 Create Task 途径碰巧是好的，只因为它先 `sendMessage` 才有消息可 drain。
  *
  * 与 `deliverEventMessage` 的差别只有 wake 策略：那里是 `wake: false` + 定向唤醒秘书
- * （欢迎路径专用语义）；这里是全 channel 扇出，抢占认领失败让路是既有语义（§3.7）。
+ * （欢迎路径专用语义）；这里保留 `wake: true` 让事件进入任务分流，由 wake 层只叫全局首席。
  * 故另起一个函数，不改也不复用 `deliverEventMessage` 的行为。
  *
  * `roomNotice: true`（房间轮次预算禁止项 #5）：`Task #N created` 是系统事件，Owner 署名只是
  * 沿用既有的事件署名约定——它**不得**开启新房次、不得重置 `lateTurns`、不得 supersede 在跑
- * 的场次。`wake: true` 保留：全 channel 扇出是既有语义（抢占认领失败让路，§3.7）。
+ * 的场次。`wake: true` 保留：任务事件仍需要一个定向轮次，但收件人只剩当前全局首席（#295）。
  *
  * 尽力而为：频道已归档 / Owner 不在频道 / 投递抛错 → 静默跳过或只记日志，绝不反向
  * 破坏调用方（任务已落库，事件消息不得让 `createTask` 失败）。
@@ -207,12 +207,15 @@ export function parseTaskCompletionRequestEvent(
   return { number, requestKey: match[2] };
 }
 
-export interface TaskCompletionRequestResult {
-  status: "created" | "existing" | "noop";
-  message?: MessageRow;
-  /** 当前全局首席；不可达 / 不存在时为 null（事件仍留在线程）。 */
-  chiefId: string | null;
-}
+export type TaskCompletionRequestResult =
+  | {
+      status: "created";
+      message: MessageRow;
+      /** 实际唤醒的当前全局首席；不可达 / 不存在时为 null（事件仍留在线程）。 */
+      chiefId: string | null;
+    }
+  | { status: "existing"; message: MessageRow }
+  | { status: "noop" };
 
 /**
  * 非权威任务 owner 的完成请求（#295）：
@@ -232,13 +235,16 @@ export function notifyTaskCompletionRequest(input: {
   requestKey: string;
   completionContent?: string;
 }): TaskCompletionRequestResult {
-  if (input.task.status !== "in_progress") {
-    return { status: "noop", chiefId: null };
+  if (
+    input.task.status !== "in_progress" ||
+    input.task.owner_id !== input.requester.id
+  ) {
+    return { status: "noop" };
   }
   const anchor = getDb().getMessage(input.task.message_id);
-  if (!anchor) return { status: "noop", chiefId: null };
+  if (!anchor) return { status: "noop" };
   const channel = getChannel(anchor.target_id);
-  if (!channel) return { status: "noop", chiefId: null };
+  if (!channel) return { status: "noop" };
 
   const marker = `(request:${input.requestKey})`;
   const existing = getDb()
@@ -249,7 +255,7 @@ export function notifyTaskCompletionRequest(input: {
         message.content.includes(marker),
     );
   if (existing) {
-    return { status: "existing", message: existing, chiefId: null };
+    return { status: "existing", message: existing };
   }
 
   const preview = input.completionContent
