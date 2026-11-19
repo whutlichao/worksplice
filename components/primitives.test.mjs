@@ -84,12 +84,14 @@ test("原语 .icon-btn：30px 透明边框，hover 换 --surface + --border，.i
 
 // ─── badge / fields / card ───────────────────────────────────────────────────
 
-test("原语 .badge：pill + 未读族实底", () => {
+test("原语 .badge：近直角 + 墨底（计数是墨，不是角色色）", () => {
   const body = blockBody(".badge");
-  assert.match(body, /border-radius:\s*var\(--r-pill\)/);
-  // 票 03：未读角标从「借 --accent」改为未读族（D3：未读是注意力信号，与行动不同族）；
-  // 判据（实底 + 深墨达 AA，9.52:1）不变。
-  assert.match(body, /background:\s*var\(--unread\)/);
+  // 校样世界：章与角标都是「盖上去的印」，圆角收到 --r-sm（2px），不再是药丸。
+  assert.match(body, /border-radius:\s*var\(--r-sm\)/);
+  // 品红只有一个意思（等你审）；未读计数因此走墨底纸白，颜色不是唯一线索——
+  // 数字本身在说话。对应 app/globals.contrast.test.mjs 的墨族断言。
+  assert.match(body, /background:\s*var\(--fg\)/);
+  assert.match(body, /color:\s*var\(--on-accent\)/);
 });
 
 test("原语 .input / .textarea / .select / .field：发丝边框 + r-md（焦点环在 reset 段）", () => {
@@ -116,11 +118,12 @@ test("原语 .card：--surface + --border + --r-md；hover 强化边框 + --shad
 
 // ─── presence / avatar ───────────────────────────────────────────────────────
 
-test("原语 .presence：7px 圆点、无 ink 边框、四态 token、working 脉冲 1.5s", () => {
+test("原语 .presence：7px 方点（套准标记）、无 ink 边框、四态 token、working 脉冲 1.5s", () => {
   const body = blockBody(".presence");
   assert.match(body, /width:\s*7px/);
   assert.match(body, /height:\s*7px/);
-  assert.match(body, /border-radius:\s*var\(--r-pill\)/);
+  // 校样世界用套准方点，不用圆点；1px 倒角是为了在高分屏上不糊。
+  assert.match(body, /border-radius:\s*1px/);
   assert.doesNotMatch(body, /border:\s*\d+px/);
 
   assert.match(blockBody(".presence.online"), /background:\s*var\(--online\)/);
@@ -137,11 +140,13 @@ test("原语 .presence：7px 圆点、无 ink 边框、四态 token、working �
   );
 });
 
-test("原语 .avatar：三档尺寸取自 --avatar-sm|md|lg、7px 圆角（.lg 用 --r-md）、无像素槽位", () => {
+test("原语 .avatar：三档尺寸取自 --avatar-sm|md|lg、方砖（--r-sm）、无像素槽位", () => {
   const body = blockBody(".avatar");
   assert.match(body, /width:\s*var\(--avatar-md\)/);
   assert.match(body, /height:\s*var\(--avatar-md\)/);
-  assert.match(body, /border-radius:\s*7px/);
+  // 方砖 + 1px 内发丝：身份只靠首字母，不靠色相（四色留给角色）。
+  assert.match(body, /border-radius:\s*var\(--r-sm\)/);
+  assert.match(body, /box-shadow:\s*inset 0 0 0 1px/);
   assert.match(body, /display:\s*grid/);
   assert.match(body, /place-items:\s*center/);
   assert.match(body, /font-weight:\s*var\(--fw-black\)/);

@@ -1,73 +1,73 @@
 /* ============================================================================
    worksplice — colors_and_type.css
-   Canonical reusable color + typography foundations, extracted from
-   worksplice-app.html. Direction: macaron (warm cream paper + pastel role
-   families; ADR-0015 — supersedes the colour section of ADR-0014, keeps its
-   form section).
+   Canonical reusable color + typography foundations.
+   Direction: press proof (校样纸与四色印墨). Colour re-decided in the
+   "Press Okay" redesign; ADR-0014's form section (hairline rules, small radii,
+   three-column shell, breakpoints) stays in force, ADR-0015's macaron palette
+   is retired with this file.
    All colors use oklch(). This file is the single source of truth for the
    --bg / --surface / --fg / --muted / --border / --accent contract that the
    existing Next.js components already depend on.
 
-   Tier rule (one hue per role, three tiers per family — `.scratch/macaron-palette/spec.md`):
-     fill    = 马卡龙亮档：只做填充，深墨（--on-accent）压其上
+   Tier rule (one hue per role, four tiers per family):
+     fill    = 淡色印面：只做背景提示，墨（--fg）压其上
+     solid   = 实印面：同族 deep 值作底，纸白（--on-accent）压其上
      soft    = 淡底档：低透明度 tint，只做背景提示，不做边界
      deep    = 文字档：同色相压深，≥4.5:1 可作正文
      graphic = 环·点档：同色相中档，≥3:1 可作焦点环 / 状态点 / 边界
-   A family's bare base name holds the tier that was its main use before the
-   change (see the per-block notes); every other tier carries a suffix.
+   `--accent` 是唯一例外：它的 base 名就是**墨**（主按钮 / 品牌 / 发送），
+   fill 与 deep 同值，纸上压纸白字；其他族的 base 名沿用改判前的主用途档。
    ========================================================================== */
 
 :root {
-  /* ─── surface & text（暖奶霜纸族 + 深梅墨族） ─────────────────────────── */
-  --bg:            oklch(98% 0.011 85);    /* page canvas (warm cream)   */
-  --surface:       oklch(99.4% 0.006 85);  /* cards, panels, chrome      */
-  --panel:         oklch(95.7% 0.018 85);  /* rails, columns, wells      */
-  --panel-2:       oklch(93.1% 0.022 84);  /* nested wells, chips        */
-  --fg:            oklch(33% 0.045 300);   /* primary text (deep plum)   */
-  --muted:         oklch(46% 0.030 300);   /* secondary text             */
-  --faint:         oklch(52% 0.024 300);   /* tertiary / meta text       */
-  --border:        oklch(90% 0.013 86);    /* hairline separators        */
-  --border-strong: oklch(63% 0.020 86);    /* inputs, focus containers（≥3:1 on --surface/--panel/--bg） */
-  --on-accent:     var(--fg);              /* ink that sits on every fill tier */
+  /* ─── surface & text（校样纸族 + 单一墨族） ───────────────────────────── */
+  --bg:            oklch(98.5% 0.004 91.4);  /* page canvas (proof white) */
+  --surface:       oklch(100% 0 89.9);       /* cards, panels, chrome     */
+  --panel:         oklch(96% 0.008 98.9);    /* rails, columns, wells     */
+  --panel-2:       oklch(92.7% 0.011 100.8); /* nested wells, chips       */
+  --fg:            oklch(20% 0.009 264.4);   /* primary text (ink)        */
+  --muted:         oklch(43.5% 0.011 243.1); /* secondary text            */
+  --faint:         oklch(49.3% 0.012 248.1); /* tertiary / meta text      */
+  --border:        oklch(88.7% 0.011 100.8); /* hairline separators       */
+  --border-strong: oklch(65.1% 0.009 248);   /* inputs, interactive edge（≥3:1 on --surface/--panel/--bg） */
+  --on-accent:     oklch(100% 0 89.9);       /* paper white on solid ink  */
 
-  /* ─── accent (macaron pink · action) ─────────────────────────────────── */
+  /* ─── accent（墨 · 动作） ─────────────────────────────────────────────── */
   /* base = fill：主按钮 / 徽标 / composer send / agent 身份 */
-  --accent:        oklch(85.7% 0.086 356.8);  /* primary action surface  */
-  --accent-hover:  oklch(79.4% 0.104 356.6);  /* pressed / hover surface */
-  --accent-soft:   color-mix(in oklch, var(--accent) 22%, transparent);
-  --accent-deep:   oklch(53% 0.086 356.3);    /* text tier (on paper)    */
-  --accent-graphic: oklch(62.6% 0.086 356.7); /* ring / dot / boundary   */
+  --accent:         oklch(20% 0.009 264.4);   /* primary action surface  */
+  --accent-hover:   oklch(29.7% 0.012 264.4); /* pressed / hover surface */
+  --accent-soft:    color-mix(in oklch, var(--accent) 6%, transparent);
+  --accent-deep:    oklch(20% 0.009 264.4);   /* text tier (on paper)    */
+  --accent-graphic: oklch(20% 0.009 264.4);   /* ring / dot / boundary   */
 
   /* ─── semantic status ────────────────────────────────────────────────── */
-  /* --online / --working / --offline：base = graphic（点 / 条 / 标记）。 */
-  /* --error：base = deep（文字 / 描边 / 点同值，不另立第二名字）。        */
-  --online:  oklch(60.1% 0.108 159.4);     /* agent idle / success dot   */
-  --working: oklch(61.9% 0.110 74.2);      /* agent busy / pending dot   */
-  --error:   oklch(53.2% 0.128 25.9);      /* failure / destructive      */
-  --offline: oklch(61.8% 0.026 304.2);     /* agent offline              */
+  /* --online / --working / --offline：base = graphic（点 / 条 / 标记）。
+     --error：base = deep（文字 / 描边 / 点同值，不另立第二名字）。 */
+  --online:  oklch(47.9% 0.079 161.4);     /* agent idle / success dot   */
+  --working: oklch(52.9% 0.127 53.7);      /* agent busy / pending dot   */
+  --error:   oklch(48.5% 0.15 28.1);       /* failure / revise / destructive */
+  --offline: oklch(55.6% 0.012 248);       /* agent offline              */
 
-  --online-fill:   oklch(80.8% 0.108 159.6);   /* success badge / banner */
-  --working-fill:  oklch(84.3% 0.110 74.6);    /* busy badge / banner    */
-  --error-fill:    oklch(74.5% 0.127 25.8);    /* failure badge / banner */
-  --offline-fill:  oklch(82.5% 0.026 303.4);   /* offline badge          */
-  --offline-deep:  oklch(51.8% 0.026 302.5);   /* offline text tier      */
+  --online-fill:   oklch(86.2% 0.049 159.1);   /* success badge / banner */
+  --working-fill:  oklch(85.6% 0.075 70.5);    /* busy badge / banner    */
+  --error-fill:    oklch(85.7% 0.056 27.9);    /* failure badge / banner */
+  --offline-fill:  oklch(90% 0 247.9);         /* offline badge          */
+  --offline-deep:  oklch(47.1% 0.011 243);     /* offline text tier      */
 
-  --online-soft:   color-mix(in oklch, var(--online-fill) 20%, transparent);
-  --working-soft:  color-mix(in oklch, var(--working-fill) 20%, transparent);
-  --error-soft:    color-mix(in oklch, var(--error-fill) 20%, transparent);
-  --offline-soft:  color-mix(in oklch, var(--offline-fill) 20%, transparent);
+  --online-soft:   color-mix(in oklch, var(--online-fill) 28%, transparent);
+  --working-soft:  color-mix(in oklch, var(--working-fill) 28%, transparent);
+  --error-soft:    color-mix(in oklch, var(--error-fill) 28%, transparent);
+  --offline-soft:  color-mix(in oklch, var(--offline-fill) 28%, transparent);
 
-  /* 零消费者登记（与本仓既有先例同形：矩阵先落词汇、消费点随后票接；不删——删了就不成矩阵）：
-     `--working-soft` / `--offline-soft` / `--offline-deep` 当前全仓无 var() 消费者。
-     四态各自的 `-text` 名（--online-text / --working-text）与 `--error`（deep 档，点/描边同值）
-     已有消费点，故不在此列。 */
+  /* 零消费者登记（与既有先例同形：矩阵先落词汇、消费点随后票接；不删）：
+     `--working-soft` / `--offline-soft` / `--offline-deep` 当前全仓无 var() 消费者。 */
 
   /* ─── avatar palette (deterministic per member index) ────────────────── */
-  --av-0: oklch(84.9% 0.081 299.9);        /* lavender               */
-  --av-1: oklch(80.8% 0.108 159.6);        /* mint                   */
-  --av-2: oklch(86.3% 0.084 52.2);         /* peach                  */
-  --av-3: oklch(91% 0.100 94.8);           /* lemon                  */
-  --av-4: oklch(82.5% 0.026 303.4);        /* lotus grey (you)       */
+  --av-0: oklch(93.4% 0.004 100);          /* paper grey 1           */
+  --av-1: oklch(89.6% 0.004 100);          /* paper grey 2           */
+  --av-2: oklch(85.8% 0.004 100);          /* paper grey 3           */
+  --av-3: oklch(95.2% 0.004 100);          /* paper grey 4           */
+  --av-4: oklch(82.4% 0.004 100);          /* paper grey 5 (you)     */
 
   /* ─── misc ───────────────────────────────────────────────────────────── */
   --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
@@ -96,26 +96,8 @@
   --ls-tight: -0.02em; --ls-snug: -0.01em;
   --ls-wide: 0.08em;   --ls-wider: 0.1em;
 
-  /* ─── radii (map onto --r-* consumed by components) ──────────────────── */
-  --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 99px;
+  /* ─── elevation 不在本文件（唯一声明处 = tokens.css） ─────────────────── */
 
-  /* ─── elevation 不在本文件 ─────────────────────────────────────────────
-     `--shadow-pop` / `--shadow-card` / `--shadow-composer` 唯一声明在
-     `tokens.css`（elevation 归它）。本文件曾重复声明同一批值，因 import 顺序
-     （本文件 → tokens.css）那三条是死的；票 04 去重时删掉，**不要加回来**。 */
-
-  /* ─── spacing scale (4px base) ───────────────────────────────────────── */
-  --sp-1: 2px;  --sp-2: 4px;  --sp-3: 6px;  --sp-4: 8px;
-  --sp-5: 12px; --sp-6: 14px; --sp-7: 16px; --sp-8: 18px;
-  --sp-9: 20px; --sp-10: 24px; --sp-11: 30px; --sp-12: 56px;
-
-  /* ─── layout constants ───────────────────────────────────────────────── */
-  --rail-w: 252px;
-  --dock-w: 380px;
-  --dock-w-md: 340px;
-  --stream-max: 880px;
-  --board-col-w: 236px;
-  --control-h: 32px;      /* default button / input height          */
-  --control-h-sm: 27px;   /* compact button                         */
-  --tap-min: 44px;        /* minimum touch target                   */
+  /* spacing / radius / layout constants 的唯一声明处是 `tokens.css`：
+     这份文件不再重复声明（import 顺序会让先声明的那份静默失效，本仓已经付过一次学费）。 */
 }

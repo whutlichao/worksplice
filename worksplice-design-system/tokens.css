@@ -21,22 +21,22 @@
   --avatar-md: 26px;
   --avatar-lg: 44px;
 
-  /* ─── radii ──────────────────────────────────────────────────────────── */
-  --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 99px;
+  /* ─── radii（印面尺度：几乎直角，只有纸边与章的倒角） ──────────────────── */
+  --r-sm: 2px; --r-md: 3px; --r-lg: 4px; --r-xl: 6px; --r-pill: 3px;
 
   /* ─── elevation (layered surfaces only) ──────────────────────────────── */
   /* 阴影的唯一声明处（票 04 去重：colors_and_type.css 曾重复声明同一批值，
      因 import 顺序本文件生效、那份是死的，已删；不要再复制一份回去）。 */
-  --shadow-composer: 0 1px 2px oklch(33% 0.045 300 / 0.04);
-  --shadow-card: 0 2px 8px -4px oklch(33% 0.045 300 / 0.18);
-  --shadow-pop: 0 10px 30px -12px oklch(33% 0.045 300 / 0.28),
-                0 2px 6px -2px oklch(33% 0.045 300 / 0.12);
+  --shadow-composer: 0 1px 2px oklch(20% 0.009 264.4 / 0.05);
+  --shadow-card: 0 1px 3px -1px oklch(20% 0.009 264.4 / 0.12);
+  --shadow-pop: 0 8px 24px -16px oklch(20% 0.009 264.4 / 0.32),
+                0 1px 2px oklch(20% 0.009 264.4 / 0.1);
 
   /* ─── layout constants ───────────────────────────────────────────────── */
   --rail-w: 252px;
   --dock-w: 380px;
   --dock-w-md: 340px;
-  --stream-max: 880px;
+  --stream-max: 1000px;
   --board-col-w: 236px;
   --modal-max: 440px;
   --modal-wide-max: 560px;

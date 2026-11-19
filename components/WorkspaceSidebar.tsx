@@ -212,6 +212,9 @@ export function WorkspaceSidebar({
           <div style={{ minWidth: 0 }}>
             <div className="brand-name">{t("shell.brand")}</div>
             <div className="brand-sub">{t("shell.brandSub")}</div>
+            <span className="regmarks" aria-hidden="true">
+              <i /><i /><i /><i />
+            </span>
           </div>
         </div>
         <button
@@ -374,6 +377,9 @@ export function WorkspaceSidebar({
                   agentTint={agent.avatar_tint}
                 />
                 <span className="grow">{agent.name}</span>
+                <span className="member-state" data-status={agent.status}>
+                  {t(`presence.${agent.status}`)}
+                </span>
                 <StatusDot status={agent.status} translate={t} />
               </button>
             );

@@ -187,13 +187,27 @@ test("频道面 class 块逐字搬自上游 app.css（形态来源唯一）", ()
     // 界面评审 B1：本仓在逐字搬运行**之后**用同选择器追加了窄屏覆盖（`.chan-top` 换行、
     // `.chan-title` 伸缩、`.chan-tools` 不收缩）。`blockBody` 取首处声明 ⇒ 这里比的仍是
     // 「搬自上游」那一条；覆盖行由本文件末尾的窄屏测试单独守。
+    // 校样世界（Press Okay）之后，形态来源不再是「上游逐字」：设计系统与产品同时
+    // 换了世界，`globals.css` 的规则体按新契约重写。这条测试仍然承重——它守的是
+    // **选择器一个不少**（删掉一个 class 块就等于删掉一个形态入口），而形态本身由
+    // 各条具名契约（圆角 / 墨族 / 章 / 密度）分别断言。
     for (const selector of ported) {
-        assert.equal(
-            normalize(blockBody(globalsCss, selector)),
-            normalize(blockBody(upstreamCss, selector)),
-            `${selector} 与上游 app.css 的声明体不一致`,
+        assert.ok(
+            normalize(blockBody(globalsCss, selector)).length > 0,
+            `${selector} 在 globals.css 里消失了`,
         );
     }
+    // 世界级差异（有意为之，逐条在此登记，防止有人把旧形态搬回来）：
+    // ① 圆角收到 2/3/4/6；② 动作只用墨；③ 只有当审才用品红。
+    assert.doesNotMatch(
+        normalize(blockBody(globalsCss, ".composer-box")),
+        /border-radius:\s*var\(--r-2xl\)/,
+    );
+    assert.match(
+        normalize(blockBody(globalsCss, ".composer-box:focus-within")),
+        /0 0 0 1px var\(--accent-graphic\)/,
+        "焦点环应是 1px 实环（无淡底雾）",
+    );
 });
 
 test('message prose uses the approved channel and thread reading scales', () => {
@@ -515,7 +529,7 @@ test("Composer 走 .composer/.composer-box/.composer-bar/.composer-send（accent
     assert.doesNotMatch(box, /--shadow-pop/);
     assert.match(
         blockBody(globalsCss, ".composer-box:focus-within"),
-        /0 0 0 3px var\(--accent-soft\)/,
+        /0 0 0 1px var\(--accent-graphic\)/,
     );
     // 内层 textarea 不再叠第二圈：字段环已在外壳（`:focus-within`）上，内层自己的环
     // 会落在外壳环内侧 1px 处叠成双层、且近直角不跟 `--r-lg` 圆角——同 `.search-btn input`

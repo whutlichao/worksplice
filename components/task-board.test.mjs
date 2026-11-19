@@ -176,13 +176,19 @@ test("任务板骨架：.board-wrap 竖排不溢出；列不拉伸、宽度取�
     assert.match(cols, /height:\s*100%/);
     assert.match(cols, /min-width:\s*min-content/);
 
-    // 列定宽 236px = --board-col-w；flex: 0 0 ⇒ 不随容器拉伸。
+    // 列宽契约：--board-col-w（236px）是**最小**宽度，列可以长到 320px 把剩余横向
+    // 空间吃掉。旧契约 `flex: 0 0 236px` 在 1920 屏上会留下半屏空白（demo 实拍可见），
+    // 三列以上就看不出「板」而像「几个孤立的框」。下限仍由 min-width 守住，
+    // 列多到放不下时照旧横向滚动（`.board.is-board` 的 overflow-x）。
     const col = blockBody(globalsCss, ".col");
     assert.match(col, /width:\s*var\(--board-col-w\)/);
-    assert.match(col, /flex:\s*0 0 var\(--board-col-w\)/);
+    assert.match(col, /flex:\s*1 1 var\(--board-col-w\)/);
+    assert.match(col, /min-width:\s*var\(--board-col-w\)/);
+    assert.match(col, /max-width:\s*320px/);
     assert.match(col, /background:\s*var\(--panel\)/);
     assert.match(col, /border:\s*1px solid var\(--border\)/);
-    assert.match(col, /border-radius:\s*var\(--r-lg\)/);
+    // 校样世界：列框也是纸，圆角 2px（--r-sm），不是 12px 的软卡。
+    assert.match(col, /border-radius:\s*var\(--r-sm\)/);
 
     assert.match(blockBody(globalsCss, ".col-head"), /display:\s*flex/);
     assert.match(blockBody(globalsCss, ".col-head .st-dot"), /width:\s*8px/);
@@ -386,12 +392,10 @@ test("任务板空槽 .drop-hint：虚线 + --r-md + --faint（无 2px 结构线
     assert.match(hint, /color:\s*var\(--faint\)/);
 });
 
-test("逐字搬运：本仓的任务板规则体与上游 app.css 的同名规则逐字相同", () => {
-    // 本仓在逐字搬运行**之后**用同选择器追加了窄屏/配色覆盖（如 `.board-toolbar` 的
-    // `flex-wrap`、`.seg button.is-active` 的 `--surface` 文字色）。`blockBody` 取的是
-    // 首处声明，因此这里比的仍是「搬自上游」的那一条；覆盖行由各自的窄屏测试守。
-    // 逐条比对（不比对整块文本：上游块里 `.card` / `.card:hover` 已由票 04 的原语段落位，
-    // 本仓不会再抄第二份——否则同一个 class 有两处声明，形态来源就分叉了）。
+test("任务板 class 块一个不少（形态入口完整性）+ 世界差异登记", () => {
+    // 校样世界之后，任务板的规则体按新契约重写，不再与上游 app.css 逐字相同。
+    // 这条测试守的仍是承重部分：**每个 class 块都在**（删块 = 删形态入口），
+    // 而「形态长什么样」由下面登记的差异与各具名契约分别守。
     const selectors = [
         ".board-wrap",
         ".board-toolbar",
@@ -400,9 +404,6 @@ test("逐字搬运：本仓的任务板规则体与上游 app.css 的同名规�
         ".seg button",
         ".seg button:last-child",
         ".seg button:hover",
-        // `.seg button.is-active` 不在逐字清单里：界面评审 C3 把它的文字色从上游的
-        // 冷蓝裸值 `oklch(98% 0.005 250)` 换成了契约 token `--surface`（全仓唯一的
-        // 色板外色相）。该条的当前值由下面的 `.seg` 用例单独断言。
         ".filter-chip",
         ".filter-chip:hover",
         ".filter-chip.is-on",
@@ -428,12 +429,18 @@ test("逐字搬运：本仓的任务板规则体与上游 app.css 的同名规�
         ".drop-hint",
     ];
     for (const selector of selectors) {
-        assert.equal(
-            blockBody(globalsCss, selector).replace(/\s+/g, " ").trim(),
-            blockBody(upstreamCss, selector).replace(/\s+/g, " ").trim(),
-            `${selector} 与上游 app.css 不一致`,
+        assert.ok(
+            blockBody(globalsCss, selector).trim().length > 0,
+            `${selector} 在 globals.css 里消失了`,
         );
     }
+
+    // 世界差异（有意为之，登记在此防止旧形态被搬回来）：
+    // ① 列圆角 2px；② 卡片与列都是纸（--surface / --panel），不用胶囊；
+    // ③ 卡片的「状态」是一枚章，不只是一个彩色点。
+    assert.match(blockBody(globalsCss, ".col"), /border-radius:\s*var\(--r-sm\)/);
+    assert.doesNotMatch(blockBody(globalsCss, ".card"), /border-radius:\s*var\(--r-pill\)/);
+    assert.match(globalsCss, /\.card-stamp\[data-status="in_review"\]/);
 });
 
 // ─── ② 产品渲染出的 markup ───────────────────────────────────────────────────
@@ -901,10 +908,11 @@ test("R3：≤900px 看板堆叠成单列（上游两条逐字 + min-width 扩�
         /\d+(?:\.\d+)?(?:vh|dvh|vw)/,
         "堆叠段不得引入视口魔数",
     );
-    // 桌面形态零变化：>900 处仍是固定 236px 横向列。
+    // 桌面形态：>900 处仍是横向列，宽度以 236px 为下限、320px 为上限（见骨架用例）。
     const col = blockBody(globalsCss, ".col");
     assert.match(col, /width:\s*var\(--board-col-w\)/);
-    assert.match(col, /flex:\s*0 0 var\(--board-col-w\)/);
+    assert.match(col, /flex:\s*1 1 var\(--board-col-w\)/);
+    assert.match(col, /min-width:\s*var\(--board-col-w\)/);
     const cols = blockBody(globalsCss, ".board-cols");
     assert.match(cols, /display:\s*flex/);
     assert.doesNotMatch(cols, /flex-direction:\s*column/);

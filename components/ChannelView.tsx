@@ -1563,7 +1563,10 @@ export const MessageRow = memo(function MessageRow({
             <span className="ws-task-anchor-number">
               {t("tasks.anchorNumber", { number: String(task.number) })}
             </span>
-            <span className="ws-task-anchor-status">
+            <span
+              className="ws-task-anchor-status"
+              data-status={task.status}
+            >
               {t(`task.status.${task.status}`)}
             </span>
             <button
@@ -1813,6 +1816,12 @@ export function TaskCard({
       </button>
       <div className="card-meta">
         <span className="card-num">#{task.number}</span>
+        <span className="card-stamp" data-status={task.status}>
+          {t(`task.status.${task.status}`)}
+          {task.status === "done" && task.owner ? (
+            <span className="signer">{task.owner.name}</span>
+          ) : null}
+        </span>
         {showUnreadDetails && (
           <span className="card-tag">
             {t("tasks.unreadReplyCount", {

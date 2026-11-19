@@ -255,7 +255,7 @@ test("`.tt-summary` sticky / `.tt-reply` composer 槽 / `.tt-scroll` 滚动槽",
   assert.match(blockBody(".tt-reply .composer-box"), /box-shadow:\s*none/);
   assert.match(
     blockBody(".tt-reply .composer-box:focus-within"),
-    /0 0 0 3px var\(--accent-soft\)/,
+    /0 0 0 1px var\(--accent-graphic\)/,
   );
 
   assert.match(blockBody(".tt-scroll"), /overflow-y:\s*auto/);

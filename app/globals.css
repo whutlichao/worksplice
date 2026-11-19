@@ -79,26 +79,26 @@ select:focus-visible {
    （当前位置 / 未读 / 警示），不进通用资料，落本仓。四档与上游同义：
    fill 填充（--on-accent 压其上）· soft 淡底 · deep 文字 · graphic 环·点。 */
 :root {
-  /* 选中 / 导航激活 / 锚点行 / tab / 选中 chip */
-  --selected:         oklch(84.9% 0.081 299.9);
-  --selected-soft:    color-mix(in oklch, var(--selected) 21%, transparent);
-  --selected-deep:    oklch(52.4% 0.081 299.8);
-  --selected-graphic: oklch(62.4% 0.081 300.5);
+  /* 选中 / 导航激活 / 锚点行 / tab / 选中 chip（印版青） */
+  --selected:         oklch(84.2% 0.05 224.5);
+  --selected-soft:    color-mix(in oklch, var(--selected) 22%, transparent);
+  --selected-deep:    oklch(41.5% 0.072 222.8);
+  --selected-graphic: oklch(51% 0.092 227.2);
 
-  /* 未读角标 / 未读点 / 命中高亮 */
-  --unread:         oklch(91% 0.100 94.8);
-  --unread-soft:    color-mix(in oklch, var(--unread) 36%, transparent);
-  --unread-deep:    oklch(51.8% 0.100 94.5);
-  --unread-graphic: oklch(61.6% 0.099 94.7);
+  /* 未读角标 / 未读点 / 命中高亮（印版品红：等你审的那一类） */
+  --unread:         oklch(86.5% 0.06 348.6);
+  --unread-soft:    color-mix(in oklch, var(--unread) 26%, transparent);
+  --unread-deep:    oklch(43.6% 0.149 353.2);
+  --unread-graphic: oklch(50% 0.169 353.3);
 
   /* 零消费者登记：`--unread-soft` / `--unread-graphic` —— 未读族的实际消费点是
      「未读角标 fill」（`.badge`）与「命中高亮 fill」（`.result mark`），soft / graphic
      两档按矩阵落值、暂无消费者（同上：矩阵先落词汇，不删）。 */
-  /* 警示 / 待审提示 / 警告横幅（今天借 --working 的那些站点） */
-  --warn:         oklch(86.3% 0.084 52.2);
-  --warn-soft:    color-mix(in oklch, var(--warn) 24%, transparent);
-  --warn-deep:    oklch(52.6% 0.084 51.9);
-  --warn-graphic: oklch(62.1% 0.083 51.6);
+  /* 警示 / 待审提示 / 警告横幅（印版黄） */
+  --warn:         oklch(88.8% 0.103 91.3);
+  --warn-soft:    color-mix(in oklch, var(--warn) 30%, transparent);
+  --warn-deep:    oklch(50.2% 0.101 86.7);
+  --warn-graphic: oklch(60.5% 0.124 78.7);
 }
 
 pre, code {
@@ -118,8 +118,8 @@ pre, code {
    （= spec 矩阵里同族的 deep 档；票 03 起不再用 `color-mix` 派生，值可审计、
    不再随两个输入漂移）。 */
 :root {
-  --online-text: oklch(50.6% 0.107 159.9);
-  --working-text: oklch(52.3% 0.110 75.2);
+  --online-text: oklch(41.5% 0.067 162.8);
+  --working-text: oklch(47.1% 0.112 53.7);
 }
 
 /* ED-9：遗留面把动效时长写在 inline style 里（消息动作栏 / 菜单 / 开关 /
@@ -1213,13 +1213,14 @@ span.linenumber {
 /* ─── badge ──────────────────────────────────────────────────────────────── */
 .badge {
   font-family: var(--mono); font-size: 10px; font-weight: var(--fw-black); line-height: 1.5;
-  min-width: 18px; padding: 0 5px; border-radius: var(--r-pill); text-align: center;
-  background: var(--unread); color: var(--on-accent);
+  min-width: 18px; padding: 0 5px; border-radius: var(--r-sm); text-align: center;
+  background: var(--fg); color: var(--on-accent);
 }
 .badge.soft { background: var(--fg-soft); color: var(--muted); }
 
 /* ─── presence + avatar ──────────────────────────────────────────────────── */
-.presence { width: 7px; height: 7px; border-radius: var(--r-pill); flex: 0 0 7px; }
+/* 存在态用印刷套准标记的方点：不靠圆点，也不靠颜色单独说话（文字永远在旁边）。 */
+.presence { width: 7px; height: 7px; border-radius: 1px; flex: 0 0 7px; }
 .presence.online { background: var(--online); }
 .presence.working { background: var(--working); animation: pulse 1.5s ease-in-out infinite; }
 .presence.error { background: var(--error); }
@@ -1228,7 +1229,8 @@ span.linenumber {
 
 .avatar {
   width: var(--avatar-md); height: var(--avatar-md); flex: 0 0 var(--avatar-md);
-  border-radius: 7px; display: grid; place-items: center;
+  border-radius: var(--r-sm); display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--fg) 14%, transparent);
   font-size: 11px; font-weight: var(--fw-black); color: var(--fg); overflow: hidden;
 }
 .avatar.sm { width: var(--avatar-sm); height: var(--avatar-sm); flex-basis: var(--avatar-sm); font-size: 10px; }
@@ -1308,7 +1310,7 @@ span.linenumber {
 
 .board { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-6) var(--sp-7) var(--sp-10); }
 .board-cols { display: flex; gap: var(--sp-5); align-items: stretch; min-width: min-content; height: 100%; }
-.col { width: var(--board-col-w); flex: 0 0 var(--board-col-w); background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg); display: flex; flex-direction: column; min-height: 0; }
+.col { width: var(--board-col-w); flex: 1 1 var(--board-col-w); min-width: var(--board-col-w); max-width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm); display: flex; flex-direction: column; min-height: 0; }
 .col-head { display: flex; align-items: center; gap: var(--sp-4); padding: 10px var(--sp-5) var(--sp-4); }
 .col-head .st-dot { width: 8px; height: 8px; border-radius: var(--r-pill); }
 .col-head b { font-size: 12.5px; font-weight: var(--fw-bold); }
@@ -1472,13 +1474,24 @@ span.linenumber {
 }
 .ws-task-anchor-number { font-family: var(--mono); font-weight: var(--fw-bold); color: var(--accent-deep); }
 .ws-task-anchor-status {
-  padding: 1px var(--sp-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  background: var(--panel-2);
-  color: var(--muted);
-  font-size: var(--fs-sm);
+  padding: 1px var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
 }
+/* 付印章：任务状态是这张校样上唯一被「盖」上去的东西。章形与墨色一态一义，
+   状态词始终写在章里，所以颜色不是唯一线索。 */
+.ws-task-anchor-status[data-status="todo"] { border-color: var(--border-strong); color: var(--muted); }
+.ws-task-anchor-status[data-status="in_progress"] { border-color: var(--working); color: var(--working-text, var(--working-deep, var(--fg))); }
+.ws-task-anchor-status[data-status="in_review"] { border: 1.5px dashed var(--unread-graphic); color: var(--unread-deep); background: var(--unread-soft); }
+.ws-task-anchor-status[data-status="done"] { border: 1.5px solid var(--online); color: var(--online-text, var(--fg)); background: color-mix(in oklch, var(--online) 10%, transparent); }
+.ws-task-anchor-status[data-status="closed"] { border-color: var(--border); color: var(--offline-deep); }
 .ws-task-discussion-button { margin-left: auto; }
 .ws-task-event-announcer {
   position: absolute;
@@ -1592,7 +1605,7 @@ span.linenumber {
 .composer-inner { max-width: var(--stream-max); margin: 0 auto; }
 .composer-box { border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-composer); transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
 .composer-input { width: 100%; border: 0; background: none; resize: none; padding: 11px 13px var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); outline: none; max-height: 160px; }
-.composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 3px var(--accent-soft); }
+.composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 1px var(--accent-graphic); }
 /* 字段环已在 shell（`:focus-within`）上；内层 textarea 自己的环会落在外壳环内侧 1px 处叠成双环，
    而且它的 `:focus-visible` 圆角是 reset 的 2px、角上不跟外壳的 `--r-lg`。
    同 `.search-btn input`（票 03）与 `.search-field input`（票 09）的处置。 */
@@ -1727,7 +1740,7 @@ span.linenumber {
 /* 常驻阴影退场（ED-4：静止内容不加阴影），焦点环保留 accent（ED-8）——后一条必须显式重声明：
    它与文件顶部 reset 的 `.composer-box:focus-within` 同特异度，靠顺序决胜。 */
 .tt-reply .composer-box { box-shadow: none; }
-.tt-reply .composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tt-reply .composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 1px var(--accent-graphic); }
 .tt-reply textarea { min-height: 38px; }
 .tt-empty { padding: 26px var(--sp-2); text-align: center; color: var(--faint); font-size: var(--fs-sm); }
 
@@ -1868,3 +1881,77 @@ span.linenumber {
 .empty { text-align: center; padding: var(--sp-12) var(--sp-9); color: var(--faint); }
 .empty svg { margin-bottom: var(--sp-5); opacity: .7; }
 .empty b { display: block; color: var(--muted); font-weight: var(--fw-semi); font-size: var(--fs-body-lg); margin-bottom: var(--sp-2); }
+/* ==========================================================================
+   校样世界（press world）—— Payload 与付印章
+   世界只借四样东西：字、色、密度、一个签名动作。这里的签名动作是**方形付印章**：
+   任务状态不是一个彩色圆点，而是一枚盖在校样上的章——一态一形一墨，状态词永远写在章里。
+   ========================================================================== */
+.regmarks { display: inline-flex; gap: 3px; margin-top: 5px; }
+.regmarks i { width: 6px; height: 6px; display: block; border-radius: 1px; }
+.regmarks i:nth-child(1) { background: var(--selected-graphic); }
+.regmarks i:nth-child(2) { background: var(--unread-graphic); }
+.regmarks i:nth-child(3) { background: var(--warn-graphic); }
+.regmarks i:nth-child(4) { background: var(--fg); }
+
+.card-stamp {
+  font-family: var(--mono); font-size: 9.5px; font-weight: var(--fw-semi);
+  letter-spacing: var(--ls-wide); text-transform: uppercase;
+  padding: 1px 5px; border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong); color: var(--muted);
+  white-space: nowrap;
+}
+.card-stamp[data-status="in_progress"] { border-color: var(--working); color: var(--working-text, var(--fg)); }
+.card-stamp[data-status="in_review"] { border: 1.5px dashed var(--unread-graphic); color: var(--unread-deep); background: var(--unread-soft); }
+.card-stamp[data-status="done"] { border: 1.5px solid var(--online); color: var(--online-text, var(--fg)); }
+.card-stamp[data-status="closed"] { border-color: var(--border); color: var(--offline-deep); }
+
+/* 系统事件行（任务已创建 / 已变化）是校样边上的记录条，不是消息：压到发丝级，让对话回到前面。 */
+.ws-task-created-event {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 4px 0;
+  margin: 0;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+/* 成员存在态：点 + 词。词是固定宽度的等宽小字，所以「谁在动 / 谁出错 / 谁离线」
+   不需要靠颜色猜——这也是 owner 的硬失败信号（状态要猜）在成员面上的落点。 */
+.member-state {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 0 0 auto;
+  margin-left: var(--sp-2);
+}
+.member-state[data-status="working"] { color: var(--working-text); }
+.member-state[data-status="error"] { color: var(--error); }
+.member-state[data-status="offline"] { color: var(--offline-deep); }
+
+/* 付印章在任务行的**右端**：先是编号、再是「打开讨论」，章压在最后。 */
+.ws-task-anchor-meta { display: flex; align-items: center; }
+.ws-task-anchor-number { order: 0; }
+.ws-task-discussion-button { order: 1; margin-left: auto; }
+.ws-task-anchor-status { order: 2; margin-left: var(--sp-3); }
+
+/* 完成章的署名：谁签的，写在章里。 */
+.card-stamp .signer { font-weight: var(--fw-semi); margin-left: 4px; }
+
+/* 移动端频道头：工具条不许折行把「停止」挤到第二行（评审 fix 5 的可执行部分）。
+   控件保留，横向可滚；桌面不变。 */
+@media (max-width: 900px) {
+  /* 标题保持可换行（B1 的窄屏约束不变）；工具条作为**一整块**换到第二行并横向可滚，
+     不再把「停止」单独挤下去。 */
+  .chan-tools {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    max-width: 100%;
+  }
+  .chan-tools::-webkit-scrollbar { display: none; }
+}
