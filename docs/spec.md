@@ -216,57 +216,57 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 
 ## 4. 视觉设计 token
 
-**马卡龙暖奶霜 + pastel 角色族**（`docs/adr/0015-macaron-palette-warm-cream-pastel.md` 裁决），**形态段沿用 `docs/adr/0014-visual-direction-modern-minimal.md`**——小圆角、发丝边框、柔和阴影、首字头像、三栏骨架、断点（1080 / 900 / 640）与系统字体栈全部继续有效。仅亮色一档，无深色模式，不响应 `prefers-color-scheme`。
+**校样（press proof）**（`docs/adr/0022-press-proof-visual-world.md` 裁决）：校样白纸族 + 单一墨族 + **四色只做角色** + 方形付印章。ADR-0014 的发丝边框、灰度阴影几何、三栏骨架、断点（1080 / 900 / 640）、系统字体栈与 ADR-0016 的阅读档位继续有效；ADR-0015 的马卡龙色板、6/8/12/16 圆角、99px 胶囊、圆点 presence 与 7px 圆角头像作废。仅亮色一档，无深色模式，不响应 `prefers-color-scheme`。
 
-> 沿革（本节曾三次记录方向）：最初是马卡龙色板配墨线粗边框与直角形态；ADR-0014 整节改判为 modern-minimal；ADR-0015 只再改判其**色板段**为马卡龙。本节只保留终局值，历史论证在两份 ADR 里。
+> 沿革（本节曾四次记录方向）：最初是马卡龙色板配墨线粗边框与直角形态；ADR-0014 整节改判为 modern-minimal；ADR-0015 只再改判其**色板段**为马卡龙；ADR-0022 整屏改判为校样。本节只保留终局值，历史论证在三份 ADR 里。
 
-事实来源是入库的 `worksplice-design-system/`：`colors_and_type.css`（色 + 字型）、`tokens.css`（间距 / 圆角 / 高度 / 阴影 / 动效 / z-index），两者经 `app/globals.css` 顶层 `@import` 成为**运行时真源**；`app/globals.css` 只叠产品扩展层，不复制上游同名 token。
+事实来源是入库的 `worksplice-design-system/`：`colors_and_type.css`（色 + 字型）、`tokens.css`（间距 / 圆角 / 高度 / 阴影 / 动效 / z-index），两者经 `app/globals.css` 顶层 `@import` 成为**运行时真源**；`app/globals.css` 只叠产品扩展层，不复制上游同名 token。布局 / 间距 / 圆角 / 阴影的**唯一声明处是 `tokens.css`**。
 
 ### 4.1 色板
 
-每族四档：**fill**（马卡龙亮档，只做填充，其上压 `--on-accent` 深梅墨）/ **soft**（淡底，只做背景提示，不做边界）/ **deep**（文字档，≥4.5:1）/ **graphic**（环 · 点 · 边界档，≥3:1）。`-soft` 的配方是 `color-mix(in oklch, var(--<族>) <配比>%, transparent)`，配比是契约的一部分（22 / 21 / 36 / 24，四态族 20%）。
+每族四档：**fill**（淡印面，只做填充，其上压**墨**）/ **soft**（淡底，只做背景提示，不做边界）/ **deep**（文字档，≥4.5:1）/ **graphic**（环 · 点 · 边界档，≥3:1）。`-soft` 的配方是 `color-mix(in oklch, var(--<族>) <配比>%, transparent)`，配比是契约的一部分（选中 22 / 未读 26 / 警示 30 / 四态 28）。
 
-**角色族**（一色一义）：
+**角色族**（一色一义，不做装饰）：
 
 | 族 | 角色 | fill | deep | graphic |
 |---|---|---|---|---|
-| `--accent` | 行动：主按钮 / 徽标 / composer send / agent 身份 | `oklch(85.7% 0.086 356.8)` | `oklch(53% 0.086 356.3)` | `oklch(62.6% 0.086 356.7)` |
-| `--selected` | 当前位置：导航激活 / 锚点行 / tab / 选中 chip | `oklch(84.9% 0.081 299.9)` | `oklch(52.4% 0.081 299.8)` | `oklch(62.4% 0.081 300.5)` |
-| `--unread` | 注意力：未读角标 / 命中高亮 | `oklch(91% 0.100 94.8)` | `oklch(51.8% 0.100 94.5)` | `oklch(61.6% 0.099 94.7)` |
-| `--warn` | 警示：待审 / 横幅 | `oklch(86.3% 0.084 52.2)` | `oklch(52.6% 0.084 51.9)` | `oklch(62.1% 0.083 51.6)` |
-| `--online` | 在线 / 成功 / done | `oklch(80.8% 0.108 159.6)`（`-fill`） | `oklch(50.6% 0.107 159.9)`（`-text`） | **base** `oklch(60.1% 0.108 159.4)` |
-| `--working` | 正在干活 / in_review | `oklch(84.3% 0.110 74.6)`（`-fill`） | `oklch(52.3% 0.110 75.2)`（`-text`） | **base** `oklch(61.9% 0.110 74.2)` |
-| `--error` | 出错 / 危险 / 失败 | `oklch(74.5% 0.127 25.8)`（`-fill`） | **base** `oklch(53.2% 0.128 25.9)` | 同 deep（不另立名字） |
-| `--offline` | 离线 / closed | `oklch(82.5% 0.026 303.4)`（`-fill`） | `oklch(51.8% 0.026 302.5)`（`-deep`） | **base** `oklch(61.8% 0.026 304.2)` |
+| `--accent` | 行动：主按钮 / 徽标 / composer send / agent 身份（**墨族**） | `oklch(20% 0.009 264.4)` | 同 fill | 同 fill |
+| `--selected` | 当前位置：导航激活 / 锚点行 / tab / 选中 chip（青） | `oklch(84.2% 0.05 224.5)` | `oklch(41.5% 0.072 222.8)` | `oklch(51% 0.092 227.2)` |
+| `--unread` | 等你审：`in_review` 章 / 审阅请求（品红） | `oklch(86.5% 0.06 348.6)` | `oklch(43.6% 0.149 353.2)` | `oklch(50% 0.169 353.3)` |
+| `--warn` | 进行中 / 待办提示（黄） | `oklch(88.8% 0.103 91.3)` | `oklch(50.2% 0.101 86.7)` | `oklch(60.5% 0.124 78.7)` |
+| `--online` | 付印 / 完成（绿） | `oklch(86.2% 0.049 159.1)`（`-fill`） | `oklch(41.5% 0.067 162.8)`（`-text`） | **base** `oklch(47.9% 0.079 161.4)` |
+| `--working` | 正在干活 / 进行中（琥珀） | `oklch(85.6% 0.075 70.5)`（`-fill`） | `oklch(47.1% 0.112 53.7)`（`-text`） | **base** `oklch(52.9% 0.127 53.7)` |
+| `--error` | 退校 / 出错 / 危险（红） | `oklch(85.7% 0.056 27.9)`（`-fill`） | **base** `oklch(48.5% 0.15 28.1)` | 同 deep（不另立名字） |
+| `--offline` | 离线 / 已关闭（灰） | `oklch(90% 0 247.9)`（`-fill`） | `oklch(47.1% 0.011 243)`（`-deep`） | **base** `oklch(55.6% 0.012 248)` |
 
-族的**裸名**指向「改判前它实际的主用途档」：`--accent` / `--selected` / `--unread` / `--warn` 是 fill，`--online` / `--working` / `--offline` 是 graphic，`--error` 是 deep（`--error` 一名一值，不设 `-graphic` 第二名字）。`--accent-hover` = `oklch(79.4% 0.104 356.6)`（fill 档，压深一档）。
+族的**裸名**指向「改判前它实际的主用途档」：`--accent` / `--selected` / `--unread` / `--warn` 是 fill，`--online` / `--working` / `--offline` 是 graphic，`--error` 是 deep（一名一值，不设 `-graphic` 第二名字）。`--accent-hover` = `oklch(29.7% 0.012 264.4)`。
 
 **纸张与墨族**：
 
 | Token | 值 | 用途 |
 |---|---|---|
-| `--bg` | `oklch(98% 0.011 85)` | 页面画布（暖奶霜） |
-| `--surface` | `oklch(99.4% 0.006 85)` | 卡片 / 面板 / chrome / 弹层 |
-| `--panel` | `oklch(95.7% 0.018 85)` | 栏 / 列 / well |
-| `--panel-2` | `oklch(93.1% 0.022 84)` | 嵌套 well / chip / 代码块 |
-| `--fg` | `oklch(33% 0.045 300)` | 主文字（深梅墨）· 兼 `--on-accent` |
-| `--muted` | `oklch(46% 0.030 300)` | 次级文字 |
-| `--faint` | `oklch(52% 0.024 300)` | 三级 / meta / placeholder |
-| `--border` | `oklch(90% 0.013 86)` | 发丝分隔 |
-| `--border-strong` | `oklch(63% 0.020 86)` | 输入框 / 可交互边界（对 `--surface` 3.43:1，≥3:1） |
-| `--on-accent` | `var(--fg)` | 每个 fill 档上的文字 |
+| `--bg` | `oklch(98.5% 0.004 91.4)` | 页面画布（校样白） |
+| `--surface` | `oklch(100% 0 89.9)` | 卡片 / 面板 / chrome / 弹层 |
+| `--panel` | `oklch(96% 0.008 98.9)` | 栏 / 列 / well |
+| `--panel-2` | `oklch(92.7% 0.011 100.8)` | 嵌套 well / chip / 代码块 |
+| `--fg` | `oklch(20% 0.009 264.4)` | 主文字（墨）· 兼 `--accent` |
+| `--muted` | `oklch(43.5% 0.011 243.1)` | 次级文字 |
+| `--faint` | `oklch(49.3% 0.012 248.1)` | 三级 / meta / placeholder |
+| `--border` | `oklch(88.7% 0.011 100.8)` | 发丝分隔 |
+| `--border-strong` | `oklch(65.1% 0.009 248)` | 输入框 / 可交互边界（≥3:1） |
+| `--on-accent` | `oklch(100% 0 89.9)`（纸白） | 压在实印面上的文字 |
 | `--fg-soft` | `color-mix(in oklch, var(--fg) 5%, transparent)` | hover 填充 |
-| `--av-0…--av-4` | 薰衣草 / 薄荷 / 蜜桃 / 柠檬 / 藕灰 | 头像五格，确定性取色 |
-| `--shadow-*` / scrim ink | `oklch(33% 0.045 300 / …)` | 阴影与遮罩的色相（几何与透明度档位不动） |
+| `--av-0…--av-4` | 五档**低彩度纸灰**（93.4% → 82.4%，C 0.004） | 头像五格；身份只靠首字母，四色留给角色 |
+| `--shadow-*` / scrim ink | `oklch(20% 0.009 264.4 / …)` | 阴影与遮罩的色相（几何与透明度档位不动） |
 
-**对比度下限**：文字 4.5:1；大字与图形边界 3:1（WCAG AA）。机械断言在 `app/globals.contrast.test.mjs`（族 × 档位矩阵、配对实测值、淡底可见性 ΔL ≥ 3.0）。
+**对比度下限**：文字 4.5:1；大字与图形边界 3:1（WCAG AA）。机械断言在 `app/globals.contrast.test.mjs`（fill + 墨、deep + 纸白、deep 压四种纸、graphic 压 `--surface`、头像五格、soft ΔL ≥ 3.0）。
 
 ### 4.2 边框 / 圆角 / 阴影
 
-形态段沿用 ADR-0014（不因 ADR-0015 复活 brutalist）：
+形态段沿用 ADR-0014（不因 ADR-0022 复活 brutalist）：
 
-- 小圆角 6 / 8 / 12 / 16（`--r-sm/md/lg/xl`）；`--r-pill` 99px 只用于计数 / 标签 / 状态 / 反应 chip，卡片不做胶囊。
-- 发丝边框 1px：`--border` 分隔、`--border-strong` 输入与可交互边界。**无粗墨线边框**。
+- **近直角**：2 / 3 / 4 / 6（`--r-sm/md/lg/xl`）；`--r-pill` 也是 3px——校样世界里没有胶囊，计数与章都是方印。
+- 发丝边框 1px：`--border` 分隔、`--border-strong` 输入与可交互边界；章用 1.5px（虚线 = 待审、实线 = 付印）。**无粗墨线边框**。
 - 柔和阴影三档（`--shadow-composer` 常驻输入 / `--shadow-card` 卡片 hover / `--shadow-pop` 浮层 · 弹窗 · 抽屉），只用于分层表面，静止内容不加；**无硬阴影阶梯**。
 
 ### 4.3 字体
@@ -274,17 +274,18 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 | 角色 | 字体 | 用途 |
 |---|---|---|
 | 正文 / 标题 | 系统 sans 栈（`--font`，含 `PingFang SC`） | 正文默认、标题、按钮 |
-| 等宽 | 系统 mono 栈（`--mono`） | 代码、时间戳、seq 号、计数（`tabular-nums`） |
+| 等宽 | 系统 mono 栈（`--mono`） | 代码、时间戳、seq 号、计数、**所有状态词与编号**（`tabular-nums`） |
 
 无 webfont、无第三字体（旧方向的三款 Google 字体随 ADR-0014 一并作废）；13px 正文密度。
 
 ### 4.4 组件风格
 
-- **按钮**：主 CTA = `--accent` 填充 + `--on-accent` 深墨文字 + 8px 圆角 + 同色描边；hover 换 `--accent-hover`（两通道同时换）。语义：**粉 = 行动**，**薰衣草 = 当前位置**，**柠檬 = 未读**，**蜜桃 = 警示**。
-- **卡片**：`--surface` 底 + `--border` 发丝 + `--r-md`；hover 强化边框并加 `--shadow-card`。
-- **消息**：`--bg` / `--surface` 底 + 发丝分隔 + `--fg` 正文；agent 作者名与 `#` 频道号走 `--accent-deep`。
-- **头像**：首字方 tile（7px 圆角），底色取 `--av-0…--av-4`，按成员确定性取色、「我」恒 `--av-4`（8×8 像素图案作废）。
-- **状态点**：四态点取各族 base（graphic 档，≥3:1）；徽标 / 横幅底取各族 `-fill` 并压 `--on-accent`。
+- **按钮**：主 CTA = `--accent`（墨）填充 + `--on-accent` 纸白文字 + `--r-md`；hover 换 `--accent-hover`。语义：**墨 = 行动**，**青 = 当前位置**，**品红 = 等你审**，**黄 = 进行中**，**绿 = 付印**，**红 = 退校**。
+- **卡片 / 列**：`--surface`（列用 `--panel`）底 + `--border` 发丝 + `--r-sm`；hover 强化边框并加 `--shadow-card`。看板列宽 = `--board-col-w`（236px）为下限、320px 为上限。
+- **消息**：`--bg` / `--surface` 底 + 发丝分隔 + `--fg` 正文；agent 作者名与 `#` 频道号走 `--accent-deep`；系统事件行压成发丝级（不是消息）。
+- **头像**：首字方砖（`--r-sm` + 1px 内发丝），底色取 `--av-0…--av-4`，按成员确定性取色、「我」恒 `--av-4`。
+- **状态**：`presence` 是 7px **方点**（套准标记）；任务状态是**方形付印章**——`待审` 品红虚线、`完成` 绿实线并带署名、`已关闭` 灰、`进行中` 黄、`待认领` 墨。**章里永远写着状态词**，颜色不是唯一线索；成员行同样是「名字 + 状态词 + 方点」。
+- **角标**：`.badge` 墨底纸白近直角；未读计数不再借用角色色相（品红只有一个意思）。
 
 ### 4.5 实现载体
 
