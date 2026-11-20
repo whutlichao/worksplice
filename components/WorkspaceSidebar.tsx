@@ -194,6 +194,20 @@ export function WorkspaceSidebar({
     }
   }, [selectedChannelId]);
 
+  const workingAgentCount = agents.filter(
+    (agent) => agent.status === "working",
+  ).length;
+  const onlineAgentCount = agents.filter(
+    (agent) => agent.status === "online",
+  ).length;
+  const totalUnreadCount = channels.reduce(
+    (sum, ch) =>
+      sum +
+      (ch.id === selectedChannelId ? 0 : ch.unread) +
+      (ch.unreadTaskCount ?? 0),
+    0,
+  );
+
   return (
     <div
       style={{
@@ -203,7 +217,7 @@ export function WorkspaceSidebar({
         minHeight: 0,
       }}
     >
-      {/* 品牌头（上游 .rail-head / .brand：mark + name + mono postmark） */}
+      {/* 品牌头（Warm Action Surface .rail-head / .brand） */}
       <div className="rail-head">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
@@ -212,9 +226,6 @@ export function WorkspaceSidebar({
           <div style={{ minWidth: 0 }}>
             <div className="brand-name">{t("shell.brand")}</div>
             <div className="brand-sub">{t("shell.brandSub")}</div>
-            <span className="regmarks" aria-hidden="true">
-              <i /><i /><i /><i />
-            </span>
           </div>
         </div>
         <button
@@ -226,6 +237,39 @@ export function WorkspaceSidebar({
         >
           <X size={14} />
         </button>
+      </div>
+
+      {/* 首屏房间脉搏条：一眼看清谁在干活 / 还有多少未读，零额外请求 */}
+      <div className="rail-pulse" aria-live="polite">
+        <span className="pulse-item">
+          <span
+            className={`presence ${
+              workingAgentCount > 0
+                ? "working"
+                : onlineAgentCount > 0
+                  ? "online"
+                  : "offline"
+            }`}
+            aria-hidden="true"
+          />
+          <span>
+            {workingAgentCount > 0
+              ? t("shell.pulseWorking", { count: String(workingAgentCount) })
+              : onlineAgentCount > 0
+                ? t("shell.pulseOnline", { count: String(onlineAgentCount) })
+                : t("shell.pulseIdle")}
+          </span>
+        </span>
+        {totalUnreadCount > 0 && (
+          <span className="pulse-item is-action">
+            <span className="pulse-dot-action" aria-hidden="true" />
+            <span>
+              {t("shell.pulseUnread", {
+                count: totalUnreadCount > 99 ? "99+" : String(totalUnreadCount),
+              })}
+            </span>
+          </span>
+        )}
       </div>
 
       {/* §6.4 全文搜索入口：Enter 提交，Escape 清空（行为不动；形态取上游 .search-btn）

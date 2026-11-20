@@ -187,8 +187,8 @@ test("任务板骨架：.board-wrap 竖排不溢出；列不拉伸、宽度取�
     assert.match(col, /max-width:\s*320px/);
     assert.match(col, /background:\s*var\(--panel\)/);
     assert.match(col, /border:\s*1px solid var\(--border\)/);
-    // 校样世界：列框也是纸，圆角 2px（--r-sm），不是 12px 的软卡。
-    assert.match(col, /border-radius:\s*var\(--r-sm\)/);
+    // 暖沙直觉动作面：列框是柔和圆角承托面（--r-lg），与暖白卡片形成清晰层级。
+    assert.match(col, /border-radius:\s*var\(--r-lg\)/);
 
     assert.match(blockBody(globalsCss, ".col-head"), /display:\s*flex/);
     assert.match(blockBody(globalsCss, ".col-head .st-dot"), /width:\s*8px/);
@@ -232,9 +232,9 @@ test("list 视图：工具条吸顶 + 底部留白（.board-wrap 不是滚动容
     assert.match(sticky, /position:\s*sticky/);
     assert.match(sticky, /top:\s*0/);
     assert.match(sticky, /z-index:\s*\d+/);
-    // 能盖住滚上来的内容：工具条本体自带不透明底 + 下边框（上游逐字那条，不动它）。
+    // 能盖住滚上来的内容：工具条本体自带不透明底（与浮起的暖白 `.ws-center` 纸面同色）+ 下边框。
     const toolbar = blockBody(globalsCss, ".board-toolbar");
-    assert.match(toolbar, /background:\s*var\(--bg\)/);
+    assert.match(toolbar, /background:\s*var\(--surface\)/);
     assert.match(toolbar, /border-bottom:\s*1px solid var\(--border\)/);
     // sticky 的滚动容器必须是 main：`.board-wrap` 自带 overflow: hidden 时它是最近的
     // scrollport 而永不滚动 ⇒ 工具条钉不住。列表视图下把它放回 visible。
@@ -341,7 +341,7 @@ test("整卡进入入口：标题按钮的命中区拉伸到整卡（::after ins
     //    否则点动作按钮会穿透成「打开 thread」。
     const actionsRow =
         channelViewSource.match(
-            /\{actions\.length > 0 && \([\s\S]{0,800}?<\/div>\s*\)\}/,
+            /\{actions\.length > 0 && \([\s\S]{0,1200}?<\/div>\s*\)\}/,
         )?.[0] ?? "";
     assert.ok(actionsRow !== "", "应当找到 TaskCard 的动作栏切片");
     assert.match(actionsRow, /position:\s*"relative"/);
@@ -436,9 +436,9 @@ test("任务板 class 块一个不少（形态入口完整性）+ 世界差异�
     }
 
     // 世界差异（有意为之，登记在此防止旧形态被搬回来）：
-    // ① 列圆角 2px；② 卡片与列都是纸（--surface / --panel），不用胶囊；
-    // ③ 卡片的「状态」是一枚章，不只是一个彩色点。
-    assert.match(blockBody(globalsCss, ".col"), /border-radius:\s*var\(--r-sm\)/);
+    // ① 列圆角 --r-lg；② 卡片保持柔方而非全药丸；
+    // ③ 待审任务状态胶囊以高对比朱砂红醒目标出。
+    assert.match(blockBody(globalsCss, ".col"), /border-radius:\s*var\(--r-lg\)/);
     assert.doesNotMatch(blockBody(globalsCss, ".card"), /border-radius:\s*var\(--r-pill\)/);
     assert.match(globalsCss, /\.card-stamp\[data-status="in_review"\]/);
 });

@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-20T03:52:00Z",
+  "title": "Design System: worksplice",
+  "extensions": {
+    "colorMeta": {
+      "terracotta-vermilion": {
+        "role": "primary",
+        "displayName": "Terracotta Vermilion（朱砂陶土）",
+        "canonical": "oklch(54.5% 0.182 37)",
+        "tonalRamp": [
+          "oklch(22% 0.075 35)",
+          "oklch(32% 0.115 35)",
+          "oklch(42% 0.152 36)",
+          "oklch(50% 0.172 35)",
+          "oklch(54.5% 0.182 37)",
+          "oklch(68% 0.145 38)",
+          "oklch(86% 0.065 39)",
+          "oklch(95% 0.024 42)"
+        ]
+      },
+      "warm-sand": {
+        "role": "neutral",
+        "displayName": "Warm Sand（暖沙画布）",
+        "canonical": "oklch(93.8% 0.014 70)",
+        "tonalRamp": [
+          "oklch(22.5% 0.015 50)",
+          "oklch(36% 0.017 55)",
+          "oklch(48% 0.018 60)",
+          "oklch(61% 0.018 60)",
+          "oklch(76% 0.018 66)",
+          "oklch(86.5% 0.017 68)",
+          "oklch(93.8% 0.014 70)",
+          "oklch(99.2% 0.004 75)"
+        ]
+      },
+      "warm-white": {
+        "role": "neutral",
+        "displayName": "Warm White（暖白工作面）",
+        "canonical": "oklch(99.2% 0.004 75)",
+        "tonalRamp": [
+          "oklch(22.5% 0.015 50)",
+          "oklch(41.5% 0.018 55)",
+          "oklch(58% 0.016 62)",
+          "oklch(74% 0.015 68)",
+          "oklch(86.5% 0.017 68)",
+          "oklch(90.6% 0.017 68)",
+          "oklch(94.6% 0.013 70)",
+          "oklch(99.2% 0.004 75)"
+        ]
+      },
+      "espresso-ink": {
+        "role": "neutral",
+        "displayName": "Espresso Ink（深咖墨）",
+        "canonical": "oklch(22.5% 0.015 50)",
+        "tonalRamp": [
+          "oklch(16% 0.012 48)",
+          "oklch(22.5% 0.015 50)",
+          "oklch(32% 0.017 52)",
+          "oklch(41.5% 0.018 55)",
+          "oklch(44.5% 0.018 58)",
+          "oklch(61% 0.018 60)",
+          "oklch(82% 0.016 66)",
+          "oklch(94.6% 0.013 70)"
+        ]
+      },
+      "warm-clay-selected": {
+        "role": "neutral",
+        "displayName": "Warm Clay Selected（暖陶棕 · 当前位置）",
+        "canonical": "oklch(82.5% 0.042 62)",
+        "tonalRamp": [
+          "oklch(22% 0.032 52)",
+          "oklch(32% 0.052 54)",
+          "oklch(41.5% 0.068 55)",
+          "oklch(52% 0.075 55)",
+          "oklch(66% 0.062 58)",
+          "oklch(76% 0.050 60)",
+          "oklch(82.5% 0.042 62)",
+          "oklch(94% 0.018 65)"
+        ]
+      },
+      "forest-sage-online": {
+        "role": "semantic",
+        "displayName": "Forest Sage（森林鼠尾草绿 · 在线/完成）",
+        "canonical": "oklch(50.5% 0.095 158)",
+        "tonalRamp": [
+          "oklch(22% 0.045 158)",
+          "oklch(32% 0.068 158)",
+          "oklch(40.5% 0.085 158)",
+          "oklch(50.5% 0.095 158)",
+          "oklch(64% 0.082 158)",
+          "oklch(76% 0.068 158)",
+          "oklch(86% 0.052 158)",
+          "oklch(95% 0.020 158)"
+        ]
+      },
+      "warm-amber-working": {
+        "role": "semantic",
+        "displayName": "Warm Amber（暖琥珀 · 工作中/进行中）",
+        "canonical": "oklch(53% 0.128 58)",
+        "tonalRamp": [
+          "oklch(24% 0.055 54)",
+          "oklch(34% 0.088 55)",
+          "oklch(44.5% 0.112 56)",
+          "oklch(53% 0.128 58)",
+          "oklch(66% 0.112 64)",
+          "oklch(78% 0.092 68)",
+          "oklch(86% 0.072 72)",
+          "oklch(95% 0.026 75)"
+        ]
+      },
+      "deep-rust-error": {
+        "role": "semantic",
+        "displayName": "Deep Rust（深锈红 · 出错/危险）",
+        "canonical": "oklch(45.5% 0.155 24)",
+        "tonalRamp": [
+          "oklch(20% 0.072 24)",
+          "oklch(30% 0.112 24)",
+          "oklch(40% 0.142 24)",
+          "oklch(45.5% 0.155 24)",
+          "oklch(58% 0.135 24)",
+          "oklch(72% 0.098 24)",
+          "oklch(85% 0.062 24)",
+          "oklch(95% 0.022 26)"
+        ]
+      },
+      "warm-stone-offline": {
+        "role": "semantic",
+        "displayName": "Warm Stone（暖石灰 · 离线/已关闭）",
+        "canonical": "oklch(54.5% 0.015 62)",
+        "tonalRamp": [
+          "oklch(22% 0.012 58)",
+          "oklch(33% 0.014 60)",
+          "oklch(43.5% 0.015 60)",
+          "oklch(54.5% 0.015 62)",
+          "oklch(68% 0.014 63)",
+          "oklch(79% 0.013 64)",
+          "oklch(87% 0.012 65)",
+          "oklch(95% 0.008 68)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Channel Headline",
+        "purpose": "顶栏频道主标题（h1），配朱砂 # 标识。"
+      },
+      "title": {
+        "displayName": "Dock & Modal Title",
+        "purpose": "右侧详情坞、线程面板与模态框标题。"
+      },
+      "body": {
+        "displayName": "UI Body (13px)",
+        "purpose": "工作区默认操作密度：导航、按钮、表格与工具条。"
+      },
+      "prose": {
+        "displayName": "Message Prose (14px / 68ch)",
+        "purpose": "频道消息与线程回复的长文阅读预算。"
+      },
+      "label": {
+        "displayName": "Mono Micro Label",
+        "purpose": "左侧全大写分组标签与状态胶囊文字。"
+      },
+      "meta": {
+        "displayName": "Mono Meta & Counter",
+        "purpose": "等宽时间戳、#seq 编号与动态计数（tabular-nums）。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "sheet-frame",
+        "value": "0 2px 10px -2px oklch(22.5% 0.015 50 / 0.06)",
+        "purpose": "桌面浮起的中央工作纸（.ws-center）与右侧详情坞（.ws-right）。"
+      },
+      {
+        "name": "shadow-composer",
+        "value": "0 2px 8px -3px oklch(22.5% 0.015 50 / 0.08), 0 1px 2px oklch(22.5% 0.015 50 / 0.04)",
+        "purpose": "常驻消息输入盒（.composer-box）与工具面微抬升。"
+      },
+      {
+        "name": "shadow-card",
+        "value": "0 3px 10px -4px oklch(22.5% 0.015 50 / 0.12), 0 1px 2px oklch(22.5% 0.015 50 / 0.05)",
+        "purpose": "任务卡片悬停与移动端汉堡按钮的轻触感浮起。"
+      },
+      {
+        "name": "shadow-pop",
+        "value": "0 12px 30px -14px oklch(22.5% 0.015 50 / 0.28), 0 2px 6px -2px oklch(22.5% 0.015 50 / 0.1)",
+        "purpose": "模态框、命令面板、弹出菜单与移动端滑入抽屉。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "全局平滑减速缓动。"
+      },
+      {
+        "name": "dur-fast",
+        "value": "0.1s",
+        "purpose": "按钮、导航行与页签即时响应。"
+      },
+      {
+        "name": "dur",
+        "value": "0.14s",
+        "purpose": "输入框焦点环、卡片悬停边框与阴影过渡。"
+      },
+      {
+        "name": "dur-drawer",
+        "value": "0.22s",
+        "purpose": "移动端左右抽屉滑入滑出与 visibility 延迟收口。"
+      }
+    ],
+    "breakpoints": [
+      { "name": "dock-narrow", "value": "1080px" },
+      { "name": "drawer-stack", "value": "900px" },
+      { "name": "mobile-zoom-guard", "value": "640px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "当前视口唯一高饱和朱砂陶土主 CTA（发送消息、批准、新建任务）。",
+      "html": "<button type=\"button\" class=\"ds-btn-primary\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg><span>新建任务</span></button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--r-md, 10px); border: 1px solid var(--accent, oklch(54.5% 0.182 37)); background: var(--accent, oklch(54.5% 0.182 37)); color: var(--on-accent, oklch(99.5% 0.002 75)); font-family: var(--font, Onest, sans-serif); font-size: 13px; font-weight: 550; cursor: pointer; transition: background 0.1s cubic-bezier(0.2, 0.8, 0.2, 1); } .ds-btn-primary:hover { background: var(--accent-hover, oklch(49% 0.172 35)); border-color: var(--accent-hover, oklch(49% 0.172 35)); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent-graphic, oklch(55% 0.182 37)); outline-offset: 2px; }"
+    },
+    {
+      "name": "Rail Espresso CTA",
+      "kind": "button",
+      "refersTo": "button-rail-primary",
+      "description": "左栏全局创建入口，深咖墨底以防与主画布朱砂 CTA 争抢视觉焦点。",
+      "html": "<button type=\"button\" class=\"ds-btn-rail\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg><span>新建频道</span></button>",
+      "css": ".ds-btn-rail { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: var(--r-md, 10px); border: 1px solid var(--fg, oklch(22.5% 0.015 50)); background: var(--fg, oklch(22.5% 0.015 50)); color: var(--on-accent, oklch(99.5% 0.002 75)); font-family: var(--font, Onest, sans-serif); font-size: 13px; font-weight: 550; cursor: pointer; transition: background 0.1s cubic-bezier(0.2, 0.8, 0.2, 1); } .ds-btn-rail:hover { background: color-mix(in oklch, var(--fg, oklch(22.5% 0.015 50)) 84%, var(--surface, oklch(99.2% 0.004 75))); } .ds-btn-rail:focus-visible { outline: 2px solid var(--accent-graphic, oklch(55% 0.182 37)); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "暖白工作面上的常规动作按钮，--border-strong 满足 ≥3:1 交互边界对比度。",
+      "html": "<button type=\"button\" class=\"ds-btn-default\">仅看未读回复</button>",
+      "css": ".ds-btn-default { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--r-md, 10px); border: 1px solid var(--border-strong, oklch(61% 0.018 60)); background: var(--surface, oklch(99.2% 0.004 75)); color: var(--fg, oklch(22.5% 0.015 50)); font-family: var(--font, Onest, sans-serif); font-size: 13px; font-weight: 550; cursor: pointer; transition: background 0.1s, border-color 0.1s; } .ds-btn-default:hover { background: var(--panel, oklch(94.6% 0.013 70)); } .ds-btn-default:focus-visible { outline: 2px solid var(--accent-graphic, oklch(55% 0.182 37)); outline-offset: 2px; }"
+    },
+    {
+      "name": "Warm Search Input",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "暖白搜索输入框，聚焦显示朱砂边界与 3px accent-soft 柔和外光环。",
+      "html": "<div class=\"ds-search\"><input class=\"ds-search-input\" type=\"text\" placeholder=\"搜索消息...\" /><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg></div>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r-md, 10px); border: 1px solid var(--border-strong, oklch(61% 0.018 60)); background: var(--surface, oklch(99.2% 0.004 75)); color: var(--muted, oklch(41.5% 0.018 55)); transition: border-color 0.14s, box-shadow 0.14s; } .ds-search:focus-within { border-color: var(--accent-graphic, oklch(55% 0.182 37)); box-shadow: 0 0 0 3px var(--accent-soft, oklch(54.5% 0.182 37 / 0.1)); } .ds-search-input { flex: 1; border: 0; background: none; outline: none; color: var(--fg, oklch(22.5% 0.015 50)); font-family: var(--font, Onest, sans-serif); font-size: 12px; } .ds-search-input::placeholder { color: var(--faint, oklch(44.5% 0.018 58)); }"
+    },
+    {
+      "name": "Active Channel Nav Row",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "落于暖沙左栏上的激活导航胶囊，以浮起暖白纸面与内嵌发丝取代单边色条。",
+      "html": "<button type=\"button\" class=\"ds-nav-row\"><span class=\"ds-nav-hash\">#</span><span class=\"ds-nav-title\">开发群</span><span class=\"ds-badge-unread\">3</span></button>",
+      "css": ".ds-nav-row { width: 228px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 0; border-radius: var(--r-md, 10px); background: var(--surface, oklch(99.2% 0.004 75)); color: var(--fg, oklch(22.5% 0.015 50)); font-family: var(--font, Onest, sans-serif); font-size: 13px; font-weight: 600; box-shadow: inset 0 0 0 1px var(--border, oklch(86.5% 0.017 68)), 0 1px 2px oklch(22.5% 0.015 50 / 0.06); cursor: pointer; } .ds-nav-hash { font-family: var(--mono, JetBrains Mono, monospace); color: var(--selected-deep, oklch(41.5% 0.068 55)); } .ds-nav-title { flex: 1; text-align: left; } .ds-badge-unread { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--accent, oklch(54.5% 0.182 37)); color: var(--on-accent, oklch(99.5% 0.002 75)); font-family: var(--mono, JetBrains Mono, monospace); font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Room Pulse Strip",
+      "kind": "custom",
+      "refersTo": "badge-soft",
+      "description": "左栏顶部一屏态势胶囊：一眼看见多少 agent 正在干活与全房间未读数。",
+      "html": "<div class=\"ds-pulse\"><span class=\"ds-pulse-left\"><span class=\"ds-dot-working\"></span><span>2 位正在干活</span></span><span class=\"ds-pulse-right\"><span class=\"ds-dot-action\"></span><span>3 未读</span></span></div>",
+      "css": ".ds-pulse { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; border-radius: 999px; background: var(--panel-2, oklch(90.6% 0.017 68)); color: var(--muted, oklch(41.5% 0.018 55)); font-family: var(--font, Onest, sans-serif); font-size: 11.5px; font-weight: 550; font-variant-numeric: tabular-nums; } .ds-pulse-left, .ds-pulse-right { display: inline-flex; align-items: center; gap: 6px; } .ds-pulse-right { color: var(--accent-deep, oklch(50% 0.172 35)); font-weight: 600; } .ds-dot-working { width: 7px; height: 7px; border-radius: 999px; background: var(--working, oklch(53% 0.128 58)); } .ds-dot-action { width: 7px; height: 7px; border-radius: 999px; background: var(--accent, oklch(54.5% 0.182 37)); }"
+    },
+    {
+      "name": "Pending Review Task Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "待审任务卡：暖白浮卡 + 朱砂实心「待审」胶囊 + 一行审批权限说明 + 朱砂「批准」主 CTA。",
+      "html": "<article class=\"ds-card\"><div class=\"ds-card-title\">#7 核对 OpenBot 与 Rakazo 架构差异</div><div class=\"ds-card-meta\"><span class=\"ds-card-num\">#7</span><span class=\"ds-stamp-review\">待审</span><span class=\"ds-card-owner\">dev</span></div><p class=\"ds-review-hint\">仅 Owner 或全局首席可批准或退回此任务</p><div class=\"ds-card-actions\"><button type=\"button\" class=\"ds-btn-approve\">批准</button><button type=\"button\" class=\"ds-btn-reject\">退回</button></div></article>",
+      "css": ".ds-card { width: 244px; padding: 12px 14px; border-radius: var(--r-lg, 14px); border: 1px solid var(--border, oklch(86.5% 0.017 68)); background: var(--surface, oklch(99.2% 0.004 75)); color: var(--fg, oklch(22.5% 0.015 50)); font-family: var(--font, Onest, sans-serif); transition: border-color 0.14s, box-shadow 0.14s; } .ds-card:hover { border-color: var(--border-strong, oklch(61% 0.018 60)); box-shadow: 0 3px 10px -4px oklch(22.5% 0.015 50 / 0.12); } .ds-card-title { font-size: 12.5px; font-weight: 600; line-height: 1.45; } .ds-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; } .ds-card-num { font-family: var(--mono, JetBrains Mono, monospace); font-size: 10.5px; color: var(--faint, oklch(44.5% 0.018 58)); } .ds-stamp-review { padding: 2px 8px; border-radius: 999px; background: var(--unread-deep, oklch(50% 0.172 35)); color: var(--on-accent, oklch(99.5% 0.002 75)); font-family: var(--mono, JetBrains Mono, monospace); font-size: 10px; font-weight: 600; } .ds-card-owner { margin-left: auto; font-size: 11.5px; color: var(--muted, oklch(41.5% 0.018 55)); } .ds-review-hint { margin: 6px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--unread-deep, oklch(50% 0.172 35)); } .ds-card-actions { display: flex; gap: 6px; margin-top: 10px; } .ds-btn-approve { height: 27px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--accent, oklch(54.5% 0.182 37)); background: var(--accent, oklch(54.5% 0.182 37)); color: var(--on-accent, oklch(99.5% 0.002 75)); font-size: 12px; font-weight: 550; cursor: pointer; } .ds-btn-reject { height: 27px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-strong, oklch(61% 0.018 60)); background: var(--surface, oklch(99.2% 0.004 75)); color: var(--fg, oklch(22.5% 0.015 50)); font-size: 12px; font-weight: 550; cursor: pointer; }"
+    },
+    {
+      "name": "Status & Passive Count Pills",
+      "kind": "chip",
+      "refersTo": "status-pill-done",
+      "description": "同色同词的任务状态胶囊与暖燕麦被动计数徽标。",
+      "html": "<div class=\"ds-chip-row\"><span class=\"ds-pill-done\">完成 SUSAN</span><span class=\"ds-pill-working\">进行中</span><span class=\"ds-pill-soft\">9</span></div>",
+      "css": ".ds-chip-row { display: inline-flex; align-items: center; gap: 8px; } .ds-pill-done { padding: 2px 8px; border-radius: 999px; background: color-mix(in oklch, oklch(86% 0.052 158) 28%, transparent); color: oklch(40.5% 0.085 158); font-family: var(--mono, JetBrains Mono, monospace); font-size: 10px; font-weight: 600; } .ds-pill-working { padding: 2px 8px; border-radius: 999px; background: color-mix(in oklch, oklch(86% 0.072 72) 28%, transparent); color: oklch(44.5% 0.112 56); font-family: var(--mono, JetBrains Mono, monospace); font-size: 10px; font-weight: 600; } .ds-pill-soft { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--panel-2, oklch(90.6% 0.017 68)); color: var(--muted, oklch(41.5% 0.018 55)); font-family: var(--mono, JetBrains Mono, monospace); font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "暖沙直觉动作面（Warm Action Surface）",
+    "overview": "worksplice 是面向本地多 pi coding agent 的协作工作区：一个人类 Owner 在同一间安静的本地工作室里，同时浏览频道消息流、看板任务、线程讨论与 agent 状态。视觉世界以「暖沙底面上的浮起暖白工作纸」为核心隐喻——外围暖沙（--bg）托住左栏导航与两张圆角浮起的暖白工作纸（中央频道/任务面与右侧详情坞），让长时间盯屏既柔和耐看，又一眼分得清层级边界。\n\n整套系统坚持「有颜色的地方就是你能动手的地方」：界面 90% 以上停留在暖沙、暖白、暖燕麦与深咖墨之间，将唯一饱和的朱砂陶土色（--accent）严格留给当前视口的主动作（发送、批准、新建任务）与等你处理的信号（真实未读角标、in_review 待审提示），绝不浪费在被动计数、静态装饰或普通正文上。所有状态都坚持「同色同词」，无需悬停或翻文档就能直读谁在干活、哪条未读、谁在等你拍板。",
+    "keyCharacteristics": [
+      "暖沙外框（10px）托起 18px 柔角暖白主工作纸与右侧详情坞，层级靠表面明度差与极轻暖咖阴影共同建立。",
+      "单一饱和朱砂陶土色严格按「≤10% 行动色预算」使用；左栏创建按钮降为深咖墨（--fg），被动计数一律退回暖燕麦（.badge.soft）。",
+      "自托管可变字体 Onest（拉丁/数字）与 JetBrains Mono（序号/时间/状态词）无缝衔接中文字体栈（PingFang SC / Hiragino Sans GB / Microsoft YaHei），100% 离线可用。",
+      "首屏直读机制：左栏顶部常驻房间脉搏条（.rail-pulse），待审任务卡片直接呈现朱砂「待审」胶囊、一行审批权限提示（.card-review-hint）与主色「批准」CTA。",
+      "所有状态点、状态胶囊与成员存在态均坚持「同色同词」，零表情符号装饰，全部图标来自 lucide-react。"
+    ],
+    "rules": [
+      {
+        "name": "The One Action Voice Rule",
+        "body": "饱和朱砂陶土色（--accent）在任一视口中严格控制在 ≤10% 面积内，只分配给当前主动作或真实待处理信号；被动计数（总回复数、成员数、无未读的任务总数）一律使用暖燕麦 .badge.soft，左栏全局创建入口收敛为深咖墨 --fg。",
+        "section": "colors"
+      },
+      {
+        "name": "The Four-Tier Discipline Rule",
+        "body": "每个语义色族严格区分 fill（淡底压墨）、soft（低不透明度提示底）、deep（正文 ≥4.5:1）与 graphic（圆点/焦点环 ≥3.0:1），禁止混用档位导致对比度跌破 AA 下限。",
+        "section": "colors"
+      },
+      {
+        "name": "The Same Color, Same Word Rule",
+        "body": "任何状态点、任务胶囊、列头或成员行都必须同时给出明确状态词（工作中 / 在线 / 离线 / 待审 / 完成），颜色永远只是第二线索。",
+        "section": "colors"
+      },
+      {
+        "name": "The Quiet Instrument Type Rule",
+        "body": "整套工作区不设巨幅 Display 字阶，界面密度锚定在 13px，仅把放大与行宽余量（14px / 68ch）留给需要深度阅读的消息正文，所有动态数字强制 tabular-nums。",
+        "section": "typography"
+      },
+      {
+        "name": "The Lifted Paper Rule",
+        "body": "静态信息层次优先通过暖沙（--bg/--panel）与暖白（--surface）的明度差和 1px 发丝边建立，阴影只用于「浮起的工作纸、悬停反馈与临时浮层」，不为装饰而堆叠多层重阴影。",
+        "section": "elevation"
+      },
+      {
+        "name": "The Tactile Soft-Corner Rule",
+        "body": "外层容器圆角永远大于内层子元素圆角（18px 纸面 → 14px 列与卡 → 10px 按钮与行 → 999px 胶囊与圆点），消除同心圆角打架与生硬方角割裂。",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do 用暖沙外画布（--bg）托起带 18px 圆角的暖白工作纸（--surface），并用 1px --border 与极轻暖咖阴影区分层次。",
+      "Do 严格遵守单一饱和行动色预算：把 --accent 留给主 CTA、真实未读数与 in_review 待审信号；所有被动计数用 .badge.soft，左栏新建按钮用 --fg。",
+      "Do 让每个状态「同色同词」：任务胶囊、看板列头、成员存在态与脉搏条一律同时展示明确状态词。",
+      "Do 仅从 worksplice-design-system/colors_and_type.css 与 tokens.css 维护真源 token；app/globals.css 只在扩展层引用 var(--token)，不复制上游色值。",
+      "Do 保持 13px 界面操作密度与 14px / 68ch 消息阅读预算，所有动态数字、序号与时间戳启用 JetBrains Mono + tabular-nums。",
+      "Do 全界面仅使用 lucide-react 图标，为交互图标提供 aria-label / title；移动端抽屉关闭态保持 visibility: hidden 退出 Tab 序。",
+      "Do 尊重 prefers-reduced-motion（停止脉冲并将过渡收敛至 0.001ms）与触摸端 @media (hover: hover) 悬停守卫。"
+    ],
+    "donts": [
+      "Don't 把饱和朱砂红浪费在被动计数（如总回复数、成员总数、无未读的任务总数）或列表圆点/普通加粗正文上。",
+      "Don't 把 fill 档直接当正文颜色，或拿 soft 淡底充当输入框边界（字段边界必须走 --border-strong）。",
+      "Don't 引入第二种饱和强调色、冷灰纯黑阴影、零模糊硬偏移阴影或 2px 以上粗结构边框。",
+      "Don't 复活旧版 Press Proof 元素（2px 尖角按钮/汉堡键、四色套准点、虚线方形付印章、左侧单边激活竖条）。",
+      "Don't 让任何状态只靠颜色表达而缺少文字标签，也不要新增 emoji 当 UI 图标（reaction 持久化数据除外）。",
+      "Don't 在桌面端用内联 padding: env(safe-area-inset-*) 覆盖 .ws-shell 的 10px 暖沙外框，或给外壳加整体 overflow: auto。",
+      "Don't 引入外部在线 CDN 字体或第三支字体；Onest 与 JetBrains Mono 必须由 public/fonts/ 本地自托管。"
+    ]
+  }
+}

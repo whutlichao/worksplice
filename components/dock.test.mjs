@@ -410,7 +410,7 @@ test("三个 kind 都渲染在 `.dock` 单槽容器里（human / agent / thread�
   }
 });
 
-test("两处 dock 头像走 `.avatar.lg`（44px = `--avatar-lg`，圆角 `--r-md`）", () => {
+test("两处 dock 头像走 `.avatar.lg`（44px = `--avatar-lg`，圆角 `--r-lg`）", () => {
   const agentHtml = renderAgentPanel();
   const humanHtml = renderDetailPanel({ kind: "human", id: "owner" });
   assert.match(agentHtml, /class="avatar lg av-\d"/);
@@ -419,7 +419,7 @@ test("两处 dock 头像走 `.avatar.lg`（44px = `--avatar-lg`，圆角 `--r-md
   const lg = blockBody(".avatar.lg");
   assert.match(lg, /width:\s*var\(--avatar-lg\)/);
   assert.match(lg, /height:\s*var\(--avatar-lg\)/);
-  assert.match(lg, /border-radius:\s*var\(--r-md\)/);
+  assert.match(lg, /border-radius:\s*var\(--r-lg\)/);
 });
 
 test("右栏三块渲染面都没有 `2px solid`；本票自有 markup 里也没有旧方向的硬偏移阴影", () => {
