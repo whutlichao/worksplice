@@ -1559,7 +1559,18 @@ test("Central Tabs 保留 Messages/Tasks 切换，并为未完成任务显示数
     );
     assert.match(tasksButton, /aria-selected="false"/);
     assert.match(tasksButton, />Tasks/);
-    assert.match(tasksButton, /class="badge"[^>]*>3<\/span>/);
+    assert.match(tasksButton, /class="badge soft"[^>]*>3<\/span>/);
+
+    const tasksWithUnread = renderI18n(
+        React.createElement(CenterTabs, {
+            tab: "messages",
+            onTabChange: () => undefined,
+            openTaskCount: 3,
+            unreadTaskCount: 1,
+            onShowUnreadTasks: () => undefined,
+        }),
+    );
+    assert.match(tasksWithUnread, /class="badge"[^>]*>3<\/span>/);
 
     const tasksActive = renderI18n(
         React.createElement(CenterTabs, {

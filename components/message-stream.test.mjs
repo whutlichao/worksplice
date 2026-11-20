@@ -197,16 +197,16 @@ test("频道面 class 块逐字搬自上游 app.css（形态来源唯一）", ()
             `${selector} 在 globals.css 里消失了`,
         );
     }
-    // 世界级差异（有意为之，逐条在此登记，防止有人把旧形态搬回来）：
-    // ① 圆角收到 2/3/4/6；② 动作只用墨；③ 只有当审才用品红。
+    // 世界级差异（暖沙直觉动作面）：
+    // ① 柔和圆角层级（--r-lg）；② 动作焦点用 3px --accent-soft 柔光环 + --accent-graphic 描边。
     assert.doesNotMatch(
         normalize(blockBody(globalsCss, ".composer-box")),
         /border-radius:\s*var\(--r-2xl\)/,
     );
     assert.match(
         normalize(blockBody(globalsCss, ".composer-box:focus-within")),
-        /0 0 0 1px var\(--accent-graphic\)/,
-        "焦点环应是 1px 实环（无淡底雾）",
+        /0 0 0 3px var\(--accent-soft\)/,
+        "焦点环应是 3px accent-soft 柔和外环",
     );
 });
 
@@ -246,19 +246,17 @@ test('message prose uses the approved channel and thread reading scales', () => 
     assert.doesNotMatch(inlineCode, /line-height:/);
 });
 
-test("消息行 hover 走 --fg-soft；锚点行不再是黄色实心且带左侧 accent 条", () => {
+test("消息行 hover 走 --fg-soft；锚点行不再是黄色实心且带满圈细环", () => {
     const hover = blockBody(globalsCss, ".msg:hover");
     assert.match(hover, /background:\s*var\(--fg-soft\)/);
     assert.doesNotMatch(hover, /--yellow/);
 
-    // 锚点 fill 归票 03 的骨架钩子；本票补的是左侧 accent 条（spec D3 的「当前位置」处置）。
-    // 票 03：锚点是「当前位置」→ 选中族（淡底 + 图形档竖条）。判据（不是黄色实心、竖条可见）不变。
+    // 锚点 fill 归票 03 的骨架钩子；暖沙直觉动作面用满圈细环替代单边色条。
     const anchorFill = blockBody(globalsCss, ".ws-message-row-anchor");
     assert.match(anchorFill, /background:\s*var\(--selected-soft\)/);
     assert.doesNotMatch(anchorFill, /--yellow|var\(--accent\);/);
-    const anchorBar = blockBody(globalsCss, ".ws-message-row-anchor::before");
-    assert.match(anchorBar, /background:\s*var\(--selected-graphic\)/);
-    assert.match(anchorBar, /width:\s*2px/);
+    const anchorRing = blockBody(globalsCss, ".msg.ws-message-row-anchor");
+    assert.match(anchorRing, /inset 0 0 0 1px var\(--selected\)/);
     // 锚点行的 hover 也要留在「当前位置」色：`.msg:hover` 与票 03 的锚点 hover 同特异度、后者会被吃掉。
     assert.match(
         blockBody(globalsCss, ".msg.ws-message-row-anchor:hover"),
@@ -529,7 +527,7 @@ test("Composer 走 .composer/.composer-box/.composer-bar/.composer-send（accent
     assert.doesNotMatch(box, /--shadow-pop/);
     assert.match(
         blockBody(globalsCss, ".composer-box:focus-within"),
-        /0 0 0 1px var\(--accent-graphic\)/,
+        /0 0 0 3px var\(--accent-soft\)/,
     );
     // 内层 textarea 不再叠第二圈：字段环已在外壳（`:focus-within`）上，内层自己的环
     // 会落在外壳环内侧 1px 处叠成双层、且近直角不跟 `--r-lg` 圆角——同 `.search-btn input`
@@ -597,10 +595,9 @@ test("频道头切换条走 .tabs/.tab（旧方向的硬偏移阴影退场）", 
     const tabs = blockBody(globalsCss, ".tabs");
     assert.match(tabs, /background:\s*var\(--surface\)/);
     assert.match(tabs, /border-bottom:\s*1px solid var\(--border\)/);
-    assert.match(
-        blockBody(globalsCss, ".tab.is-active"),
-        /border-bottom-color:\s*var\(--fg\)/,
-    );
+    const activeTab = blockBody(globalsCss, ".tab.is-active");
+    assert.match(activeTab, /background:\s*var\(--surface\)/);
+    assert.match(activeTab, /color:\s*var\(--fg\)/);
 });
 
 test("频道面源码无 rgba 硬阴影 / 无硬偏移阴影 / 无 2px 结构线（三段切片）", () => {

@@ -107,7 +107,8 @@ test("dock 宽度契约：AppShell 源码级 var(--dock-w) + .ws-right 规则体
 
   const dock = ruleBody(".ws-right");
   assert.doesNotMatch(dock, /\b(?:236|380|480)px\b/);
-  assert.match(dock, /border-left:\s*1px solid var\(--border\)/);
+  assert.match(dock, /border:\s*1px solid var\(--border\)/);
+  assert.match(dock, /border-radius:\s*var\(--r-xl\)/);
   assert.match(dock, /background:\s*var\(--surface\)/);
 
   // D5：≤1080 收窄到 --dock-w-md（340px）；桌面宽度由 AppShell 的 inline token 给
@@ -116,7 +117,7 @@ test("dock 宽度契约：AppShell 源码级 var(--dock-w) + .ws-right 规则体
   assert.match(md, /\.ws-right\s*\{[^}]*max-width:\s*var\(--dock-w-md\)/);
 });
 
-test(".ws-shell 取 .app 语义（flex 列 + overflow:hidden），两栏分隔是发丝", () => {
+test(".ws-shell 取 .app 语义（暖沙浮纸三栏 + overflow:hidden），桌面两张主纸带发丝描边", () => {
   const shell = ruleBody(".ws-shell");
   assert.match(shell, /display:\s*flex/);
   assert.match(shell, /overflow:\s*hidden/);
@@ -124,9 +125,10 @@ test(".ws-shell 取 .app 语义（flex 列 + overflow:hidden），两栏分隔�
   // （iOS 键盘护栏，见 components/MobilePwaLayout.test.mjs）。
 
   assert.match(ruleBody(".ws-center"), /display:\s*flex/);
-  assert.match(ruleBody(".ws-left"), /border-right:\s*1px solid var\(--border\)/);
-  assert.match(ruleBody(".ws-left"), /background:\s*var\(--panel\)/);
-  assert.match(ruleBody(".ws-right"), /border-left:\s*1px solid var\(--border\)/);
+  assert.match(ruleBody(".ws-center"), /border:\s*1px solid var\(--border\)/);
+  assert.match(ruleBody(".ws-center"), /border-radius:\s*var\(--r-xl\)/);
+  assert.match(ruleBody(".ws-left"), /background:\s*transparent/);
+  assert.match(ruleBody(".ws-right"), /border:\s*1px solid var\(--border\)/);
 
   // 「无有色 2px 结构线」的全局断言在 app/globals.test.mjs 的 T-C；此处把**整段骨架**
   // （ws-* + 票 03 的 rail 块）单独再钉一次。
@@ -172,6 +174,7 @@ test("rail 形态落盘：rail-head / brand* / search-btn / rail-actions / rail-
     "brand-mark",
     "brand-name",
     "brand-sub",
+    "rail-pulse",
     "search-shell",
     "search-btn",
     "rail-actions",
@@ -188,10 +191,10 @@ test("rail 形态落盘：rail-head / brand* / search-btn / rail-actions / rail-
   // postmark 文案：mono 大写由 CSS 出，字符串本身是正常大小写（`lib/i18n` 的 shell.brandSub）。
   assert.match(html, /class="brand-sub">Local workspace</);
 
-  assert.match(ruleBody(".rail-head"), /padding:\s*var\(--sp-6\) var\(--sp-5\) var\(--sp-5\)/);
+  assert.match(ruleBody(".rail-head"), /padding:\s*var\(--sp-5\) var\(--sp-5\) var\(--sp-4\)/);
   assert.match(ruleBody(".brand"), /flex:\s*1/);
-  assert.match(ruleBody(".brand-mark"), /background:\s*var\(--accent\)/);
-  assert.match(ruleBody(".brand-mark"), /border-radius:\s*7px/);
+  assert.match(ruleBody(".brand-mark"), /background:\s*var\(--fg\)/);
+  assert.match(ruleBody(".brand-mark"), /border-radius:\s*var\(--r-md\)/);
   assert.match(ruleBody(".brand-name"), /font-size:\s*var\(--fs-body-lg\)/);
   assert.match(ruleBody(".brand-sub"), /font-family:\s*var\(--mono\)/);
   assert.match(ruleBody(".brand-sub"), /letter-spacing:\s*var\(--ls-wide\)/);
@@ -231,26 +234,19 @@ test(".group-label：mono 9.5px + letter-spacing .1em + 大写（--faint）", ()
   assert.match(label, /color:\s*var\(--faint\)/);
 });
 
-test("导航激活态 = --surface 填充 + inset 发丝 + 2px 选中族竖条 + 选中族 mono #（不是黄色实心）", () => {
+test("导航激活态 = 浮起暖白 --surface 胶囊 + inset 发丝 + 选中族 mono #（无单边色条）", () => {
   const active = ruleBody(".nav-row.is-active");
   assert.match(active, /background:\s*var\(--surface\)/);
   assert.match(active, /color:\s*var\(--fg\)/);
-  assert.match(active, /box-shadow:\s*inset 0 0 0 1px var\(--border\)/);
-
-  // 票 03：导航激活是「当前位置」→ 选中族（竖条走图形档、mono # 走文字档）。
-  // 判据（不是黄色实心、竖条可见、mono # 可读）不变。
-  const bar = ruleBody(".nav-row.is-active::before");
-  assert.match(bar, /content:\s*""/);
-  assert.match(bar, /width:\s*2px/);
-  assert.match(bar, /background:\s*var\(--selected-graphic\)/);
+  assert.match(active, /inset 0 0 0 1px var\(--border\)/);
   assert.match(ruleBody(".nav-row.is-active .hash"), /color:\s*var\(--selected-deep\)/);
 
-  // 行形态（含行高重校：22px 头像 + 6px 上下 padding = 34px 行，取代旧的 28px 头像 + 4px 外距）
+  // 行形态：圆角 --r-md，无单边竖条
   const row = ruleBody(".nav-row");
   assert.match(row, /display:\s*flex/);
   assert.match(row, /gap:\s*var\(--sp-4\)/);
-  assert.match(row, /padding:\s*var\(--sp-3\) 9px/);
-  assert.match(row, /border-radius:\s*var\(--r-sm\)/);
+  assert.match(row, /padding:\s*var\(--sp-3\) 10px/);
+  assert.match(row, /border-radius:\s*var\(--r-md\)/);
   assert.match(row, /color:\s*var\(--muted\)/);
   assert.match(ruleBody(".nav-row .hash"), /flex:\s*0 0 13px/);
   assert.match(ruleBody(".nav-row .grow"), /text-overflow:\s*ellipsis/);

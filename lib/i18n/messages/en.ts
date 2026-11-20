@@ -442,6 +442,10 @@ export const enLocale: LocalePlugin = {
     "i18n.after": "After",
     "shell.brand": "worksplice",
     "shell.brandSub": "Local workspace",
+    "shell.pulseWorking": "{count} working",
+    "shell.pulseOnline": "{count} online",
+    "shell.pulseIdle": "Room quiet",
+    "shell.pulseUnread": "{count} unread",
     "shell.channels": "Channels",
     "shell.dm": "Direct messages",
     "shell.archivedChannels": "Archived ({count})",
@@ -673,6 +677,7 @@ export const enLocale: LocalePlugin = {
     "tasks.reopenedBadge": "REOPENED",
     "tasks.reopenedHint":
       "Reopened: agents cannot auto-claim; claim to take over",
+    "tasks.inReviewHint": "Waiting for owner or global chief approval",
     "tasks.unassigned": "unassigned",
     "tasks.threadHint": "Progress lives in the task thread",
     "tasks.held": "Task action held — the room changed, try again",

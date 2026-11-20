@@ -440,7 +440,18 @@ const messageTime = (iso: string): string => {
 function IconCount({ loading, count }: { loading: boolean; count: number }) {
   if (!loading && count <= 0) return null;
   return (
-    <span className="badge" style={{ position: "absolute", top: -6, right: -6 }}>
+    <span
+      className="badge soft"
+      style={{
+        position: "absolute",
+        top: -3,
+        right: -3,
+        minWidth: 16,
+        padding: "0 4px",
+        fontSize: 9.5,
+        lineHeight: 1.45,
+      }}
+    >
       {loading ? "…" : count}
     </span>
   );
@@ -563,7 +574,7 @@ export function CenterTabs({
               {tabId === "messages" ? t("center.messages") : t("center.tasks")}
               {badge > 0 && (
                 <span
-                  className="badge"
+                  className={unreadTaskCount > 0 ? "badge" : "badge soft"}
                   aria-hidden="true"
                   style={{ marginLeft: 6 }}
                 >
@@ -1580,18 +1591,20 @@ export const MessageRow = memo(function MessageRow({
               }}
             >
               {t("tasks.openDiscussion")}{" "}
-              <span
-                className={totalReplyCount > 0 ? "badge" : "badge soft"}
-                aria-hidden="true"
-              >
+              <span className="badge soft" aria-hidden="true">
                 {totalReplyCount}
               </span>{" "}
               <span
+                className={task.unreadReplyCount > 0 ? "badge" : undefined}
                 aria-hidden="true"
-                style={{
-                  fontSize: "var(--fs-mono-xs)",
-                  color: "var(--muted)",
-                }}
+                style={
+                  task.unreadReplyCount > 0
+                    ? undefined
+                    : {
+                        fontSize: "var(--fs-mono-xs)",
+                        color: "var(--muted)",
+                      }
+                }
               >
                 {t("tasks.unreadBadge", {
                   count: String(task.unreadReplyCount),
@@ -1671,29 +1684,27 @@ const TASK_STATUS_COLOR: Record<TaskStatus, string> = {
   closed: "var(--offline)",
 };
 
-/** §3.7 任务状态徽标底色（List 分组标题）：**填充档**。同一个状态在两个消费点上要不同档
- *  ——点（`TASK_STATUS_COLOR`）是图形档（≥3:1），徽标底压的是深墨文字（≥4.5:1），
- *  所以底取 D7「徽标 / 横幅底走填充档」那一档；中性态（todo）取中性 chip 底。
- *  实测（spec 口径）：`--panel-2` 10.12 · `--accent` 7.74 · `--working-fill` 7.57 ·
- *  `--online-fill` 7.13 · `--offline-fill` 7.17。 */
+/** §3.7 任务状态徽标底色（List 分组标题）：Warm Action Surface 柔和色块。
+ *  `in_review` 走朱砂实底 + 暖白字（等你拍板），其余状态用柔和浅填充 + 深咖啡墨字（≥4.5:1）。 */
 const TASK_STATUS_BADGE_BG: Record<TaskStatus, string> = {
   todo: "var(--panel-2)",
-  in_progress: "var(--accent)",
-  in_review: "var(--working-fill)",
+  in_progress: "var(--working-fill)",
+  in_review: "var(--unread-deep)",
   done: "var(--online-fill)",
   closed: "var(--offline-fill)",
 };
 
-/** §3.7 任务状态徽标样式（List 分组标题）：形态不变，色取上面的填充档表。 */
+/** §3.7 任务状态徽标样式（List 分组标题）：柔和胶囊，保证每态文字对比 ≥4.5:1。 */
 const taskBadgeStyle = (status: TaskStatus): React.CSSProperties => ({
   fontFamily: "var(--mono)",
   fontSize: 10,
   fontWeight: 700,
-  letterSpacing: "0.06em",
-  padding: "2px 7px",
-  border: `1px solid var(--border)`,
+  letterSpacing: "0.05em",
+  padding: "2px 9px",
+  borderRadius: "var(--r-pill)",
+  border: status === "in_review" ? "1px solid transparent" : "1px solid var(--border)",
   background: TASK_STATUS_BADGE_BG[status],
-  color: "var(--on-accent)",
+  color: status === "in_review" ? "var(--on-accent)" : "var(--fg)",
   whiteSpace: "nowrap",
 });
 
@@ -1752,6 +1763,7 @@ export function TaskCard({
       key: `${edge.from}->${edge.to}`,
       label: t(`tasks.${edge.action}`),
       danger: edge.danger === true,
+      primary: edge.action === "approve",
       onClick: () => {
         if (edge.danger) {
           onRequestClose(task);
@@ -1847,6 +1859,9 @@ export function TaskCard({
           {task.owner ? task.owner.name : t("tasks.unassigned")}
         </span>
       </div>
+      {task.status === "in_review" && (
+        <div className="card-review-hint">{t("tasks.inReviewHint")}</div>
+      )}
       {actions.length > 0 && (
         // 动作栏反向压住标题按钮的整卡命中区：两条同为 `z-index: auto` 的定位元素时按 DOM 序
         // 绘制，动作栏在 `::after` 之后 ⇒ 点按钮不会穿透成「打开 thread」。这里**不**靠
@@ -1864,7 +1879,13 @@ export function TaskCard({
             <button
               key={action.key}
               type="button"
-              className={action.danger ? "btn btn-sm btn-danger" : "btn btn-sm"}
+              className={
+                action.danger
+                  ? "btn btn-sm btn-danger"
+                  : action.primary
+                    ? "btn btn-sm btn-primary"
+                    : "btn btn-sm"
+              }
               disabled={busy}
               onClick={action.onClick}
             >

@@ -224,72 +224,70 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 
 ### 4.1 色板
 
-每族四档：**fill**（淡印面，只做填充，其上压**墨**）/ **soft**（淡底，只做背景提示，不做边界）/ **deep**（文字档，≥4.5:1）/ **graphic**（环 · 点 · 边界档，≥3:1）。`-soft` 的配方是 `color-mix(in oklch, var(--<族>) <配比>%, transparent)`，配比是契约的一部分（选中 22 / 未读 26 / 警示 30 / 四态 28）。
+视觉方向为 **暖沙直觉动作面（Warm Action Surface）**。每族四档：**fill**（淡底，只做填充，其上压**深咖墨**）/ **soft**（淡底，只做背景提示，不做边界）/ **deep**（文字档，≥4.5:1）/ **graphic**（圆点 · 焦点环 · 边界档，≥3:1）。`-soft` 的配方是 `color-mix(in oklch, var(--<族>) <配比>%, transparent)`（选中 22 / 未读 26 / 警示 30 / 四态 28）。
 
-**角色族**（一色一义，不做装饰）：
+**角色族**（唯一饱和行动色 + 克制语义色，不做装饰）：
 
 | 族 | 角色 | fill | deep | graphic |
 |---|---|---|---|---|
-| `--accent` | 行动：主按钮 / 徽标 / composer send / agent 身份（**墨族**） | `oklch(20% 0.009 264.4)` | 同 fill | 同 fill |
-| `--selected` | 当前位置：导航激活 / 锚点行 / tab / 选中 chip（青） | `oklch(84.2% 0.05 224.5)` | `oklch(41.5% 0.072 222.8)` | `oklch(51% 0.092 227.2)` |
-| `--unread` | 等你审：`in_review` 章 / 审阅请求（品红） | `oklch(86.5% 0.06 348.6)` | `oklch(43.6% 0.149 353.2)` | `oklch(50% 0.169 353.3)` |
-| `--warn` | 进行中 / 待办提示（黄） | `oklch(88.8% 0.103 91.3)` | `oklch(50.2% 0.101 86.7)` | `oklch(60.5% 0.124 78.7)` |
-| `--online` | 付印 / 完成（绿） | `oklch(86.2% 0.049 159.1)`（`-fill`） | `oklch(41.5% 0.067 162.8)`（`-text`） | **base** `oklch(47.9% 0.079 161.4)` |
-| `--working` | 正在干活 / 进行中（琥珀） | `oklch(85.6% 0.075 70.5)`（`-fill`） | `oklch(47.1% 0.112 53.7)`（`-text`） | **base** `oklch(52.9% 0.127 53.7)` |
-| `--error` | 退校 / 出错 / 危险（红） | `oklch(85.7% 0.056 27.9)`（`-fill`） | **base** `oklch(48.5% 0.15 28.1)` | 同 deep（不另立名字） |
-| `--offline` | 离线 / 已关闭（灰） | `oklch(90% 0 247.9)`（`-fill`） | `oklch(47.1% 0.011 243)`（`-deep`） | **base** `oklch(55.6% 0.012 248)` |
+| `--accent` | 行动：主 CTA / 真实未读角标 / composer send / agent 身份（**朱砂陶土**） | `oklch(54.5% 0.182 37)` | `oklch(50% 0.172 35)` | `oklch(55% 0.182 37)` |
+| `--selected` | 当前位置：锚点消息 / 导航激活号 / 选中 chip（暖陶棕） | `oklch(82.5% 0.042 62)` | `oklch(41.5% 0.068 55)` | `oklch(52% 0.075 55)` |
+| `--unread` | 等你审：`in_review` 胶囊 / 审阅权限提示 / 命中高亮（朱砂珊瑚） | `oklch(86% 0.065 39)` | `oklch(50% 0.172 35)` | `oklch(55% 0.182 37)` |
+| `--warn` | 警示 / 防撞锁 / 提醒横幅（暖蜜赭石） | `oklch(86.5% 0.088 82)` | `oklch(44.5% 0.105 68)` | `oklch(55.5% 0.125 68)` |
+| `--online` | 在线 / 完成署名（森林鼠尾草绿） | `oklch(86% 0.052 158)`（`-fill`） | `oklch(40.5% 0.085 158)`（`-text`） | **base** `oklch(50.5% 0.095 158)` |
+| `--working` | 正在干活 / 进行中（暖琥珀） | `oklch(86% 0.072 72)`（`-fill`） | `oklch(44.5% 0.112 56)`（`-text`） | **base** `oklch(53% 0.128 58)` |
+| `--error` | 出错 / 拒绝 / 危险（深锈红） | `oklch(85% 0.062 24)`（`-fill`） | **base** `oklch(45.5% 0.155 24)` | 同 deep（不另立名字） |
+| `--offline` | 离线 / 已关闭（暖石灰） | `oklch(87% 0.012 65)`（`-fill`） | `oklch(43.5% 0.015 60)`（`-deep`） | **base** `oklch(54.5% 0.015 62)` |
 
-族的**裸名**指向「改判前它实际的主用途档」：`--accent` / `--selected` / `--unread` / `--warn` 是 fill，`--online` / `--working` / `--offline` 是 graphic，`--error` 是 deep（一名一值，不设 `-graphic` 第二名字）。`--accent-hover` = `oklch(29.7% 0.012 264.4)`。
+族的**裸名**指向其主用途档：`--accent` / `--selected` / `--unread` / `--warn` 是 fill，`--online` / `--working` / `--offline` 是 graphic，`--error` 是 deep。`--accent-hover` = `oklch(49% 0.172 35)`。
 
-**纸张与墨族**：
+**表面与墨族**：
 
 | Token | 值 | 用途 |
 |---|---|---|
-| `--bg` | `oklch(98.5% 0.004 91.4)` | 页面画布（校样白） |
-| `--surface` | `oklch(100% 0 89.9)` | 卡片 / 面板 / chrome / 弹层 |
-| `--panel` | `oklch(96% 0.008 98.9)` | 栏 / 列 / well |
-| `--panel-2` | `oklch(92.7% 0.011 100.8)` | 嵌套 well / chip / 代码块 |
-| `--fg` | `oklch(20% 0.009 264.4)` | 主文字（墨）· 兼 `--accent` |
-| `--muted` | `oklch(43.5% 0.011 243.1)` | 次级文字 |
-| `--faint` | `oklch(49.3% 0.012 248.1)` | 三级 / meta / placeholder |
-| `--border` | `oklch(88.7% 0.011 100.8)` | 发丝分隔 |
-| `--border-strong` | `oklch(65.1% 0.009 248)` | 输入框 / 可交互边界（≥3:1） |
-| `--on-accent` | `oklch(100% 0 89.9)`（纸白） | 压在实印面上的文字 |
+| `--bg` | `oklch(93.8% 0.014 70)` | 外层暖沙画布与桌面 10px 外框 |
+| `--surface` | `oklch(99.2% 0.004 75)` | 浮起的暖白工作纸 / 卡片 / 详情坞 / 弹层 |
+| `--panel` | `oklch(94.6% 0.013 70)` | 看板列 / 页签槽 / 移动端抽屉 |
+| `--panel-2` | `oklch(90.6% 0.017 68)` | 房间脉搏条 / 被动计数胶囊 / 嵌套 well / 代码块 |
+| `--fg` | `oklch(22.5% 0.015 50)` | 主文字（深咖墨）· 左栏新建主按钮底 |
+| `--muted` | `oklch(41.5% 0.018 55)` | 次级文字（暖褐） |
+| `--faint` | `oklch(44.5% 0.018 58)` | 三级 / meta / placeholder（暖灰褐） |
+| `--border` | `oklch(86.5% 0.017 68)` | 暖石发丝分隔 |
+| `--border-strong` | `oklch(61% 0.018 60)` | 输入框 / 可交互边界（≥3:1） |
+| `--on-accent` | `oklch(99.5% 0.002 75)`（暖白） | 压在实底按钮与胶囊上的文字 |
 | `--fg-soft` | `color-mix(in oklch, var(--fg) 5%, transparent)` | hover 填充 |
-| `--av-0…--av-4` | 五档**低彩度纸灰**（93.4% → 82.4%，C 0.004） | 头像五格；身份只靠首字母，四色留给角色 |
-| `--shadow-*` / scrim ink | `oklch(20% 0.009 264.4 / …)` | 阴影与遮罩的色相（几何与透明度档位不动） |
+| `--av-0…--av-4` | 五档暖陶/暖沙/鼠尾草/暖麦/烤沙（86.5%–90.5%） | 头像五格；按成员 ID 确定性取色，「我」恒 `--av-4` |
+| `--shadow-*` / scrim ink | `oklch(22.5% 0.015 50 / …)` | 暖咖色相阴影与抽屉/模态遮罩 |
 
-**对比度下限**：文字 4.5:1；大字与图形边界 3:1（WCAG AA）。机械断言在 `app/globals.contrast.test.mjs`（fill + 墨、deep + 纸白、deep 压四种纸、graphic 压 `--surface`、头像五格、soft ΔL ≥ 3.0）。
+**对比度下限**：文字 4.5:1；大字与图形边界 3:1（WCAG AA）。机械断言在 `app/globals.contrast.test.mjs`（fill + 墨、deep + 暖白、deep 压四种纸、graphic 压 `--surface`、头像五格、soft ΔL ≥ 3.0）。
 
 ### 4.2 边框 / 圆角 / 阴影
 
-形态段沿用 ADR-0014（不因 ADR-0022 复活 brutalist）：
-
-- **近直角**：2 / 3 / 4 / 6（`--r-sm/md/lg/xl`）；`--r-pill` 也是 3px——校样世界里没有胶囊，计数与章都是方印。
-- 发丝边框 1px：`--border` 分隔、`--border-strong` 输入与可交互边界；章用 1.5px（虚线 = 待审、实线 = 付印）。**无粗墨线边框**。
-- 柔和阴影三档（`--shadow-composer` 常驻输入 / `--shadow-card` 卡片 hover / `--shadow-pop` 浮层 · 弹窗 · 抽屉），只用于分层表面，静止内容不加；**无硬阴影阶梯**。
+- **暖沙软角**：`6 / 10 / 14 / 18px`（`--r-sm/md/lg/xl`），`--r-pill` 为 `999px` 真胶囊（用于脉搏条、页签槽、状态胶囊与徽标）。
+- 发丝边框 1px：`--border` 分隔与静息浮纸轮廓、`--border-strong` 输入与可交互边界。**无粗结构边框**。
+- 暖咖柔和阴影三档（`--shadow-composer` 常驻输入 / `--shadow-card` 卡片悬停与移动端切换键 / `--shadow-pop` 浮层 · 弹窗 · 抽屉），外加桌面浮起工作纸极轻阴影；**无零模糊硬阴影**。
 
 ### 4.3 字体
 
 | 角色 | 字体 | 用途 |
 |---|---|---|
-| 正文 / 标题 | 系统 sans 栈（`--font`，含 `PingFang SC`） | 正文默认、标题、按钮 |
-| 等宽 | 系统 mono 栈（`--mono`） | 代码、时间戳、seq 号、计数、**所有状态词与编号**（`tabular-nums`） |
+| 正文 / 标题 | 自托管可变字体 `Onest`（`public/fonts/`）+ 系统 CJK sans 栈（含 `PingFang SC`） | 界面默认（13px）、标题、按钮、消息正文（14px / 68ch） |
+| 等宽 | 自托管可变字体 `JetBrains Mono`（`public/fonts/`）+ 系统 mono 栈 | 代码、时间戳、seq 号、计数、**所有状态词与编号**（`tabular-nums`） |
 
-无 webfont、无第三字体（旧方向的三款 Google 字体随 ADR-0014 一并作废）；13px 正文密度。
+字体 100% 本地自托管离线加载，不依赖外部在线 CDN；不设第三支字体。
 
 ### 4.4 组件风格
 
-- **按钮**：主 CTA = `--accent`（墨）填充 + `--on-accent` 纸白文字 + `--r-md`；hover 换 `--accent-hover`。语义：**墨 = 行动**，**青 = 当前位置**，**品红 = 等你审**，**黄 = 进行中**，**绿 = 付印**，**红 = 退校**。
-- **卡片 / 列**：`--surface`（列用 `--panel`）底 + `--border` 发丝 + `--r-sm`；hover 强化边框并加 `--shadow-card`。看板列宽 = `--board-col-w`（236px）为下限、320px 为上限。
-- **消息**：`--bg` / `--surface` 底 + 发丝分隔 + `--fg` 正文；agent 作者名与 `#` 频道号走 `--accent-deep`；系统事件行压成发丝级（不是消息）。
-- **头像**：首字方砖（`--r-sm` + 1px 内发丝），底色取 `--av-0…--av-4`，按成员确定性取色、「我」恒 `--av-4`。
-- **状态**：`presence` 是 7px **方点**（套准标记）；任务状态是**方形付印章**——`待审` 品红虚线、`完成` 绿实线并带署名、`已关闭` 灰、`进行中` 黄、`待认领` 墨。**章里永远写着状态词**，颜色不是唯一线索；成员行同样是「名字 + 状态词 + 方点」。
-- **角标**：`.badge` 墨底纸白近直角；未读计数不再借用角色色相（品红只有一个意思）。
+- **按钮**：主画布/详情坞主 CTA = `--accent`（朱砂陶土）填充 + `--on-accent` 暖白字 + `--r-md`（10px）；左栏新建入口收敛为深咖墨 `--fg`；常规按钮为 `--surface` + `--border-strong`。
+- **卡片 / 列**：桌面 `.ws-center` 与 `.ws-right` 浮起于 `10px` 暖沙外框内（`--r-xl` 18px）；看板列用 `--panel`（`--r-lg` 14px），任务卡片用 `--surface` + `--border` + `--r-lg`，hover 强化边框并升起 `--shadow-card`。看板列宽 = `--board-col-w`（236px）为下限、320px 为上限。
+- **消息**：浮起暖白纸面 + `--fg` 正文（14px / 68ch）；agent 作者名与 `#` 频道号走 `--accent-deep`；任务锚点总回复数走暖燕麦 `.badge.soft`，仅真实未读回复点亮朱砂 `.badge`；系统事件行压成发丝级。
+- **头像**：柔和圆角方形（`--r-md` / `--r-lg`）+ 首字，底色取 `--av-0…--av-4`，按成员确定性取色、「我」恒 `--av-4`。
+- **状态**：`presence` 是 `7px` **正圆点**；任务状态是**全圆胶囊**——`待审` 朱砂实底白字并配一行审批权限提示（`.card-review-hint`）与朱砂「批准」CTA、`完成` 森林绿淡底深字并带署名、`进行中` 暖琥珀、`待认领`/`已关闭` 中性胶囊。**所有状态永远同色同词**；左栏顶部常驻 `.rail-pulse` 房间脉搏条。
+- **角标**：真实未读用朱砂 `.badge` 真胶囊；被动计数（总回复数、顶栏计数、无未读的任务总数）一律用暖燕麦 `.badge.soft`。
 
 ### 4.5 实现载体
 
-`worksplice-design-system/` 即运行时真源（ADR-0014 的 D2）：`app/globals.css` 顶层 `@import` `colors_and_type.css` + `tokens.css`，本仓只在其后叠**扩展层**（`--selected*` / `--unread*` / `--warn*` 三个产品角色族 + `--font-mono`），不覆盖上游同名 token。Tailwind 已删除（ADR-0014 D4），`@theme` 别名层不复活；`ws-*` 只作骨架钩子。
+`worksplice-design-system/` 即运行时真源：`app/globals.css` 顶层 `@import` `colors_and_type.css` + `tokens.css`，本仓只在其后叠**扩展层**（`--selected*` / `--unread*` / `--warn*` 三个产品角色族 + `--font-mono` + `--online-text` / `--working-text`），不覆盖上游同名 token。Tailwind 已删除，`@theme` 别名层不复活；`ws-*` 只作骨架钩子。
 
 ---
 

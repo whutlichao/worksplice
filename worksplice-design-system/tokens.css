@@ -1,8 +1,8 @@
 /* ============================================================================
    worksplice — tokens.css
-   Spacing, radius, elevation and layout constants. Import together with
-   colors_and_type.css. Color + type are canonical there; this file completes
-   the reusable foundation without re-declaring hue values.
+   Spacing, radius, elevation and layout constants for Warm Action Surface.
+   Import together with colors_and_type.css. Color + type are canonical there;
+   this file completes the reusable foundation without re-declaring hue values.
    ========================================================================== */
 
 :root {
@@ -21,16 +21,16 @@
   --avatar-md: 26px;
   --avatar-lg: 44px;
 
-  /* ─── radii（印面尺度：几乎直角，只有纸边与章的倒角） ──────────────────── */
-  --r-sm: 2px; --r-md: 3px; --r-lg: 4px; --r-xl: 6px; --r-pill: 3px;
+  /* ─── radii（暖沙软角：触感友好的圆润边角与真胶囊） ──────────────────── */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 18px; --r-pill: 999px;
 
-  /* ─── elevation (layered surfaces only) ──────────────────────────────── */
-  /* 阴影的唯一声明处（票 04 去重：colors_and_type.css 曾重复声明同一批值，
-     因 import 顺序本文件生效、那份是死的，已删；不要再复制一份回去）。 */
-  --shadow-composer: 0 1px 2px oklch(20% 0.009 264.4 / 0.05);
-  --shadow-card: 0 1px 3px -1px oklch(20% 0.009 264.4 / 0.12);
-  --shadow-pop: 0 8px 24px -16px oklch(20% 0.009 264.4 / 0.32),
-                0 1px 2px oklch(20% 0.009 264.4 / 0.1);
+  /* ─── elevation (warm espresso-tinted layered surfaces) ──────────────── */
+  --shadow-composer: 0 2px 8px -3px oklch(22.5% 0.015 50 / 0.08),
+                     0 1px 2px oklch(22.5% 0.015 50 / 0.04);
+  --shadow-card:     0 3px 10px -4px oklch(22.5% 0.015 50 / 0.12),
+                     0 1px 2px oklch(22.5% 0.015 50 / 0.05);
+  --shadow-pop:      0 12px 30px -14px oklch(22.5% 0.015 50 / 0.28),
+                     0 2px 6px -2px oklch(22.5% 0.015 50 / 0.1);
 
   /* ─── layout constants ───────────────────────────────────────────────── */
   --rail-w: 252px;
@@ -43,10 +43,10 @@
   --cmd-max: 520px;
 
   /* ─── motion ─────────────────────────────────────────────────────────── */
-  --ease: ease;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-fast: 0.1s;
-  --dur: 0.12s;
-  --dur-drawer: 0.2s;
+  --dur: 0.14s;
+  --dur-drawer: 0.22s;
 
   /* ─── z-index ladder ─────────────────────────────────────────────────── */
   --z-topbar: 20;

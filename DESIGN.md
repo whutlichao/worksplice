@@ -1,94 +1,94 @@
 ---
 name: worksplice
-description: 本地房间的校样板 —— 校样纸、单墨、四色角色与一枚方形付印章。
+description: 暖沙直觉动作面（Warm Action Surface）—— 暖沙画布、浮起暖白工作面、深咖墨与单一克制的朱砂红行动色。
 colors:
-  # 纸族（校样纸，暖白 + 极低彩度）
-  proof-paper: "oklch(98.5% 0.004 91.4)"
-  card-paper: "oklch(100% 0 89.9)"
-  rail-paper: "oklch(96% 0.008 98.9)"
-  well-paper: "oklch(92.7% 0.011 100.8)"
-  hairline: "oklch(88.7% 0.011 100.8)"
-  hairline-strong: "oklch(65.1% 0.009 248)"
-  # 墨族（正文 + 唯一强调色 + 纸白）
-  ink: "oklch(20% 0.009 264.4)"
-  ink-muted: "oklch(43.5% 0.011 243.1)"
-  ink-faint: "oklch(49.3% 0.012 248.1)"
-  paper-white: "oklch(100% 0 89.9)"
-  ink-action: "oklch(20% 0.009 264.4)"
-  ink-action-hover: "oklch(29.7% 0.012 264.4)"
-  # 青 · 当前位置
-  cyan-current: "oklch(84.2% 0.05 224.5)"
-  cyan-current-deep: "oklch(41.5% 0.072 222.8)"
-  cyan-current-graphic: "oklch(51% 0.092 227.2)"
-  # 品红 · 等你签
-  magenta-review: "oklch(86.5% 0.06 348.6)"
-  magenta-review-deep: "oklch(43.6% 0.149 353.2)"
-  magenta-review-graphic: "oklch(50% 0.169 353.3)"
-  # 黄 · 警示 / 待办（浅黄）
-  yellow-warn: "oklch(88.8% 0.103 91.3)"
-  yellow-warn-deep: "oklch(50.2% 0.101 86.7)"
-  yellow-warn-graphic: "oklch(60.5% 0.124 78.7)"
-  # 黄 · 进行中（同族琥珀档）
-  amber-working: "oklch(52.9% 0.127 53.7)"
-  amber-working-fill: "oklch(85.6% 0.075 70.5)"
-  amber-working-text: "oklch(47.1% 0.112 53.7)"
-  # 绿 · 付印 / 在线
-  green-press-okay: "oklch(47.9% 0.079 161.4)"
-  green-press-okay-fill: "oklch(86.2% 0.049 159.1)"
-  green-press-okay-text: "oklch(41.5% 0.067 162.8)"
-  # 红 · 退校 / 失败
-  red-revise: "oklch(48.5% 0.15 28.1)"
-  red-revise-fill: "oklch(85.7% 0.056 27.9)"
-  # 灰 · 离线 / 已关闭
-  grey-closed: "oklch(55.6% 0.012 248)"
-  grey-closed-fill: "oklch(90% 0 247.9)"
-  grey-closed-deep: "oklch(47.1% 0.011 243)"
-  # 头像五格（确定性取色的纸灰）
-  avatar-paper-0: "oklch(93.4% 0.004 100)"
-  avatar-paper-1: "oklch(89.6% 0.004 100)"
-  avatar-paper-2: "oklch(85.8% 0.004 100)"
-  avatar-paper-3: "oklch(95.2% 0.004 100)"
-  avatar-paper-4: "oklch(82.4% 0.004 100)"
+  # 表面与发丝（暖沙底面 + 浮起暖白动作面）
+  warm-sand: "oklch(93.8% 0.014 70)"
+  warm-white: "oklch(99.2% 0.004 75)"
+  sand-rail: "oklch(94.6% 0.013 70)"
+  warm-oat: "oklch(90.6% 0.017 68)"
+  warm-hairline: "oklch(86.5% 0.017 68)"
+  warm-hairline-strong: "oklch(61% 0.018 60)"
+  # 墨族（深咖墨 + 纸白）
+  espresso-ink: "oklch(22.5% 0.015 50)"
+  warm-umber: "oklch(41.5% 0.018 55)"
+  warm-taupe: "oklch(44.5% 0.018 58)"
+  on-accent: "oklch(99.5% 0.002 75)"
+  # 唯一主强调色（朱砂陶土 · 行动与等你拍板）
+  terracotta-vermilion: "oklch(54.5% 0.182 37)"
+  terracotta-vermilion-hover: "oklch(49% 0.172 35)"
+  terracotta-vermilion-deep: "oklch(50% 0.172 35)"
+  terracotta-vermilion-graphic: "oklch(55% 0.182 37)"
+  # 暖陶棕 · 当前位置与选中态
+  warm-clay-selected: "oklch(82.5% 0.042 62)"
+  warm-clay-selected-deep: "oklch(41.5% 0.068 55)"
+  warm-clay-selected-graphic: "oklch(52% 0.075 55)"
+  # 朱砂珊瑚 · 未读角标 / 待审 / 命中高亮
+  vermilion-review: "oklch(86% 0.065 39)"
+  vermilion-review-deep: "oklch(50% 0.172 35)"
+  vermilion-review-graphic: "oklch(55% 0.182 37)"
+  # 暖蜜赭石 · 警示 / 防撞锁 / 提醒横幅
+  honey-ochre-warn: "oklch(86.5% 0.088 82)"
+  honey-ochre-warn-deep: "oklch(44.5% 0.105 68)"
+  honey-ochre-warn-graphic: "oklch(55.5% 0.125 68)"
+  # 语义四态（森林鼠尾草绿 / 暖琥珀 / 深锈红 / 暖石灰）
+  forest-sage-online: "oklch(50.5% 0.095 158)"
+  forest-sage-online-fill: "oklch(86% 0.052 158)"
+  forest-sage-online-text: "oklch(40.5% 0.085 158)"
+  warm-amber-working: "oklch(53% 0.128 58)"
+  warm-amber-working-fill: "oklch(86% 0.072 72)"
+  warm-amber-working-text: "oklch(44.5% 0.112 56)"
+  deep-rust-error: "oklch(45.5% 0.155 24)"
+  deep-rust-error-fill: "oklch(85% 0.062 24)"
+  warm-stone-offline: "oklch(54.5% 0.015 62)"
+  warm-stone-offline-fill: "oklch(87% 0.012 65)"
+  warm-stone-offline-deep: "oklch(43.5% 0.015 60)"
+  # 头像五格（暖陶/暖沙/鼠尾草亚麻/暖麦/烤沙）
+  avatar-oat: "oklch(90.5% 0.022 68)"
+  avatar-apricot: "oklch(89.5% 0.032 48)"
+  avatar-sage: "oklch(90% 0.028 148)"
+  avatar-wheat: "oklch(89% 0.03 82)"
+  avatar-toasted: "oklch(86.5% 0.022 58)"
 typography:
   headline:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
+    fontFamily: "Onest, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "16px"
-    fontWeight: 680
-    lineHeight: 1.5
+    fontWeight: 650
+    lineHeight: 1.4
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
+    fontFamily: "Onest, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "14px"
-    fontWeight: 680
+    fontWeight: 650
     lineHeight: 1.4
     letterSpacing: "-0.01em"
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
+    fontFamily: "Onest, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: 1.5
   prose:
-    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
+    fontFamily: "Onest, -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "14px"
     fontWeight: 400
-    lineHeight: 1.65
+    lineHeight: 1.55
   label:
-    fontFamily: "ui-monospace, SF Mono, JetBrains Mono, Menlo, Consolas, monospace"
+    fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, Consolas, monospace"
     fontSize: "9.5px"
     fontWeight: 600
     lineHeight: 1.4
     letterSpacing: "0.08em"
   meta:
-    fontFamily: "ui-monospace, SF Mono, JetBrains Mono, Menlo, Consolas, monospace"
+    fontFamily: "JetBrains Mono, ui-monospace, SF Mono, Menlo, Consolas, monospace"
     fontSize: "10.5px"
     fontWeight: 400
     lineHeight: 1.5
 rounded:
-  sm: "2px"
-  md: "3px"
-  lg: "4px"
-  xl: "6px"
-  pill: "3px" # --r-pill 不是胶囊：伪胶囊一律近方角
+  sm: "6px"
+  md: "10px"
+  lg: "14px"
+  xl: "18px"
+  pill: "999px"
 spacing:
   sp-1: "2px"
   sp-2: "4px"
@@ -104,358 +104,221 @@ spacing:
   sp-12: "56px"
 components:
   button-primary:
-    backgroundColor: "{colors.ink-action}"
-    textColor: "{colors.paper-white}"
+    backgroundColor: "{colors.terracotta-vermilion}"
+    textColor: "{colors.on-accent}"
     typography: "{typography.body}"
     rounded: "{rounded.md}"
     padding: "0 12px"
     height: "32px"
   button-primary-hover:
-    backgroundColor: "{colors.ink-action-hover}"
-    textColor: "{colors.paper-white}"
+    backgroundColor: "{colors.terracotta-vermilion-hover}"
+    textColor: "{colors.on-accent}"
     rounded: "{rounded.md}"
+  button-rail-primary:
+    backgroundColor: "{colors.espresso-ink}"
+    textColor: "{colors.on-accent}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: "0 8px"
+    height: "32px"
   button-default:
-    backgroundColor: "{colors.card-paper}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.warm-white}"
+    textColor: "{colors.espresso-ink}"
     typography: "{typography.body}"
     rounded: "{rounded.md}"
     padding: "0 12px"
     height: "32px"
   input-field:
-    backgroundColor: "{colors.card-paper}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.warm-white}"
+    textColor: "{colors.espresso-ink}"
     typography: "{typography.body}"
     rounded: "{rounded.md}"
-    padding: "8px 10px"
-  badge-unread:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.paper-white}"
-    typography: "{typography.label}"
-    rounded: "{rounded.sm}"
-    padding: "0 5px"
-    size: "18px"
-  stamp-todo:
-    backgroundColor: "{colors.card-paper}"
-    textColor: "{colors.ink-muted}"
-    typography: "{typography.label}"
-    rounded: "{rounded.sm}"
-    padding: "1px 5px"
-  stamp-in-review:
-    backgroundColor: "{colors.card-paper}"
-    textColor: "{colors.magenta-review-deep}"
-    typography: "{typography.label}"
-    rounded: "{rounded.sm}"
-    padding: "1px 5px"
-  stamp-done:
-    backgroundColor: "{colors.card-paper}"
-    textColor: "{colors.green-press-okay-text}"
-    typography: "{typography.label}"
-    rounded: "{rounded.sm}"
-    padding: "1px 5px"
-  composer-box:
-    backgroundColor: "{colors.card-paper}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body}"
+    padding: "7px 10px"
+    height: "32px"
+  card:
+    backgroundColor: "{colors.warm-white}"
+    textColor: "{colors.espresso-ink}"
     rounded: "{rounded.lg}"
-    padding: "11px 13px 4px"
-  presence-online:
-    backgroundColor: "{colors.green-press-okay}"
-    size: "7px"
-  presence-working:
-    backgroundColor: "{colors.amber-working}"
-    size: "7px"
-  presence-error:
-    backgroundColor: "{colors.red-revise}"
-    size: "7px"
-  presence-offline:
-    backgroundColor: "{colors.grey-closed}"
-    size: "7px"
+    padding: "12px 14px"
+  nav-item-active:
+    backgroundColor: "{colors.warm-white}"
+    textColor: "{colors.espresso-ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: "6px 10px"
+  badge-unread:
+    backgroundColor: "{colors.terracotta-vermilion}"
+    textColor: "{colors.on-accent}"
+    typography: "{typography.meta}"
+    rounded: "{rounded.pill}"
+    padding: "0 6px"
+    height: "18px"
+  badge-soft:
+    backgroundColor: "{colors.warm-oat}"
+    textColor: "{colors.warm-umber}"
+    typography: "{typography.meta}"
+    rounded: "{rounded.pill}"
+    padding: "0 6px"
+    height: "18px"
+  status-pill-review:
+    backgroundColor: "{colors.vermilion-review-deep}"
+    textColor: "{colors.on-accent}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "2px 8px"
+  status-pill-done:
+    backgroundColor: "{colors.forest-sage-online-fill}"
+    textColor: "{colors.forest-sage-online-text}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "2px 8px"
 ---
 
 # Design System: worksplice
 
-> **本文件写于构建之后，依据是已发出的代码，不是任何视觉稿。**
-> 唯一取值来源：`worksplice-design-system/colors_and_type.css`（色与字）、`worksplice-design-system/tokens.css`（间距 / 圆角 / 阴影 / 布局）、`app/globals.css`（本仓扩展层与 class 块，末段「校样世界」）、`app/layout.tsx`（`themeColor`）。方向契约见 `.impeccable/surfaces/components-appshell-tsx.md`（seed `a946e85ad432fd91`）：它给了世界，代码给了取值——两者不一致时以代码为准，并在此标注。
-> **本项目没有 comp，也没有被批准的视觉稿**：下面每一条都是对成品行为的描述，不是对设计意图的转述。
-
 ## Overview
 
-**Creative North Star: "校样"（The Press Proof）**
+**Creative North Star: "暖沙直觉动作面（Warm Action Surface）"**
 
-房间是一张摊开的校样纸，工作是一份份等待付印的印张。每条任务带着校次（`#3`）和签名；没有任何一件工作能在缺少第二个人署名时看起来「完成」。世界只借四样东西：纸、墨、四色印、一个盖章动作——其余一律让位给密度和可读性。
+worksplice 是面向本地多 pi coding agent 的协作工作区：一个人类 Owner 在同一间安静的本地工作室里，同时浏览频道消息流、看板任务、线程讨论与 agent 状态。视觉世界以「暖沙底面上的浮起暖白工作纸」为核心隐喻——外围暖沙（`--bg`）托住左栏导航与两张圆角浮起的暖白工作纸（中央频道/任务面与右侧详情坞），让长时间盯屏既柔和耐看，又一眼分得清层级边界。
 
-克制是这条世界的主线。纸是暖白，墨是唯一强调色，边框是发丝，角几乎直角，阴影只在东西真的浮起来时才出现。全屏唯一的装饰是那枚方形章和栏头的四个套准小方点；系统连一个圆形都不画（点、头像、徽章、胶囊全部是带 1–3px 倒角的方）。字只有系统 sans 与系统 mono 两支，不加载 webfont——CJK 与拉丁同栈，界面不会被字重节奏绑住。
+整套系统坚持「有颜色的地方就是你能动手的地方」：界面 90% 以上停留在暖沙、暖白、暖燕麦与深咖墨之间，将唯一饱和的朱砂陶土色（`--accent`）严格留给当前视口的主动作（发送、批准、新建任务）与等你处理的信号（真实未读角标、`in_review` 待审提示），绝不浪费在被动计数、静态装饰或普通正文上。所有状态都坚持「同色同词」，无需悬停或翻文档就能直读谁在干活、哪条未读、谁在等你拍板。
 
-**它明确拒绝的类别默认：**
-
-- 把工作状态藏在悬浮提示里的聊天气泡流——状态必须是常驻的、可扫读的、带字的一枚章。
-- 第二种强调色、彩色圆形状态点、零模糊的硬偏移阴影、真正的圆胶囊徽章。
-- 以「好看」为由放大字号或加装饰来填补密度。
+它明确放弃了旧版冷灰高锐度的校样直角风（2px 近直角、四色套准装饰点、虚线方形付印章、左侧单边激活条），转向更温润、直观、触感友好的软角浮卡与真实胶囊语言，同时完整保留 13px 紧凑操作密度、14px / 68ch 消息阅读预算、WCAG AA 对比度门禁与 `lucide-react` 单一图标纪律。
 
 **Key Characteristics:**
-
-- 纸族四级递进（`--bg` → `--surface` → `--panel` → `--panel-2`）承担全部层次，不靠边框堆叠。
-- 一个墨族同时是**正文色**和**唯一强调色**（`--accent === --fg`），纸白压在实印面上。
-- 五个角色墨：青=当前位置、品红=等你签、黄=进行中 / 待办 / 警示、绿=付印 / 完成、红=退校 / 失败；灰只做离线与已关闭。
-- 每个状态**同色同词**，颜色永不单独承担语义。
-- 签名动作：方形付印章（默认 1px，待审与完成 1.5px；`done` 章里写署名）。
-- 13px 界面正文、14px 消息正文 / 68ch、9.5px 全大写等宽标签、一切数字 `tabular-nums`。
+- 暖沙外框（10px）托起 18px 柔角暖白主工作纸与右侧详情坞，层级靠表面明度差与极轻暖咖阴影共同建立。
+- 单一饱和朱砂陶土色严格按「≤10% 行动色预算」使用；左栏创建按钮降为深咖墨（`--fg`），被动计数一律退回暖燕麦（`.badge.soft`）。
+- 自托管可变字体 `Onest`（拉丁/数字）与 `JetBrains Mono`（序号/时间/状态词）无缝衔接中文字体栈（`PingFang SC` / `Hiragino Sans GB` / `Microsoft YaHei`），100% 离线可用。
+- 首屏直读机制：左栏顶部常驻房间脉搏条（`.rail-pulse`），待审任务卡片直接呈现朱砂「待审」胶囊、一行审批权限提示（`.card-review-hint`）与主色「批准」CTA。
+- 所有状态点、状态胶囊与成员存在态均坚持「同色同词」，零表情符号装饰，全部图标来自 `lucide-react`。
 
 ## Colors
 
-一张暖白校样纸上只压一种墨和五支角色印；每支印按「淡印面 / 文字档 / 环点档」分层，颜色只在它该出现的那一层出现。
+全仓色值以 `oklch()` 为唯一真源（`worksplice-design-system/colors_and_type.css` 声明基础纸/墨/行动/语义四态与头像五格，`app/globals.css` 扩展层声明选中/未读/警示三个产品角色族），每个颜色家族都按 `fill / soft / deep / graphic` 四档受 `app/globals.contrast.test.mjs` 机械把关（正文 ≥4.5:1，图形边界 ≥3.0:1，淡底 ΔL ≥3.0）。
 
 ### Primary
-
-- **墨（Ink）**（`oklch(20% 0.009 264.4)`）：正文、标题、章上的字，同时也是 `--accent`——主按钮、发送键、品牌标、agent 署名色的实印面。它的悬停面是 `oklch(29.7% 0.012 264.4)`（越按越浅，不是越按越深）。压在实印面上的永远是**纸白** `--on-accent`（`oklch(100% 0 89.9)`）。
-- **次级墨**（`oklch(43.5% 0.011 243.1)`）与**三级墨**（`oklch(49.3% 0.012 248.1)`）：说明文字、标签、元信息。三级墨就是这一族的底——四种纸上它都还压得住 4.5:1，不要再往下生出第四级更浅的墨。
-
-### Secondary
-
-- **青 · 当前位置**（`oklch(84.2% 0.05 224.5)`，文字档 `oklch(41.5% 0.072 222.8)`，环点档 `oklch(51% 0.092 227.2)`）：导航激活行的左侧 2px 竖条与 `#` 记号、消息锚点行的底色与竖条、打开中的线程、选中的 chip / 分段控件 / 单选卡、`is-now` 时间点环。它回答的只有一个问题：「你此刻在哪」。
-- **品红 · 等你签**（`oklch(86.5% 0.06 348.6)`，文字档 `oklch(43.6% 0.149 353.2)`，环点档 `oklch(50% 0.169 353.3)`）：`in_review` 的虚线章、审阅请求。它是「需要你动一下」的那一类，不是「有变化」的那一类。
-
-### Tertiary
-
-- **黄 · 警示 / 待办**（`oklch(88.8% 0.103 91.3)`，文字档 `oklch(50.2% 0.101 86.7)`，环点档 `oklch(60.5% 0.124 78.7)`）：常驻警示条、`.lv.warn` 级别签、meter 的警示段、栏头套准点第 3 格、「没有默认收件人」提示。
-- **琥珀 · 进行中**（`oklch(52.9% 0.127 53.7)`，填充档 `oklch(85.6% 0.075 70.5)`，文字档 `oklch(47.1% 0.112 53.7)`）：黄族里压深的一支，专门表示「有人正在干」——`in_progress` 章的框、成员行的 `working` 点与词。
-- **绿 · 付印 / 在线**（`oklch(47.9% 0.079 161.4)`，填充档 `oklch(86.2% 0.049 159.1)`，文字档 `oklch(41.5% 0.067 162.8)`）：`done` 章的框、在线点、`ok` 级别签。
-- **红 · 退校 / 失败**（`oklch(48.5% 0.15 28.1)`，填充档 `oklch(85.7% 0.056 27.9)`）：拒绝、关闭、错误、危险动作。红族的 base / 图形 / 文字**同值**——它不需要分层就已经够重。
-- **灰 · 离线 / 已关闭**（`oklch(55.6% 0.012 248)`，填充档 `oklch(90% 0 247.9)`，文字档 `oklch(47.1% 0.011 243)`）：离线点、`closed` 章、归档项。灰不是「禁用」，只是「没在跑 / 已结束」。
+- **Terracotta Vermilion（朱砂陶土）** (`--accent` / `oklch(54.5% 0.182 37)`，悬停 `--accent-hover` `oklch(49% 0.172 35)`，文字档 `--accent-deep` `oklch(50% 0.172 35)`，图形档 `--accent-graphic` `oklch(55% 0.182 37)`): 唯一饱和强调色，仅用于当前视口主 CTA（`发送消息`、`批准`、`+ 新建任务`）、真实未读角标、待审状态提示、输入聚焦环与 agent 作者识别。
 
 ### Neutral
+- **Warm Sand（暖沙画布）** (`--bg` `oklch(93.8% 0.014 70)`): 应用最底层画布、桌面端 10px 四周外框与三栏间 10px 缝隙。
+- **Warm White（暖白工作面）** (`--surface` `oklch(99.2% 0.004 75)`): 浮起的中央频道/看板纸面、右侧详情坞、任务卡片、输入框、激活导航胶囊与模态框主体。
+- **Sand Rail（暖沙栏面）** (`--panel` `oklch(94.6% 0.013 70)`): 看板列底面、分段页签槽底、移动端抽屉背景与温和胶囊底。
+- **Warm Oat（暖燕麦次井）** (`--panel-2` `oklch(90.6% 0.017 68)`): 房间脉搏条、被动计数徽标（`.badge.soft`）、轻量元信息胶囊、代码块与嵌套井。
+- **Espresso Ink（深咖墨）** (`--fg` `oklch(22.5% 0.015 50)`): 主正文、标题、品牌标识底与左栏次级深色主按钮（`+ 新建频道`、看板分段选中态）。
+- **Warm Umber / Taupe（暖褐 / 暖灰褐）** (`--muted` `oklch(41.5% 0.018 55)` / `--faint` `oklch(44.5% 0.018 58)`): 次级说明、时间戳、序号、占位提示与列表项目符号；四张浅纸上均 ≥4.5:1。
+- **Warm Hairline / Strong（暖石发丝与交互边）** (`--border` `oklch(86.5% 0.017 68)` / `--border-strong` `oklch(61% 0.018 60)`): `--border` 只做分隔线与卡片静息轮廓；`--border-strong` 承担输入框、按钮与可选控件边界（≥3.0:1）。
+- **Avatar Clay Palette（头像五格）** (`--av-0` 至 `--av-4`): 暖燕麦、暖杏陶、鼠尾草亚麻、暖麦与烤沙（人类 Owner 恒取 `--av-4`），按成员 ID 确定性取色，深咖墨首字压其上 ≥4.5:1。
 
-- **校样纸**（`oklch(98.5% 0.004 91.4)`）：页面画布、频道栏与 composer 的底色。
-- **卡面纸**（`oklch(100% 0 89.9)`）：消息行、卡片、频道头、右栏、输入框、浮层。比画布更亮——层次靠纸的明度递进，靠发丝断开。
-- **栏纸**（`oklch(96% 0.008 98.9)`）：左栏、看板列、置顶条、统计格。
-- **井纸**（`oklch(92.7% 0.011 100.8)`）：嵌在纸里的东西——行内 code、mono 小标签、嵌套井。
-- **发丝**（`oklch(88.7% 0.011 100.8)`）：一切分隔。**交互边**（`oklch(65.1% 0.009 248)`）：输入框、可选控件的边界——只有这一档才够 3:1，发丝不够。
-- **头像五格**（`--av-0` … `--av-4`，`oklch(93.4% … 82.4% 0.004 100)`）：全是没有色相的纸灰，人类固定落在最深那格（`--av-4`）。头像不用彩色，是为了让「谁在动」只由状态点与状态词说。
-
-**档位契约（每族四档，机械可验）** —— `app/globals.contrast.test.mjs`：
-
-| 档 | 名字 | 用法 | 阈值 |
-| --- | --- | --- | --- |
-| fill | `--X` / `--X-fill` | 只有背景（徽标底、横幅底、章底），墨压其上 | `--fg` 压 fill ≥ 4.5:1 |
-| deep | `--X-deep` / `--X-text` | 只在纸上作**文字** | 四种纸各 ≥ 4.5:1 |
-| solid | 取 deep 作底 | 实印面，纸白压其上 | `--on-accent` ≥ 4.5:1 |
-| graphic | `--X-graphic` | **只**做焦点环、状态点、边界 | 压 `--surface` ≥ 3:1 |
-| soft | `color-mix(--X-fill 22–30%, transparent)` | 淡底，永不单独承担边界 | 与纸面 ΔL ≥ 3 |
-
-命名上有一处必须记住的例外：**绿与琥珀的「文字档」叫 `--online-text` / `--working-text`，不叫 `--deep`**（历史命名，语义等同 deep）。软档不写死色值，一律用 `color-mix`：青 22%、品红 26%、黄 30%、绿 / 琥珀 / 红 / 灰 28%。
+### Semantic Status & Product Roles
+- **Warm Clay Selected（暖陶棕 · 当前位置）** (`--selected*`): 锚点消息整圈描边与极淡底、激活导航序号与筛选开启态，沉稳落位不抢朱砂行动色。
+- **Vermilion Review（朱砂珊瑚 · 等你处理）** (`--unread*`): `in_review` 待审实心胶囊、待审权限提示、搜索命中高亮与真实未读数。
+- **Honey Ochre Warn（暖蜜赭石 · 警示）** (`--warn*`): freshness-hold 防撞锁、提醒与非致命提示横幅。
+- **Forest Sage Online（森林鼠尾草绿 · 在线/完成）** (`--online*`): 在线状态点、`done` 完成署名胶囊与保存成功反馈。
+- **Warm Amber Working（暖琥珀 · 工作中/进行中）** (`--working*`): 正在干活的脉冲圆点与 `in_progress` 状态胶囊。
+- **Deep Rust Error（深锈红 · 出错/危险）** (`--error*`): 会话异常、拒绝/关闭危险操作与非法拖拽反馈。
+- **Warm Stone Offline（暖石灰 · 离线/已关闭）** (`--offline*`): 离线成员与 `closed` 已关闭任务。
 
 ### Named Rules
+**The One Action Voice Rule.** 饱和朱砂陶土色（`--accent`）在任一视口中严格控制在 ≤10% 面积内，只分配给当前主动作或真实待处理信号；被动计数（总回复数、成员数、无未读的任务总数）一律使用暖燕麦 `.badge.soft`，左栏全局创建入口收敛为深咖墨 `--fg`。
 
-**The One Ink Rule.** `--accent` 就是墨本身（`--accent === --fg === --accent-deep === --accent-graphic`）。主按钮、发送键、品牌标都是墨底纸白字。**不引入第二种强调色**——一旦出现第二个「主色」，四色角色就退化成了配色表。
+**The Four-Tier Discipline Rule.** 每个语义色族严格区分 `fill`（淡底压墨）、`soft`（低不透明度提示底）、`deep`（正文 ≥4.5:1）与 `graphic`（圆点/焦点环 ≥3.0:1），禁止混用档位导致对比度跌破 AA 下限。
 
-**The Tier Rule.** `fill` 只能当背景（墨压其上），`deep` 只能当文字（纸压其下），`graphic` 只能做环、点、边界。把 `fill` 当文字或状态点，就是把一层淡印当成墨来用——对比度会直接崩。
-
-**The Magenta-Means-Sign Rule.** 品红只表示「等你签」。**未读绝不是品红**：未读是墨底 + 数字的角标（`.badge`，纸白压墨）。搜索命中的 `<mark>` 借用品红 `fill` 档压墨字，是同一族在另一个视图里的第二个消费点，不与等审章同屏出现——不要把它推广成第五种语义。
+**The Same Color, Same Word Rule.** 任何状态点、任务胶囊、列头或成员行都必须同时给出明确状态词（工作中 / 在线 / 离线 / 待审 / 完成），颜色永远只是第二线索。
 
 ## Typography
 
-**Display Font:** 无（本系统没有 display 字面；最大的字是 16px 的频道名）
-**Body Font:** 系统 sans 栈（`-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif`）
-**Label/Mono Font:** 系统 mono 栈（`ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace`）
+**Primary UI & Prose Font:** `Onest`（自托管可变 WOFF2，`400..700`）+ `-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif`
+**Monospace / Meta Font:** `JetBrains Mono`（自托管可变 WOFF2，`400..700`）+ `ui-monospace, "SF Mono", Menlo, Consolas, monospace`
 
-**Character:** 一支无个性的系统 sans 承担全部正文，一支等宽承担全部「机器说的东西」——标签、编号、时间、计数、章上的字。没有 webfont，没有斜体强调，没有字号跳跃；所有层级靠 0.5–2px 的字号差、字重和全大写等宽来区分。CJK 与拉丁在同一栈里，中英混排不会换脸。
+**Character:** `Onest` 具备温润开放的字怀与克制的几何人文笔形，在 13px–16px 密排界面下与中文黑体（`PingFang SC`）重心贴合，毫无冷硬工业感；`JetBrains Mono` 开启 `tabular-nums`，让 `#seq` 序号、时间戳、计数徽标和全大写微标签严丝合缝对齐。
 
 ### Hierarchy
-
-- **Headline**（680，16px，1.5，字距 -0.02em）：频道标题。全屏只有这一处 16px。
-- **Title**（680，14px，1.4，字距 -0.01em）：右栏面板名、线程摘要。消息作者名同为 14px，但用 650——比标题软一档，避免名字比内容更响。
-- **Body**（400，13px，1.5）：一切界面文案——按钮、行、标签值、表单。13px 是密度基线，不要为了「更好读」把它整体吹大；需要更好读的地方是消息正文。
-- **Prose**（400，14px，1.65，**行宽 ≤ 68ch**）：频道消息与线程回复的正文。这是全系统唯一被允许偏离 13px 的正文面（ADR-0016 的局部例外），也只在这里偏离——`.msg-text > .markdown-body` 同时给了 14px 与 68ch，两者绑定出现。
-- **Label**（600，9.5px，字距 0.08em，全大写，mono）：分组标题、章、成员状态词、卡片的 mono 小标签。9.5px 是这套字阶的底，全大写 + 0.08em 字距让它在小尺寸仍然可读。
-- **Meta**（400，10.5px，mono）：时间戳、计数、序号、`kbd`。
-- 其余档位：11.5px 提示与卡片元信息、12px chip 与列表行、12.5px 按钮 / 频道描述 / 卡片标题、13.5px 品牌名与空态标题、17px 统计数字（mono，700）。
+- **Headline（频道主标题）** (650, `16px`, line-height `1.4`, letter-spacing `-0.02em`): 顶栏频道名称（`h1`），紧跟朱砂 `#` 符号。
+- **Title（面板与卡片标题）** (650, `14px`, line-height `1.4`, letter-spacing `-0.01em`): 右侧详情坞标题、线程标题与模态框标题。
+- **Body（界面常规密度）** (400 / 550 / 600, `13px`, line-height `1.5`): 导航行、按钮、表单控件、工具条与列表项。
+- **Prose（消息正文阅读预算）** (400, `14px`, line-height `1.55`, max-width `68ch`): 频道消息与线程回复正文，确保长段 Markdown 讨论长时间阅读不累眼。
+- **Caption（次级提示与元数据）** (400 / 550, `11.5px`–`12px`, line-height `1.45`): 待审卡片审批权限提示（`.card-review-hint`）、房间脉搏条与辅助说明。
+- **Meta / Label（等宽序号与分组头）** (400–600, `10.5px` / `9.5px`, letter-spacing `0.06em`–`0.08em`, `tabular-nums`): 时间戳、`#seq` 编号、徽标数字与左侧全大写分组标签（`频道` / `AGENT 成员`）。
 
 ### Named Rules
-
-**The Mono-Is-A-Label Rule.** mono 只出现在三类地方：标签（全大写、9.5px、字距 0.08em）、数字（编号、计数、时间、统计）、代码。**mono 不写句子**——一旦用等宽排一句自然语言，它就从「机器说的」变成了「另一种正文」。
-
-**The 68ch Rule.** 消息正文的行宽上限是 68ch，字号同时是 14px。改其中一个就必须改另一个——只放大字号会得到更长的行，只收窄行宽会让 13px 的密度失去意义。68ch 不换算成像素：它随系统字体度量变化。
-
-**The Tabular Rule.** 一切会并排比较的数字都开 `font-variant-numeric: tabular-nums`（计数、时间戳、`#` 编号、统计、轮次记录）。比例数字会让列表里的编号左右跳。
+**The Quiet Instrument Type Rule.** 整套工作区不设巨幅 Display 字阶，界面密度锚定在 `13px`，仅把放大与行宽余量（`14px` / `68ch`）留给需要深度阅读的消息正文，所有动态数字强制 `tabular-nums`。
 
 ## Layout
 
-**三栏壳**：左栏（频道 + 成员）／中栏（频道流、任务板、搜索）／右栏（单槽：agent 详情 / 线程 / 人类详情，**无选中时整栏不渲染**，中栏吃满宽度）。壳占满视口且 `overflow: hidden`，滚动归各自的列，页面本身不滚。
-
-| 常量 | 值 | 用途 |
-| --- | --- | --- |
-| `--rail-w` | 252px | 左栏定宽（移动端抽屉沿用同一宽度） |
-| `--dock-w` | 380px | 右栏桌面宽 |
-| `--dock-w-md` | 340px | ≤1080 时收窄的右栏 |
-| `--stream-max` | 1000px | 中栏内容列上限（消息流 + composer 共用） |
-| `--board-col-w` | 236px | 看板列基准宽，最大 320px |
-| `--modal-max` / `--modal-wide-max` | 440 / 560px | 弹层两档宽 |
-| 搜索内栏 | 760px | 搜索结果列 |
-
-**沟槽只有一条。** 中栏的一切（频道头 `13px 20px 0`、消息流 `18px 20px 8px`、任务工具条 `12px 20px`、composer `10px 20px 16px`）共用 20px（`--sp-9`）的左右沟槽与 `--stream-max` 的居中列，所以头、流、输入框的左缘永远对齐。右栏与弹层改用 16px（`--sp-7`）、弹层再放宽到 18px（`--sp-8`）。
-
-**间距节奏**：4px 基、2px 半步（`--sp-1…--sp-12` = 2/4/6/8/12/14/16/18/20/24/30/56）。行内用 2–8px，块间用 12–18px，分节用 20–24px，空态留白用 56px。
-
-**控件尺度**：输入与按钮 32px（`--control-h`），小按钮 27px，图标按钮 30px，头像 22 / 26 / 44px。`--tap-min` 44px 是产品层的触控下限声明——**当前壳里的 30/32px 控件仍在它之下**，这是一件未收口的事，不要拿这条去论证移动端已达标。
-
-**断点**：
-
-- **≤1080**：右栏压到 340px（`max-width` 收窄内联的 380px）。
-- **≤900**：两栏退场成左右滑入抽屉（`--z-rail` 50 / `--z-dock` 55 + 40 的遮罩），中栏头部让出 52px 给汉堡位，看板从 5 列横排改成单列纵向堆叠、纵向滚动交给 `.board`。抽屉关闭态带 `visibility: hidden`，把离屏控件同时移出 Tab 序与无障碍树。
-- **≤640**：表单控件字号强制 16px（避免 iOS 聚焦缩放）。
-
-**密度取舍**：桌面端不发明视口魔数（不用 `46vh` 这类值），高度一律从容器算；看板列高跟容器可用高度走，纵向滚动在列内，列表视图则把滚动交回页面、工具条吸顶。
-
-### Named Rules
-
-**The One Gutter Rule.** 中栏所有块共用一条 20px 沟槽和 `--stream-max` 的居中列。新加一个块时先对齐这条线，而不是给它单独的内边距——左缘错开一像素，整页的「校样」感就没有了。
-
-**The Column-Owns-Its-Scroll Rule.** 页面不滚。每一栏自己决定滚什么：中栏滚内容、看板滚列内、右栏滚面板、抽屉滚整体。给外壳加 `overflow: auto` 会让吸顶头（频道头、线程摘要、任务工具条）全部失效。
+- **三栏浮纸桌面骨架（`≥901px`）**：`.ws-shell` 在暖沙底面上留出四周 `10px` 外框（与 `env(safe-area-inset-*)` 合并）及 `10px` 栏间缝隙。左栏 `.ws-left` 固定 `252px`（`--rail-w`）直接落在透明暖沙画布上；中央 `.ws-center`（`flex: 1`）与按需展开的右侧详情坞 `.ws-right`（`380px` `--dock-w`）各自独立为带 `1px --border` 描边与 `18px` 圆角的暖白浮纸，内部各自独立纵向滚动，外壳永不整体滚动。
+- **平板收窄（`≤1080px`）**：右侧详情坞自动收窄至 `340px`（`--dock-w-md`），保持三栏不挤压消息流可读宽度。
+- **紧凑与移动端（`≤900px`）**：外框与缝隙归零，中央 `.ws-center` 恢复满屏无边框暖白画布；左栏与右栏转为带暖咖遮罩（`oklch(22.5% 0.015 50 / 0.36)`）的固定滑入抽屉（关闭态带 `visibility: hidden` 退出 Tab 序与读屏树）；顶栏左上角露出 `36×36px` 柔角汉堡按钮，标题左让 `52px`；看板五列自动堆叠为单列竖排并由 `.board` 承接纵向滚动。
+- **小屏触控保护（`≤640px`）**：输入框字号锁定 `16px` 防止 iOS 聚焦放大，触控区遵循 `--tap-min`（`44px`）与安全区底距。
 
 ## Elevation & Depth
 
-**混合，但以纸面分层为主。** 这套系统首先靠纸的四级明度（`--bg` → `--surface` → `--panel` → `--panel-2`）表达「谁在谁上面」，靠 1px 发丝表达「这里断开了」。阴影是第三种语言，只给真的浮起来的东西，而且全部带模糊与极低透明度：
+本系统采用「暖沙底面 + 浮起暖白纸面 + 极克制暖咖环境阴影」的三层深度语法，所有阴影统一以深咖墨色相 `oklch(22.5% 0.015 50 / α)` 着色，绝不使用纯黑或零模糊硬偏移阴影：
 
-- `--shadow-composer`（`0 1px 2px oklch(20% 0.009 264.4 / 0.05)`）：composer 外壳的常驻 1px 落影。它坐在页面上而不是浮层里，所以只有这一档。
-- `--shadow-card`（`0 1px 3px -1px oklch(20% 0.009 264.4 / 0.12)`）：任务卡在 `:hover` 时才拿到。静止的卡片没有影子。
-- `--shadow-pop`（`0 8px 24px -16px … / 0.32` + `0 1px 2px … / 0.1`）：真正的浮层——弹层、消息动作条、移动端抽屉、汉堡按钮。
+- **第 0 层（暖沙画布）**：`--bg` 与透明左栏 `.ws-left`、看板列 `.col`（`--panel`），承托全部工作内容。
+- **第 1 层（工作纸与静息卡片）**：`.ws-center` / `.ws-right` 浮纸（`0 2px 10px -2px oklch(22.5% 0.015 50 / 0.06)`）、常驻输入盒 `--shadow-composer`、激活导航胶囊与分段页签的轻抬阴影。
+- **第 2 层（交互抬升）**：任务卡片与动作条悬停时启用 `--shadow-card`（`0 3px 10px -4px ... / 0.12`），强化发丝边至 `--border-strong`。
+- **第 3 层（临时浮层）**：模态框、命令面板、下拉菜单与移动端滑入抽屉使用 `--shadow-pop`（`0 12px 30px -14px ... / 0.28`）。
 
-静止的内容不带阴影：右栏线程的 composer 显式把 `--shadow-composer` 归零（`.tt-reply .composer-box { box-shadow: none }`），只有拿到焦点才出现 1px 的 accent 环。遮罩是压暗幕 + `backdrop-filter: blur(2px)`（现值 `oklch(33% 0.045 300 / 0.42)`，带极低彩度的冷相）。
-
-### Shadow Vocabulary
-
-- **Composer settle**（`0 1px 2px oklch(20% 0.009 264.4 / 0.05)`）：输入条与页面之间的纸厚。
-- **Card hover lift**（`0 1px 3px -1px oklch(20% 0.009 264.4 / 0.12)`）：只在 `@media (hover: hover)` 下生效，防止触屏「粘住」。
-- **Pop**（`0 8px 24px -16px … / 0.32`、`0 1px 2px … / 0.1`）：与页面脱离的一层。
-
-### Named Rules
-
-**The Flat-By-Default Rule.** 静止的表面是平的。阴影是状态（hover / 浮起 / 打开），不是装饰；给常驻卡片加影子会让「浮在页面上」这件事失去信息量。
-
-**The Blur-Or-Nothing Rule.** 阴影必须带模糊且透明度在 0.05–0.32 之间。零模糊的硬偏移阴影属于另一个世界（更早的方向里被整体作废过），不要以「复古印刷」为由让它回来。
+**The Lifted Paper Rule.** 静态信息层次优先通过暖沙（`--bg`/`--panel`）与暖白（`--surface`）的明度差和 `1px` 发丝边建立，阴影只用于「浮起的工作纸、悬停反馈与临时浮层」，不为装饰而堆叠多层重阴影。
 
 ## Shapes
 
-**近直角。** 圆角阶是 2 / 3 / 4 / 6px（`--r-sm…--r-xl`），而且 `--r-pill` 也只是 **3px**——所谓「胶囊」徽章、计数、reaction、分段控件全部是带 3px 倒角的方条。世界不画圆：状态点 7px 方点（1px 倒角）、套准标记 6px 方块（1px 倒角）、头像 26px 方砖（2px 倒角，lg 档 3px）、看板列头点 8px（3px 倒角）。
+圆角阶梯从旧版近直角整体升级为触感友好的暖沙软角体系：
 
-- **描边**：默认 1px。分隔一律 1px 发丝（`--border`）；只有需要「可交互」的地方才升到 `--border-strong`（3:1）。**用 1.5px 做框的只有章**：`in_review`（虚线）与 `done`（实线）靠这半像素读出「这是被盖上去的，不是框出来的」。
-- **分隔**：横向用发丝、纵向用发丝、表格行用虚线发丝（`.kv`）。没有 2px 以上的**框线**，也没有双线（激活 tab / dock tab 的 2px 墨色下划线是标记，不是框）。
-- **形状语言的一致性**：所有「点」都是方的；唯一的圆是 `border-radius: 50%` 在 agent 详情的头像色调色板上（14px 圆形色片，与方砖头像语言不符，属未收口漂移，新面不要照抄）。
-- **旋转与斜切**：不使用。
+- **微元与嵌套块（`--r-sm: 6px`）**：代码块、轻量提示块、下拉菜单项与内部小徽标。
+- **标准控件（`--r-md: 10px`）**：按钮、输入框、搜索框、激活导航行、移动端汉堡按钮、小/中尺寸柔和圆角方形头像（`22px`/`26px`）与品牌标。
+- **卡片与容器（`--r-lg: 14px`）**：任务卡片、看板列、输入区外壳（`.composer-box`）与大号详情头像（`44px`）。
+- **主工作纸与模态（`--r-xl: 18px`）**：桌面中央 `.ws-center`、右侧 `.ws-right` 与模态框外框。
+- **真胶囊与正圆（`--r-pill: 999px`）**：房间脉搏条、分段页签槽、未读与被动计数徽标、任务状态胶囊（`.card-stamp` / `.ws-task-anchor-status`）、成员存在态小胶囊与 `7px` 正圆状态点（`.presence`）。
 
-### Named Rules
-
-**The Near-Right-Angle Rule.** 任何新元素先取 `--r-sm`（2px）或 `--r-md`（3px）；输入外壳与 composer 可以用 `--r-lg`（4px），整块浮层才配 `--r-xl`（6px）。**不要发明 8/12/16px 的圆角**——那一套属于本轮作废的旧方向。`--r-pill` 不是许可去做真胶囊：它是 3px。
-
-**The Square-Dot Rule.** 状态点、套准标记、头像、徽章都是方的（1–3px 倒角）。一个圆形的彩色点会立刻把这个界面拉回「普通 SaaS 状态灯」。
+**The Tactile Soft-Corner Rule.** 外层容器圆角永远大于内层子元素圆角（18px 纸面 → 14px 列与卡 → 10px 按钮与行 → 999px 胶囊与圆点），消除同心圆角打架与生硬方角割裂。
 
 ## Components
 
 ### Buttons
+- **Shape:** 柔和圆角（`10px`，`--r-md`），常规高度 `32px`（`--control-h`），紧凑尺寸 `27px`（`--control-h-sm`）。
+- **Primary（主画布/详情坞行动）:** 朱砂陶土实底（`--accent`）+ 暖白字（`--on-accent`），悬停切换 `--accent-hover`，用于 `发送消息`、`批准`、`+ 新建任务` 与模态主确认。
+- **Rail Primary（左栏创建入口）:** 深咖墨实底（`--fg`）+ 暖白字（`--on-accent`），悬停轻提亮，保持高可辨识度且不与主画布朱砂 CTA 争抢焦点。
+- **Default / Ghost / Danger:** 默认按钮为暖白底（`--surface`）+ `1px --border-strong` 描边；幽灵图标按钮（`30×30px`）静息无边框、悬停呈 `--fg-soft`；危险操作（关闭/删除）用深锈红（`--error`）文字并在确认后执行。
 
-**性格：一张纸上的铅字块——平、方、字比框重。**
+### Chips, Badges & Status Pills
+- **Unread Badge（`.badge`）:** 全圆胶囊（`999px`），朱砂实底 + 暖白等宽数字，仅用于真实未读计数。
+- **Passive Count Badge（`.badge.soft`）:** 全圆胶囊，暖燕麦底（`--panel-2`）+ 暖褐字（`--muted`），用于顶栏成员/置顶数、总回复数与无未读的开放任务数。
+- **Task Status Pills（`.card-stamp` / `.ws-task-anchor-status`）:** 全圆胶囊 + 大写等宽状态词：`in_review` 为朱砂实底白字（全看板最醒目）；`in_progress` 暖琥珀淡底深字；`done` 森林绿淡底深字并带审批署名；`todo` / `closed` 为暖沙/暖石中性胶囊。
 
-- **Shape**：高 32px，圆角 3px，1px 交互边，内边距 0 12px，字号 12.5px / 560，图标 13–14px（lucide）。
-- **Primary（墨）**：墨底 + 纸白字；hover 走 `--accent-hover`（越按越浅）。左栏「新建频道」、发送键、品牌标都用它。
-- **Default**：卡面纸 + 墨字 + `--border-strong`；hover 底色 `--fg-soft`、边框升到 `--faint`。
-- **Ghost**：无边框无底，`--muted` 字；hover 才出现 `--fg-soft` 底。
-- **Danger**：红字 + 45% 红边框；hover 10% 红底。用在拒绝 / 关闭 / 删除。
-- **Small**：27px 高、0 9px 内边距、12px 字（消息锚点行的「打开任务讨论」用它）。
-- **禁用**：`opacity: .45`，不改色相。
-- **焦点**：全局 `:focus-visible` 是 2px `--accent-graphic`（墨）外环 + 2px 偏移；输入类改走「边框转 accent + 3px `--accent-soft` 环」，避免双环。
+### Cards & Containers
+- **Task Card（`.card`）:** 暖白底（`--surface`）、`1px --border` 描边、`14px` 圆角（`--r-lg`），悬停强化至 `--border-strong` 并升起 `--shadow-card`；点击整卡通过标题按钮 `::after` 扩展热区进入任务讨论，动作按钮浮于上层。
+- **Pending Review Card（`in_review`）:** 直接显示朱砂「待审」胶囊、`11.5px` 朱砂文字审批权限提示（`.card-review-hint`）与主色朱砂「批准」CTA，首屏即可直觉决策。
 
-### Badges / Chips
+### Inputs & Composer
+- **Style:** 暖白底（`--surface`）、`1px --border-strong` 边界（满足 ≥3:1）、`10px`（普通字段）或 `14px`（`.composer-box`）圆角；聚焦统一采用 `--accent-graphic` 边框 + `3px --accent-soft` 柔和外光环，取消浏览器默认双环。
+- **Composer Send:** `30×30px` 朱砂圆角方块（`--r-md`），禁用态自动退回暖燕麦（`--panel-2`）+ `--faint` 图标。
 
-- **Unread badge**：mono 10px / 700，最小宽 18px，2px 圆角，**墨底纸白字**——未读的表达是「一块墨 + 一个数」。软版（`.badge.soft`）用 `--fg-soft` 底 + `--muted` 字，表示「零」。
-- **Card tag**（`#12`、未读回复数、reopened）：mono 9.5px，井纸底，`--muted` 字，4px 圆角。
-- **Level chip**（`.lv.info/ok/warn/err`）：`soft` 底 + 对应 `deep` 文字档；16px 高，mono 9.5px / 700。
-- **State chip**（分段控件、选中 chip、member-opt、radio-card）：选中态 = `--selected-soft` 底 + `--selected-graphic` 边 + `--selected-deep` 字。**青色只表示「你选了它 / 你在这」。**
+### Navigation & Tabs
+- **Sidebar Nav（`.nav-row`）:** 落于透明暖沙底面，悬停透出 70% 暖白底；激活态抬升为实心暖白胶囊（`--surface` + 内嵌发丝边 + 轻阴影），彻底摒弃单边色条。
+- **Channel Tabs（`.tabs`）:** 暖沙药丸底槽（`--panel` + `1px --border` + `999px` 圆角），当前激活页签（`消息` / `任务`）抬升为暖白胶囊 + 轻阴影。
 
-### Cards & Columns
-
-- **Task card**：卡面纸底、1px 发丝、3px 圆角、`10px 11px` 内边距。标题 12.5px / 600（`::after` 拉伸覆盖整卡作为唯一命中区），元行是 `#编号 + 章 + 标签 + owner`。
-- **Board column**：栏纸底、1px 发丝、**2px** 圆角（比卡片更硬）、236px 起、最宽 320px，列头是 `8px 方点 + 状态词 + mono 计数`；列高跟容器，滚动在列内。
-- **Right dock**：卡面纸底 + 左发丝（宽度由壳给，不重复声明边框）；顶部 `dock-head` 13px 16px 下接发丝；线程摘要是吸顶块（同底色 + 下边框），靠不透明底盖住滚上来的内容。
-- **Empty state**：居中、`--faint` 字、lucide 图标 0.7 不透明、留白 56px，标题用 13.5px / 600 的 `--muted`。
-
-### Inputs & Fields
-
-- **Style**：卡面纸底、1px **`--border-strong`**（发丝不够 3:1，不能承担输入边界）、3px 圆角（composer 外壳与搜索大框 4px）、`8px 10px` 内边距、13px。placeholder 用 `--faint`。
-- **Focus**：边框转 `--accent-graphic` + `0 0 0 3px var(--accent-soft)`。环只画在**外壳**上（`.search-btn` / `.search-field` / `.composer-box`），内层 `<input>`/`<textarea>` 显式清掉自己的环——否则会叠成双环、圆角也对不上。
-- **Composer**：外壳 4px 圆角 + `--shadow-composer`，textarea 最大高 160px，动作条里可放工具图标、`As Task` 勾选与发送键；发送键是 30px 墨块。
-- **Error / Disabled**：错误走红字或红边（`--error`），禁用走 `opacity: .45`；两者都不新增色值。
-
-### Navigation
-
-- **Rail row**（频道 / 成员）：`6px 9px` 内边距、圆角 2px、13px、`--muted` 字，行间 1px；hover 底色升到卡面纸 + 墨字。**激活行**：卡面纸底 + 1px 内阴影发丝（`inset 0 0 0 1px var(--border)`）+ 左缘 **2px 青条**（`left: -8px`，上下各让 6px）+ `#` 转 `--selected-deep`。
-- **Channel tabs**（Messages | Tasks）：12.5px / 560，`--muted`；激活的是**墨色 2px 下划线**（不是色块），计数用 mono 10.5px，激活时计数转 `--selected-deep`。
-- **Seg / 分段控件**：1px 发丝外框，激活段是**墨底 + 卡面纸字**（12.19:1）。
-- **左栏结构**：品牌头（26px 墨方块标 + 13.5px 字 + 9.5px mono 副标 + 套准点）→ 搜索 → 两个创建按钮（主 + 次）→ 分组标题（mono 9.5px 全大写 `--faint`，字距 0.1em）→ 行 → 底栏图标（带墨底角标计数）。
-
-### 付印章（Signature）
-
-**一条任务等审时，它右侧出现一枚方形章——这是整张校样上唯一被「盖」上去的东西。**
-
-- **形态**：mono 9.5px / 600、全大写、字距 0.08em、`1px 5px` 内边距、2px 圆角。默认 1px 描边，`in_review` 与 `done` 升到 1.5px（虚线 / 实线）。章内永远是**状态词**。
-- **一态一形一墨**：
-
-| 状态 | 框 | 字 | 底 | 词（zh / en） |
-| --- | --- | --- | --- | --- |
-| `todo` | 1px `--border-strong` | `--muted` | 无 | 待认领 / Pool |
-| `in_progress` | 1px `--working` | `--working-text` | 无 | 进行中 / In progress |
-| `in_review` | 1.5px **dashed** `--unread-graphic` | `--unread-deep` | `--unread-soft` | 待审 / In review |
-| `done` | 1.5px **solid** `--online` | `--online-text` | 无（消息锚点行另加 10% 绿淡底） | 完成 / Done |
-| `closed` | 1px `--border` | `--offline-deep` | 无 | 已关闭 / Closed |
-
-- **署名**：`done` 且有 owner 时，把署名写进章里（`.signer`，600 字重，左 4px）——「完成 QUINN」。署名不是 tooltip，不是第二行，就是章的一部分。
-- **两个载体，一套形**：看板 / 列表卡片用 `.card-stamp`（9.5px），消息下方的任务锚点行用 `.ws-task-anchor-status`（10px、`1px 6px`），状态规则逐条相同。锚点行的顺序固定：`任务 #N` → 「打开任务讨论」（`margin-left: auto`）→ 章。
-- **系统事件行**（「任务 #2 已创建」）：没有底、没有框，只有一条顶部发丝 + 11px `--faint` 字——它是校样边上的记录条，不是消息。
-
-**The Stamp Carries The Word Rule.** 章里永远印字，颜色只是第二线索。任何状态片、章、成员行、列头都必须「同色同词」；**只有颜色没有词**是本项目产品所有者的硬失败模式（状态要猜）。
-
-### 成员存在态（Presence）
-
-- **点**：7px 方块（1px 倒角），`online` 绿 / `working` 琥珀（脉冲 1.5s，`prefers-reduced-motion` 下停）/ `error` 红 / `offline` 灰。
-- **词**：点旁边永远有一个 9.5px 全大写 mono 状态词（在线 / 正在干活 / 出错 / 离线），`--muted` 打底，`working` → `--working-text`、`error` → `--error`、`offline` → `--offline-deep`。
-- **头像**：方砖 + 首字，五格纸灰按成员 id 确定性取色，人类固定最深格；内嵌 1px 14% 墨描边防糊边。
-
-### 套准标记（Registration Marks）
-
-栏头品牌名**下方一次性**出现四个 6px 方块（间距 3px、1px 倒角）：青 · 品红 · 黄 · 墨。这是印刷厂的四色套准标记，也是这套色板唯一一次同时出场。**全仓只有这一处**——它是一次签名，不是可以散播的小圆点装饰。
-
-### 任务板
-
-- 五列（待认领 / 进行中 / 待审 / 完成 / 已关闭），列头是 `8px 方点 + 状态词 + mono 计数`；列表视图的分组头沿用同一套语汇 + 一条把剩余宽度吃掉的发丝。
-- 卡片上的动作按钮由**可达落点**决定（拖拽是服务端裁决的转移，不做乐观移动）；`drag-over` 列用 `--accent-soft` 底 + `--accent-graphic` 边，`invalid-over` 用红边，`dragging` 卡片降到 40% 不透明。
-- 列头点走 `graphic` 档：`todo` = `--faint`、`in_progress` = `--accent-graphic`、`done` = `--online`、`closed` = `--offline`。`in_review` 当前落成 `--working`（琥珀），与它的品红虚线章不同族——这是**已知未收口漂移**，新面按 `--unread-graphic` 走。
-- 批准 / 拒绝按钮由状态权威决定可见性；「关闭任务」是红字 danger 按钮。
+### Signature Components
+- **Room Pulse Strip（`.rail-pulse`）:** 位于左栏品牌头下方，暖燕麦圆胶囊单行汇总当前房间的实时态势（正在干活的 agent 数、在线人数或「房间安静」，以及右侧朱砂色未读总数），无需点开任何频道即可一眼掌握全局。
+- **Member Presence Row:** 柔和圆角方形首字母头像 + 成员名 + 明确中文/英文状态词胶囊 + `7px` 正圆状态点（`working` 带 `1.5s` 轻呼吸脉冲，`prefers-reduced-motion` 自动停止）。
 
 ## Do's and Don'ts
 
 ### Do
-
-- **Do** 用 `--bg` / `--surface` / `--panel` / `--panel-2` 四级纸面表达层次，再用 1px `--border` 断开；不要先想阴影。
-- **Do** 让每个状态「同色同词」：章、徽标、成员行、列头都印出状态词。
-- **Do** 只从 `worksplice-design-system/colors_and_type.css` 与 `tokens.css` 取色、取尺度；`app/globals.css` 只在扩展层引用 `var(--token)`，不复制色值。
-- **Do** 用 `--r-sm`（2px）/ `--r-md`（3px）做默认圆角，整块浮层才到 `--r-xl`（6px）。
-- **Do** 用 `--border-strong` 承担输入框与可选控件的边界（它 ≥3:1），`--border` 只做分隔。
-- **Do** 让 mono 承担标签、编号、时间、计数，并给所有数字开 `tabular-nums`。
-- **Do** 消息正文用 14px 且行宽 ≤ 68ch；其余界面文案留在 13px。
-- **Do** 图标只取 lucide（10–18px，`strokeWidth` 2–2.4），语义靠 `aria-label` / `title` 而不是形状猜测。
-- **Do** 焦点态统一定义：纯导航元素用 2px `--accent-graphic` 外环；输入类用 accent 边框 + 3px `--accent-soft` 环。
-- **Do** 给抽屉关闭态带 `visibility: hidden`，让离屏控件退出 Tab 序与无障碍树。
-- **Do** 尊重 `prefers-reduced-motion`：脉冲停跳、过渡降到 0.001ms（属性级 reset 已挂在 `*` 上）。
+- **Do** 用暖沙外画布（`--bg`）托起带 `18px` 圆角的暖白工作纸（`--surface`），并用 `1px --border` 与极轻暖咖阴影区分层次。
+- **Do** 严格遵守单一饱和行动色预算：把 `--accent` 留给主 CTA、真实未读数与 `in_review` 待审信号；所有被动计数用 `.badge.soft`，左栏新建按钮用 `--fg`。
+- **Do** 让每个状态「同色同词」：任务胶囊、看板列头、成员存在态与脉搏条一律同时展示明确状态词。
+- **Do** 仅从 `worksplice-design-system/colors_and_type.css` 与 `tokens.css` 维护真源 token；`app/globals.css` 只在扩展层引用 `var(--token)`，不复制上游色值。
+- **Do** 保持 `13px` 界面操作密度与 `14px` / `68ch` 消息阅读预算，所有动态数字、序号与时间戳启用 `JetBrains Mono` + `tabular-nums`。
+- **Do** 全界面仅使用 `lucide-react` 图标，为交互图标提供 `aria-label` / `title`；移动端抽屉关闭态保持 `visibility: hidden` 退出 Tab 序。
+- **Do** 尊重 `prefers-reduced-motion`（停止脉冲并将过渡收敛至 0.001ms）与触摸端 `@media (hover: hover)` 悬停守卫。
 
 ### Don't
-
-- **Don't** 把 `fill` 档当文字或状态点，也别拿 `soft` 档单独当边界——它们是印面与淡底，不是墨。
-- **Don't** 用品红表示「未读」。未读是墨底角标 + 数字；品红只表示「等你签」。
-- **Don't** 引入第二种强调色。`--accent` 就是 `--fg`；第二个主色会让四色角色退化成配色表。
-- **Don't** 加零模糊的硬偏移阴影，也不给静止内容加阴影（线程 composer 已经把常驻阴影归零，别加回去）。
-- **Don't** 做圆点、圆胶囊、圆形徽章。`--r-pill` 是 3px；状态点、头像、套准标记都是方的。
-- **Don't** 让状态片只有颜色没有词（含列头、成员行、章、级别签）。
-- **Don't** 用 emoji 当图标或装饰（reaction 的持久化数据除外）；也不要引入第二套图标语言。
-- **Don't** 引入 webfont 或第三支字族；不要用 600 以上的字重去做「大标题」——这套字阶没有 display 层。
-- **Don't** 把 13px 正文整体放大来「提升可读性」；可读性预算只给消息正文（14px / 68ch）。
-- **Don't** 新增视口魔数（`46vh` 之类）或给外壳加 `overflow: auto`——高度从容器算，滚动归各列。
-- **Don't** 用 8 / 12 / 16px 的圆角、2px 以上的框线或真正的圆胶囊；这些属于本轮作废的旧方向。
+- **Don't** 把饱和朱砂红浪费在被动计数（如总回复数、成员总数、无未读的任务总数）或列表圆点/普通加粗正文上。
+- **Don't** 把 `fill` 档直接当正文颜色，或拿 `soft` 淡底充当输入框边界（字段边界必须走 `--border-strong`）。
+- **Don't** 引入第二种饱和强调色、冷灰纯黑阴影、零模糊硬偏移阴影或 2px 以上粗结构边框。
+- **Don't** 复活旧版 Press Proof 元素（2px 尖角按钮/汉堡键、四色套准点、虚线方形付印章、左侧单边激活竖条）。
+- **Don't** 让任何状态只靠颜色表达而缺少文字标签，也不要新增 emoji 当 UI 图标（reaction 持久化数据除外）。
+- **Don't** 在桌面端用内联 `padding: env(safe-area-inset-*)` 覆盖 `.ws-shell` 的 `10px` 暖沙外框，或给外壳加整体 `overflow: auto`。
+- **Don't** 引入外部在线 CDN 字体或第三支字体；`Onest` 与 `JetBrains Mono` 必须由 `public/fonts/` 本地自托管。

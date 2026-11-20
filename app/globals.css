@@ -1,5 +1,5 @@
 /* ============================================================================
-   worksplice — 视觉契约入口（macaron，ADR-0015 / ticket 02）
+   worksplice — 视觉契约入口（Warm Action Surface · 暖沙直觉动作面）
 
    设计系统即运行时真源：`worksplice-design-system/` 的 token 文件被顶层 @import，
    本仓只叠扩展层。改 token 只有一处可改（上游），此处不复制它的 :root。
@@ -8,8 +8,13 @@
 @import "../worksplice-design-system/colors_and_type.css";
 @import "../worksplice-design-system/tokens.css";
 
-/* ─── reset（搬自设计系统 ui_kits/app/app.css，与本仓的视口/滚动约束合并） ──── */
+/* ─── reset（与本仓的视口/滚动约束合并 + 浏览器原生表面暖色调校） ────────── */
 *, *::before, *::after { box-sizing: border-box; }
+
+::selection {
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  color: var(--fg);
+}
 
 html, body {
   width: 100%;
@@ -27,6 +32,7 @@ body {
   flex-direction: column;
   background: var(--bg);
   color: var(--fg);
+  caret-color: var(--accent-graphic);
   font-family: var(--font);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -34,11 +40,12 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+a { text-underline-offset: 0.18em; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 input, textarea, select { font: inherit; color: inherit; }
 h1, h2, h3 { margin: 0; font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); }
 code, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 2px solid var(--accent-graphic); outline-offset: 2px; border-radius: 2px; }
+:focus-visible { outline: 2px solid var(--accent-graphic); outline-offset: 2px; border-radius: 4px; }
 [hidden] { display: none !important; }
 
 /* 字段与 composer 的焦点环（ED-8；搬自 design kit 的字段规则）：
@@ -79,26 +86,23 @@ select:focus-visible {
    （当前位置 / 未读 / 警示），不进通用资料，落本仓。四档与上游同义：
    fill 填充（--on-accent 压其上）· soft 淡底 · deep 文字 · graphic 环·点。 */
 :root {
-  /* 选中 / 导航激活 / 锚点行 / tab / 选中 chip（印版青） */
-  --selected:         oklch(84.2% 0.05 224.5);
+  /* 选中 / 导航激活 / 锚点行 / 选中 chip（暖陶棕：沉稳落位，不抢朱砂行动色） */
+  --selected:         oklch(82.5% 0.042 62);
   --selected-soft:    color-mix(in oklch, var(--selected) 22%, transparent);
-  --selected-deep:    oklch(41.5% 0.072 222.8);
-  --selected-graphic: oklch(51% 0.092 227.2);
+  --selected-deep:    oklch(41.5% 0.068 55);
+  --selected-graphic: oklch(52% 0.075 55);
 
-  /* 未读角标 / 未读点 / 命中高亮（印版品红：等你审的那一类） */
-  --unread:         oklch(86.5% 0.06 348.6);
+  /* 未读角标 / 待你拍板 / 命中高亮（朱砂珊瑚：与行动色同源，等你处理） */
+  --unread:         oklch(86% 0.065 39);
   --unread-soft:    color-mix(in oklch, var(--unread) 26%, transparent);
-  --unread-deep:    oklch(43.6% 0.149 353.2);
-  --unread-graphic: oklch(50% 0.169 353.3);
+  --unread-deep:    oklch(50% 0.172 35);
+  --unread-graphic: oklch(55% 0.182 37);
 
-  /* 零消费者登记：`--unread-soft` / `--unread-graphic` —— 未读族的实际消费点是
-     「未读角标 fill」（`.badge`）与「命中高亮 fill」（`.result mark`），soft / graphic
-     两档按矩阵落值、暂无消费者（同上：矩阵先落词汇，不删）。 */
-  /* 警示 / 待审提示 / 警告横幅（印版黄） */
-  --warn:         oklch(88.8% 0.103 91.3);
+  /* 警示 / 防撞锁 / 提醒横幅（暖蜜赭石） */
+  --warn:         oklch(86.5% 0.088 82);
   --warn-soft:    color-mix(in oklch, var(--warn) 30%, transparent);
-  --warn-deep:    oklch(50.2% 0.101 86.7);
-  --warn-graphic: oklch(60.5% 0.124 78.7);
+  --warn-deep:    oklch(44.5% 0.105 68);
+  --warn-graphic: oklch(55.5% 0.125 68);
 }
 
 pre, code {
@@ -112,14 +116,10 @@ pre, code {
   50% { opacity: 0.35; }
 }
 
-/* ─── 遗留面（票 10）：状态色作**文字**时的同色系深档 ────────────────────
-   四态色里 `--online` / `--working` 是点 / 条 / 标记档（graphic），直接当正文色落在
-   浅色底上低于 4.5:1（ED-7 与 SKILL §5 的对比要求）。这里是它们的**文字档实值**
-   （= spec 矩阵里同族的 deep 档；票 03 起不再用 `color-mix` 派生，值可审计、
-   不再随两个输入漂移）。 */
+/* ─── 遗留面（票 10）：状态色作**文字**时的同色系深档 ──────────────────── */
 :root {
-  --online-text: oklch(41.5% 0.067 162.8);
-  --working-text: oklch(47.1% 0.112 53.7);
+  --online-text: oklch(40.5% 0.085 158);
+  --working-text: oklch(44.5% 0.112 56);
 }
 
 /* ED-9：遗留面把动效时长写在 inline style 里（消息动作栏 / 菜单 / 开关 /
@@ -176,11 +176,11 @@ pre, code {
 .markdown-body ol > li { list-style-type: decimal; }
 .markdown-body li > p { margin: 0; }
 .markdown-body li::marker {
-  color: color-mix(in srgb, var(--accent-deep) 72%, var(--muted));
+  color: var(--faint);
   font-weight: 600;
 }
 .markdown-body strong {
-  color: color-mix(in srgb, var(--fg) 88%, var(--accent-deep));
+  color: var(--fg);
   font-weight: 700;
 }
 .markdown-body em { color: var(--muted); }
@@ -904,16 +904,30 @@ span.linenumber {
   width: 100%;
   min-height: 0;
   overflow: hidden;
+  padding: 10px;
+  gap: 10px;
   background: var(--bg);
   color: var(--fg);
+}
+
+/* 桌面端暖沙外框：AppShell 的 inline env(safe-area-inset-*) 在桌面求值为 0，
+   此处在 ≥901px 合并外框与安全区，让中央与右栏浮卡四周留出完整暖沙画布边。 */
+@media (min-width: 901px) {
+  .ws-shell {
+    padding:
+      calc(10px + env(safe-area-inset-top, 0px))
+      calc(10px + env(safe-area-inset-right, 0px))
+      calc(10px + env(safe-area-inset-bottom, 0px))
+      calc(10px + env(safe-area-inset-left, 0px)) !important;
+  }
 }
 
 .ws-left {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  background: var(--panel);
+  border-right: 0;
+  background: transparent;
 }
 
 .ws-center {
@@ -922,15 +936,22 @@ span.linenumber {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: 0 2px 10px -2px oklch(22.5% 0.015 50 / 0.06);
+  overflow: hidden;
 }
 
 .ws-right {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
   background: var(--surface);
+  box-shadow: 0 2px 10px -2px oklch(22.5% 0.015 50 / 0.06);
+  overflow: hidden;
 }
 
 /* D5：≤1080 dock 收窄到 --dock-w-md（340px）。桌面宽度是 AppShell 的 inline `var(--dock-w)`，
@@ -949,17 +970,18 @@ span.linenumber {
 .ws-mobile-toggle {
   display: none;
   position: absolute;
-  top: 10px;
+  top: 8px;
   left: 10px;
   z-index: var(--z-topbar);
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-pop);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
   color: var(--fg);
   font-size: var(--fs-title);
@@ -1013,8 +1035,19 @@ span.linenumber {
   }
 }
 
-/* 紧凑/移动端（≤900px）：两栏变滑入式浮层 */
+/* 紧凑/移动端（≤900px）：两栏变滑入式浮层，主画布恢复满屏无边框 */
 @media (max-width: 900px) {
+  .ws-shell {
+    padding: 0;
+    gap: 0;
+  }
+
+  .ws-center {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
   .ws-left {
     position: fixed;
     top: env(safe-area-inset-top);
@@ -1022,6 +1055,8 @@ span.linenumber {
     left: env(safe-area-inset-left);
     z-index: var(--z-rail);
     height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-right: 1px solid var(--border);
     transform: translateX(calc(-100% - 24px));
     /* 关闭态抽屉必须退出 Tab 序与 AX 树（界面评审 A2）：只靠 translateX 移出视口时，
        离屏控件仍可被键盘聚焦、仍被读屏读出。`visibility: hidden` 同时做到这两件事，
@@ -1044,6 +1079,10 @@ span.linenumber {
     bottom: 0;
     z-index: var(--z-dock);
     height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
     /* 抽屉宽度：桌面宽度（inline `var(--dock-w)`）压到 ≤320px / 86vw */
     max-width: min(320px, 86vw);
     transform: translateX(calc(100% + 24px));
@@ -1062,7 +1101,7 @@ span.linenumber {
     position: fixed;
     inset: 0;
     z-index: var(--z-scrim);
-    background: oklch(33% 0.045 300 / 0.4);
+    background: oklch(22.5% 0.015 50 / 0.36);
   }
 
   .ws-mobile-toggle {
@@ -1102,12 +1141,12 @@ span.linenumber {
 
 .rail-head {
   display: flex; align-items: center; gap: 9px;
-  padding: var(--sp-6) var(--sp-5) var(--sp-5);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
 }
 .brand { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
 .brand-mark {
   width: 26px; height: 26px; flex: 0 0 26px; display: grid; place-items: center;
-  color: var(--on-accent); background: var(--accent); border-radius: 7px;
+  color: var(--on-accent); background: var(--fg); border-radius: var(--r-md);
 }
 .brand-name {
   font-size: var(--fs-body-lg); font-weight: var(--fw-black);
@@ -1116,6 +1155,39 @@ span.linenumber {
 .brand-sub {
   font-family: var(--mono); font-size: var(--fs-mono-micro);
   color: var(--faint); letter-spacing: var(--ls-wide); text-transform: uppercase;
+}
+
+.rail-pulse {
+  margin: 0 var(--sp-5) 10px;
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  background: var(--panel-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: 11.5px;
+  font-weight: var(--fw-medium);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.pulse-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.pulse-item.is-action {
+  color: var(--accent-deep);
+  font-weight: var(--fw-semi);
+}
+.pulse-dot-action {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  flex: 0 0 7px;
 }
 
 .search-shell { padding: 0 var(--sp-5) 10px; }
@@ -1142,6 +1214,17 @@ span.linenumber {
    实测）→ 右侧溢出、`New agent` 的边框被 rail 边界切掉。收一档后英文 221.5px、中文更
    宽裕，两个文案都完整显示；只覆盖这一行，`.btn` 原语（`--sp-5`）不动。 */
 .rail-actions .btn { padding: 0 var(--sp-4); }
+/* 左栏「新建频道」走深咖墨底，把唯一饱和朱砂红留给主画布/右栏核心动作与待审/未读信号。 */
+.rail-actions .btn-primary {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--on-accent);
+}
+.rail-actions .btn-primary:hover {
+  background: color-mix(in oklch, var(--fg) 84%, var(--surface));
+  border-color: color-mix(in oklch, var(--fg) 84%, var(--surface));
+  color: var(--on-accent);
+}
 .rail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-4) var(--sp-4) var(--sp-7); }
 
 .group { margin-top: var(--sp-5); }
@@ -1155,17 +1238,16 @@ span.linenumber {
 
 .nav-row {
   width: 100%; display: flex; align-items: center; gap: var(--sp-4);
-  padding: var(--sp-3) 9px; border-radius: var(--r-sm); color: var(--muted);
-  text-align: left; position: relative; margin-bottom: 1px;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  padding: var(--sp-3) 10px; border-radius: var(--r-md); color: var(--muted);
+  text-align: left; position: relative; margin-bottom: 2px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.nav-row:hover { background: var(--surface); color: var(--fg); }
+.nav-row:hover { background: color-mix(in oklch, var(--surface) 70%, transparent); color: var(--fg); }
 .nav-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-row .hash { font-family: var(--mono); font-size: 12px; color: var(--faint); width: 13px; text-align: center; flex: 0 0 13px; }
-.nav-row.is-active { background: var(--surface); color: var(--fg); font-weight: var(--fw-semi); box-shadow: inset 0 0 0 1px var(--border); }
-.nav-row.is-active::before {
-  content: ""; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 2px;
-  background: var(--selected-graphic); border-radius: var(--r-pill);
+.nav-row.is-active {
+  background: var(--surface); color: var(--fg); font-weight: var(--fw-semi);
+  box-shadow: 0 1px 3px oklch(22.5% 0.015 50 / 0.06), inset 0 0 0 1px var(--border);
 }
 .nav-row.is-active .hash { color: var(--selected-deep); }
 
@@ -1212,15 +1294,16 @@ span.linenumber {
 
 /* ─── badge ──────────────────────────────────────────────────────────────── */
 .badge {
-  font-family: var(--mono); font-size: 10px; font-weight: var(--fw-black); line-height: 1.5;
-  min-width: 18px; padding: 0 5px; border-radius: var(--r-sm); text-align: center;
-  background: var(--fg); color: var(--on-accent);
+  font-family: var(--mono); font-size: 10.5px; font-weight: var(--fw-black); line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  min-width: 20px; padding: 0 6px; border-radius: var(--r-pill); text-align: center;
+  background: var(--accent); color: var(--on-accent);
 }
-.badge.soft { background: var(--fg-soft); color: var(--muted); }
+.badge.soft { background: var(--panel-2); color: var(--muted); }
 
 /* ─── presence + avatar ──────────────────────────────────────────────────── */
-/* 存在态用印刷套准标记的方点：不靠圆点，也不靠颜色单独说话（文字永远在旁边）。 */
-.presence { width: 7px; height: 7px; border-radius: 1px; flex: 0 0 7px; }
+/* 存在态圆点 + 同行明确状态胶囊：状态既一眼可扫、又不只靠颜色说话。 */
+.presence { width: 7px; height: 7px; border-radius: var(--r-pill); flex: 0 0 7px; }
 .presence.online { background: var(--online); }
 .presence.working { background: var(--working); animation: pulse 1.5s ease-in-out infinite; }
 .presence.error { background: var(--error); }
@@ -1229,12 +1312,12 @@ span.linenumber {
 
 .avatar {
   width: var(--avatar-md); height: var(--avatar-md); flex: 0 0 var(--avatar-md);
-  border-radius: var(--r-sm); display: grid; place-items: center;
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--fg) 14%, transparent);
+  border-radius: var(--r-md); display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--fg) 10%, transparent);
   font-size: 11px; font-weight: var(--fw-black); color: var(--fg); overflow: hidden;
 }
-.avatar.sm { width: var(--avatar-sm); height: var(--avatar-sm); flex-basis: var(--avatar-sm); font-size: 10px; }
-.avatar.lg { width: var(--avatar-lg); height: var(--avatar-lg); flex-basis: var(--avatar-lg); font-size: 16px; border-radius: var(--r-md); }
+.avatar.sm { width: var(--avatar-sm); height: var(--avatar-sm); flex-basis: var(--avatar-sm); font-size: 10px; border-radius: var(--r-sm); }
+.avatar.lg { width: var(--avatar-lg); height: var(--avatar-lg); flex-basis: var(--avatar-lg); font-size: 16px; border-radius: var(--r-lg); }
 .av-0 { background: var(--av-0); } .av-1 { background: var(--av-1); } .av-2 { background: var(--av-2); }
 .av-3 { background: var(--av-3); } .av-4 { background: var(--av-4); }
 
@@ -1273,7 +1356,7 @@ span.linenumber {
 
 /* ─── task board ─────────────────────────────────────────────────────────── */
 .board-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.board-toolbar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-5) var(--sp-9); border-bottom: 1px solid var(--border); background: var(--bg); }
+.board-toolbar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-5) var(--sp-9); border-bottom: 1px solid var(--border); background: var(--surface); }
 /* 窄屏工具条（界面评审 B2）：320px 下「新建任务 / 仅看未读回复 / 列表-看板」三项
    在一行里必然溢出（创建表单的 textarea + 两个按钮 + 分段控件 ≈ 480px）。只加换行与
    行距，形态与顺序不变——`.sep` 的 `flex: 1` 在换行后仍把分段控件推向右侧。
@@ -1310,7 +1393,7 @@ span.linenumber {
 
 .board { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-6) var(--sp-7) var(--sp-10); }
 .board-cols { display: flex; gap: var(--sp-5); align-items: stretch; min-width: min-content; height: 100%; }
-.col { width: var(--board-col-w); flex: 1 1 var(--board-col-w); min-width: var(--board-col-w); max-width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm); display: flex; flex-direction: column; min-height: 0; }
+.col { width: var(--board-col-w); flex: 1 1 var(--board-col-w); min-width: var(--board-col-w); max-width: 320px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg); display: flex; flex-direction: column; min-height: 0; }
 .col-head { display: flex; align-items: center; gap: var(--sp-4); padding: 10px var(--sp-5) var(--sp-4); }
 .col-head .st-dot { width: 8px; height: 8px; border-radius: var(--r-pill); }
 .col-head b { font-size: 12.5px; font-weight: var(--fw-bold); }
@@ -1472,26 +1555,25 @@ span.linenumber {
   gap: var(--sp-3);
   margin-top: var(--sp-3);
 }
-.ws-task-anchor-number { font-family: var(--mono); font-weight: var(--fw-bold); color: var(--accent-deep); }
+.ws-task-anchor-number { font-family: var(--mono); font-weight: var(--fw-bold); color: var(--muted); }
 .ws-task-anchor-status {
-  padding: 1px var(--sp-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  color: var(--fg);
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--panel-2);
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 10px;
   font-weight: var(--fw-semi);
   letter-spacing: var(--ls-wide);
   text-transform: uppercase;
 }
-/* 付印章：任务状态是这张校样上唯一被「盖」上去的东西。章形与墨色一态一义，
-   状态词始终写在章里，所以颜色不是唯一线索。 */
-.ws-task-anchor-status[data-status="todo"] { border-color: var(--border-strong); color: var(--muted); }
-.ws-task-anchor-status[data-status="in_progress"] { border-color: var(--working); color: var(--working-text, var(--working-deep, var(--fg))); }
-.ws-task-anchor-status[data-status="in_review"] { border: 1.5px dashed var(--unread-graphic); color: var(--unread-deep); background: var(--unread-soft); }
-.ws-task-anchor-status[data-status="done"] { border: 1.5px solid var(--online); color: var(--online-text, var(--fg)); background: color-mix(in oklch, var(--online) 10%, transparent); }
-.ws-task-anchor-status[data-status="closed"] { border-color: var(--border); color: var(--offline-deep); }
+/* 柔和动作态胶囊：一态一义，朱砂只留给等你拍板的待审任务，状态词始终显式。 */
+.ws-task-anchor-status[data-status="todo"] { border-color: var(--border); background: var(--panel-2); color: var(--muted); }
+.ws-task-anchor-status[data-status="in_progress"] { border-color: color-mix(in oklch, var(--working) 35%, transparent); background: var(--working-soft); color: var(--working-text, var(--fg)); }
+.ws-task-anchor-status[data-status="in_review"] { border-color: color-mix(in oklch, var(--unread-graphic) 40%, transparent); background: var(--unread-soft); color: var(--unread-deep); }
+.ws-task-anchor-status[data-status="done"] { border-color: color-mix(in oklch, var(--online) 35%, transparent); background: var(--online-soft); color: var(--online-text, var(--fg)); }
+.ws-task-anchor-status[data-status="closed"] { border-color: var(--border); background: var(--offline-soft); color: var(--offline-deep); }
 .ws-task-discussion-button { margin-left: auto; }
 .ws-task-event-announcer {
   position: absolute;
@@ -1516,7 +1598,8 @@ span.linenumber {
 .msg-author { font-size: 14px; font-weight: var(--fw-bold); letter-spacing: var(--ls-snug); }
 .msg-author.is-agent { color: var(--accent-deep); }
 .msg-tag { font-family: var(--mono); font-size: var(--fs-mono-micro); font-weight: var(--fw-semi); letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent-deep); }
-.msg-time { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); }
+.msg-time { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); font-variant-numeric: tabular-nums; }
+.msg-head .msg-time:last-of-type { margin-left: auto; }
 .msg-text { color: var(--fg); font-size: var(--fs-body); line-height: var(--lh-text); overflow-wrap: anywhere; }
 .msg-text > .markdown-body { max-width: 68ch; font-size: 14px; line-height: 1.65; }
 .msg-text p { margin: 0 0 var(--sp-4); }
@@ -1542,8 +1625,8 @@ span.linenumber {
   border: none; border-radius: 4px; background: transparent; color: var(--fg);
   white-space: nowrap; text-align: left;
 }
-.task-chip { display: inline-flex; align-items: center; gap: 7px; margin: var(--sp-3) 0 0; padding: var(--sp-3) 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent-graphic); border-radius: var(--r-sm); background: var(--surface); font-size: 12px; }
-.task-chip:hover { border-color: var(--border-strong); border-left-color: var(--accent-graphic); }
+.task-chip { display: inline-flex; align-items: center; gap: 7px; margin: var(--sp-3) 0 0; padding: var(--sp-3) 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); font-size: 12px; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.task-chip:hover { border-color: var(--border-strong); background: var(--surface); }
 .task-chip b { font-family: var(--mono); font-weight: var(--fw-black); color: var(--accent-deep); }
 .task-chip .num { font-family: var(--mono); color: var(--faint); }
 .reactions { display: flex; gap: 5px; margin-top: var(--sp-3); }
@@ -1551,14 +1634,9 @@ span.linenumber {
 .reaction b { font-family: var(--mono); font-size: var(--fs-mono-xs); }
 .reaction.mine { border-color: var(--selected-graphic); background: var(--selected-soft); color: var(--selected-deep); }
 
-/* 锚点行（thread 打开的消息）：fill 归票 03 的骨架钩子 `.ws-message-row-anchor`（已是 --selected-soft，
-   不是黄色实心），本段只补左侧选中竖条——与 `.nav-row.is-active::before` 同源（spec D3 的「当前位置」）。
-   竖条站在行自己的左边缘（不是 -4px 的沟槽里）：右栏线程面板的滚动容器没有内边距，
-   站在负数位会被它裁掉。 */
-.ws-message-row-anchor::before {
-  content: ""; position: absolute; left: 0; top: 5px; bottom: 5px;
-  width: 2px; background: var(--selected-graphic); border-radius: var(--r-pill);
-}
+/* 锚点行（thread 打开的消息）：暖沙直觉动作面用满圈细环 + --selected-soft 暖底标记当前锚点，
+   不贴单边色条（避免与圆角盒形态冲突）。 */
+.msg.ws-message-row-anchor { box-shadow: inset 0 0 0 1px var(--selected); }
 /* 锚点行的 hover 也要留在「当前位置」色（票 03 的 `.ws-message-row-anchor:hover` 与 `.msg:hover`
    同特异度，后者在后会吃掉前者）：补一条更特异的组合，让锚点行 hover 不变灰。 */
 .msg.ws-message-row-anchor:hover { background: var(--selected-soft); }
@@ -1601,11 +1679,11 @@ span.linenumber {
 .ws-message-actions-open .msg-tools { opacity: 1; }
 
 /* ─── composer ───────────────────────────────────────────────────────────── */
-.composer { padding: 10px var(--sp-9) var(--sp-7); background: var(--bg); }
+.composer { padding: 12px var(--sp-9) var(--sp-7); background: var(--surface); border-top: 1px solid var(--border); }
 .composer-inner { max-width: var(--stream-max); margin: 0 auto; }
 .composer-box { border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-composer); transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
 .composer-input { width: 100%; border: 0; background: none; resize: none; padding: 11px 13px var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); outline: none; max-height: 160px; }
-.composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 1px var(--accent-graphic); }
+.composer-box:focus-within { border-color: var(--accent-graphic); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* 字段环已在 shell（`:focus-within`）上；内层 textarea 自己的环会落在外壳环内侧 1px 处叠成双环，
    而且它的 `:focus-visible` 圆角是 reset 的 2px、角上不跟外壳的 `--r-lg`。
    同 `.search-btn input`（票 03）与 `.search-field input`（票 09）的处置。 */
@@ -1614,23 +1692,23 @@ span.linenumber {
 .composer-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 5px var(--sp-3) var(--sp-3) var(--sp-4); }
 .composer-bar .sep { flex: 1; }
 .composer-hint { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); margin-right: var(--sp-4); }
-.composer-send { width: var(--icon-btn); height: var(--icon-btn); border-radius: var(--r-sm); display: grid; place-items: center; background: var(--accent); color: var(--on-accent); }
+.composer-send { width: var(--icon-btn); height: var(--icon-btn); border-radius: var(--r-md); display: grid; place-items: center; background: var(--accent); color: var(--on-accent); transition: background var(--dur-fast) var(--ease); }
 .composer-send:hover { background: var(--accent-hover); }
 .composer-send:disabled { background: var(--panel-2); color: var(--faint); cursor: not-allowed; }
 /* 右栏线程的 composer 槽（票 07 的 `.tt-reply`）自己带 `11px 16px 14px` 内边距；本仓 Composer 在
-   频道面需要自带内边距（它直坐在 `.composer` 上），两票合并后会在线程里叠成 36px
-   ——按票 07 处理 `.tt-reply .composer-box` 的同款手法，在 dock 槽里把本层内边距归零。 */
-.tt-reply .composer { padding: 0; }
+   频道面需要自带内边距与顶线，在 dock 槽里把本层内边距与顶线归零避免双线叠层。 */
+.tt-reply .composer { padding: 0; border-top: 0; }
 /* 原语 `.icon-btn` 的 hover 底是 `--surface`（为 rail 的 `--panel` 底设计）；composer 与频道头
    自身就坐在 `--surface` 上，hover 需要往 `--fg-soft` 走（ED-7 的 hover 不降对比）。 */
 .composer .icon-btn:hover, .chan-tools .icon-btn:hover { background: var(--fg-soft); border-color: transparent; color: var(--fg); }
 
-/* ─── channel tabs（本仓的 Messages|Tasks 切换条；上游同块在 app.css 的 .tabs 段） ── */
-.tabs { display: flex; gap: 2px; padding: 0 var(--sp-7); border-bottom: 1px solid var(--border); background: var(--surface); margin-top: 11px; }
-.tab { position: relative; padding: 9px var(--sp-5); font-size: 12.5px; font-weight: var(--fw-medium); color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+/* ─── channel tabs（暖沙分段药丸槽：Messages | Tasks） ───────────────────── */
+.tabs { display: flex; align-items: center; gap: 6px; padding: 6px var(--sp-7); border-bottom: 1px solid var(--border); background: var(--surface); margin-top: 8px; }
+.tabs [role="tablist"] { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: var(--panel); border: 1px solid var(--border); }
+.tab { position: relative; padding: 5px 12px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: var(--fw-medium); color: var(--muted); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
 .tab:hover { color: var(--fg); }
-.tab.is-active { color: var(--fg); border-bottom-color: var(--fg); }
-.tab .count { font-family: var(--mono); font-size: var(--fs-mono-xs); color: var(--faint); margin-left: 5px; }
+.tab.is-active { background: var(--surface); color: var(--fg); font-weight: var(--fw-semi); box-shadow: 0 1px 2px oklch(22.5% 0.015 50 / 0.08); }
+.tab .count { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-mono-xs); color: var(--faint); margin-left: 5px; }
 .tab.is-active .count { color: var(--selected-deep); }
 
 /* ==========================================================================
@@ -1882,30 +1960,31 @@ span.linenumber {
 .empty svg { margin-bottom: var(--sp-5); opacity: .7; }
 .empty b { display: block; color: var(--muted); font-weight: var(--fw-semi); font-size: var(--fs-body-lg); margin-bottom: var(--sp-2); }
 /* ==========================================================================
-   校样世界（press world）—— Payload 与付印章
-   世界只借四样东西：字、色、密度、一个签名动作。这里的签名动作是**方形付印章**：
-   任务状态不是一个彩色圆点，而是一枚盖在校样上的章——一态一形一墨，状态词永远写在章里。
+   暖沙直觉动作面（Warm Action Surface）—— 状态胶囊与审阅提示
+   状态不靠猜：任务状态是清晰可读的胶囊（in_review 实朱砂红标出“等你审批”），
+   成员存在态在浅暖沙侧栏上以轻胶囊直出（工作中 / 在线 / 异常 / 离线）。
    ========================================================================== */
-.regmarks { display: inline-flex; gap: 3px; margin-top: 5px; }
-.regmarks i { width: 6px; height: 6px; display: block; border-radius: 1px; }
-.regmarks i:nth-child(1) { background: var(--selected-graphic); }
-.regmarks i:nth-child(2) { background: var(--unread-graphic); }
-.regmarks i:nth-child(3) { background: var(--warn-graphic); }
-.regmarks i:nth-child(4) { background: var(--fg); }
-
 .card-stamp {
-  font-family: var(--mono); font-size: 9.5px; font-weight: var(--fw-semi);
+  font-family: var(--mono); font-size: 10px; font-weight: var(--fw-semi);
   letter-spacing: var(--ls-wide); text-transform: uppercase;
-  padding: 1px 5px; border-radius: var(--r-sm);
-  border: 1px solid var(--border-strong); color: var(--muted);
+  padding: 2px 8px; border-radius: var(--r-pill);
+  border: 1px solid var(--border); background: var(--panel); color: var(--muted);
   white-space: nowrap;
 }
-.card-stamp[data-status="in_progress"] { border-color: var(--working); color: var(--working-text, var(--fg)); }
-.card-stamp[data-status="in_review"] { border: 1.5px dashed var(--unread-graphic); color: var(--unread-deep); background: var(--unread-soft); }
-.card-stamp[data-status="done"] { border: 1.5px solid var(--online); color: var(--online-text, var(--fg)); }
-.card-stamp[data-status="closed"] { border-color: var(--border); color: var(--offline-deep); }
+.card-stamp[data-status="in_progress"] { border-color: transparent; background: var(--working-soft); color: var(--working-text, var(--fg)); }
+.card-stamp[data-status="in_review"] { border-color: transparent; background: var(--unread-deep); color: var(--on-accent); }
+.card-stamp[data-status="done"] { border-color: transparent; background: var(--online-soft); color: var(--online-text, var(--fg)); }
+.card-stamp[data-status="closed"] { border-color: transparent; background: var(--offline-soft); color: var(--offline-deep); }
 
-/* 系统事件行（任务已创建 / 已变化）是校样边上的记录条，不是消息：压到发丝级，让对话回到前面。 */
+/* 待审卡片的一行权限提示（首屏直懂“谁可审批”，不必读文档）。 */
+.card-review-hint {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-caption);
+  color: var(--unread-deep);
+  line-height: 1.45;
+}
+
+/* 系统事件行（任务已创建 / 已变化）保持发丝级安静记录，把对话主体留在前面。 */
 .ws-task-created-event {
   background: transparent;
   border: 0;
@@ -1917,28 +1996,31 @@ span.linenumber {
   font-size: 11px;
 }
 
-/* 成员存在态：点 + 词。词是固定宽度的等宽小字，所以「谁在动 / 谁出错 / 谁离线」
-   不需要靠颜色猜——这也是 owner 的硬失败信号（状态要猜）在成员面上的落点。 */
+/* 成员存在态：圆点 + 软胶囊词标，首屏一眼扫清谁在工作 / 在线 / 异常 / 离线。 */
 .member-state {
   font-family: var(--mono);
   font-size: 9.5px;
+  font-weight: var(--fw-semi);
   letter-spacing: var(--ls-wide);
   text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--r-pill);
   color: var(--muted);
   flex: 0 0 auto;
   margin-left: var(--sp-2);
 }
-.member-state[data-status="working"] { color: var(--working-text); }
-.member-state[data-status="error"] { color: var(--error); }
-.member-state[data-status="offline"] { color: var(--offline-deep); }
+.member-state[data-status="online"] { background: var(--online-soft); color: var(--online-text); }
+.member-state[data-status="working"] { background: var(--working-soft); color: var(--working-text); }
+.member-state[data-status="error"] { background: var(--error-soft); color: var(--error); }
+.member-state[data-status="offline"] { background: transparent; color: var(--offline-deep); padding-right: 2px; }
 
-/* 付印章在任务行的**右端**：先是编号、再是「打开讨论」，章压在最后。 */
+/* 状态胶囊在任务行的**右端**：先是编号、再是「打开讨论」，胶囊压在最后。 */
 .ws-task-anchor-meta { display: flex; align-items: center; }
 .ws-task-anchor-number { order: 0; }
 .ws-task-discussion-button { order: 1; margin-left: auto; }
 .ws-task-anchor-status { order: 2; margin-left: var(--sp-3); }
 
-/* 完成章的署名：谁签的，写在章里。 */
+/* 完成胶囊的署名：谁签的，写在胶囊里。 */
 .card-stamp .signer { font-weight: var(--fw-semi); margin-left: 4px; }
 
 /* 移动端频道头：工具条不许折行把「停止」挤到第二行（评审 fix 5 的可执行部分）。

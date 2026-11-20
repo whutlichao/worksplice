@@ -84,13 +84,11 @@ test("原语 .icon-btn：30px 透明边框，hover 换 --surface + --border，.i
 
 // ─── badge / fields / card ───────────────────────────────────────────────────
 
-test("原语 .badge：近直角 + 墨底（计数是墨，不是角色色）", () => {
+test("原语 .badge：药丸圆角 + 朱砂红动作底（未读计数一眼聚焦）", () => {
   const body = blockBody(".badge");
-  // 校样世界：章与角标都是「盖上去的印」，圆角收到 --r-sm（2px），不再是药丸。
-  assert.match(body, /border-radius:\s*var\(--r-sm\)/);
-  // 品红只有一个意思（等你审）；未读计数因此走墨底纸白，颜色不是唯一线索——
-  // 数字本身在说话。对应 app/globals.contrast.test.mjs 的墨族断言。
-  assert.match(body, /background:\s*var\(--fg\)/);
+  // 暖沙直觉动作面：未读角标走全药丸 + 朱砂红实底 + 纸白字（对比度 >5:1）。
+  assert.match(body, /border-radius:\s*var\(--r-pill\)/);
+  assert.match(body, /background:\s*var\(--accent\)/);
   assert.match(body, /color:\s*var\(--on-accent\)/);
 });
 
@@ -118,12 +116,12 @@ test("原语 .card：--surface + --border + --r-md；hover 强化边框 + --shad
 
 // ─── presence / avatar ───────────────────────────────────────────────────────
 
-test("原语 .presence：7px 方点（套准标记）、无 ink 边框、四态 token、working 脉冲 1.5s", () => {
+test("原语 .presence：7px 圆点、无 ink 边框、四态 token、working 脉冲 1.5s", () => {
   const body = blockBody(".presence");
   assert.match(body, /width:\s*7px/);
   assert.match(body, /height:\s*7px/);
-  // 校样世界用套准方点，不用圆点；1px 倒角是为了在高分屏上不糊。
-  assert.match(body, /border-radius:\s*1px/);
+  // 暖沙直觉动作面：状态点走柔和正圆药丸。
+  assert.match(body, /border-radius:\s*var\(--r-pill\)/);
   assert.doesNotMatch(body, /border:\s*\d+px/);
 
   assert.match(blockBody(".presence.online"), /background:\s*var\(--online\)/);
@@ -140,12 +138,12 @@ test("原语 .presence：7px 方点（套准标记）、无 ink 边框、四态 
   );
 });
 
-test("原语 .avatar：三档尺寸取自 --avatar-sm|md|lg、方砖（--r-sm）、无像素槽位", () => {
+test("原语 .avatar：三档尺寸取自 --avatar-sm|md|lg、柔方圆角（--r-md / --r-lg）、无像素槽位", () => {
   const body = blockBody(".avatar");
   assert.match(body, /width:\s*var\(--avatar-md\)/);
   assert.match(body, /height:\s*var\(--avatar-md\)/);
-  // 方砖 + 1px 内发丝：身份只靠首字母，不靠色相（四色留给角色）。
-  assert.match(body, /border-radius:\s*var\(--r-sm\)/);
+  // 暖沙直觉动作面：柔和方圆角 + 轻内发丝，配合暖黏土色阶区分成员身份。
+  assert.match(body, /border-radius:\s*var\(--r-md\)/);
   assert.match(body, /box-shadow:\s*inset 0 0 0 1px/);
   assert.match(body, /display:\s*grid/);
   assert.match(body, /place-items:\s*center/);
@@ -160,7 +158,7 @@ test("原语 .avatar：三档尺寸取自 --avatar-sm|md|lg、方砖（--r-sm）
   const lg = blockBody(".avatar.lg");
   assert.match(lg, /width:\s*var\(--avatar-lg\)/);
   assert.match(lg, /font-size:\s*16px/);
-  assert.match(lg, /border-radius:\s*var\(--r-md\)/);
+  assert.match(lg, /border-radius:\s*var\(--r-lg\)/);
 });
 
 test("原语 .av-0…--av-4：五格 tint 逐字搬自上游，各格绑自己的 token", () => {
