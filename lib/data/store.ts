@@ -133,7 +133,15 @@ export interface Store {
     thinkingLevel?: string | null;
     createdAt?: string;
   }): MemberRow;
-  updateMemberStatus(id: string, status: MemberStatus): void;
+  /**
+   * 更新成员状态；进入 error 时落 trim 后的具体错误文本，离开 error 一律清空 last_error。
+   * 传空/全空白 lastError 视为「没有具体错误」，写 NULL（不继承旧错）。
+   */
+  updateMemberStatus(
+    id: string,
+    status: MemberStatus,
+    lastError?: string | null,
+  ): void;
   setMemberAvatarTint(id: string, tint: AgentAvatarTint | null): void;
   /** 成员描述更新（存量内容英文化迁移脚本专用写路径：只改 description，其余字段不动）。 */
   updateMemberDescription(id: string, description: string): void;

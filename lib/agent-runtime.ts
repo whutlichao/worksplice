@@ -354,7 +354,14 @@ async function createRealAgentRuntime(): Promise<AgentRuntime> {
           ) {
             return;
           }
-          publishAgentStatus(member.id, status);
+          // prompt_error 的事件本身携带具体原因（SDK 的 error.message）；
+          // 其余事件的状态由写侧统一清空 last_error。
+          const lastError =
+            event.type === "prompt_error" &&
+            typeof event.errorMessage === "string"
+              ? event.errorMessage
+              : undefined;
+          publishAgentStatus(member.id, status, lastError);
         });
 
         publishAgentStatus(member.id, "online");

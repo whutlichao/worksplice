@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 
 import { SECRETARY_DEFAULT_NAME } from "../secretary-name.ts";
 
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 export const BUILTIN_CHANNEL_ID = "#all";
 export const OWNER_MEMBER_ID = "owner";
@@ -42,6 +42,7 @@ const SCHEMA_STATEMENTS: string[] = [
     workspace_path TEXT,
     pi_session_file TEXT,
     status TEXT NOT NULL DEFAULT 'offline' CHECK (status IN ('online', 'working', 'error', 'offline')),
+    last_error TEXT,
     deleted INTEGER NOT NULL DEFAULT 0,
     model_provider TEXT,
     model_id TEXT,
@@ -263,6 +264,7 @@ export function runMigrations(db: Database.Database): void {
     migrateMembersModelColumns(db);
     migrateMembersAvatarTintColumn(db);
     migrateMembersGlobalChiefColumn(db);
+    migrateMembersLastErrorColumn(db);
     migrateChannelsChiefMemberColumn(db);
     migrateTasksReopenedColumn(db);
     migrateTasksHandoffColumns(db);
@@ -311,6 +313,19 @@ function migrateMembersGlobalChiefColumn(db: Database.Database): void {
        LIMIT 1
      )`,
   ).run(LEGACY_CHIEF_MEMBER_NAME);
+}
+
+/**
+ * v20（票 #300）：members.last_error —— 进入 error 状态时的具体错误文本（nullable）。
+ * 老库无列时 ALTER 补上；存量行一律 NULL（v19 及更早没有错误文本可回溯）。
+ * 生命周期由写侧维护：status === "error" 写 trim 后非空原文，其余状态写 NULL。
+ */
+function migrateMembersLastErrorColumn(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(members)").all() as Array<{
+    name: string;
+  }>;
+  if (columns.some((column) => column.name === "last_error")) return;
+  db.exec("ALTER TABLE members ADD COLUMN last_error TEXT");
 }
 
 /**

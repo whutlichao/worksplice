@@ -22,6 +22,18 @@ export function isAgentAvatarTint(value: unknown): value is AgentAvatarTint {
   );
 }
 
+/**
+ * 成员状态错误文本归一化（v20）：只有非空字符串才落库，首尾空白去掉；
+ * 空/全空白 = 没有具体错误（NULL，不继承旧错）。
+ */
+export function normalizeMemberLastError(
+  lastError: string | null | undefined,
+): string | null {
+  if (typeof lastError !== "string") return null;
+  const trimmed = lastError.trim();
+  return trimmed ? trimmed : null;
+}
+
 export type TaskStatus = "todo" | "in_progress" | "in_review" | "done" | "closed";
 /**
  * 秘书自动 handoff 的持久状态（票 #240）：
@@ -63,6 +75,8 @@ export interface MemberRow {
   workspace_path: string | null;
   pi_session_file: string | null;
   status: MemberStatus;
+  /** 最近一次 error 状态的具体原因（v20）；非 error 状态恒为 null。 */
+  last_error: string | null;
   deleted: number;
   /** §3.10 per-agent runtime：覆盖全局默认的模型/思考级别（nullable = 继承全局）。 */
   model_provider: string | null;

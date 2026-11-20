@@ -279,9 +279,13 @@ export function updateAgentWorkspace(
   return getAgent(agentId);
 }
 
-export function setAgentStatus(agentId: string, status: MemberStatus): void {
+export function setAgentStatus(
+  agentId: string,
+  status: MemberStatus,
+  lastError?: string | null,
+): void {
   const agent = getAgent(agentId);
-  getDb().updateMemberStatus(agent.id, status);
+  getDb().updateMemberStatus(agent.id, status, lastError);
 }
 
 export function setAgentSessionFile(

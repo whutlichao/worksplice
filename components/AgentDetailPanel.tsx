@@ -26,6 +26,7 @@ import type {
   TaskStatus,
 } from "@/lib/data/types";
 import type { ModelsData } from "@/lib/models-cache";
+import { formatAgentErrorSummary } from "@/lib/agent-error-summary";
 
 /** 分节标题（`.d-sec-title`，票 07）：mono 大写分组标签（形态在 globals.css 的 `.d-sec-title`）。 */
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -1209,6 +1210,24 @@ export function AgentAvatarTintPicker({
   );
 }
 
+/**
+ * 顶部状态区的精简错误摘要（票 #300）：纯展示，便于 SSR 断言。
+ * 只在有具体错误文本时渲染；`title` 保留完整原文，2 行截断形态在 globals.css。
+ */
+export function AgentStatusErrorDetail({
+  error,
+}: {
+  error: string | null | undefined;
+}) {
+  const formatted = formatAgentErrorSummary(error);
+  if (!formatted) return null;
+  return (
+    <div className="agent-error-summary" title={formatted.detail}>
+      {formatted.summary}
+    </div>
+  );
+}
+
 /** 右栏：agent 详情面板（§3.6/§3.10/§6.5）。重置 / workspace / runtime（per-agent 模型） / 可观测性。 */
 export function AgentDetailPanel({
   agent,
@@ -1681,6 +1700,9 @@ export function AgentDetailPanel({
               {t("status." + agent.status)}
             </span>
           </div>
+          {agent.status === "error" && (
+            <AgentStatusErrorDetail error={agent.last_error} />
+          )}
           {agent.status === "offline" && (
             <div
               style={{

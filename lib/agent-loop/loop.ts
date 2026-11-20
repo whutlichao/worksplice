@@ -2608,10 +2608,11 @@ export async function runAgentRound(
         // 07-承诺：busy-cwd 轮同 error 轮——携带本轮 drain 的房间版本（round_logs base_seq 非 0）
         return withRole({ status: "busy-cwd", reason: error.message, baseSeq });
       }
-      publishAgentStatus(agent.id, "error");
+      const reason = error instanceof Error ? error.message : String(error);
+      publishAgentStatus(agent.id, "error", reason);
       return withRole({
         status: "error",
-        reason: error instanceof Error ? error.message : String(error),
+        reason,
         // 11-整改：error 轮携带本轮 drain 的房间版本（round_logs base_seq 非 0）
         baseSeq,
       });
@@ -2699,7 +2700,7 @@ export async function runAgentRound(
    */
   const finishTaskRound = (outcome: RoundOutcome): RoundOutcome => {
     if (outcome.status === "error") {
-      publishAgentStatus(agent.id, "error");
+      publishAgentStatus(agent.id, "error", outcome.reason ?? "task round failed");
     } else {
       resetMustRespondFailures(agent.id, targetId);
       publishAgentStatus(agent.id, "online");
@@ -2719,7 +2720,7 @@ export async function runAgentRound(
     }
     const first = await promptSession(session, prompt);
     if (!first.ok) {
-      publishAgentStatus(agent.id, "error");
+      publishAgentStatus(agent.id, "error", first.error ?? "prompt failed");
       // 11-整改：prompt-fail 的 error 轮携带本轮 drain 的房间版本
       return withRole({ status: "error", reason: first.error, baseSeq });
     }
@@ -2795,7 +2796,11 @@ export async function runAgentRound(
       // 永久 pending + 反复失败（cap-ack 是逃逸口，状态点仍可见 error）。
       if (hasMustRespondSignal(agent.id, targetId, effectiveIncoming)) {
         const failures = recordMustRespondFailure(agent.id, targetId);
-        publishAgentStatus(agent.id, "error");
+        const failureReason =
+          failures >= MUST_RESPOND_FAILURE_CAP
+            ? `ignore on must-respond signal (capped at ${MUST_RESPOND_FAILURE_CAP})`
+            : "ignore on must-respond signal";
+        publishAgentStatus(agent.id, "error", failureReason);
         // 声明了 ignore = pass：槽位还给房间（房间不因单个成员不接话而卡住）
         noteRoomPass();
         if (failures >= MUST_RESPOND_FAILURE_CAP) {
@@ -2806,13 +2811,13 @@ export async function runAgentRound(
           );
           return withOps({
             status: "error",
-            reason: `ignore on must-respond signal (capped at ${MUST_RESPOND_FAILURE_CAP})`,
+            reason: failureReason,
             baseSeq,
           });
         }
         return withOps({
           status: "error",
-          reason: "ignore on must-respond signal",
+          reason: failureReason,
           baseSeq,
         });
       }
@@ -2825,7 +2830,7 @@ export async function runAgentRound(
       // §3.8 空内容回复（模型退化输出 {"action":"reply"} 无 content）：声明了 reply
       // 却给不出文本 = 本轮失败，与空文本同语义——不推进游标、publish error，触发消息
       // 保持 pending 供下次 wake 重试；否则消息被静默消费、agent 永不回复。
-      publishAgentStatus(agent.id, "error");
+      publishAgentStatus(agent.id, "error", "reply action without content");
       noteRoomPass();
       return withOps({
         status: "error",
@@ -2918,11 +2923,12 @@ export async function runAgentRound(
     if (outcome.status === "error") {
       // 11-整改：revised 空内容 = error 轮——不推进游标（触发消息保持 pending 供下次 wake
       // 重试）、error 状态点；与直接空 reply 路径（reply action without content）归类一致
-      publishAgentStatus(agent.id, "error");
+      const reason = outcome.reason ?? "reply delivery failed";
+      publishAgentStatus(agent.id, "error", reason);
       noteRoomPass();
       return withOps({
         status: "error",
-        reason: outcome.reason,
+        reason,
         baseSeq: outcome.ackSeq,
       });
     }
@@ -2958,11 +2964,12 @@ export async function runAgentRound(
       baseSeq: outcome.ackSeq,
     });
   } catch (error) {
-    publishAgentStatus(agent.id, "error");
+    const reason = error instanceof Error ? error.message : String(error);
+    publishAgentStatus(agent.id, "error", reason);
     // 11-整改：catch 的 error 轮携带本轮 drain 的房间版本
     return withOps({
       status: "error",
-      reason: error instanceof Error ? error.message : String(error),
+      reason,
       baseSeq,
     });
   }

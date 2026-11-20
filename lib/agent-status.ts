@@ -12,16 +12,18 @@ import type { MemberRow, MemberStatus } from "./data/types.ts";
  */
 
 type StatusSnapshot = Record<string, MemberStatus>;
+type ErrorSnapshot = Record<string, string>;
 type StatusLookup = (member: MemberRow) => MemberStatus | null;
+type StatusListener = (statuses: StatusSnapshot, errors: ErrorSnapshot) => void;
 
 declare global {
-  var __workspliceAgentStatusListeners: Set<(snapshot: StatusSnapshot) => void> | undefined;
+  var __workspliceAgentStatusListeners: Set<StatusListener> | undefined;
   var __workspliceAgentStatusLookup: StatusLookup | null | undefined;
   var __workspliceAgentStatusLastSnapshot: string | undefined;
   var __workspliceAgentStatusSweeper: ReturnType<typeof setInterval> | undefined;
 }
 
-function getListeners(): Set<(snapshot: StatusSnapshot) => void> {
+function getListeners(): Set<StatusListener> {
   if (!globalThis.__workspliceAgentStatusListeners) {
     globalThis.__workspliceAgentStatusListeners = new Set();
   }
@@ -38,7 +40,7 @@ export function setAgentStatusLookup(lookup: StatusLookup | null): void {
 }
 
 export function subscribeAgentStatuses(
-  listener: (snapshot: StatusSnapshot) => void,
+  listener: StatusListener,
 ): () => void {
   const listeners = getListeners();
   listeners.add(listener);
@@ -47,40 +49,60 @@ export function subscribeAgentStatuses(
   };
 }
 
-/** 快照 = 所有未删除 agent 成员的最新状态。 */
-export function getAgentStatusSnapshot(): StatusSnapshot {
-  const snapshot: StatusSnapshot = {};
+/**
+ * 快照 = 所有未删除 agent 成员的最新状态 + 当前有效 error 的具体文本。
+ * errors 只收录「有效状态为 error 且 last_error 非空」的成员——error 但无文本时
+ * 不编造占位（详情面板同样不显示占位文案）。
+ */
+function computeAgentStatusState(): {
+  statuses: StatusSnapshot;
+  errors: ErrorSnapshot;
+} {
+  const statuses: StatusSnapshot = {};
+  const errors: ErrorSnapshot = {};
   for (const member of listAgents()) {
     const live = getStatusLookup()?.(member) ?? null;
-    if (live) {
-      snapshot[member.id] = live;
-      continue;
-    }
-    if (member.status === "error") {
-      snapshot[member.id] = "error";
-    } else {
-      snapshot[member.id] = "offline";
-    }
+    const status = live ?? (member.status === "error" ? "error" : "offline");
+    statuses[member.id] = status;
+    if (status !== "error") continue;
+    const lastError =
+      typeof member.last_error === "string" ? member.last_error.trim() : "";
+    if (lastError) errors[member.id] = lastError;
   }
-  return snapshot;
+  return { statuses, errors };
+}
+
+/** 既有调用方兼容：仍只返回 { memberId: status }。 */
+export function getAgentStatusSnapshot(): StatusSnapshot {
+  return computeAgentStatusState().statuses;
+}
+
+/** 与状态快照同源的错误快照：{ memberId: last_error }（仅当前有效 error）。 */
+export function getAgentErrorSnapshot(): ErrorSnapshot {
+  return computeAgentStatusState().errors;
 }
 
 /** 状态变化（持久化 + 广播）；值未变则不重复广播。删除身份后不再发布（状态点消失）。 */
-export function publishAgentStatus(memberId: string, status: MemberStatus): void {
+export function publishAgentStatus(
+  memberId: string,
+  status: MemberStatus,
+  lastError?: string | null,
+): void {
   const member = getMember(memberId);
   if (!member || member.type !== "agent" || member.deleted === 1) return;
-  setAgentStatus(memberId, status);
+  setAgentStatus(memberId, status, lastError);
   broadcastIfChanged();
 }
 
 function broadcastIfChanged(): void {
-  const snapshot = getAgentStatusSnapshot();
-  const serialized = JSON.stringify(snapshot);
+  const { statuses, errors } = computeAgentStatusState();
+  // 同为 error 但错误文本变化也必须推送：去重键包含 errors，不只比 statuses。
+  const serialized = JSON.stringify({ statuses, errors });
   if (serialized === globalThis.__workspliceAgentStatusLastSnapshot) return;
   globalThis.__workspliceAgentStatusLastSnapshot = serialized;
   for (const listener of getListeners()) {
     try {
-      listener(snapshot);
+      listener(statuses, errors);
     } catch {
       // 忽略单个订阅者错误
     }
