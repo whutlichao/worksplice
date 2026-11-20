@@ -25,7 +25,7 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { AppShell } = await jiti.import("./AppShell.tsx");
+const { AppShell, mergeAgentStatusEvent } = await jiti.import("./AppShell.tsx");
 const { I18nProvider } = await jiti.import("../hooks/useI18n.tsx");
 
 const globalsCss = await readFile(
@@ -279,4 +279,75 @@ test("A2：汉堡键声明 aria-expanded / aria-controls，抽屉根带 id 与 E
   assert.match(source, /\.ws-sidebar-close/);
   assert.match(source, /menuButtonRef\.current\?\.focus\(\)/);
   assert.match(source, /e\.key !== "Escape"/);
+});
+
+// ─── #300：错误状态文本随 SSE 同步，浅比较不得漏掉 last_error ─────────────────
+
+const statusAgent = (extra = {}) => ({
+  id: "agent-1",
+  type: "agent",
+  name: "bob",
+  description: "",
+  role: "member",
+  workspace_path: "/tmp/ws/bob",
+  pi_session_file: null,
+  status: "offline",
+  deleted: 0,
+  model_provider: null,
+  model_id: null,
+  thinking_level: null,
+  avatar_tint: null,
+  last_error: null,
+  created_at: "2026-01-01T00:00:00.000Z",
+  ...extra,
+});
+
+test("#300 SSE 帧同时合并 status 与 last_error（error 时取 errors，离开 error 即清空）", () => {
+  const prev = [statusAgent()];
+  const errored = mergeAgentStatusEvent(prev, {
+    statuses: { "agent-1": "error" },
+    errors: {
+      "agent-1": 'model error: 429: {"error":{"message":"Rate limit reached"}}',
+    },
+  });
+  assert.equal(errored[0].status, "error");
+  assert.equal(
+    errored[0].last_error,
+    'model error: 429: {"error":{"message":"Rate limit reached"}}',
+  );
+  assert.notEqual(errored[0], prev[0]);
+
+  const recovered = mergeAgentStatusEvent(errored, {
+    statuses: { "agent-1": "online" },
+    errors: {},
+  });
+  assert.equal(recovered[0].status, "online");
+  assert.equal(recovered[0].last_error, null);
+});
+
+test("#300 同状态 error 但错误文本变化时也更新行；无变化复用旧引用", () => {
+  const prev = [
+    statusAgent({ status: "error", last_error: "429: Rate limit reached" }),
+  ];
+  const changed = mergeAgentStatusEvent(prev, {
+    statuses: { "agent-1": "error" },
+    errors: { "agent-1": "502: Bad gateway" },
+  });
+  assert.equal(changed[0].last_error, "502: Bad gateway");
+  assert.notEqual(changed[0], prev[0]);
+
+  const unchanged = mergeAgentStatusEvent(changed, {
+    statuses: { "agent-1": "error" },
+    errors: { "agent-1": "502: Bad gateway" },
+  });
+  assert.equal(unchanged, changed);
+});
+
+test("#300 顶部错误摘要最多 2 行、错误语义色并使用标题悬停完整原文", () => {
+  const summary = ruleBody(".agent-error-summary");
+  assert.match(summary, /-webkit-line-clamp:\s*2/);
+  assert.match(summary, /overflow:\s*hidden/);
+  assert.match(summary, /overflow-wrap:\s*anywhere/);
+  assert.match(summary, /color:\s*var\(--error\)/);
+  assert.match(summary, /font-size:\s*var\(--fs-caption\)/);
 });

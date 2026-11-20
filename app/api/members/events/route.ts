@@ -1,4 +1,5 @@
 import {
+  getAgentErrorSnapshot,
   getAgentStatusSnapshot,
   startAgentStatusSweeper,
   subscribeAgentStatuses,
@@ -7,7 +8,8 @@ import {
 export const dynamic = "force-dynamic";
 
 // GET /api/members/events — agent 状态点（§3.6 四态）实时流。
-// 推送整张 { memberId: status } 快照；成员状态变化时即推，另由低频扫掠兜底
+// 推送整张 { memberId: status } 快照 + { memberId: last_error } 错误快照；
+// 成员状态或错误文本变化时即推，另由低频扫掠兜底
 // （idle shutdown / 进程外变化导致的状态漂移）。
 export async function GET(req: Request) {
   startAgentStatusSweeper();
@@ -19,15 +21,19 @@ export async function GET(req: Request) {
         controller.enqueue(encoder.encode(text));
       };
 
-      const unsubscribe = subscribeAgentStatuses((statuses) => {
+      const unsubscribe = subscribeAgentStatuses((statuses, errors) => {
         try {
-          encode({ type: "statuses", statuses });
+          encode({ type: "statuses", statuses, errors });
         } catch {
           // controller already closed
         }
       });
 
-      encode({ type: "statuses", statuses: getAgentStatusSnapshot() });
+      encode({
+        type: "statuses",
+        statuses: getAgentStatusSnapshot(),
+        errors: getAgentErrorSnapshot(),
+      });
 
       const heartbeat = setInterval(() => {
         try {

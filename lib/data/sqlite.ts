@@ -13,6 +13,7 @@ import {
   escapeLike,
   isAgentAvatarTint,
   MESSAGE_WINDOW_LIMIT,
+  normalizeMemberLastError,
   toFtsQuery,
 } from "./types.ts";
 import type { Store } from "./store.ts";
@@ -311,6 +312,7 @@ export class SQLiteAdapter implements Store {
       workspace_path: input.workspacePath ?? null,
       pi_session_file: input.piSessionFile ?? null,
       status: input.status ?? "offline",
+      last_error: null,
       deleted: 0,
       model_provider: input.modelProvider ?? null,
       model_id: input.modelId ?? null,
@@ -321,8 +323,8 @@ export class SQLiteAdapter implements Store {
     };
     this.db
       .prepare(
-        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, deleted, model_provider, model_id, thinking_level, created_at, avatar_tint, global_chief)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO members (id, type, name, description, role, workspace_path, pi_session_file, status, last_error, deleted, model_provider, model_id, thinking_level, created_at, avatar_tint, global_chief)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -333,6 +335,7 @@ export class SQLiteAdapter implements Store {
         row.workspace_path,
         row.pi_session_file,
         row.status,
+        row.last_error,
         row.deleted,
         row.model_provider,
         row.model_id,
@@ -344,8 +347,16 @@ export class SQLiteAdapter implements Store {
     return this.withEffectiveWorkspace(row);
   }
 
-  updateMemberStatus(id: string, status: MemberStatus): void {
-    this.db.prepare("UPDATE members SET status = ? WHERE id = ?").run(status, id);
+  updateMemberStatus(
+    id: string,
+    status: MemberStatus,
+    lastError?: string | null,
+  ): void {
+    const normalized =
+      status === "error" ? normalizeMemberLastError(lastError) : null;
+    this.db
+      .prepare("UPDATE members SET status = ?, last_error = ? WHERE id = ?")
+      .run(status, normalized, id);
   }
 
   setMemberAvatarTint(id: string, tint: AgentAvatarTint | null): void {

@@ -24,6 +24,7 @@ const {
     AgentChiefSection,
     deriveAgentChiefView,
     createGlobalChiefSaveHandler,
+    AgentStatusErrorDetail,
 } = await jiti.import("./AgentDetailPanel.tsx");
 const { Avatar } = await jiti.import("./Avatar.tsx");
 const { ModelPicker } = await jiti.import("./ModelPicker.tsx");
@@ -103,6 +104,7 @@ const AGENT = {
     model_id: null,
     thinking_level: null,
     avatar_tint: null,
+    last_error: null,
     created_at: "2026-08-03T00:00:00.000Z",
 };
 
@@ -1321,4 +1323,43 @@ test("清空全局首席走同一条保存路径（memberId = null）", async ()
     assert.equal(state.error, null);
     assert.equal(state.reloads, 1);
     assert.equal(state.changed, 1);
+});
+
+test("AgentStatusErrorDetail 展示精简摘要，title 保留完整原始错误", () => {
+    const raw = "model error: 429: Rate limit reached";
+    const html = renderWith(
+        React.createElement(AgentStatusErrorDetail, { error: raw }),
+    );
+
+    assert.match(html, /class="agent-error-summary"/);
+    assert.match(html, /429: Rate limit reached/);
+    assert.match(html, /title="model error: 429: Rate limit reached"/);
+});
+
+test("AgentDetailPanel 仅在 error 且有具体错误文本时渲染顶部错误摘要", () => {
+    const raw =
+        'model error: 429: {"error":{"message":"Rate limit reached","type":"FreeUsageLimitError"}}';
+
+    const errorWithDetail = renderPanel({
+        ...AGENT,
+        status: "error",
+        last_error: raw,
+    });
+    assert.match(errorWithDetail, /class="agent-error-summary"/);
+    assert.match(errorWithDetail, />429: Rate limit reached<\/div>/);
+    assert.match(errorWithDetail, /title="model error: 429: \{&quot;error&quot;/);
+
+    const errorWithoutDetail = renderPanel({
+        ...AGENT,
+        status: "error",
+        last_error: null,
+    });
+    assert.doesNotMatch(errorWithoutDetail, /class="agent-error-summary"/);
+
+    const onlineWithStaleDetail = renderPanel({
+        ...AGENT,
+        status: "online",
+        last_error: raw,
+    });
+    assert.doesNotMatch(onlineWithStaleDetail, /agent-error-summary/);
 });

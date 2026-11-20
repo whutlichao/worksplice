@@ -44,6 +44,35 @@ function parseDeepLink(
   }
 }
 
+export interface AgentStatusEventPayload {
+  statuses?: Record<string, MemberRow["status"]>;
+  errors?: Record<string, string>;
+}
+
+/**
+ * SSE 状态帧合并（票 #300）：status 与 last_error 一起更新。
+ * - error 时取 errors[agent.id]（缺省 = 没有具体错误 → null）；
+ * - 非 error 一律清空 last_error（与落库侧同语义）；
+ * - 两者都未变时复用旧行引用，避免无谓重渲染。
+ */
+export function mergeAgentStatusEvent(
+  agents: MemberRow[],
+  payload: AgentStatusEventPayload,
+): MemberRow[] {
+  if (!payload.statuses) return agents;
+  let changed = false;
+  const next = agents.map((agent) => {
+    const status = payload.statuses?.[agent.id];
+    if (!status) return agent;
+    const lastError =
+      status === "error" ? (payload.errors?.[agent.id] ?? null) : null;
+    if (status === agent.status && lastError === agent.last_error) return agent;
+    changed = true;
+    return { ...agent, status, last_error: lastError };
+  });
+  return changed ? next : agents;
+}
+
 /**
  * 三栏骨架（spec §3.1，ticket 13 重构）：
  * 左 = channel 列表（含 #all）+ agent 成员列表；中央 = channel 消息流 / Tasks tab；
@@ -239,18 +268,9 @@ export function AppShell() {
       const source = new EventSource("/api/members/events");
       source.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data) as {
-            statuses?: Record<string, MemberRow["status"]>;
-          };
+          const payload = JSON.parse(event.data) as AgentStatusEventPayload;
           if (!payload.statuses) return;
-          setAgents((prev) =>
-            prev.map((agent) => {
-              const status = payload.statuses![agent.id];
-              return status && status !== agent.status
-                ? { ...agent, status }
-                : agent;
-            }),
-          );
+          setAgents((prev) => mergeAgentStatusEvent(prev, payload));
         } catch {
           // 忽略非 JSON 帧（心跳）
         }
