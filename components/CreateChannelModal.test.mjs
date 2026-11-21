@@ -40,7 +40,7 @@ test("CreateChannelModal: renders type toggle, member list with every agent (Sus
     { id: "m1", name: "bob", type: "agent" },
     { id: "m2", name: "Susan", type: "agent" },
   ]);
-  assert.match(html, /Create channel/);
+  assert.match(html, /Create group/);
   assert.match(html, /Private/);
   assert.match(html, /Initial members/);
   assert.match(html, />bob</);

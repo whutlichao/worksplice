@@ -7,7 +7,7 @@
 
 | 决策 | 出处 ticket | 一句话 |
 |---|---|---|
-| pi 能力边界与多实例模型 | 01 | 持久 agent = 绑定 cwd 的 AgentSession / `pi --mode rpc` 子进程；隔离单位 cwd |
+| pi 能力边界与多实例模型 | 01 | 持久 Bot = 绑定 cwd 的 AgentSession / `pi --mode rpc` 子进程；隔离单位 cwd |
 | 参考形态的视觉参考与马卡龙配色 | 02 | `--color-brutal-*` 色板 + 粗墨线边框 + 直角 + 硬偏移阴影（**已被 ADR-0014 / ADR-0015 先后改判，终局值见 §4**） |
 | 参考产品与架构细节研究 | 03 | 拉取式 inbox、freshness-hold、任务板状态机、记忆 = workspace 磁盘目录 |
 | pi-web 功能去留与能力映射 | 04 | 骨架按参考形态重写；pi-web 降级为组件库；保留/重写/删除清单 |
@@ -21,9 +21,9 @@
 
 ### 1.1 愿景
 
-**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照同类 agent 协作工作区（Discord 式）：agent 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 agent 在同一个 channel / thread 里对话、在同一张任务板上分活与状态收口。
+**worksplice 是一个本地运行的单机应用：人类与多个持久 pi coding agent 在共享的"房间"里协作。** 产品形态参照同类协同工作区（Discord 式）：Bot 不是可调用的工具，而是工作区里的**成员**——有名字、持久身份、自己的 workspace 磁盘目录、自己的 inbox、任务与提醒。人类与 Bot 在同一个群组 / thread 里对话、在同一张任务板上分活与状态收口。
 
-核心工作循环（一切协作的通用模式）：**describe → hand off → let it run → review**（描述 → 交接 → 让它跑 → 审查）。多 agent 协作 = 同一循环并行运行。
+核心工作循环（一切协作的通用模式）：**describe → hand off → let it run → review**（描述 → 交接 → 让它跑 → 审查）。多 Bot 协作 = 同一循环并行运行。
 
 ### 1.2 读者
 
@@ -35,25 +35,25 @@
 | 术语 | 英文 | 定义 |
 |---|---|---|
 | 工作区 | workspace | worksplice 的产品容器，对应同类产品的 Server；单机形态下即本应用本身 |
-| 成员 | member | 工作区内的参与者，human 或 agent 统一建模；human 为 Owner，agent 为 Member |
-| agent | agent | 由 pi SDK 驱动的持久成员：绑定固定 cwd（workspace 目录）、有名字与描述、可被 @mention |
-| channel | channel | 消息频道；`#all` 内建，全员自动加入；公开/私有两种 |
-| 消息 | message | channel 或 thread 内的一条记录；**永久不可编辑、不可删除** |
-| 目标 | target | 消息的归属容器：一个 channel 或一个 thread（thread 以其锚点消息 id 标识） |
+| 成员 | member | 工作区内的参与者，human 或 Bot 统一建模（库内 `type` 为 `'human'`/`'agent'`）；human 为 Owner，Bot 为 Member |
+| Bot | bot | 由 pi SDK 驱动的持久成员：绑定固定 cwd（workspace 目录）、有名字与描述、可被 @mention |
+| 群组 | group | 消息群组（底层表名 `channels`）；`#all` 内建，全员自动加入；公开/私有两种 |
+| 消息 | message | 群组或 thread 内的一条记录；**永久不可编辑、不可删除** |
+| 目标 | target | 消息的归属容器：一个群组或一个 thread（thread 以其锚点消息 id 标识） |
 | seq | seq | 每个 target 内单调递增的消息序号；投递游标与 freshness-hold 的地基 |
 | 线程 | thread | 以某条顶层消息为锚点的子会话；不可嵌套；任务必有 thread |
-| 任务板 | task board | channel 级视图，按状态分组展示该 channel 的任务 |
+| 任务板 | task board | 群组级视图，按状态分组展示该群组的任务 |
 | 任务 | task | 一条消息 + 跟踪元数据（编号、状态、owner）；状态机 todo→in_progress→in_review→done/closed |
-| 认领 | claim | 任务 owner 的唯一确定方式；只有人类 Owner / 当前全局首席可认领，handoff 可把 owner 指派给普通 agent |
-| inbox | inbox | agent 的拉取式通知队列：按 seq 游标 drain，不进则推送 |
-| drain | drain | agent 拉取自上次以来全部新消息并按 seq 排序、推进游标的过程 |
+| 认领 | claim | 任务 owner 的唯一确定方式；只有人类 Owner / 当前全局首席可认领，handoff 可把 owner 指派给普通 Bot |
+| inbox | inbox | Bot 的拉取式通知队列：按 seq 游标 drain，不进则推送 |
+| drain | drain | Bot 拉取自上次以来全部新消息并按 seq 排序、推进游标的过程 |
 | wake hint | wake hint | 只含 seq/目标信息、不含正文的唤醒信号 |
-| 新鲜度保持 | freshness-hold | 发送/认领/改状态时携带房间版本（target 的 max(seq)），房间已变则 hold 由 agent 四选一 |
-| 工作目录 | cwd | agent 的 workspace 目录：pi session 的绑定目录，也是 agent 记忆的载体 |
+| 新鲜度保持 | freshness-hold | 发送/认领/改状态时携带房间版本（target 的 max(seq)），房间已变则 hold 由 Bot 四选一 |
+| 工作目录 | cwd | Bot 的 workspace 目录：pi session 的绑定目录，也是 Bot 记忆的载体 |
 | 重置粒度 | reset granularity | Restart / Session reset / Full reset 三种恢复手段 |
 | 状态点 | status dot | 成员列表与详情面板中的绿/黄/橙/灰四态指示 |
 | 双写流 | dual write | 协作数据写 SQLite 为主，pi session jsonl 只承载认知过程的写入路径 |
-| 消费游标 | consumed seq | 每个 agent 每个 target 已消费到的 seq，存于 `consumed_seqs` 表 |
+| 消费游标 | consumed seq | 每个 Bot 每个 target 已消费到的 seq，存于 `consumed_seqs` 表 |
 
 ---
 
@@ -63,19 +63,19 @@
 
 | 能力 | 说明 | 决策状态 |
 |---|---|---|
-| channels / threads | 频道消息流 + 消息级线程；`#all` 内建 | **[锁定]** 04 |
-| 持久 agent | 每 agent 绑定一个 cwd、一个 pi session；名字/描述/角色跨会话稳定；三种重置粒度 | **[锁定]** 01、04 |
-| 任务板 | channel 级 Tasks tab；状态机 + 任务状态权威 + 完成请求 + 状态裁决讨论 | **[锁定]** 03、05、#295 |
-| inbox + 提醒 | agent 拉取式收件箱（seq 游标 + drain + wake）；reminder 服务端调度 + recurrence DSL | **[锁定]** 03、05 |
-| 历史与可观测性 | 消息即历史（不可变）；agent 详情面板：状态点 + token/成本 + 任务历史 | **[锁定]** 03、04、05 |
+| 群组 / 线程 | 群组消息流 + 消息级线程；`#all` 内建 | **[锁定]** 04 |
+| 持久 Bot | 每 Bot 绑定一个 cwd、一个 pi session；名字/描述/角色跨会话稳定；三种重置粒度 | **[锁定]** 01、04 |
+| 任务板 | 群组级 Tasks tab；状态机 + 任务状态权威 + 完成请求 + 状态裁决讨论 | **[锁定]** 03、05、#295 |
+| inbox + 提醒 | Bot 拉取式收件箱（seq 游标 + drain + wake）；reminder 服务端调度 + recurrence DSL | **[锁定]** 03、05 |
+| 历史与可观测性 | 消息即历史（不可变）；Bot 详情面板：状态点 + token/成本 + 任务历史 | **[锁定]** 03、04、05 |
 | 消息增强 | emoji reaction、pinned、附件（≤50MB）、引用与 thread 修正 | **[展开]** 见 §3.3–3.5 |
-| 文件预览三分法 | 消息附件 + agent workspace 浏览 + 项目 Explorer | **[锁定]** 04 |
-| 模型与技能配置 | 全局 models.json 面板 + per-agent 模型/provider/thinking；技能为全局设置 | **[锁定]** 04 |
+| 文件预览三分法 | 消息附件 + Bot workspace 浏览 + 项目 Explorer | **[锁定]** 04 |
+| 模型与技能配置 | 全局 models.json 面板 + per-bot 模型/provider/thinking；技能为全局设置 | **[锁定]** 04 |
 | i18n | en + zh-CN 双语言，默认英文、英文优先 | **[锁定]** 04 |
 
 ### 2.2 Out of scope（与地图一致）
 
-- 多人 / 多机 / 服务器部署：daemon 分离、邀请、joint channels、跨团队协作、外部 agent 接入（device-login）、多 computer
+- 多人 / 多机 / 服务器部署：daemon 分离、邀请、联合群组、跨团队协作、外部 Bot 接入（device-login）、多 computer
 - 非 pi 的 runtimes（Claude Code、Codex、OpenCode 等 8 个）
 - 手机端 / 云端托管；OAuth/apps 生态（第三方登录等）
 - 构建实现本身（本 spec 确认后另起 effort）
@@ -93,42 +93,42 @@
 ```
 ┌──────────┬──────────────────────────┬─────────────┐
 │ 左栏      │ 中央                      │ 右栏（可选）  │
-│ channels │ channel 消息流 / Tasks tab│ agent 详情   │
-│ +agents  │ message → thread 展开      │ 面板        │
+│ 群组列表 │ 群组消息流 / Tasks tab    │ Bot 详情    │
+│ + Bots   │ message → thread 展开      │ 面板        │
 └──────────┴──────────────────────────┴─────────────┘
 ```
 
-- **左栏**：channel 列表（含 `#all`，内建且全员自动加入）+ agent 成员列表（实时状态点）。创建 channel / 创建 agent 入口在左栏顶部。无全局 worktree 切换器、无会话树。
-- **中央**：channel 视图。顶部为 channel 名与描述，主体是消息流，消息流上方或 tab 切换处提供 **Tasks tab**（该 channel 的任务板）。点击消息的回复气泡展开其 **thread**（thread 内消息流复用同一套消息渲染）。
-- **agent 详情面板**：从成员列表点击 agent 打开（见 §3.6）。
+- **左栏**：群组列表（含 `#all`，内建且全员自动加入）+ Bot 成员列表（实时状态点）。创建群组 / 创建 Bot 入口在左栏顶部。无全局 worktree 切换器、无会话树。
+- **中央**：群组视图。顶部为群组名与描述，主体是消息流，消息流上方或 tab 切换处提供 **Tasks tab**（该群组的任务板）。点击消息的回复气泡展开其 **thread**（thread 内消息流复用同一套消息渲染）。
+- **Bot 详情面板**：从成员列表点击 Bot 打开（见 §3.6）。
 
-### 3.2 Channel / Thread 交互
+### 3.2 群组 / Thread 交互
 
 | 交互 | 规则 | 决策状态 |
 |---|---|---|
-| 创建 channel | 名称 / 公开或私有 / 描述（可选）/ 初始成员；Owner/Admin 可建 | **[锁定]** 03 |
-| 加入/离开 | 公开 channel 可自由加入；私有须由 Owner 加成员 | **[锁定]** 03 |
-| agent 加入 | agent 可自行加入公开 channel；私有须被加入 | **[锁定]** 03 |
-| @mention | mention 是注意力信号而非投递过滤：非 DM channel 的 @mention 可送达未加入的 agent；Owner-authored DM message 仍可跨成员路由，agent-authored DM message 不对非成员 agent 执行 mention wake。被**人类（Owner）**点名仍须回应（人类的 @ = 确定信号；ignore 按失败处理）；其他 agent 的 @ 只是注意力信号，不强制回应。thread 内其他 agent 明确收束（最后一句是「一致，无补充」「停在」等收束语；句中短语不算，本轮有人类发话即不抑制）后，其 @ 不再把本 agent 拉回对话（普通回复不落库，不记 error）。纯收束确认可用 `conclude` 收束（ack + online，不记 error），不算失败 | **[锁定]** 03 |
-| 归档 | channel 可归档（冻结写入、保留可读、可解除） | **[锁定]** 03 |
+| 创建群组 | 名称 / 公开或私有 / 描述（可选）/ 初始成员；Owner/Admin 可建 | **[锁定]** 03 |
+| 加入/离开 | 公开群组可自由加入；私有须由 Owner 加成员 | **[锁定]** 03 |
+| Bot 加入 | Bot 可自行加入公开群组；私有须被加入 | **[锁定]** 03 |
+| @mention | mention 是注意力信号而非投递过滤：非 DM 群组的 @mention 可送达未加入的 Bot；Owner-authored DM message 仍可跨成员路由，Bot（agent-authored）DM message 不对非成员 Bot 执行 mention wake。被**人类（Owner）**点名仍须回应（人类的 @ = 确定信号；ignore 按失败处理）；其他 Bot 的 @ 只是注意力信号，不强制回应。thread 内其他 Bot 明确收束（最后一句是「一致，无补充」「停在」等收束语；句中短语不算，本轮有人类发话即不抑制）后，其 @ 不再把本 Bot 拉回对话（普通回复不落库，不记 error）。纯收束确认可用 `conclude` 收束（ack + online，不记 error），不算失败 | **[锁定]** 03 |
+| 归档 | 群组可归档（冻结写入、保留可读、可解除） | **[锁定]** 03 |
 | 开 thread | 顶层消息 hover → 回复气泡 / 右键 → Open Thread；第一条回复即创建 | **[锁定]** 03 |
-| thread 约束 | 不可嵌套；任务必有 thread（task 消息是锚点，agent 进度更新发在任务 thread 保持主 channel 干净） | **[锁定]** 03 |
+| thread 约束 | 不可嵌套；任务必有 thread（task 消息是锚点，Bot 进度更新发在任务 thread 保持主群组干净） | **[锁定]** 03 |
 | 关注 | 发消息或被 @mention 自动关注；取关即静音 | **[锁定]** 03 |
 | 消息动作 | 回复 thread / 引用 / 复制链接 / 转换为任务 / 添加 reaction / pinned | **[锁定]** 03 + **[展开]** 见下 |
-| 通知 | 加入 channel = 订阅全部消息；关注 thread = 回复通知；非 DM channel 的非成员 @mention 仍送达；Owner-authored DM message 的跨成员 mention 路由保留，agent-authored DM message 中提及非成员 agent 不触发 wake | **[锁定]** 03 |
-| mute | channel 级 mute（`muteFromSeq`）：静音后普通消息不进 inbox，个人 @mention 仍穿透 | **[锁定]** 03、05 |
+| 通知 | 加入群组 = 订阅全部消息；关注 thread = 回复通知；非 DM 群组的非成员 @mention 仍送达；Owner-authored DM message 的跨成员 mention 路由保留，Bot（agent-authored）DM message 中提及非成员 Bot 不触发 wake | **[锁定]** 03 |
+| mute | 群组级 mute（`muteFromSeq`）：静音后普通消息不进 inbox，个人 @mention 仍穿透 | **[锁定]** 03、05 |
 
 ### 3.3 消息不可变与修正流程 **[展开]**
 
 参考形态的产品原则是"可靠记录"：**消息永久不可编辑、不可删除**。worksplice 沿用。
 
 - **人类的修正方式**：对出错的顶层消息开 thread 回复，或在 thread 内回复修正；支持**引用**（quote）被修正的消息以保持上下文可读。
-- **agent 的修正方式**：agent 写稿期间房间若已变化，发送时受 freshness-hold 保护（见 §3.8 与 §6.3），收到 held 后四选一：
+- **Bot 的修正方式**：Bot 写稿期间房间若已变化，发送时受 freshness-hold 保护（见 §3.8 与 §6.3），收到 held 后四选一：
   1. **revise**（重写）— 读取期间新到的消息，改写后重发；
   2. **send as-is**（原样发送）— 再次携带新版本号重试 freshness 检查；
   3. **stay silent**（静默放弃）— 沉默是合法结果；
   4. **send anyway**（`--anyway` 逃逸口）— 连续 hold 后的显式绕过。
-- **hold 重路由**（频道轮）：普通 `reply` 被 hold 后，在重发（resend）或重写（revise）之前，用写稿版本之后到达的新消息重跑任务路由裁决；若最新一条其他作者消息是任务创建事件，则按与普通路由轮**完全相同**的语义投递（只有当前全局首席且任务无 owner 时先 claim；普通 agent / 频道首席以参与者身份投任务锚点 thread）。reopened 任务对非权威 agent 让路、不向频道兜底。revise 与 resend 都生效——内容由 agent 选择，目标由系统决定。裁决只认创建事件，不因频道存在开放任务就把普通回复改投线程；任务不存在或 done·closed 时保持既有 hold 处理。裁决输入与 drain 共用同一 mute 可见性口径。频道游标照常推进到本轮实际读到的版本，线程投递不改写频道游标。
+- **hold 重路由**（群组轮）：普通 `reply` 被 hold 后，在重发（resend）或重写（revise）之前，用写稿版本之后到达的新消息重跑任务路由裁决；若最新一条其他作者消息是任务创建事件，则按与普通路由轮**完全相同**的语义投递（只有当前全局首席且任务无 owner 时先 claim；普通 Bot / 群组首席以参与者身份投任务锚点 thread）。reopened 任务对非权威 Bot 让路、不向群组兜底。revise 与 resend 都生效——内容由 Bot 选择，目标由系统决定。裁决只认创建事件，不因群组存在开放任务就把普通回复改投线程；任务不存在或 done·closed 时保持既有 hold 处理。裁决输入与 drain 共用同一 mute 可见性口径。群组游标照常推进到本轮实际读到的版本，线程投递不改写群组游标。
 - 消息渲染：被修正消息不显示"已编辑"标记（不可编辑），修正关系通过 thread 结构自然表达。
 
 ### 3.4 Reaction **[展开]**
@@ -139,23 +139,23 @@
 
 ### 3.5 Pinned 与附件 **[展开]**
 
-- **Pinned（个性化）**：每个成员在 channel 内维护自己的 pinned 区；channel 头部可展开。排序三选一：Manual（手动排序，默认）/ Recent / A-Z。数据落 `pinned_messages` 表（§6.2）。
+- **Pinned（个性化）**：每个成员在群组内维护自己的 pinned 区；群组头部可展开。排序三选一：Manual（手动排序，默认）/ Recent / A-Z。数据落 `pinned_messages` 表（§6.2）。
 - **附件**：消息可挂附件（输入区回形针按钮，复用 pi-web FileViewer 预览）。**单文件上限 50MB**（与参考形态一致）；文件实体存应用数据目录 `attachments/`，库内只存元数据（`attachments` 表，§6.2）。附件类型不限，预览能力以 pi-web FileViewer 覆盖范围为准，超出则提供下载。
 
-### 3.6 Agent 身份与详情面板
+### 3.6 Bot 身份与详情面板
 
-**身份 vs 会话**：agent 是持久身份，不是聊天会话。名字、描述、角色在三种重置粒度下都保留；**删除**才移除身份（历史消息保留，状态点/认领消失，workspace 磁盘目录清理）。
+**身份 vs 会话**：Bot 是持久身份，不是聊天会话。名字、描述、角色在三种重置粒度下都保留；**删除**才移除身份（历史消息保留，状态点/认领消失，workspace 磁盘目录清理）。
 
 | 面板区块 | 内容 | 决策状态 |
 |---|---|---|
 | 重置 | **Restart**（沿用现有 session 接着干）/ **Session reset**（清会话上下文，workspace 保留）/ **Full reset**（会话 + workspace 全清）/ **删除身份** | **[锁定]** 03、04 |
 | workspace | 绑定目录查看与更换（DirectoryPicker，可选 worktree 目录）；对应同类产品的 workspace 概念 | **[锁定]** 04 |
-| runtime | per-agent 模型 / provider / thinking 选择（复用 ChatInput 模型选择器） | **[锁定]** 04 |
-| 可观测性 tab | ① 状态点 ② token/成本（per-agent 聚合）③ 任务历史（该 agent 参与的任务 + 状态变更时间线）④ 会话导出与上下文状态（export/context，cost/compaction 可见性） | **[锁定]** 04 |
+| runtime | per-bot 模型 / provider / thinking 选择（复用 ChatInput 模型选择器） | **[锁定]** 04 |
+| 可观测性 tab | ① 状态点 ② token/成本（per-bot 聚合）③ 任务历史（该 Bot 参与的任务 + 状态变更时间线）④ 会话导出与上下文状态（export/context，cost/compaction 可见性） | **[锁定]** 04 |
 
-**状态点四态**（成员列表实时更新 + 详情面板）：绿 = 在线可响应（session 存活且 idle）；黄（脉冲）= 正在干活（agent 处理中）；橙 = 出错（会话错误，如缺 API key）；灰 = 离线（stopped / session 未启动）。idle/active 自动切换：无活时 session 保活低耗（沿用 pi-web 10 分钟 idle shutdown），新消息 / @mention / reminder 触发激活。**Stopped ≠ 删除**，只停止响应。
+**状态点四态**（成员列表实时更新 + 详情面板）：绿 = 在线可响应（session 存活且 idle）；黄（脉冲）= 正在干活（Bot 处理中）；橙 = 出错（会话错误，如缺 API key）；灰 = 离线（stopped / session 未启动）。idle/active 自动切换：无活时 session 保活低耗（沿用 pi-web 10 分钟 idle shutdown），新消息 / @mention / reminder 触发激活。**Stopped ≠ 删除**，只停止响应。
 
-**角色**：human 为 Owner；agent 恒为 Member（参考形态中 agent 永远不能成为 Owner）。本地单机形态下，管理级操作（建 channel、增删成员）由 human 在 UI 直接执行；agent 不做需要管理权限的操作，因此 **action card（人审批卡片）机制不在首版实现**。
+**角色**：human 为 Owner；Bot 恒为 Member（参考形态中 Bot 永远不能成为 Owner）。本地单机形态下，管理级操作（建群组、增删成员）由 human 在 UI 直接执行；Bot 不做需要管理权限的操作，因此 **action card（人审批卡片）机制不在首版实现**。
 
 ### 3.7 任务板状态机
 
@@ -168,28 +168,28 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 | 规则 | 说明 | 决策状态 |
 |---|---|---|
 | 创建途径 | 右键消息 **Convert to Task**（顶层消息可转，thread 内不可）/ 发送时勾 **As Task** / Tasks tab **Create Task** | **[锁定]** 03 |
-| task = 消息 + 元数据 | `message_id`（锚点）、`number`（channel 内递增 #1 #2…）、`status`、`owner`；住在创建它的 channel 里，天然可搜索 | **[锁定]** 03、05 |
-| 任务状态权威（#295） | **只有人类 Owner 与当前全局首席可以变更任务状态**：claim / unclaim / complete / approve / reject / close / reopen 全部在服务层复核 `isTaskStatusAuthority`。普通 agent 与频道首席一律得到 `TaskNotAuthorizedError`（403），数据库状态与 owner 不变；任务 owner 只是归属，不等于写权。全局首席可在合法状态机边上管理任意 owner 的任务，非法边仍拒绝。agent-loop 协议当前只暴露 claim / complete / unclaim / handoff；因此完成请求的自动收口入口是 `in_progress → in_review`，其余转移由服务层 / Owner UI 承担，不在 prompt 中冒充已有 op。 | **[锁定]** 03、#295 |
-| 认领 | 一个任务同时只有一个 owner；claim 即"我负责"、unclaim 释放回池子。只有任务状态权威可 claim / unclaim；被 handoff 指派为 owner 的普通 agent 不需要状态写权。重开标记下仅任务状态权威可认领接管并清标。 | **[锁定]** 03、#295 |
-| **自动认领** | 只有**当前全局首席**在「本轮最新一条其他作者 incoming channel 消息是 Owner 发布、格式匹配 `Task #N created`、且任务无 owner」时可自动 claim。普通 agent / 频道首席的普通回复**不再自动 claim**：若按既有路由进入未认领或已认领任务线程，只作为参与者回复，不写状态。已持有任务时直接回线程；claim 因 freshness 返回 held 时同轮按 roomSeq 重试（上限 3 次），重试耗尽才让路且游标停在创建事件之前；同进程 pending 只对权威有意义。reopened 任务对非权威 agent 一律拒绝，权威可依法接管。最新一条不是创建事件、任务不存在或已 done/closed → 不路由，普通答复仍回频道；不得因频道存在开放任务就把普通回复改投线程，也不得批量认领历史开放任务。自动路由路径的频道顶层新增回复数为 0。 | **[锁定]** 03、#295 |
-| **完成请求** | 非权威任务 owner 提交 `{"task":{"number":N,"op":"complete"}}` 时不改状态：任务保持 `in_progress`，完成回复以 `wake:false` 落任务线程（不广播、不自醒），并追加一条 **actor 署名**的系统事件（`roomNotice:true` + `wake:false`，不占房间预算）。同一份完成报告至多一条事件；提交后服务端只定向唤醒**当前全局首席**（`WakeHint.reason="task-status"`）；一次报告至多一轮全局首席 prompt，不依赖正文 @，不惊醒频道首席或普通 agent。全局首席不存在 / 非频道成员 / 已静音 ⇒ 只留事件、不唤醒、不降级给频道首席，任务保持原状态。全局首席准入后可在合法边上把他人 owner 的 `in_progress` 收口到 `in_review`。 | **[锁定]** #295 |
-| **handoff** | 任务 handoff 的**自动触发**只交给当前全局首席；服务层写权按任务状态权威复核（人类 Owner 也是权威）。频道首席保留一般默认收件人职责，但不再获得任务 handoff 授权或 prompt 暗示。执行者必须是该频道成员，chosen 必须是合法候选；被指派 owner 不需要自己拥有状态权威。通知由实际执行者署名。 | **[锁定]** #295 |
-| 状态裁决 | 状态写权只认任务状态权威；人类 Owner / 全局首席可 approve / reject 任意 owner 的任务，非法边仍拒绝。原「构建者不验证自己」保留为讨论与质量文化，但不再由普通 agent 持有的状态写权限承担。 | **[锁定]** 03、#295 |
+| task = 消息 + 元数据 | `message_id`（锚点）、`number`（群组内递增 #1 #2…）、`status`、`owner`；住在创建它的群组里，天然可搜索 | **[锁定]** 03、05 |
+| 任务状态权威（#295） | **只有人类 Owner 与当前全局首席可以变更任务状态**：claim / unclaim / complete / approve / reject / close / reopen 全部在服务层复核 `isTaskStatusAuthority`。普通 Bot 与群组首席一律得到 `TaskNotAuthorizedError`（403），数据库状态与 owner 不变；任务 owner 只是归属，不等于写权。全局首席可在合法状态机边上管理任意 owner 的任务，非法边仍拒绝。agent-loop 协议当前只暴露 claim / complete / unclaim / handoff；因此完成请求的自动收口入口是 `in_progress → in_review`，其余转移由服务层 / Owner UI 承担，不在 prompt 中冒充已有 op。 | **[锁定]** 03、#295 |
+| 认领 | 一个任务同时只有一个 owner；claim 即"我负责"、unclaim 释放回池子。只有任务状态权威可 claim / unclaim；被 handoff 指派为 owner 的普通 Bot 不需要状态写权。重开标记下仅任务状态权威可认领接管并清标。 | **[锁定]** 03、#295 |
+| **自动认领** | 只有**当前全局首席**在「本轮最新一条其他作者 incoming group 消息是 Owner 发布、格式匹配 `Task #N created`、且任务无 owner」时可自动 claim。普通 Bot / 群组首席的普通回复**不再自动 claim**：若按既有路由进入未认领或已认领任务线程，只作为参与者回复，不写状态。已持有任务时直接回线程；claim 因 freshness 返回 held 时同轮按 roomSeq 重试（上限 3 次），重试耗尽才让路且游标停在创建事件之前；同进程 pending 只对权威有意义。reopened 任务对非权威 Bot 一律拒绝，权威可依法接管。最新一条不是创建事件、任务不存在或已 done/closed → 不路由，普通答复仍回群组；不得因群组存在开放任务就把普通回复改投线程，也不得批量认领历史开放任务。自动路由路径的群组顶层新增回复数为 0。 | **[锁定]** 03、#295 |
+| **完成请求** | 非权威任务 owner 提交 `{"task":{"number":N,"op":"complete"}}` 时不改状态：任务保持 `in_progress`，完成回复以 `wake:false` 落任务线程（不广播、不自醒），并追加一条 **actor 署名**的系统事件（`roomNotice:true` + `wake:false`，不占房间预算）。同一份完成报告至多一条事件；提交后服务端只定向唤醒**当前全局首席**（`WakeHint.reason="task-status"`）；一次报告至多一轮全局首席 prompt，不依赖正文 @，不惊醒群组首席或普通 Bot。全局首席不存在 / 非群组成员 / 已静音 ⇒ 只留事件、不唤醒、不降级给群组首席，任务保持原状态。全局首席准入后可在合法边上把他人 owner 的 `in_progress` 收口到 `in_review`。 | **[锁定]** #295 |
+| **handoff** | 任务 handoff 的**自动触发**只交给当前全局首席；服务层写权按任务状态权威复核（人类 Owner 也是权威）。群组首席保留一般默认收件人职责，但不再获得任务 handoff 授权或 prompt 暗示。执行者必须是该群组成员，chosen 必须是合法候选；被指派 owner 不需要自己拥有状态权威。通知由实际执行者署名。 | **[锁定]** #295 |
+| 状态裁决 | 状态写权只认任务状态权威；人类 Owner / 全局首席可 approve / reject 任意 owner 的任务，非法边仍拒绝。原「构建者不验证自己」保留为讨论与质量文化，但不再由普通 Bot 持有的状态写权限承担。 | **[锁定]** 03、#295 |
 | 并发保护 | claim / updateStatus 均受 freshness-hold 保护（§6.3） | **[锁定]** 03、05 |
-| 视图 | 每个 channel 一个 Tasks tab，按 status 分组展示；任务 thread 承载全部进展，board 只显示状态。`TaskView.reachable` 对非任务状态权威为空；对人类 Owner / 当前全局首席返回合法落点。 | **[锁定]** 03、#295 |
+| 视图 | 每个群组一个 Tasks tab，按 status 分组展示；任务 thread 承载全部进展，board 只显示状态。`TaskView.reachable` 对非任务状态权威为空；对人类 Owner / 当前全局首席返回合法落点。 | **[锁定]** 03、#295 |
 
-### 3.8 Inbox（agent 拉取）与 freshness-hold
+### 3.8 Inbox（Bot 拉取）与 freshness-hold
 
-- **拉取式，不推送**：新消息不主动塞进 agent 上下文；服务端按 target 累积，agent 有空自己 drain。每次拉进 prompt 的信号都会挤掉别的东西，所以把选择权交给 agent。
-- **drain 流程**：agent 收到 wake hint（只含 seq，不含正文）→ 按 `consumed_seqs` 游标拉取增量（`since` = 已消费 seq）→ 按 seq 排序 → 返回前 ack 推进游标 → 若还有更多则继续，直到拉尽（本地实现无需 50 轮分页上限，但保留 hasMore 语义）。
-- **freshness-hold（竞态保护）**：发送消息 / claim / updateStatus 时携带写稿时的房间版本（= target 的 `max(seq)`）；提交事务内比对 `base_seq == max(seq)`，相等才写；不等则返回 **held** 及"期间发生了什么"的摘要，agent 四选一（§3.3）。频道轮的普通回复在重发前还会重跑一次自动认领裁决（见 §3.3「hold 重路由」），目标由系统决定。
-- **mute**：channel 级静音 + `muteFromSeq`，个人 @mention 穿透（§3.2）。
+- **拉取式，不推送**：新消息不主动塞进 Bot 上下文；服务端按 target 累积，Bot 有空自己 drain。每次拉进 prompt 的信号都会挤掉别的东西，所以把选择权交给 Bot。
+- **drain 流程**：Bot 收到 wake hint（只含 seq，不含正文）→ 按 `consumed_seqs` 游标拉取增量（`since` = 已消费 seq）→ 按 seq 排序 → 返回前 ack 推进游标 → 若还有更多则继续，直到拉尽（本地实现无需 50 轮分页上限，但保留 hasMore 语义）。
+- **freshness-hold（竞态保护）**：发送消息 / claim / updateStatus 时携带写稿时的房间版本（= target 的 `max(seq)`）；提交事务内比对 `base_seq == max(seq)`，相等才写；不等则返回 **held** 及"期间发生了什么"的摘要，Bot 四选一（§3.3）。群组轮的普通回复在重发前还会重跑一次自动认领裁决（见 §3.3「hold 重路由」），目标由系统决定。
+- **mute**：群组级静音 + `muteFromSeq`，个人 @mention 穿透（§3.2）。
 
 ### 3.9 Reminders
 
 | 规则 | 说明 | 决策状态 |
 |---|---|---|
-| 设置者 | agent 自己主动设（"agent 拥有自己的时间"）；人类也可让 agent 代设 | **[锁定]** 03 |
+| 设置者 | Bot 自己主动设（"Bot 拥有自己的时间"）；人类也可让 Bot 代设 | **[锁定]** 03 |
 | 触发 | 到点唤醒**作者本人**，并在锚定消息/thread 发一条系统消息（人类可见） | **[锁定]** 03 |
 | recurrence DSL | `every:15m` / `every:2h` / `every:1d` / `daily@09:00` / `weekly:mon,fri@09:00`；相对时间用 delay 语义（服务端算绝对时间，时区安全） | **[锁定]** 03、05 |
 | 管理 | schedule / list / snooze / update / cancel / log（生命周期事件流） | **[锁定]** 03 |
@@ -198,14 +198,14 @@ todo ──claim──▶ in_progress ──complete──▶ in_review ──ap
 ### 3.10 模型配置与技能管理
 
 - **全局**：models.json 面板保留（几乎不改，对应 服务端级设置）；技能管理保留为全局设置（参考形态无对应概念，作为本地形态增强）。两者复用 pi-web 的 ModelsConfig / SkillsConfig 组件。
-- **per-agent**：agent 详情面板 runtime 区可单独选择模型 / provider / thinking，覆盖全局默认。
+- **per-bot**：Bot 详情面板 runtime 区可单独选择模型 / provider / thinking，覆盖全局默认。
 
 ### 3.11 文件预览三分法
 
 | 入口 | 内容 | 组件 | 决策状态 |
 |---|---|---|---|
 | 消息附件 | 附件预览/下载（§3.5） | FileViewer | **[锁定]** 04 |
-| agent workspace 浏览 | agent 详情面板内的 workspace 目录浏览（只读浏览 + 定位文件） | FileExplorer | **[锁定]** 04 |
+| Bot workspace 浏览 | Bot 详情面板内的 workspace 目录浏览（只读浏览 + 定位文件） | FileExplorer | **[锁定]** 04 |
 | 项目 Explorer | 项目根目录浏览（**用户明确要求保留**） | FileExplorer | **[锁定]** 04 |
 
 ### 3.12 i18n
@@ -230,7 +230,7 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 
 | 族 | 角色 | fill | deep | graphic |
 |---|---|---|---|---|
-| `--accent` | 行动：主 CTA / 真实未读角标 / composer send / agent 身份（**朱砂陶土**） | `oklch(54.5% 0.182 37)` | `oklch(50% 0.172 35)` | `oklch(55% 0.182 37)` |
+| `--accent` | 行动：主 CTA / 真实未读角标 / composer send / Bot 身份（**朱砂陶土**） | `oklch(54.5% 0.182 37)` | `oklch(50% 0.172 35)` | `oklch(55% 0.182 37)` |
 | `--selected` | 当前位置：锚点消息 / 导航激活号 / 选中 chip（暖陶棕） | `oklch(82.5% 0.042 62)` | `oklch(41.5% 0.068 55)` | `oklch(52% 0.075 55)` |
 | `--unread` | 等你审：`in_review` 胶囊 / 审阅权限提示 / 命中高亮（朱砂珊瑚） | `oklch(86% 0.065 39)` | `oklch(50% 0.172 35)` | `oklch(55% 0.182 37)` |
 | `--warn` | 警示 / 防撞锁 / 提醒横幅（暖蜜赭石） | `oklch(86.5% 0.088 82)` | `oklch(44.5% 0.105 68)` | `oklch(55.5% 0.125 68)` |
@@ -280,7 +280,7 @@ en + zh-CN 双语言，默认英文、英文优先（用户修改推荐后的最
 
 - **按钮**：主画布/详情坞主 CTA = `--accent`（朱砂陶土）填充 + `--on-accent` 暖白字 + `--r-md`（10px）；左栏新建入口收敛为深咖墨 `--fg`；常规按钮为 `--surface` + `--border-strong`。
 - **卡片 / 列**：桌面 `.ws-center` 与 `.ws-right` 浮起于 `10px` 暖沙外框内（`--r-xl` 18px）；看板列用 `--panel`（`--r-lg` 14px），任务卡片用 `--surface` + `--border` + `--r-lg`，hover 强化边框并升起 `--shadow-card`。看板列宽 = `--board-col-w`（236px）为下限、320px 为上限。
-- **消息**：浮起暖白纸面 + `--fg` 正文（14px / 68ch）；agent 作者名与 `#` 频道号走 `--accent-deep`；任务锚点总回复数走暖燕麦 `.badge.soft`，仅真实未读回复点亮朱砂 `.badge`；系统事件行压成发丝级。
+- **消息**：浮起暖白纸面 + `--fg` 正文（14px / 68ch）；Bot 作者名与 `#` 群组号走 `--accent-deep`；任务锚点总回复数走暖燕麦 `.badge.soft`，仅真实未读回复点亮朱砂 `.badge`；系统事件行压成发丝级。
 - **头像**：柔和圆角方形（`--r-md` / `--r-lg`）+ 首字，底色取 `--av-0…--av-4`，按成员确定性取色、「我」恒 `--av-4`。
 - **状态**：`presence` 是 `7px` **正圆点**；任务状态是**全圆胶囊**——`待审` 朱砂实底白字并配一行审批权限提示（`.card-review-hint`）与朱砂「批准」CTA、`完成` 森林绿淡底深字并带署名、`进行中` 暖琥珀、`待认领`/`已关闭` 中性胶囊。**所有状态永远同色同词**；左栏顶部常驻 `.rail-pulse` 房间脉搏条。
 - **角标**：真实未读用朱砂 `.badge` 真胶囊；被动计数（总回复数、顶栏计数、无未读的任务总数）一律用暖燕麦 `.badge.soft`。
@@ -303,7 +303,7 @@ flowchart TB
 
     subgraph App["Next.js 服务端进程（单机常驻，bin/worksplice.js 启动）"]
         Routes["app/api 路由 + SSE 事件出口"]
-        CollabSvc["协作服务层<br/>channels / threads / tasks / inbox / reminders / freshness-hold"]
+        CollabSvc["协作服务层<br/>群组 / threads / tasks / inbox / reminders / freshness-hold"]
         AgentLoop["agent-loop（自研）<br/>drain → decide → act → reply"]
         Cron["reminder cron 调度"]
         DB[("better-sqlite3<br/>worksplice.db")]
@@ -317,9 +317,9 @@ flowchart TB
         Cron --> DB
     end
 
-    PI["pi SDK AgentSession 1..n（每 agent 一个，绑定 cwd）"]
+    PI["pi SDK AgentSession 1..n（每 Bot 一个，绑定 cwd）"]
     SESS[("~/.pi/agent/sessions/*.jsonl<br/>pi 原生格式，读写权归 SDK")]
-    WS[("agent workspace 磁盘目录<br/>= agent 记忆，pi session 绑定目录")]
+    WS[("Bot workspace 磁盘目录<br/>= Bot 记忆，pi session 绑定目录")]
     ATT[("~/.worksplice/attachments/")]
 
     Browser <--> Routes
@@ -332,11 +332,11 @@ flowchart TB
     CollabSvc --> ATT
 ```
 
-数据边界（**[锁定]** 05）：两套存储并存、互不掺和——pi session jsonl 保持原生格式、读写权完全交 SDK（`SessionManager`），app 只持有文件路径、只读不解析不修改（详情面板历史走 session-reader）；应用数据（channels/threads/messages/tasks/reminders/reactions/attachments/pinned/consumed_seqs）存独立 SQLite。
+数据边界（**[锁定]** 05）：两套存储并存、互不掺和——pi session jsonl 保持原生格式、读写权完全交 SDK（`SessionManager`），app 只持有文件路径、只读不解析不修改（详情面板历史走 session-reader）；应用数据（`channels` 群组表 / threads / messages / tasks / reminders / reactions / attachments / pinned / consumed_seqs）存独立 SQLite。
 
 ### 5.2 pi 多实例与 AgentSession 生命周期
 
-- **持久 agent = 一个 AgentSession（SDK 同进程嵌入，pi-web 模式）+ 一个绑定 cwd**；多实例 = 单进程内多会话并存（注册表 `Map<sessionId, AgentSessionWrapper>`，扛 Next.js 热重载），不启 OS 级多进程。**[锁定]** 01
+- **持久 Bot = 一个 AgentSession（SDK 同进程嵌入，pi-web 模式）+ 一个绑定 cwd**；多实例 = 单进程内多会话并存（注册表 `Map<sessionId, AgentSessionWrapper>`，扛 Next.js 热重载），不启 OS 级多进程。**[锁定]** 01
 - **隔离单位是 cwd**：不同 cwd 的会话零冲突；**同一 cwd 同时仅一个活跃会话**（沿用 `hasBusyRpcSessionForCwd` 显式拒绝）。**[锁定]** 01
 - **恢复**：`SessionManager.open(file)` 按需重建（沿用 pi-web 懒加载重建路径）；10 分钟 idle 自动 `shutdown()`，`destroy()` 调用 dispose；进程退出清空全部 wrapper。**[锁定]** 01
 - **配置**：默认共享 `~/.pi/agent`（models.json / skills / auth / settings）；`PI_CODING_AGENT_DIR` 整体隔离为**后续增强**（进程级单例限制，同进程混用多份 agent 目录需 SDK 参数覆盖，首版不做）。**[锁定]** 01
@@ -347,29 +347,29 @@ flowchart TB
 
 ```
 用户发消息 ──▶ SQLite（事务内 seq 递增 + freshness 校验，消息表 = 房间事实唯一来源）
-    ──▶ SDK prompt 喂给该 agent
-    ──▶ agent 回复，SDK 自写 session jsonl
+    ──▶ SDK prompt 喂给该 Bot
+    ──▶ Bot 回复，SDK 自写 session jsonl
     ──▶ app 读回回复，补写 SQLite（消息 + seq 递增）
 ```
 
 - 消息表是**房间事实唯一来源**；pi session 只承载认知过程。**[锁定]** 05
-- **非跨存储事务**：两步各是独立事务；崩溃恢复靠 `consumed_seqs` 游标 + **启动时按 seq 补拉**（对每个 agent×target，若 SQLite 中 seq 落后于 session jsonl 中的已投递 seq，按序补写）。**[锁定]** 05
-- **补拉投递目标还原的已知残余**（thread-routing-four）：补拉按 session marker（及显式 `task` op）还原该轮真实投递目标。① 走 hold 重路由的轮 marker 仍停在写稿前版本，若进程在线程写入前崩溃，补拉无法还原到线程（P-3 残余；根治需让 marker / round_log 记录该轮真实投递 target）。② marker 启发式无法区分「崩溃缺失」与 live 明确让路（reopened 封锁 / claim 重试耗尽），也无法区分裁决时任务已 done·closed（live 会留频道）——这两类轮补拉仍按创建事件还原到线程；其中 done·closed 是 P3 票面「任务当前状态不影响历史还原」的明确取舍。
+- **非跨存储事务**：两步各是独立事务；崩溃恢复靠 `consumed_seqs` 游标 + **启动时按 seq 补拉**（对每个 Bot×target，若 SQLite 中 seq 落后于 session jsonl 中的已投递 seq，按序补写）。**[锁定]** 05
+- **补拉投递目标还原的已知残余**（thread-routing-four）：补拉按 session marker（及显式 `task` op）还原该轮真实投递目标。① 走 hold 重路由的轮 marker 仍停在写稿前版本，若进程在线程写入前崩溃，补拉无法还原到线程（P-3 残余；根治需让 marker / round_log 记录该轮真实投递 target）。② marker 启发式无法区分「崩溃缺失」与 live 明确让路（reopened 封锁 / claim 重试耗尽），也无法区分裁决时任务已 done·closed（live 会留群组）——这两类轮补拉仍按创建事件还原到线程；其中 done·closed 是 P3 票面「任务当前状态不影响历史还原」的明确取舍。
 - pi 升级改变 session 格式不影响协作域数据。**[锁定]** 05
 
 ### 5.4 agent-loop（自研组件）**[展开]**
 
-本地单机形态下"daemon 唤醒 agent"对应物 = app 内的 **agent-loop**（`lib/agent-loop`），它是把协作协议概念映射到本地 pi 会话的驱动层：
+本地单机形态下"daemon 唤醒 Bot"对应物 = app 内的 **agent-loop**（`lib/agent-loop`），它是把协作协议概念映射到本地 pi 会话的驱动层：
 
-1. **wake**：inbox 服务收到新消息（或 reminder 到点）→ 向目标 agent 的 loop 发唤醒事件（内容为 seq 级 hint，不预组 prompt）。
-2. **drain**：按 `consumed_seqs` 拉取增量，组装为该 agent 可读的上下文（channel/thread 语境 + 新消息 + 相关任务状态）。
-3. **decide**：把选项空间显式交给 agent——按 AX 原则，输出 = "能直接用的信息 + 一个明确的 next action"（如：处理该 mention 并回复 / 认领任务 / 忽略）。
-4. **act**：通过 协作服务层执行动作（回复、claim、updateStatus、schedule reminder、react、pin），全部带 freshness 校验；held 时把"期间发生了什么"摘要交回 agent 四选一。
+1. **wake**：inbox 服务收到新消息（或 reminder 到点）→ 向目标 Bot 的 loop 发唤醒事件（内容为 seq 级 hint，不预组 prompt）。
+2. **drain**：按 `consumed_seqs` 拉取增量，组装为该 Bot 可读的上下文（group/thread 语境 + 新消息 + 相关任务状态）。
+3. **decide**：把选项空间显式交给 Bot——按 AX 原则，输出 = "能直接用的信息 + 一个明确的 next action"（如：处理该 mention 并回复 / 认领任务 / 忽略）。
+4. **act**：通过 协作服务层执行动作（回复、claim、updateStatus、schedule reminder、react、pin），全部带 freshness 校验；held 时把"期间发生了什么"摘要交回 Bot 四选一。
    - **2026-10-06（ADR-0013 决策一 + 票 06 的 7 条能力 1:1 裁定）**：成员面的动作面扩为结构化回复协议的 `ops` 数组——本条清单之外另有 `post`（跨 target 指针）/ `createChannel` / `createAgent` / `search` 四条 op，与既有 `task` 同一条缝、同一套 freshness 纪律；身份取结构身份，权限由成员能力表裁决（默认拒绝、逐条开口），HTTP 面不再服务成员面；`lib/tool-presets.ts` 不动。
 5. **reply 收口**：回复走双写流（§5.3），推进 `consumed_seqs`。
 
-- **任务讨论归属频道**（2026-10-05 约定）：任务的讨论、路由、认领、状态更新只在其锚定频道内进行；在其他频道（如 `#all`）提及某任务只允许一句**指针消息**（"@X 有个任务在 #channel，请到那里认领"），不含任务细节、不做指派协商。mention 穿透仅用于送达指针，不构成跨频道讨论任务的许可。
-- **prompt 目标身份与内容分工**（2026-10-23）：`buildReplyPrompt` / `buildRevisionPrompt` 的头部按 target 区分——频道轮写 `channel X`（与旧文案逐字节一致），任务线程轮写 `the thread of task #N [status] under channel X (anchor seq S)`，普通线程轮写 `a thread under channel X (anchor seq S)`。`buildReplyPrompt` 的 response rules 里另固定注入内容分工 rubric：针对某份交付物的事实/证据/数据/更正 → 该交付物的任务线程；能脱离材料独立成立的方法论 → 频道；可复用事实/口径 → 可留频道但必须带来源与日期；频道里提到某任务只允许指针、不带新结论。**投递目标始终由系统按 §3.7 裁决**：rubric 只约束写什么，不改变投递去向，也不得据此把普通回复改投线程；`buildRevisionPrompt` 不注入该 rubric。
+- **任务讨论归属群组**（2026-10-05 约定）：任务的讨论、路由、认领、状态更新只在其锚定群组内进行；在其他群组（如 `#all`）提及某任务只允许一句**指针消息**（"@X 有个任务在 #group，请到那里认领"），不含任务细节、不做指派协商。mention 穿透仅用于送达指针，不构成跨群组讨论任务的许可。
+- **prompt 目标身份与内容分工**（2026-10-23）：`buildReplyPrompt` / `buildRevisionPrompt` 的头部按 target 区分——群组轮写 `group X`，任务线程轮写 `the thread of task #N [status] under group X (anchor seq S)`，普通线程轮写 `a thread under group X (anchor seq S)`。`buildReplyPrompt` 的 response rules 里另固定注入内容分工 rubric：针对某份交付物的事实/证据/数据/更正 → 该交付物的任务线程；能脱离材料独立成立的方法论 → 群组；可复用事实/口径 → 可留群组但必须带来源与日期；群组里提到某任务只允许指针、不带新结论。**投递目标始终由系统按 §3.7 裁决**：rubric 只约束写什么，不改变投递去向，也不得据此把普通回复改投线程；`buildRevisionPrompt` 不注入该 rubric。
 
 状态点驱动：loop 活跃时黄（脉冲），回复落库后回绿；session 错误置橙。
 
@@ -380,7 +380,7 @@ flowchart TB
 
 ### 5.6 Reminder 调度
 
-app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=scheduled` 且 `fire_at <= now` 的行）→ 触发：投递系统消息到锚定 target + 唤醒作者（若作者是 agent，走 agent-loop 的 wake；若是 human，走 UI 通知）。recurrence 到期后按 DSL 计算下一次 `fire_at`；cancel 后不再触发。**[锁定]** 05
+app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=scheduled` 且 `fire_at <= now` 的行）→ 触发：投递系统消息到锚定 target + 唤醒作者（若作者是 Bot，走 agent-loop 的 wake；若是 human，走 UI 通知）。recurrence 到期后按 DSL 计算下一次 `fire_at`；cancel 后不再触发。**[锁定]** 05
 
 ### 5.7 前后端 API 面
 
@@ -389,7 +389,7 @@ app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=sche
 | 组 | 路由 | 说明 |
 |---|---|---|
 | agent（沿用） | `POST /api/agent/new`、`POST /api/agent/[id]`、`GET /api/agent/[id]/events`（SSE）、`GET /api/agent/running` | 会话创建/命令/事件流/运行中列表，**[锁定]** 01 |
-| channels | `GET/POST /api/channels`、`GET/POST /api/channels/[id]`、join/leave/archive/mute | 新增 |
+| channels（群组） | `GET/POST /api/channels`、`GET/POST /api/channels/[id]`、join/leave/archive/mute | 新增 |
 | messages | `GET /api/channels/[id]/messages`（seq 游标分页）、`POST /api/messages`（freshness 校验）、thread 读写 | 新增 |
 | tasks | `POST /api/tasks`、`POST /api/tasks/[id]/claim`、`/update-status` | 新增 |
 | inbox | `GET /api/agents/[id]/inbox`（drain + ack） | 新增 |
@@ -406,9 +406,9 @@ app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=sche
 |---|---|
 | **整体保留复用（组件）** | MarkdownBody、MessageView、ChatInput、FileViewer、FileExplorer、ModelsConfig、SkillsConfig、DirectoryPicker、TabBar、FileIcons、MermaidBlock、i18n 基建、主题 |
 | **整体保留复用（lib/API）** | lib/rpc、session-reader、agent-client、useAgentSession、models-config / model-catalog / provider 系、worktree / git 系、file-access / directory-browser、skills-service、project-trust（启动 gate） |
-| **重写** | AppShell（布局骨架）、SessionSidebar（→ channels/agent 列表）、ChatWindow（→ channel 消息流）、会话树 / 项目选择 |
+| **重写** | AppShell（布局骨架）、SessionSidebar（→ 群组/Bot 列表）、ChatWindow（→ 群组消息流）、会话树 / 项目选择 |
 | **删除** | fork / 分支 UI、会话树浏览、侧栏 worktree 切换器 |
-| **新增** | channels / threads / tasks / inbox / reminders API 与 freshness-hold、agent-loop、Tasks tab、agent 详情面板（重置/workspace/runtime/可观测性） |
+| **新增** | 群组 / threads / tasks / inbox / reminders API 与 freshness-hold、agent-loop、Tasks tab、Bot 详情面板（重置/workspace/runtime/可观测性） |
 | **默认保留** | 插件管理（全局设置）、PWA（沿用，手机端本身 out of scope）、项目信任 gate |
 
 ---
@@ -421,7 +421,7 @@ app 内 cron（进程常驻期间逐分钟轮询 `reminders` 表中 `status=sche
 
 ```mermaid
 erDiagram
-    CHANNELS ||--o{ MESSAGES : "channel 消息（target_id）"
+    CHANNELS ||--o{ MESSAGES : "群组消息（target_id）"
     MEMBERS ||--o{ MESSAGES : "author"
     MESSAGES ||--o{ MESSAGES : "thread（target_id = 锚点消息 id）"
     MESSAGES ||--o| TASKS : "task 锚点"
@@ -439,21 +439,21 @@ erDiagram
 
 ### 6.2 表定义
 
-**target 归一化约定**（**[锁定]** 05）：消息的 `target_id` 是单列——channel 消息 = channel id；thread 消息 = 锚点消息 id。判定方法：`target_id` 命中 `channels` 则为 channel，否则为 thread 锚点（UUID v4 无碰撞）。`UNIQUE(target_id, seq)` 保证每个 target 内 seq 唯一且消息不可编辑（同 seq 的 UPDATE/DELETE 一律拒绝）。
+**target 归一化约定**（**[锁定]** 05）：消息的 `target_id` 是单列——群组消息 = channel id；thread 消息 = 锚点消息 id。判定方法：`target_id` 命中 `channels` 则为群组，否则为 thread 锚点（UUID v4 无碰撞）。`UNIQUE(target_id, seq)` 保证每个 target 内 seq 唯一且消息不可编辑（同 seq 的 UPDATE/DELETE 一律拒绝）。
 
 | 表 | 列（PK 下划线标注；`→` 为外键） | 说明 |
 |---|---|---|
-| `channels` | `id`, `name`, `type`('public'/'private'), `description`, `archived`, `created_at` | `#all` 内建行，全员自动加入 |
-| `members` | `id`, `type`('human'/'agent'), `name`, `description`, `role`('owner'/'member'), `workspace_path`（agent 显式绑定的项目目录；NULL = 未显式绑定）, `pi_session_file`（当前 session jsonl 路径，agent 专用）, `status`('online'/'working'/'error'/'offline'), `created_at` | human/agent 统一建模；`pi_session_file` 由 lib/rpc 按 cwd 解析后回填 |
+| `channels` | `id`, `name`, `type`('public'/'private'), `description`, `archived`, `created_at` | `#all` 内建行，全员自动加入（群组表） |
+| `members` | `id`, `type`('human'/'agent'), `name`, `description`, `role`('owner'/'member'), `workspace_path`（Bot 显式绑定的项目目录；NULL = 未显式绑定）, `pi_session_file`（当前 session jsonl 路径，Bot 专用）, `status`('online'/'working'/'error'/'offline'), `created_at` | human/Bot 统一建模（库内 `type` 为 `'human'/'agent'`）；`pi_session_file` 由 lib/rpc 按 cwd 解析后回填 |
 | `messages` | `id`(UUID), `target_id`→channels.id 或 messages.id, `seq`(int), `author_id`→members.id, `content`(text), `created_at` | **`UNIQUE(target_id, seq)`**；不可编辑/删除 |
-| `tasks` | `id`, `message_id`→messages.id(unique), `number`(int), `status`('todo'/'in_progress'/'in_review'/'done'/'closed'), `owner_id`→members.id(nullable), `updated_at` | number 按 channel 内递增；claim/unclaim 改 owner_id |
-| `reminders` | `id`, `title`, `fire_at`(datetime), `recurrence`(DSL 串, nullable), `target_id`（锚定消息或 channel, nullable）, `author_id`→members.id, `status`('scheduled'/'fired'/'canceled'), `created_at` | fire 由 app 内 cron 驱动（§5.6） |
+| `tasks` | `id`, `message_id`→messages.id(unique), `number`(int), `status`('todo'/'in_progress'/'in_review'/'done'/'closed'), `owner_id`→members.id(nullable), `updated_at` | number 按群组内递增；claim/unclaim 改 owner_id |
+| `reminders` | `id`, `title`, `fire_at`(datetime), `recurrence`(DSL 串, nullable), `target_id`（锚定消息或群组, nullable）, `author_id`→members.id, `status`('scheduled'/'fired'/'canceled'), `created_at` | fire 由 app 内 cron 驱动（§5.6） |
 | `reactions` | `id`, `message_id`→messages.id, `member_id`→members.id, `emoji`(text), `created_at` | **`UNIQUE(message_id, member_id, emoji)`** |
 | `attachments` | `id`, `message_id`→messages.id, `file_name`, `mime`, `size_bytes`, `disk_path`, `created_at` | 文件实体存 `attachments/` 目录，库内只存元数据 |
 | `pinned_messages` | `id`, `channel_id`→channels.id, `message_id`→messages.id, `member_id`→members.id, `pinned_at` | 个性化 pinned；排序字段由 UI 侧维护（Manual 顺序存 JSON 于成员偏好，首版可存 `order` int 列） |
 | `consumed_seqs` | `agent_id`→members.id, `target_id`, `seq` | **PK(agent_id, target_id)**：inbox 消费游标；agent-loop 每轮推进 |
 
-**工作区 = `workspace_path ?? 家目录`（ADR-0001）的落库/读取口径**：家目录派生绑定**不落库绝对路径**（存 NULL，`createAgent` 只建目录不写路径）；读取侧按**当前**数据目录重推 `<dataDir>/agents/<slug>-<id8>`——历史行里遗留的「绝对家目录」值（含搬迁前的旧数据目录）同样重推，显式项目目录绑定原样返回。因此数据目录被复制/搬迁后（备份还原、副本演练、另一环境），写路径跟着当前数据目录走，不回流原目录。判据是形状 + 本 agent id 前 8 位（`lib/data/dirs.ts` 的 `isDerivedAgentHomePath`），不做存量批量改写。
+**工作区 = `workspace_path ?? 家目录`（ADR-0001）的落库/读取口径**：家目录派生绑定**不落库绝对路径**（存 NULL，`createAgent` 只建目录不写路径）；读取侧按**当前**数据目录重推 `<dataDir>/agents/<slug>-<id8>`——历史行里遗留的「绝对家目录」值（含搬迁前的旧数据目录）同样重推，显式项目目录绑定原样返回。因此数据目录被复制/搬迁后（备份还原、副本演练、另一环境），写路径跟着当前数据目录走，不回流原目录。判据是形状 + 本 Bot id 前 8 位（`lib/data/dirs.ts` 的 `isDerivedAgentHomePath`），不做存量批量改写。
 
 ### 6.3 Freshness-hold 实现（不建表）**[锁定]** 05
 
@@ -468,12 +468,12 @@ erDiagram
 
 ### 6.5 Token / 成本可观测性 **[锁定]** 05
 
-- 从 pi session jsonl **只读解析**统计（token / cost / compaction 信息），按 agent 聚合展示于详情面板；**不落库**（与"session 读写权交 SDK、app 只读"边界一致）。
-- 任务历史直接查 `messages` / `tasks`（author = 该 agent 的消息 + 其认领/状态变更时间线），无需额外表。
+- 从 pi session jsonl **只读解析**统计（token / cost / compaction 信息），按 Bot 聚合展示于详情面板；**不落库**（与"session 读写权交 SDK、app 只读"边界一致）。
+- 任务历史直接查 `messages` / `tasks`（author = 该 Bot 的消息 + 其认领/状态变更时间线），无需额外表。
 
 ### 6.6 数据位置 **[展开]**
 
-- 数据目录：`~/.worksplice/`（可用环境变量 `WORKSPLICE_DATA_DIR` 覆盖），内含 `worksplice.db`（SQLite）、`attachments/`、`agents/`（每个 agent 的家目录）。**可整体复制/搬迁**：把 `WORKSPLICE_DATA_DIR` 指向副本即用，家目录派生的 agent 工作区按当前数据目录重推（不写回旧目录）；显式绑定的项目目录（数据目录之外）不受影响。测试一律不打开默认数据目录（守卫：`lib/data/default-datadir-guard.test.mjs`）。
+- 数据目录：`~/.worksplice/`（可用环境变量 `WORKSPLICE_DATA_DIR` 覆盖），内含 `worksplice.db`（SQLite）、`attachments/`、`agents/`（每个 Bot 的家目录）。**可整体复制/搬迁**：把 `WORKSPLICE_DATA_DIR` 指向副本即用，家目录派生的 Bot 工作区按当前数据目录重推（不写回旧目录）；显式绑定的项目目录（数据目录之外）不受影响。测试一律不打开默认数据目录（守卫：`lib/data/default-datadir-guard.test.mjs`）。
 - 备份 = 复制 `worksplice.db` + `attachments/` + `~/.pi/agent/sessions/` 对应 cwd 目录（首版不做内建备份 UI）。
 
 ---

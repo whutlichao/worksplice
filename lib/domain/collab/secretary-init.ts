@@ -20,7 +20,7 @@ import { MEMORY_FILE_NAME } from "../../data/dirs.ts";
 
 /** 秘书描述（spec §2.3）：展示于成员列表/详情面板。内容层英文硬编码（docs/i18n.md 分层规则）。 */
 export const SUSAN_DESCRIPTION =
-  "worksplice secretary: joins every channel, knows the system guide, handles channel/member creation and lookups, and points to the Owner UI when an action is out of scope";
+  "worksplice secretary: joins every group, knows the system guide, handles group/bot creation and lookups, and points to the Owner UI when an action is out of scope";
 
 /** 办公室频道（spec §1.3）：私有频道，成员 = Owner + 秘书；幂等判定键 = name 全等（§6.2-④）。
  *  新名英文（内容层），旧名只用于查找既有频道（LEGACY_OFFICE_CHANNEL_NAMES，不迁移存量）。 */

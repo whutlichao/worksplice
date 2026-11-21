@@ -267,7 +267,7 @@ test("MessageMoreMenu omits the pin item when onTogglePin is absent, even when p
     );
 
     assert.doesNotMatch(html, /Unpin/);
-    assert.doesNotMatch(html, /Pin to channel/);
+    assert.doesNotMatch(html, /Pin to group/);
 });
 
 test("MessageMoreMenu pins and unpins through the same item label switch", () => {
@@ -281,7 +281,7 @@ test("MessageMoreMenu pins and unpins through the same item label switch", () =>
         }),
     );
     assert.match(pinned, /Unpin/);
-    assert.doesNotMatch(pinned, /Pin to channel/);
+    assert.doesNotMatch(pinned, /Pin to group/);
 
     const unpinned = renderI18n(
         React.createElement(MessageMoreMenu, {
@@ -291,7 +291,7 @@ test("MessageMoreMenu pins and unpins through the same item label switch", () =>
             onTogglePin: () => undefined,
         }),
     );
-    assert.match(unpinned, /Pin to channel/);
+    assert.match(unpinned, /Pin to group/);
 });
 
 // 动作栏「转为任务」键（§3.7 创建途径）：票 16 起收进 `···` 二级菜单；
@@ -476,7 +476,7 @@ test("ChannelView shows the channel header with the members entry and archive ba
     assert.match(html, /general/);
     assert.match(html, /Archived/);
     // 成员数不再有独立徽标：数量只出现在可展开的成员面板入口按钮（含人类）
-    assert.match(html, /Channel members/);
+    assert.match(html, /Group members/);
     assert.doesNotMatch(html, /2 members/);
 });
 
@@ -739,7 +739,7 @@ test("MessageRow renders a count badge when multiple agents abandoned the messag
     );
 
     assert.match(html, /title="Nova：r1；Pulse：r2"/);
-    assert.match(html, /2 agents did not reply/);
+    assert.match(html, /2 bots did not reply/);
 });
 
 test("MessageRow does not render the not-replied badge without abandonedMarks", () => {
@@ -819,9 +819,9 @@ test("DM 头部不渲染成员管理/归档/静音入口，保留提醒与 pinne
     assert.doesNotMatch(html, /Leave|Join/);
     assert.doesNotMatch(html, /Archive|Unarchive/);
     assert.doesNotMatch(html, /Mute notifications/);
-    assert.doesNotMatch(html, /Channel members/);
+    assert.doesNotMatch(html, /Group members/);
     // 复用频道消息体验：提醒 + pinned 入口仍在
-    assert.match(html, /Set a channel reminder/);
+    assert.match(html, /Set a group reminder/);
     assert.match(html, /Toggle pinned messages/);
     // 票 #238：DM 没有房间波次语义，Stop 不显示
     assert.doesNotMatch(html, /Stop the current room wave/);
@@ -1514,11 +1514,11 @@ test("空频道文案两包同步：新增 messages.emptyChannel，journey.* 七
     const { zhCNLocale } = await import("../lib/i18n/messages/zh-CN.ts");
     assert.equal(
         zhCNLocale.messages["messages.emptyChannel"],
-        "该频道还没有消息",
+        "该群组还没有消息",
     );
     assert.equal(
         enLocale.messages["messages.emptyChannel"],
-        "No messages in this channel yet",
+        "No messages in this group yet",
     );
     for (const key of [
         "journey.describe.title",
@@ -1630,7 +1630,7 @@ test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务�
     assert.match(full, /aria-label="More message actions"/);
     assert.equal(full.split('class="btn btn-ghost btn-sm msg-more-menu-item"').length - 1, 4);
     assert.match(full, /Add a reaction/);
-    assert.match(full, /Pin to channel/);
+    assert.match(full, /Pin to group/);
     assert.match(full, /Set a reminder on this message/);
     assert.match(full, /Convert to task/);
 
@@ -1639,11 +1639,11 @@ test("··· 二级菜单展开后包含 reaction、pin、提醒与转为任务�
         onTogglePin: () => undefined,
     });
     assert.match(pinned, /Unpin/);
-    assert.doesNotMatch(pinned, /Pin to channel/);
+    assert.doesNotMatch(pinned, /Pin to group/);
 
     const bare = renderMenu();
     assert.doesNotMatch(bare, /msg-more-menu-item/);
-    assert.doesNotMatch(bare, /Add a reaction|Pin to channel|Set a reminder|Convert to task/);
+    assert.doesNotMatch(bare, /Add a reaction|Pin to group|Set a reminder|Convert to task/);
 });
 
 test("··· 二级菜单项带专属 class：几何单点给在 CSS，不再靠内联样式兜底", () => {
@@ -1710,7 +1710,7 @@ test("消息行默认只露高频动作，二级动作收进 ··· 触发器", 
     // 面板已改 disclosure（无 `role="menu"`），触发器只声明展开态，不再 promise 菜单角色。
     assert.doesNotMatch(html, /aria-haspopup/);
     assert.match(html, /aria-expanded="false"/);
-    assert.doesNotMatch(html, /Pin to channel/);
+    assert.doesNotMatch(html, /Pin to group/);
     assert.doesNotMatch(html, /Set a reminder on this message/);
     assert.doesNotMatch(html, /Convert to task/);
 });
@@ -2079,7 +2079,7 @@ test("ComposerChiefHint 真实渲染三态与点名态（lucide 图标 + 角色�
         }),
     );
     assert.match(channel, /data-chief-hint="channel"/);
-    assert.match(channel, /Channel chief susan will take this message/);
+    assert.match(channel, /Group chief susan will take this message/);
     assert.match(channel, /<svg/, "要用 lucide 图标而不是 emoji");
     assert.doesNotMatch(channel, /\p{Extended_Pictographic}/u, "不新增 emoji");
 
@@ -2105,7 +2105,7 @@ test("ComposerChiefHint 真实渲染三态与点名态（lucide 图标 + 角色�
         }),
     );
     assert.match(named, /data-chief-hint="named"/);
-    assert.match(named, /Named agents only/);
+    assert.match(named, /Named bots only/);
 
     // 无提示时整条不渲染（不留空壳占位）
     assert.equal(
@@ -2131,7 +2131,7 @@ test("Composer 把首席数据接进提示（频道首席 / 回落全局 / 无�
 
     assert.match(
         render({ chief: CHIEF_SUSAN, chiefSource: "channel", chiefAvailable: true }),
-        /Channel chief susan will take this message/,
+        /Group chief susan will take this message/,
     );
     assert.match(
         render({ chief: CHIEF_SUSAN, chiefSource: "global", chiefAvailable: true }),

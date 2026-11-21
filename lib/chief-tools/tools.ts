@@ -144,27 +144,27 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
    * 两条都是「拒绝」而不是「换个频道」（不静默改投）。
    */
   const channelAccessError = (channelId: string): string | null => {
-    if (!getChannel(channelId)) return `Channel not found: ${channelId}`;
+    if (!getChannel(channelId)) return `Group not found: ${channelId}`;
     if (!isChannelMember(channelId, actorId)) {
-      return `The global chief is not a member of channel ${channelId}`;
+      return `The global chief is not a member of group ${channelId}`;
     }
     return null;
   };
 
   const listChannelsTool: ToolDefinition = {
     name: "worksplice_list_channels",
-    label: "List channels",
+    label: "List groups",
     description:
-      "List the channels the global chief can see (public channels plus channels it belongs to). " +
+      "List the groups the global chief can see (public groups plus groups it belongs to). " +
       "Returns id, name, type, archived and memberCount only, at most `limit` rows (default 20, max 50). " +
       "Read-only.",
-    promptSnippet: "List channels the chief can see (id, name, type, archived, memberCount)",
+    promptSnippet: "List groups the chief can see (id, name, type, archived, memberCount)",
     parameters: {
       type: "object",
       properties: {
         limit: {
           type: "number",
-          description: "Maximum number of channels to return (default 20, max 50)",
+          description: "Maximum number of groups to return (default 20, max 50)",
         },
       },
       additionalProperties: false,
@@ -190,16 +190,16 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
     name: "worksplice_list_members",
     label: "List members",
     description:
-      "List live agent members and the human owner (id, name, type, status). " +
-      "With `channelId`, only that channel's members are returned and the chief must be a member of it. " +
+      "List live bot members and the human owner (id, name, type, status). " +
+      "With `channelId`, only that group's members are returned and the chief must be a member of it. " +
       "Read-only.",
-    promptSnippet: "List live agents and the owner (optionally for one channel)",
+    promptSnippet: "List live bots and the owner (optionally for one group)",
     parameters: {
       type: "object",
       properties: {
         channelId: {
           type: "string",
-          description: "Restrict the list to this channel's members (the chief must be a member)",
+          description: "Restrict the list to members of group `channelId` (the chief must be a member)",
         },
       },
       additionalProperties: false,
@@ -231,14 +231,14 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
     name: "worksplice_list_tasks",
     label: "List tasks",
     description:
-      "List the tasks of one channel: number, status, ownerName and a 120-character preview only. " +
+      "List the tasks of one group (`channelId`): number, status, ownerName and a 120-character preview only. " +
       'Optional `status` filter: "todo" | "in_progress" | "in_review" | "done" | "closed". ' +
-      "The chief must be a member of the channel. Read-only.",
-    promptSnippet: "List a channel's tasks (number, status, ownerName, preview)",
+      "The chief must be a member of the group. Read-only.",
+    promptSnippet: "List a group's tasks (number, status, ownerName, preview)",
     parameters: {
       type: "object",
       properties: {
-        channelId: { type: "string", description: "Channel whose tasks to list" },
+        channelId: { type: "string", description: "Group id (`channelId`) whose tasks to list" },
         status: {
           type: "string",
           enum: ["todo", "in_progress", "in_review", "done", "closed"],
@@ -265,23 +265,23 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
 
   const channelCreateTool: ToolDefinition = {
     name: "worksplice_channel_create",
-    label: "Create channel",
+    label: "Create group",
     description:
-      "Create a channel and post one channel system event signed by the chief. " +
-      "`type` is \"public\" (default) or \"private\"; a private channel must include the chief itself " +
-      "in `memberIds` (the chief can only create channels it belongs to). `memberIds` accept live agent " +
-      "members only. The channel service enforces the name rules (trimmed, non-empty, at most 32 characters).",
-    promptSnippet: "Create a channel (public or private) as the global chief",
+      "Create a group and post one group system event signed by the chief. " +
+      "`type` is \"public\" (default) or \"private\"; a private group must include the chief itself " +
+      "in `memberIds` (the chief can only create groups it belongs to). `memberIds` accept live bot " +
+      "members only. The group service enforces the name rules (trimmed, non-empty, at most 32 characters).",
+    promptSnippet: "Create a group (public or private) as the global chief",
     parameters: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Channel name (trimmed, non-empty, at most 32 characters)" },
-        type: { type: "string", enum: ["public", "private"], description: "Channel type (default public)" },
-        description: { type: "string", description: "Optional channel description" },
+        name: { type: "string", description: "Group name (trimmed, non-empty, at most 32 characters)" },
+        type: { type: "string", enum: ["public", "private"], description: "Group type (default public)" },
+        description: { type: "string", description: "Optional group description" },
         memberIds: {
           type: "array",
           items: { type: "string" },
-          description: "Live agent member ids to add; required for private channels to include the chief",
+          description: "Live bot ids (`memberIds`) to add; required for private groups to include the chief",
         },
       },
       required: ["name"],
@@ -318,25 +318,25 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
 
   const agentCreateTool: ToolDefinition = {
     name: "worksplice_agent_create",
-    label: "Create agent",
+    label: "Create bot",
     description:
-      "Create one agent identity per session; it inherits the global default model " +
+      "Create one bot identity per session; it inherits the global default model " +
       "(no provider / modelId / thinkingLevel parameter is accepted). " +
       `\`name\` must match /${AGENT_NAME_PATTERN.source}/. ` +
-      "On success a channel system event signed by the chief is posted to `channelId` (default #all); " +
+      "On success a group system event signed by the chief is posted to `channelId` (default #all); " +
       "the chief must be a member of it.",
-    promptSnippet: "Create one `ops-*` agent identity per session (inherits the default model)",
+    promptSnippet: "Create one `ops-*` bot identity per session (inherits the default model)",
     parameters: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: `Agent name: /${AGENT_NAME_PATTERN.source}/ (lowercase, hyphens, at most 32 characters)`,
+          description: `Bot name: /${AGENT_NAME_PATTERN.source}/ (lowercase, hyphens, at most 32 characters)`,
         },
-        description: { type: "string", description: "Optional agent description" },
+        description: { type: "string", description: "Optional bot description" },
         channelId: {
           type: "string",
-          description: "Channel that receives the system event (default #all; the chief must be a member)",
+          description: "Target group `channelId` that receives the system event (default #all; the chief must be a member)",
         },
       },
       required: ["name"],
@@ -389,20 +389,20 @@ export function chiefToolDefinitions(options: ChiefToolsOptions): ToolDefinition
     name: "worksplice_task_create",
     label: "Create task",
     description:
-      'Turn one existing top-level channel message into a task (the same conversion as "Convert to Task"). ' +
-      "Only `messageId` is accepted — no content, channelId or title. " +
-      "Only the effective chief of the message's channel (the channel chief, or the global chief when " +
-      "the channel has none) may create tasks; the actor must also be a member of that channel. " +
+      'Turn one existing top-level group message into a task (the same conversion as "Convert to Task"). ' +
+      "Only `messageId` is accepted — no `content`, `channelId` or `title`. " +
+      "Only the effective chief of the message's group (the group chief, or the global chief when " +
+      "the group has none) may create tasks; the actor must also be a member of that group. " +
       "The task service keeps its own rules: a thread message cannot become a task, one message becomes " +
-      "at most one task, and task numbers increment per channel. Its errors are returned as-is. " +
-      "Returns number, status and anchorSeq.",
-    promptSnippet: "Turn an existing channel message into a task (messageId only)",
+      "at most one task, and task numbers increment per group. Its errors are returned as-is. " +
+      "Returns `number`, `status` and `anchorSeq`.",
+    promptSnippet: "Turn an existing group message into a task (`messageId` only)",
     parameters: {
       type: "object",
       properties: {
         messageId: {
           type: "string",
-          description: "Id of the top-level channel message to turn into a task",
+          description: "Id (`messageId`) of the top-level group message to turn into a task",
         },
       },
       required: ["messageId"],

@@ -64,7 +64,7 @@ export const CHIEF_ONLY_ERROR = "Only the global chief may use this tool";
  * `worksplice_task_create` 的授权失败文案（票 #272 / ADR-0020）：五个管理员 / 读面仍用
  * `CHIEF_ONLY_ERROR`，只有建任务按「消息所属频道的生效首席」授权，需要一句不同的拒绝。
  */
-export const TASK_CREATE_CHIEF_ERROR = "Only the effective chief of this channel may create tasks";
+export const TASK_CREATE_CHIEF_ERROR = "Only the effective chief of this group may create tasks";
 
 /** `worksplice_list_channels` 的默认条数与上限（bounded read：不给全量清单）。 */
 export const DEFAULT_LIST_CHANNELS_LIMIT = 20;
@@ -446,9 +446,9 @@ export function decideTaskCreateInput(input: unknown): Decision<{ messageId: str
 // ---------------------------------------------------------------------------
 
 export function channelCreateEventContent(actorName: string, channelName: string): string {
-  return `${actorName} created channel #${channelName}`;
+  return `${actorName} created group #${channelName}`;
 }
 
 export function agentCreateEventContent(actorName: string, agentName: string): string {
-  return `${actorName} created agent @${agentName}`;
+  return `${actorName} created bot @${agentName}`;
 }

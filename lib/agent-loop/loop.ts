@@ -436,7 +436,7 @@ export interface ReplyPromptContext {
 const PROMPT_CHANNEL_CAP = 100;
 const PROMPT_MEMBER_CAP = 100;
 const DM_MENTION_RULE =
-  '- DM mention rule: do not @mention other agents in this direct message; refer to their names in plain text instead.';
+  '- DM mention rule: do not @mention other bots in this direct message; refer to their names in plain text instead.';
 
 function formatChannelContext(channels: ReplyPromptContext["channels"]): string {
   const shown = channels.slice(0, PROMPT_CHANNEL_CAP);
@@ -451,7 +451,9 @@ function formatChannelContext(channels: ReplyPromptContext["channels"]): string 
 
 function formatMemberContext(members: ReplyPromptContext["members"]): string {
   const shown = members.slice(0, PROMPT_MEMBER_CAP);
-  const parts = shown.map((member) => `@${member.name} (${member.type})`);
+  const parts = shown.map(
+    (member) => `@${member.name} (${member.type === "agent" ? "bot" : member.type})`,
+  );
   if (members.length > shown.length) parts.push(`(+${members.length - shown.length} more)`);
   return clampText(parts.join(", "), INJECTION_CONTEXT_CHARS);
 }
@@ -477,9 +479,9 @@ export function replyPromptContext(agent: MemberRow): ReplyPromptContext {
 
 /**
  * prompt 头部里的投递目标身份（P1）：频道轮与线程轮必须可区分。
- * - 频道轮：`channel <name>`（与既有文案逐字节一致）；
- * - 任务线程轮：`the thread of task #N [status] under channel X (anchor seq S)`；
- * - 普通线程轮：`a thread under channel X (anchor seq S)`。
+ * - 群组轮：`group <name>`；
+ * - 任务线程轮：`the thread of task #N [status] under group X (anchor seq S)`；
+ * - 普通线程轮：`a thread under group X (anchor seq S)`。
  * 锚点消息缺失时省略 seq，不编造；只读查询，不改变投递语义（投递目标仍由系统裁决）。
  */
 function describePromptTarget(input: {
@@ -487,15 +489,15 @@ function describePromptTarget(input: {
   targetId: string;
 }): string {
   if (input.targetId === input.channel.id) {
-    return `channel ${input.channel.name}`;
+    return `group ${input.channel.name}`;
   }
   const anchorSeq = getDb().getMessage(input.targetId)?.seq;
   const seqNote = anchorSeq === undefined ? "" : ` (anchor seq ${anchorSeq})`;
   const task = getDb().getTaskByMessageId(input.targetId);
   if (task) {
-    return `the thread of task #${task.number} [${task.status}] under channel ${input.channel.name}${seqNote}`;
+    return `the thread of task #${task.number} [${task.status}] under group ${input.channel.name}${seqNote}`;
   }
-  return `a thread under channel ${input.channel.name}${seqNote}`;
+  return `a thread under group ${input.channel.name}${seqNote}`;
 }
 
 /**
@@ -506,9 +508,9 @@ function describePromptTarget(input: {
 export const CONTENT_PLACEMENT_RUBRIC: readonly string[] = [
   "- Content placement (the app decides delivery — these rules shape what you write, not where it is posted):",
   "- Facts, evidence, data or corrections about a specific deliverable belong in that deliverable's task thread.",
-  "- Methodology that stands on its own without the material belongs in the channel.",
-  "- Reusable facts or shared definitions may stay in the channel, but must carry their source and date.",
-  "- Mentioning a task in the channel is only a pointer — never add new conclusions there.",
+  "- Methodology that stands on its own without the material belongs in the group.",
+  "- Reusable facts or shared definitions may stay in the group, but must carry their source and date.",
+  "- Mentioning a task in the group is only a pointer — never add new conclusions there.",
 ];
 
 /**
@@ -522,7 +524,7 @@ export const CONTENT_PLACEMENT_RUBRIC: readonly string[] = [
  * 本段只加固定骨架行，与 `CONTENT_PLACEMENT_RUBRIC` 同一条纪律（不动消息块 / 预算 / 其余规则）。
  */
 export const DEFAULT_RECIPIENT_RULE: readonly string[] = [
-  "- This round you are the channel's default recipient: nobody was named, so the message landed on you. Your job is routing, not answering it in depth — if it can become a task, make it one with worksplice_task_create; if it clearly belongs to one person or one task, say where it goes; if it is small talk or needs no action, reply with one or two sentences and say you are doing nothing.",
+  "- This round you are the group's default recipient: nobody was named, so the message landed on you. Your job is routing, not answering it in depth — if it can become a task, make it one with worksplice_task_create; if it clearly belongs to one person or one task, say where it goes; if it is small talk or needs no action, reply with one or two sentences and say you are doing nothing.",
   '- No long analysis when you have no new facts — implementation detail belongs to whoever does the work. Still deliver that short answer with the normal "reply" action, never "ignore": silence would read as if you never saw the message.',
 ];
 
@@ -676,11 +678,11 @@ export function buildReplyPrompt(input: {
   lines.push(...clampedTaskLines);
   if (input.context) {
     lines.push("");
-    lines.push(`Workspace channels: ${formatChannelContext(input.context.channels)}`);
+    lines.push(`Workspace groups: ${formatChannelContext(input.context.channels)}`);
     lines.push(`Workspace members: ${formatMemberContext(input.context.members)}`);
     if (input.context.defaultModel) {
       lines.push(
-        `Default model for new agents: ${input.context.defaultModel.provider}/${input.context.defaultModel.modelId}`,
+        `Default model for new bots: ${input.context.defaultModel.provider}/${input.context.defaultModel.modelId}`,
       );
     }
   }
@@ -691,14 +693,14 @@ export function buildReplyPrompt(input: {
   lines.push('- "reply" posts content to this target; task replies may be routed to an anchor thread; "ignore" says nothing.');
   lines.push("- Deciding is yours, but follow these response rules:");
   lines.push(
-    "- Reply shape: for a simple task, state the direct conclusion first and keep the process short. If you have no new result, do not post a receipt, a \"continuing\", or a \"forwarded\" status message — staying silent is the correct outcome. Tool traces (commands, file reads, intermediate output) stay in your member session and never go into the channel.",
+    "- Reply shape: for a simple task, state the direct conclusion first and keep the process short. If you have no new result, do not post a receipt, a \"continuing\", or a \"forwarded\" status message — staying silent is the correct outcome. Tool traces (commands, file reads, intermediate output) stay in your member session and never go into the group.",
   );
   lines.push(
-    "- MUST reply: a human (the Owner) personally @mentions you in the message (channel or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
+    "- MUST reply: a human (the Owner) personally @mentions you in the message (group or thread); you are the owner of an in_progress task and someone else posted in its thread; a reminder is addressed to you; a question is asked directly of you.",
   );
   if (input.channel.type === 'dm') {
     lines.push(
-      "- DM rule: this channel is your direct message with the owner — a human message from the owner here is always a MUST reply; ignoring it is treated as a failure.",
+      "- DM rule: this is your direct message with the owner — a human message from the owner here is always a MUST reply; ignoring it is treated as a failure.",
     );
     lines.push(DM_MENTION_RULE);
   }
@@ -706,14 +708,14 @@ export function buildReplyPrompt(input: {
     "- MAY reply: the message concerns your role, your workspace, or your current work — answer when you can add value.",
   );
   lines.push(
-    "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. A human @mention overrides all of this — ignoring it is a failure. An @mention from another agent is an attention signal, not a demand: you may still ignore it under these rules, especially when the peer has explicitly closed the exchange or there is nothing new.",
+    "- MUST ignore (do not chime in): task threads you do not own, are not mentioned in, and have not participated in; others' progress reports or status updates; unrelated small talk. A human @mention overrides all of this — ignoring it is a failure. An @mention from another bot is an attention signal, not a demand: you may still ignore it under these rules, especially when the peer has explicitly closed the exchange or there is nothing new.",
   );
   lines.push(
     '- "conclude": acknowledge receipt without posting when a settled thread or @mention needs only a closing confirmation; legal under a certain signal instead of "ignore"; never to dodge direct questions or explicit work requests.',
   );
   if (input.peerClosedExchange) {
     lines.push(
-      '- Closed exchange: the latest message from another agent is an explicit sign-off (e.g. "agreed, nothing to add", "stopping here", "no more"). Do not post another message in this thread — choose "conclude" (or "ignore"); a "reply" is dropped before it is posted.',
+      '- Closed exchange: the latest message from another bot is an explicit sign-off (e.g. "agreed, nothing to add", "stopping here", "no more"). Do not post another message in this thread — choose "conclude" (or "ignore"); a "reply" is dropped before it is posted.',
     );
   }
   lines.push(
@@ -733,10 +735,10 @@ export function buildReplyPrompt(input: {
   if (input.recipient?.canHandoff) lines.push(...CREATE_THEN_HANDOFF_RULE);
   lines.push(
     "- Task protocol: only the human Owner and the current global chief may claim, unclaim, hand off, or change task status. If you are not the global chief, do not claim and do not offer to change status yourself.",
-    '- If you are the global chief, a non-empty ordinary reply auto-claims only when this round\'s only new channel activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
+    '- If you are the global chief, a non-empty ordinary reply auto-claims only when this round\'s only new group activity is either (1) one open task anchor and its immediately following Owner-authored "Task #N created" event, or (2) one Owner-authored, format-matching "Task #N created" event that uniquely matches one open task.',
     "  In both cases, claim first and post in the task thread; if claim fails (freshness hold, another owner, reopened block), yield without posting anywhere.",
-    "  Multiple task events, unmatched events, other channel activity, and ordinary messages do not auto-select a task.",
-    '  If other activity arrives, add an explicit {"task":{"number":N,"op":"claim"}} op only when choosing to claim that task; ordinary replies stay in the channel.',
+    "  Multiple task events, unmatched events, other group activity, and ordinary messages do not auto-select a task.",
+    '  If other activity arrives, add an explicit {"task":{"number":N,"op":"claim"}} op only when choosing to claim that task; ordinary replies stay in the group.',
   );
   lines.push(
     input.canChangeTaskStatus
@@ -761,7 +763,7 @@ export function buildReplyPrompt(input: {
                 : `@${candidate.name}`,
             )
             .join("; ")
-        : "(none — no eligible agent member is available)";
+        : "(none — no eligible bot member is available)";
     const hiddenNotice =
       hiddenCandidates > 0
         ? ` (+${hiddenCandidates} more candidates not shown; the app still accepts any eligible member)`
@@ -785,13 +787,13 @@ export function buildReplyPrompt(input: {
     '- Extra operations: add "ops":[ ... ] to your JSON. Every op runs with YOUR identity; permissions are decided by the app, anything not listed here is refused. "task" is not an op: it is a top-level field, never inside "ops".',
   );
   lines.push(
-    '  react {"op":"react","seq":N,"emoji":"👍"} | pin {"op":"pin","seq":N} | remind {"op":"remind","title":"...","inMinutes":30} (or "fireAt":"<ISO>"; "targetId" defaults to this target; optional "recurrence") | post {"op":"post","targetId":"#channel","content":"...","baseSeq":N} (pointer to another channel) | createChannel {"op":"createChannel","name":"...","type":"public"|"private","description":"...","members":["@Name"]} | createAgent {"op":"createAgent","name":"...","description":"...","provider":"...","modelId":"..."} | search {"op":"search","query":"...","limit":N}',
+    '  react {"op":"react","seq":N,"emoji":"👍"} | pin {"op":"pin","seq":N} | remind {"op":"remind","title":"...","inMinutes":30} (or "fireAt":"<ISO>"; "targetId" defaults to this target; optional "recurrence") | post {"op":"post","targetId":"#group","content":"...","baseSeq":N} (pointer to another group) | createChannel {"op":"createChannel","name":"...","type":"public"|"private","description":"...","members":["@Name"]} | createAgent {"op":"createAgent","name":"...","description":"...","provider":"...","modelId":"..."} | search {"op":"search","query":"...","limit":N}',
   );
   lines.push(
     "  A search runs first and its hits come back to you in the same round — write your reply after you see them; the other ops you declared are kept for that second step. Only one search step per round.",
   );
   lines.push(
-    "  Human-only (never yours to do — point the Owner to the UI instead): archive a channel, delete an identity, Restart / Session reset / Full reset, change runtime, change workspace.",
+    "  Human-only (never yours to do — point the Owner to the UI instead): archive a group, delete an identity, Restart / Session reset / Full reset, change runtime, change workspace.",
   );
   if (input.memoryFile) {
     lines.push(

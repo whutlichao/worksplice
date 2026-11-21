@@ -189,7 +189,7 @@ export function CreateAgentModal({
         }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Failed to create agent");
+      if (!res.ok) throw new Error(body.error ?? t("agent.createFailed"));
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

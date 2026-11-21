@@ -164,3 +164,34 @@ test("沙箱不可用时档位按钮的 title 也解释原因（不打开菜单�
   assert.equal(/bash is not activated here/.test(render({ available: true, mechanism: "sandbox-exec", reason: null })), false);
   assert.equal(/bash is not activated here/.test(render(null)), false);
 });
+
+test("流式提示与按钮 title 使用 Bot 口径而非 agent", () => {
+  const runningHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        isStreaming: true,
+      }),
+    ),
+  );
+  assert.match(runningHtml, /placeholder="Bot is running…"/);
+
+  const queueHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        onSteer() {},
+        onFollowUp() {},
+        isStreaming: true,
+      }),
+    ),
+  );
+  assert.match(queueHtml, /title="Interrupt the current run and inject this message now"/);
+  assert.match(queueHtml, /title="Queue this message after the bot finishes"/);
+});

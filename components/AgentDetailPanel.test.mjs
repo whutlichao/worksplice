@@ -1211,7 +1211,7 @@ test("成员详情：非首席不显示徽标与频道条目，只给「设为�
     assert.doesNotMatch(html, /data-chief-badge/);
     assert.doesNotMatch(html, /data-chief-channel=/);
     assert.match(html, /<span class="k">Global chief<\/span><span class="v">No<\/span>/);
-    assert.match(html, /Not the chief of any channel/);
+    assert.match(html, /Not the chief of any group/);
     assert.match(html, /data-chief-action="set"/);
     assert.match(html, /Set as global chief/);
 });
