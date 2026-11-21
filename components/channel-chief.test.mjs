@@ -81,7 +81,7 @@ test("建频道弹窗：首席默认「回落全局」，未选成员时没有�
   const html = renderModal(AGENTS);
 
   assert.match(html, /data-testid="create-channel-chief"/);
-  assert.match(html, /Channel chief \(optional\)/);
+  assert.match(html, /Group chief \(optional\)/);
   // 默认落在「回落全局首席（不指定）」上（value=""）
   assert.match(html, /<option value="" selected="">Global chief \(not set\)<\/option>/);
   // 未勾选任何成员 ⇒ 首席候选为空：agent 名字不作为 <option> 出现
@@ -111,7 +111,7 @@ test("频道详情：显示生效首席与来源——频道指定 / 回落全�
     channelRow({ chief: { id: "m1", name: "bob" }, chiefSource: "channel" }),
   );
   assert.match(own, /data-chief-source="channel"/);
-  assert.match(own, /Chief: bob \(this channel\)/);
+  assert.match(own, /Chief: bob \(this group\)/);
 
   const fallback = renderChannelView(
     channelRow({ chief: { id: "m2", name: "Susan" }, chiefSource: "global" }),
@@ -154,7 +154,7 @@ test("频道设置：Owner 看得到首席选择器，非 Owner 没有入口", (
   assert.doesNotMatch(memberView, /data-testid="channel-chief-setting"/);
   assert.doesNotMatch(memberView, /data-testid="channel-chief-select"/);
   // 非 Owner 仍然能看到此刻生效的首席（详情是只读事实，不是入口）
-  assert.match(memberView, /Chief: bob \(this channel\)/);
+  assert.match(memberView, /Chief: bob \(this group\)/);
 });
 
 // ─── 提交失败：不停留在假成功态 ──────────────────────────────────────────────

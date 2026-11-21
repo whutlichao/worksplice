@@ -351,7 +351,7 @@ function channelLabel(targetId: string): string {
  *  归档定位（archive / entry），不硬造一个不存在的 messageId。 */
 export function formatSearchObservation(query: string, hits: SearchHit[]): string {
   const lines = [
-    `Search results for "${query}" (scoped to the channels you belong to and your own archived sessions):`,
+    `Search results for "${query}" (scoped to the groups you belong to and your own archived sessions):`,
   ];
   if (hits.length === 0) {
     lines.push("(no matches)");
@@ -585,7 +585,7 @@ function runAction(
       return {
         op: "createChannel",
         status: "applied",
-        detail: `created channel #${created.name} (${created.type}) as @${agent.name}`,
+        detail: `created group #${created.name} (${created.type}) as @${agent.name}`,
       };
     }
     case "createAgent": {
@@ -617,7 +617,7 @@ function runAction(
       return {
         op: "createAgent",
         status: "applied",
-        detail: `created agent @${created.name} (inherits the global default model) as @${agent.name}`,
+        detail: `created bot @${created.name} (inherits the global default model) as @${agent.name}`,
       };
     }
     case "search": {
@@ -628,7 +628,7 @@ function runAction(
       return {
         op: "search",
         status: "applied",
-        detail: `${hits.length} hit(s) for "${action.query}" (scoped to your channels and your own archived sessions)`,
+        detail: `${hits.length} hit(s) for "${action.query}" (scoped to your groups and your own archived sessions)`,
         observation: formatSearchObservation(action.query, hits),
       };
     }

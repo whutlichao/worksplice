@@ -37,9 +37,9 @@ app/api/
   skills/install/route.ts         POST install skills through npx skills add
   skills/search/route.ts          GET/POST skills.sh search
   worktrees/route.ts              GET/POST/DELETE git worktrees
-  channels/route.ts               GET channels w/ joined+memberCount | POST create (memberIds 初始成员)
-  channels/[id]/route.ts          GET single channel
-  channels/[id]/messages/route.ts GET ?targetId&before&limit — seq 游标分页（channel/thread 共用）
+  channels/route.ts               GET 群组列表 w/ joined+memberCount | POST create (memberIds 初始成员)
+  channels/[id]/route.ts          GET 单个群组
+  channels/[id]/messages/route.ts GET ?targetId&before&limit — seq 游标分页（群组/thread 共用）
   channels/[id]/join/route.ts     POST { memberId? } — 公开自由加入；私有须 Owner
   channels/[id]/leave/route.ts    POST { memberId? } — `#all` 不可离开
   channels/[id]/read/route.ts     POST — BAI-6 未读角标：推进 Owner 已读游标到当前 max(seq)，清除角标
@@ -47,9 +47,9 @@ app/api/
   channels/[id]/archive/route.ts  POST { archived } — Owner only，冻结写入
   channels/[id]/stop/route.ts     POST — Owner 停当前房间波次（只调 stopTurn；不销毁会话/
                                   不写消费游标/不 ack 任务事件；DM 403、不存在 404）
-  channels/[id]/chief/route.ts    POST { memberId | null } — 设 / 换 / 清空频道首席（#250 薄封装：
-                                  ChannelChiefError 的 status + code；Owner only，目标须是本频道未软删
-                                  agent 成员）；回 chiefMemberId + 生效首席 + chiefSource
+  channels/[id]/chief/route.ts    POST { memberId | null } — 设 / 换 / 清空群组首席（#250 薄封装：
+                                  ChannelChiefError 的 status + code；Owner only，目标须是本群组未软删
+                                  Bot 成员）；回 chiefMemberId + 生效首席 + chiefSource
   channels/[id]/members/route.ts  GET member list
   messages/route.ts               POST { targetId, content, baseSeq?, quoteId? } — freshness-hold（409 held）；
                                   multipart 形态：字段 + `files`（附件随消息一次原子提交，§3.5）
@@ -59,31 +59,31 @@ app/api/
   attachments/[id]/route.ts       GET 附件下载/预览（图片 inline，其余 attachment；文件实体在 ~/.worksplice/attachments/）
   channels/[id]/pinned/route.ts   GET ?sort=manual|recent|az（当前成员个性化 pinned）| POST { messageId } pin | DELETE ?messageId= unpin
   channels/[id]/pinned/reorder/route.ts POST { order: [messageId...] } — Manual 排序重排
-  members/route.ts                GET agent 列表（附 home_path）| POST 创建 agent（name/description/provider/modelId/thinkingLevel 必选，家目录自动生成）
-  members/[id]/route.ts           GET 单个 agent | DELETE 删除身份（§3.6，soft-delete）
+  members/route.ts                GET Bot 列表（附 home_path）| POST 创建 Bot（name/description/provider/modelId/thinkingLevel 必选，家目录自动生成）
+  members/[id]/route.ts           GET 单个 Bot | DELETE 删除身份（§3.6，soft-delete）
   members/[id]/workspace/route.ts POST { workspacePath } — 更换绑定目录（换目录即换会话）
   members/[id]/restart/route.ts   POST Restart（沿用 session 重启运行时）
   members/[id]/session-reset/route.ts POST 清会话上下文（workspace 保留）
   members/[id]/full-reset/route.ts   POST 会话 + workspace 内容全清
   members/events/route.ts         GET SSE — 状态点快照流（§3.6 四态）
-  members/[id]/inbox/route.ts     GET ?targetId= — drain + ack（§5.7 inbox；无 targetId 时 drain 全部待处理 channel）
+  members/[id]/inbox/route.ts     GET ?targetId= — drain + ack（§5.7 inbox；无 targetId 时 drain 全部待处理群组）
   members/[id]/observability/route.ts GET — 可观测性（§3.6/§6.5）：状态点 + session jsonl 只读统计 + 任务历史/时间线 + 会话导出信息
-  members/[id]/runtime/route.ts   GET/PATCH — per-agent 模型/provider/thinking（§3.10，覆盖全局默认；存活会话立即应用）
+  members/[id]/runtime/route.ts   GET/PATCH — per-bot 模型/provider/thinking（§3.10，覆盖全局默认；存活会话立即应用）
   tasks/route.ts                  POST { messageId } 转任务 | { channelId, content } 发消息并建任务
   tasks/[id]/claim/route.ts       POST { baseSeq? } — claim；409 held / 409 conflict（失败让路）
   tasks/[id]/update-status/route.ts POST { status, baseSeq? } — 状态机转移；409 held
   channels/[id]/tasks/route.ts    GET 任务板（按 number 升序，UI 侧按状态分组；每任务附 reachable 拖拽落点，ADR-0002）
   reminders/route.ts              GET ?authorId=&targetId= 列表 | POST { title, fireAt, recurrence?, targetId?, authorId? }
-                                  （authorId 仅 Owner 可替 agent 设，§3.9 唤醒作者本人）
+                                  （authorId 仅 Owner 可替 Bot 设，§3.9 唤醒作者本人）
   reminders/[id]/route.ts         PATCH update（title/fireAt/recurrence/targetId）| GET 单条
   reminders/[id]/snooze/route.ts  POST { minutes?=15 } — fire_at = max(now, fire_at) + minutes
   reminders/[id]/cancel/route.ts  POST cancel（仅 scheduled → canceled，cron 不再触发）
   reminders/[id]/log/route.ts     GET 生命周期事件流（schedule/fire/reschedule/snooze/update/cancel/error）
-  search/route.ts                 GET ?q=&limit= — FTS5 全文搜索（结果 = id + 命中上下文摘要 + 归属 channel/thread + 作者）
+  search/route.ts                 GET ?q=&limit= — FTS5 全文搜索（结果 = id + 命中上下文摘要 + 归属群组/thread + 作者）
   secretary/init/route.ts         POST 启动助手入口（spec-bootstrap-agent §6.3）：薄封装 initSecretaryFlow（§6.2 五步初始化），
                                   provider/modelId/thinkingLevel 可选（缺省继承全局默认）
   global-chief/route.ts           POST { memberId | null } — 设 / 换 / 清空全局首席（#251 薄封装：
-                                  GlobalChiefError 的 status + code，与频道首席同一组成员类码；
+                                  GlobalChiefError 的 status + code，与群组首席同一组成员类码；
                                   回 { chief }）
 
 lib/domain/collab/                协作服务层（app/api 仅薄封装；唯一导入面）
@@ -96,15 +96,15 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   channels.ts                     create/join/leave/archive/members + mute/unmute/getChannelMute（§3.2 mute）
                                   + CURRENT_MEMBER_ID（恒为 owner）
   chief.ts                        首席身份的唯一解析口（#248–#252）：getGlobalChief / setGlobalChief
-                                  （GlobalChiefError）/ resolveEffectiveChief（频道 → 全局 → 无）
-                                  / isEffectiveChiefForChannel（只回答某成员是否是该频道此刻的生效首席）
-                                  / isChiefOfAnyChannel（只回答是否有未归档频道的频道首席身份；
+                                  （GlobalChiefError）/ resolveEffectiveChief（群组 → 全局 → 无）
+                                  / isEffectiveChiefForChannel（只回答某成员是否是该群组此刻的生效首席）
+                                  / isChiefOfAnyChannel（只回答是否有未归档群组的群组首席身份；
                                   不缓存、不重走回落链，也不把全局回落算进这一档）
-                                  / setChannelChief（ChannelChiefError）/ canRouteToChief（对本频道是否
-                                  可达：成员 + 未静音，选人 · wake · 频道行共用）/ chiefRefOf（ChiefRef）
+                                  / setChannelChief（ChannelChiefError）/ canRouteToChief（对本群组是否
+                                  可达：成员 + 未静音，选人 · wake · 群组行共用）/ chiefRefOf（ChiefRef）
   secretary-identity.ts           秘书身份判定源（#248 起是角色判定）：isSecretaryMember = 是不是当前
                                   全局首席；isTaskStatusAuthority = 人类 Owner 或当前全局首席（#295 任务
-                                  状态写权唯一入口）；getReachableGlobalChief = 全局首席对本频道可达性
+                                  状态写权唯一入口）；getReachableGlobalChief = 全局首席对本群组可达性
                                   的唯一解析口；SUSAN_MEMBER_NAME 只是引导期默认名（不参与判定）
   task-reference.ts               「正文提到了哪些任务」的共享纯判定（parseTaskReferenceNumbers /
                                   hasTaskReference）：handoff 触发与选人共用，断开 handoff-trigger ← invitations
@@ -112,7 +112,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   handoff-trigger.ts              消息触发的任务分流判定（#240 / #270）：selectSecretaryHandoffTask
                                   （#295 授权 = 当前全局首席；创建事件 / 任务锚点 / 任务线程 / 唯一引用；
                                   多任务 / 无关联 / 已分流 / 有 owner / reopened / 非 todo 不选）+
-                                  isHandoffEligibleTask；频道首席保留默认收件人，不再参与任务 handoff
+                                  isHandoffEligibleTask；群组首席保留默认收件人，不再参与任务 handoff
   handoff.ts                      handoff 写路径：handoffTask（授权 = 任务状态权威（全局首席 / 人类 Owner）；
                                   候选排除 / 复用 claimTaskForAssignee 代认领 / freshness / blocked / 提交后定向唤醒 chosen）+
                                   listHandoffCandidates / recoverHandoffWakes；成功通知写明实际执行者
@@ -122,16 +122,16 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   / listMessages / getThreadInfo / messageWithAuthor（附 reactions+attachments）
                                   / getMessage（**轻量读取**：不联表、不抛错；存在性判断用它，展示面仍走 messageWithAuthor）
                                   / summarizeChanges（held 摘要，任务 claim/updateStatus 复用）
-  event-messages.ts               Owner 署名事件（任务创建 / 入群 / 建频道 / 欢迎）+ actor 署名系统动作；
+  event-messages.ts               Owner 署名事件（任务创建 / 入群 / 建群组 / 欢迎）+ actor 署名系统动作；
                                   notifyTaskCompletionRequest（#295）：非权威完成请求事件（幂等 requestKey、
                                   roomNotice:true + wake:false）并只定向唤醒当前全局首席（reason=task-status）
-  reactions.ts                    §3.4 toggleReaction（存在即删，UNIQUE 先查后写；channel 成员才可点，无通知）
+  reactions.ts                    §3.4 toggleReaction（存在即删，UNIQUE 先查后写；群组成员才可点，无通知）
                                   / listReactionSummaries（count 降序 + memberIds）
   pinned.ts                       §3.5 个性化 pinned：pinMessage（order=max+1，幂等）/ unpinMessage / listPinned
-                                  （sort=manual|recent|az）/ setPinnedOrder；消息须属于该 channel（thread 经锚点）
+                                  （sort=manual|recent|az）/ setPinnedOrder；消息须属于该群组（thread 经锚点）
   attachments.ts                  §3.5 附件：MAX_ATTACHMENT_BYTES=50MB / stageAttachmentFiles（随机名落盘 attachments/）
                                   / discardAttachmentFiles（held/抛错清理）/ getAttachmentRow
-  tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按 channel 递增）/ claimTask
+  tasks.ts                        createTask（顶层消息可转，thread 内不可，number 按群组递增）/ claimTask
                                   （#295：仅人类 Owner / 当前全局首席；重开封锁由同一权威接管）/
                                   updateTaskStatus（状态机 + isTaskStatusAuthority + freshness-hold +
                                   reopen 置 reopened 标记）/ reachableStatuses（非权威为空）/
@@ -143,7 +143,7 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
   members.ts                      listAgents/createAgent/updateAgentWorkspace/setAgentStatus/deleteAgent
                                   （workspace 绑定唯一性校验；删除 = soft-delete）
   reminders.ts                    schedule/list/snooze/update/cancel/log/fireDueReminders（§3.9/§5.6）
-                                  fire 投递系统消息（wake:false）+ 定向唤醒作者（agent → emitWake reason=reminder）
+                                  fire 投递系统消息（wake:false）+ 定向唤醒作者（Bot → emitWake reason=reminder）
   invitations.ts                  模型调用前邀请判定（#237）：selectMessageInvitations（人类正文点名 / @all；
                                   引用块 / 代码块 / 行内代码不算；任务线程 owner 续工；reopened 清空候选）
                                   + parseTaskCreationEventNumber（创建事件正文唯一解析）
@@ -151,13 +151,13 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   canMemberPerform = **开口面**（能不能做；默认拒绝、逐条开口）
                                   / memberOpConstraint = **约束面**（以什么形状做：createAgent 的名字正则 +
                                   每会话上限 + 不接受的模型字段；createChannel 的私有必含 actor + memberIds
-                                  只收存活 agent）+ 四条判据函数（agentNameRejection / modelSelectionRejection /
+                                  只收存活 Bot）+ 四条判据函数（agentNameRejection / modelSelectionRejection /
                                   privateChannelActorRejection / memberIdRejection）——约束常量**只在这里定义一次**，
                                   ops 面执行器与首席 tools 判定层都从这里取值
   member-op-quota.ts              createAgent 的配额 store（跨路径共享的单一实例）：
                                   createMemberOpQuotaStore / getMemberOpQuotaStore（挂 `globalThis.
                                   __workspliceMemberOpQuota`）/ setMemberOpQuotaStore(null)（测试接缝）；
-                                  键 = agentId + 会话标识；拿不到会话标识 ⇒ 退化为「该 agent 在本进程内至多 1 次」
+                                  键 = agentId + 会话标识；拿不到会话标识 ⇒ 退化为「该 Bot 在本进程内至多 1 次」
                                   并记一条退化日志（fail-closed，绝不退化成「跳过配额」）
   admission.ts                    轮次准入纯判定（#237/#295）：decideRoundAdmission + ROUND_SKIP_REASONS
                                   （DM / reminder bypass；任务线程 owner / in_review / done / closed / reopened 矩阵；
@@ -170,14 +170,14 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   + patrolSignatureOf（去重签名 = 任务+状态+详情，**不含时长**）
                                   + buildPatrolSummary（每轮最多一条消息的正文；空发现 null = 沉默）。
                                   可见面判定（哪条发现可上报）在接入层，不在这里：判定层只认任务行
-  patrol-run.ts                   任务巡检的**接入层**（票 #267）：runPatrolOnce（读首席 / 频道范围 / 任务快照
+  patrol-run.ts                   任务巡检的**接入层**（票 #267）：runPatrolOnce（读首席 / 群组范围 / 任务快照
                                   / 投递器全可注入；tick 与测试共用）+ isPatrolDisabled（WORKSPLICE_PATROL_DISABLED=1，
                                   现算不求值到常量）+ 进程内签名集（挂 `globalThis.__worksplicePatrolSignatures`，
-                                  setPatrolSignatureStore(null) 是测试接缝）。落点：她作为生效首席的频道 →
-                                  她所在的第一个**公开**频道（`isPublic`：joined ∧ 未归档 ∧ 非 DM 之外再按
-                                  `type === "public"` 取；私有频道不参与兜底）→ 静默；**可见性过滤**
-                                  （`visibleFindings`）：汇总只带落点自己的发现 + 公开频道的发现，其余私有
-                                  频道的发现不上报；签名集只记可上报的发现；投递走 `wake:false` +
+                                  setPatrolSignatureStore(null) 是测试接缝）。落点：她作为生效首席的群组 →
+                                  她所在的第一个**公开**群组（`isPublic`：joined ∧ 未归档 ∧ 非 DM 之外再按
+                                  `type === "public"` 取；私有群组不参与兜底）→ 静默；**可见性过滤**
+                                  （`visibleFindings`）：汇总只带落点自己的发现 + 公开群组的发现，其余私有
+                                  群组的发现不上报；签名集只记可上报的发现；投递走 `wake:false` +
                                   `roomNotice:true`（系统事件，不占房间预算）
   room-budget.ts                  房间轮次预算（PR #218，设计记录 `.scratch/room-turn-budget/spec.md`）：
                                   createRoomTurnStore（场次状态机 / 选人水位线 / 迟到补充轮次）/ getRoomTurnStore
@@ -185,14 +185,14 @@ lib/domain/collab/                协作服务层（app/api 仅薄封装；唯�
                                   + DEFAULT_ROOM_LIMITS（注入式上限）+ ROOM_PRIVATE_CHANNEL_MESSAGE /
                                   RoomPrivateChannelForbidden（I6 房间可见性）+ 直连链原语 advanceRequestHop /
                                   createDirectRequestBridge
-  search.ts                       §6.4 搜索服务层：searchMessages（trigram FTS 双路径 + LIKE 兜底；结果附 channel/author/inThread）
+  search.ts                       §6.4 搜索服务层：searchMessages（trigram FTS 双路径 + LIKE 兜底；结果附群组/author/inThread）
   observability.ts                §6.5 任务历史服务层：listAgentTasks（owner/锚点作者/thread 进展参与判定）+ buildAgentTimeline（消息 + 任务状态点时间线）
   recurrence.ts                   recurrence DSL 纯解析器：every:Nm/Nh/Nd / daily@HH:MM / weekly:mon,fri@HH:MM
                                   + nextFireAt（严格晚于 from，时区安全，delay 语义）
   wake.ts                         wake 事件总线（§5.4/§5.5）：WakeHint（只含 agentId/targetId/seq/reason
                                   + 可选 recovery，不含正文）；
                                   subscribeWake/emitWake；notifyMessageWakes（#237：人类正文点名 / @all 候选；
-                                  普通 agent @ 不穿透；DM 不变；开放任务创建事件 / 明确任务关联只定向
+                                  普通 Bot @ 不穿透；DM 不变；开放任务创建事件 / 明确任务关联只定向
                                   getReachableGlobalChief 解析出的当前全局首席，一个事件最多一个收件人，
                                   不可达则静默）；§3.7 任务延续自醒；
                                   @mention 解析 re-export（协作服务层发，agent-loop 驱动订阅）
@@ -208,10 +208,10 @@ lib/agent-loop/                  agent-loop（§5.4 驱动层，Ticket 02 合并
                                   + handoff 授权 = 当前全局首席；`recipient.canHandoff` 只对当前全局首席为真，
                                   只控制「建完即派」提示
                                   + reason="reminder" 时"只有自己的消息"不 noop/skip（§3.9 自提醒可见）
-                                  + §3.2 mention 穿透：非成员被**人类正文** @mention 推进本轮（#237），回复公开 channel 时自行加入
-                                  + in_review 任务 owner（agent 成员）最新消息的 @：只放开 task-reviewer 准入，
+                                  + §3.2 mention 穿透：非成员被**人类正文** @mention 推进本轮（#237），回复公开群组时自行加入
+                                  + in_review 任务 owner（Bot 成员）最新消息的 @：只放开 task-reviewer 准入，
                                   不进 must-respond；收束语 / 签退不算
-                                  + driver 编排：wake → 逐 agent 串行队列；同 (agent,target) hint 合并
+                                  + driver 编排：wake → 逐 Bot 串行队列；同 (agent,target) hint 合并
                                   （reason 取宽松侧：含 reminder 即按 reminder 处理）；
                                   busy 时 settle 后重试
                                   + backfill 崩溃恢复按 seq 补拉（§5.3）：扫描 session jsonl 找回缺失的
@@ -264,7 +264,7 @@ lib/
                         nextTabTarget（边界回绕、子浮层让路）+ collectTabbables；BrutalModal 是唯一消费方
                         （行为面由浏览器实测 + lib/modal-focus.test.mjs 守）
   agent-runtime.ts    AgentRuntime 接缝（fake 可注入）+ 真实实现（惰性 import lib/rpc/SDK）+ deriveLiveAgentStatus
-                      + startSession 应用 per-agent 模型覆盖（§3.10）+ 计算 chiefScope（global / channel /
+                      + startSession 应用 per-bot 模型覆盖（§3.10）+ 计算 chiefScope（global / channel /
                       none）并据此传 domainTools.surface + 工具面策略（#272）
   agent-lifecycle.ts  Restart / Session reset / Full reset（仅家目录）/ 换 workspace / 删除身份（只 rm 家目录，fs + 运行时 + DB 编排）
   agent-recovery.ts   出错状态点恢复服务层（深模块）：saveAgentRuntime = [应用存活会话命令 → 持久化覆盖 → 触发判定
@@ -285,22 +285,22 @@ lib/
   file-access.ts       allowed file roots for /api/files and worktrees
   file-paths.ts        client/server path encoding helpers
   markdown.ts          shared markdown helpers
-  channel-list.ts      频道列表合并纯函数（AppShell.load）：mergeChannelRows 复用未变更行的对象引用
+  channel-list.ts      群组列表合并纯函数（AppShell.load）：mergeChannelRows 复用未变更行的对象引用
                        + shallowEqualChannel（含 chief / chiefSource / chiefAvailable：结论变了行就换新引用）
   chief-failure.ts     首席写入失败码 → i18n key 的唯一映射（client-safe）：chiefFailureText /
-                       isChiefFailureCode；频道设置与建频道弹窗共用，不再前缀猜码
+                       isChiefFailureCode；群组设置与新建群组弹窗共用，不再前缀猜码
   chief-tools/         首席领域工具（票 chief-tools / chief-task-create / chief-capability-converge，薄壳 + 判定层）：
                        decisions.ts = 判定层（参数校验 / 可见面 / 读面摘要 / 事件文案，纯函数，运行时只依赖
                        lib/preview.ts 与能力表 member-capabilities.ts）；约束常量与配额**都不再住在这里**（名字正则与
                        配额文案是能力表的别名，计数走 member-op-quota 的单例）；tools.ts = 扩展工厂薄壳（六个
                        `worksplice_*` 工具经 `extensionFactories` 按 surface 注册：global 六个、channel 只
                        `worksplice_task_create` 且 `defaultActive:true`；五个读 / 管理员写面每次调用复判
-                       `isSecretaryMember`，task_create 复判「消息所属频道的生效首席」；拿 `actorId` +
+                       `isSecretaryMember`，task_create 复判「消息所属群组的生效首席」；拿 `actorId` +
                        `sessionKey` + `surface` 三样身份）
   member-tool-policy.ts 成员会话的工具面策略判定层（零依赖）：CHIEF_DOMAIN_TOOL_NAMES / CHIEF_TOOL_NAMES
                        （global = `read` + 六个领域工具）/ CHANNEL_CHIEF_TOOL_NAMES（channel 只
                        `worksplice_task_create`）与 resolveMemberToolPolicy（global → 窄面；channel /
-                       none → `{}` 不表态，频道首席普通工具面不收窄）
+                       none → `{}` 不表态，群组首席普通工具面不收窄）
   secretary-name.ts    引导期默认秘书名字的唯一字面来源（零依赖、client-safe；数据层迁移常量 /
                        协作域身份名 / UI 启动助手判定都从这儿取）
   npx.ts               npx runner used by skill install
@@ -335,10 +335,10 @@ lib/
 
 components/
   AppShell.tsx           三栏骨架 + URL hash 深链（#c/<channelId>?m=<messageId>）+ 弹窗编排；
-                         ticket 13：中央（centerSelection）与右栏面板（panelContent）状态解耦——点 agent/人类/线程只在右栏展示，中央频道不动；
-                         切换频道清空面板；右栏非长驻（无选中整栏消失）
-  WorkspaceSidebar.tsx   channel 列表 + agent 成员列表（状态点）；只高亮频道行，agent 行点击 = 打开右栏面板
-  ChannelView.tsx        channel 消息流：seq 分页 / 引用 / 复制链接 / join-leave-archive
+                         ticket 13：中央（centerSelection）与右栏面板（panelContent）状态解耦——点 Bot/人类/线程只在右栏展示，中央群组不动；
+                         切换群组清空面板；右栏非长驻（无选中整栏消失）
+  WorkspaceSidebar.tsx   群组列表 + Bot 成员列表（状态点）；只高亮群组行，Bot 行点击 = 打开右栏面板
+  ChannelView.tsx        群组消息流：seq 分页 / 引用 / 复制链接 / join-leave-archive
                           / 右键菜单（Open Thread + Convert to Task）/ As Task 勾选 / TaskViews（§3.7 List|Board 切换，ADR-0002）
                           / Messages|Tasks 保留 + Tasks 未完成 badge；高频动作（回复/引用/复制链接）常驻，
                           / reaction / pin / 提醒 / 转为任务收进消息 `···` 二级菜单
@@ -350,17 +350,17 @@ components/
   ThreadPanel.tsx        右栏线程面板：锚点 + 消息 + composer + 面板局部引用 + 3s 轮询（THREAD_POLL_MS，后台 tab 暂停）
                          freshness baseSeq 按线程自己的 seq 空间；动作栏收窄为 表情 / 引用 / 复制链接 / ⏰（仅锚点），无 Reply / Pin
                          （收窄理由见 spec `.scratch/thread-message-actions/spec.md` D2/D3）
-  CreateChannelModal.tsx 建 channel（公开/私有/描述/初始成员）
-  CreateAgentModal.tsx   建 agent
+  CreateChannelModal.tsx 建群组（公开/私有/描述/初始成员）
+  CreateAgentModal.tsx   建 Bot
   ReminderModal.tsx      提醒设置/管理弹窗（target 锚定 + 唤醒谁 + recurrence 预设 + snooze/cancel）
   MyRemindersModal.tsx   全局提醒面板（全部提醒列表 + snooze/cancel + 定位跳转，15s 轮询）
-  AgentDetailPanel.tsx   agent 详情面板：状态/workspace/runtime（§3.10 ModelPicker 覆盖全局默认）/可观测性（§6.5 统计+任务历史+时间线+导出）/重置
+  AgentDetailPanel.tsx   Bot 详情面板：状态/workspace/runtime（§3.10 ModelPicker 覆盖全局默认）/可观测性（§6.5 统计+任务历史+时间线+导出）/重置
   BrutalModal.tsx        模态外壳（scrim + blur；`.modal` 两档宽度 440/560，模块名沿旧）
   Avatar.tsx             首字 tile 头像（`--av-0…--av-4` 确定性取色，人类恒 `--av-4`）
   StatusDot.tsx          状态点四态（绿/黄脉冲/橙/灰）
-  ChatInput.tsx          pi-web 遗留 chat 输入条（agent 会话用，保留复用）
-  MessageView.tsx        pi-web 遗留会话消息渲染（agent 会话用，保留复用）
-  MarkdownBody.tsx       markdown 渲染器（channel 消息复用）
+  ChatInput.tsx          pi-web 遗留 chat 输入条（Bot 会话用，保留复用）
+  MessageView.tsx        pi-web 遗留会话消息渲染（Bot 会话用，保留复用）
+  MarkdownBody.tsx       markdown 渲染器（群组消息复用）
   ModelsConfig.tsx       modal for editing models.json (opened from sidebar bottom)
   PiEnvNotice.tsx        pi 配置根两档故障的提示面（issue #226）：侧栏配置区常驻状态条（rail）+ ModelsConfig
                         顶部入口（modal）；只消费 /api/pi-env/status 的结论、自己不判定；无结论渲染 null；

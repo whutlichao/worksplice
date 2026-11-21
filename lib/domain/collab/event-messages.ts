@@ -85,7 +85,7 @@ export function notifyAgentJoinedChannel(channelId: string, joinerId: string): v
   const targetId = isChannelMember(channelId, globalChief.id) ? channelId : BUILTIN_CHANNEL_ID;
   deliverEventMessage(
     targetId,
-    `${mentionText(globalChief.name)} New member ${mentionText(joiner.name)} joined the channel`,
+    `${mentionText(globalChief.name)} New member ${mentionText(joiner.name)} joined the group`,
   );
 }
 
@@ -97,7 +97,7 @@ export function notifyChannelCreated(channel: ChannelRow): void {
   const globalChief = getGlobalChief();
   if (!globalChief) return;
   const targetId = isChannelMember(channel.id, globalChief.id) ? channel.id : BUILTIN_CHANNEL_ID;
-  deliverEventMessage(targetId, `${mentionText(globalChief.name)} New channel #${channel.name} created`);
+  deliverEventMessage(targetId, `${mentionText(globalChief.name)} New group #${channel.name} created`);
 }
 
 /**
@@ -142,7 +142,7 @@ export function notifyTaskCreated(channelId: string, taskNumber: number, anchorC
 }
 
 /** 节点 3 欢迎事件正文（spec §4.1/§6.2-⑤，构建 effort ticket 04）：只含关注对象，欢迎语由秘书回复。 */
-export const SECRETARY_WELCOME_CONTENT = `${mentionText(SUSAN_MEMBER_NAME)} Welcome aboard — this is your office channel`;
+export const SECRETARY_WELCOME_CONTENT = `${mentionText(SUSAN_MEMBER_NAME)} Welcome aboard — this is your office group`;
 
 /**
  * 节点 3：办公室频道欢迎语（spec §4.1/§6.2-⑤，构建 effort ticket 04）——秘书初始化流程

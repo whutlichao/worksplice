@@ -181,9 +181,9 @@ test("DM channels render in a separate 私信 group, stripped of the dm:owner↔
         { id: "dm:owner↔Alpha", name: "dm:owner↔Alpha", type: "dm", unread: 0, messageCount: 1 },
         { id: "dm:owner↔Mike", name: "dm:owner↔Mike", type: "dm", unread: 0, messageCount: 1 },
     ]);
-    // 独立分组标题（私信）与频道组并存
+    // 独立分组标题（私信）与群组组并存
     assert.match(html, /Direct messages/);
-    assert.match(html, /Channels/);
+    assert.match(html, /Groups/);
     // 前缀剥离：不渲染原始 dm:owner↔ 前缀
     assert.doesNotMatch(html, /dm:owner↔/);
     // 只显示 agent 名
@@ -359,8 +359,8 @@ test("票 03：rail 的控制面在形态重构后一个不少（行为面回归
     // 创建入口 / 搜索入口 / 收集入口 / 语言 / 紧凑端关闭按钮——两两对应 rail-actions /
     // search-shell / rail-foot / rail-head，任何一个在形态重构中掉队都会被这条钉住。
     for (const label of [
-        "New channel",
-        "New agent",
+        "New group",
+        "New bot",
         "Search messages…",
         "My reminders",
         "Models",

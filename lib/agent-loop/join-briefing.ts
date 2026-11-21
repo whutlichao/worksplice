@@ -39,8 +39,8 @@ const DESCRIPTION_CAP = 400;
 export function buildJoinBriefing(input: JoinBriefingInput): JoinBriefing {
   const description = input.channelDescription.trim();
   const lines: string[] = [
-    "Channel briefing (bounded; pre-join history is not injected):",
-    `- channel: #${input.channelName}`,
+    "Group briefing (bounded; pre-join history is not injected):",
+    `- group: #${input.channelName}`,
     `- description: ${description ? clampText(description, DESCRIPTION_CAP) : "(none)"}`,
     `- watermark: you start after seq ${input.watermarkSeq}; earlier messages are searchable by id or the search op, not injected here.`,
     `- this window ends at seq ${input.windowSeq}.`,
